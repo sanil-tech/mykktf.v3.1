@@ -1,0 +1,63 @@
+{
+  "name": "MaintenanceRequest",
+  "type": "object",
+  "properties": {
+    "student_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "room_number": {
+      "type": "string"
+    },
+    "block_name": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Electrical",
+        "Plumbing",
+        "Furniture",
+        "Internet",
+        "Cleaning",
+        "Others"
+      ]
+    },
+    "description": {
+      "type": "string"
+    },
+    "photo": {
+      "type": "string",
+      "format": "uri"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Submitted",
+        "Assigned",
+        "In Progress",
+        "Completed"
+      ],
+      "default": "Submitted"
+    },
+    "assigned_to": {
+      "type": "string"
+    },
+    "completion_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "remarks": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "student_id",
+    "student_name",
+    "room_number",
+    "category",
+    "description"
+  ]
+}

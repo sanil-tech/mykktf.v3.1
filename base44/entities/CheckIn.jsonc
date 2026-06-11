@@ -1,0 +1,41 @@
+{
+  "name": "CheckIn",
+  "type": "object",
+  "properties": {
+    "student_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "room_id": {
+      "type": "string"
+    },
+    "room_number": {
+      "type": "string"
+    },
+    "block_name": {
+      "type": "string"
+    },
+    "check_in_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "check_in_time": {
+      "type": "string"
+    },
+    "approved_by": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "student_id",
+    "student_name",
+    "room_id",
+    "room_number",
+    "check_in_date"
+  ]
+}

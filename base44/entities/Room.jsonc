@@ -1,0 +1,53 @@
+{
+  "name": "Room",
+  "type": "object",
+  "properties": {
+    "room_number": {
+      "type": "string"
+    },
+    "block_id": {
+      "type": "string",
+      "description": "Reference to Block"
+    },
+    "block_name": {
+      "type": "string"
+    },
+    "floor": {
+      "type": "number"
+    },
+    "capacity": {
+      "type": "number"
+    },
+    "current_occupancy": {
+      "type": "number",
+      "default": 0
+    },
+    "room_type": {
+      "type": "string",
+      "enum": [
+        "Single",
+        "Double",
+        "Triple",
+        "Quad"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Available",
+        "Occupied",
+        "Full",
+        "Maintenance"
+      ],
+      "default": "Available"
+    }
+  },
+  "required": [
+    "room_number",
+    "block_id",
+    "block_name",
+    "floor",
+    "capacity",
+    "room_type"
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "name": "CheckOut",
+  "type": "object",
+  "properties": {
+    "student_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "room_id": {
+      "type": "string"
+    },
+    "room_number": {
+      "type": "string"
+    },
+    "block_name": {
+      "type": "string"
+    },
+    "check_out_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "check_out_time": {
+      "type": "string"
+    },
+    "room_condition": {
+      "type": "string",
+      "enum": [
+        "Good",
+        "Fair",
+        "Damaged"
+      ]
+    },
+    "damage_assessment": {
+      "type": "string"
+    },
+    "refund_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "approved_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "student_id",
+    "student_name",
+    "room_id",
+    "room_number",
+    "check_out_date"
+  ]
+}

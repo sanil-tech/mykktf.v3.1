@@ -1,0 +1,56 @@
+{
+  "name": "FacilityBooking",
+  "type": "object",
+  "properties": {
+    "facility": {
+      "type": "string",
+      "enum": [
+        "Study Room",
+        "Multipurpose Hall",
+        "Tennis Court",
+        "Basketball Court",
+        "Meeting Room"
+      ]
+    },
+    "student_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "booking_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "start_time": {
+      "type": "string"
+    },
+    "end_time": {
+      "type": "string"
+    },
+    "purpose": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Pending",
+        "Approved",
+        "Rejected",
+        "Cancelled"
+      ],
+      "default": "Pending"
+    },
+    "approved_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "facility",
+    "student_id",
+    "student_name",
+    "booking_date",
+    "start_time",
+    "end_time"
+  ]
+}

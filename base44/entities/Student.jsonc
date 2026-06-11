@@ -1,0 +1,87 @@
+{
+  "name": "Student",
+  "type": "object",
+  "properties": {
+    "student_id": {
+      "type": "string",
+      "description": "University student ID"
+    },
+    "full_name": {
+      "type": "string"
+    },
+    "ic_passport": {
+      "type": "string",
+      "description": "IC or Passport number"
+    },
+    "gender": {
+      "type": "string",
+      "enum": [
+        "Male",
+        "Female"
+      ]
+    },
+    "date_of_birth": {
+      "type": "string",
+      "format": "date"
+    },
+    "faculty": {
+      "type": "string"
+    },
+    "programme": {
+      "type": "string"
+    },
+    "year_of_study": {
+      "type": "number",
+      "enum": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "phone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string",
+      "format": "email"
+    },
+    "parent_name": {
+      "type": "string"
+    },
+    "parent_phone": {
+      "type": "string"
+    },
+    "emergency_contact": {
+      "type": "string"
+    },
+    "vehicle_reg": {
+      "type": "string"
+    },
+    "profile_photo": {
+      "type": "string",
+      "format": "uri"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Active",
+        "Inactive"
+      ],
+      "default": "Active"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "Linked User account ID"
+    }
+  },
+  "required": [
+    "student_id",
+    "full_name",
+    "gender",
+    "faculty",
+    "phone",
+    "email"
+  ]
+}

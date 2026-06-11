@@ -1,0 +1,44 @@
+{
+  "name": "Fee",
+  "type": "object",
+  "properties": {
+    "student_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "semester": {
+      "type": "string"
+    },
+    "hostel_fee": {
+      "type": "number"
+    },
+    "outstanding_balance": {
+      "type": "number",
+      "default": 0
+    },
+    "payment_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "receipt_number": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Paid",
+        "Partial",
+        "Unpaid"
+      ],
+      "default": "Unpaid"
+    }
+  },
+  "required": [
+    "student_id",
+    "student_name",
+    "semester",
+    "hostel_fee"
+  ]
+}

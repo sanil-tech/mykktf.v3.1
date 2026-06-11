@@ -1,0 +1,25 @@
+{
+  "name": "Block",
+  "type": "object",
+  "properties": {
+    "block_name": {
+      "type": "string"
+    },
+    "gender_restriction": {
+      "type": "string",
+      "enum": [
+        "Male",
+        "Female",
+        "Mixed"
+      ]
+    },
+    "total_floors": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "block_name",
+    "gender_restriction",
+    "total_floors"
+  ]
+}

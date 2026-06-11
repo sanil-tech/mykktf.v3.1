@@ -1,0 +1,66 @@
+{
+  "name": "LeaveApplication",
+  "type": "object",
+  "properties": {
+    "student_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "leave_type": {
+      "type": "string",
+      "enum": [
+        "Weekend",
+        "Semester Break",
+        "Emergency",
+        "Medical",
+        "Other"
+      ]
+    },
+    "destination": {
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "departure_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "departure_time": {
+      "type": "string"
+    },
+    "return_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "return_time": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Pending",
+        "Approved",
+        "Rejected"
+      ],
+      "default": "Pending"
+    },
+    "approved_by": {
+      "type": "string"
+    },
+    "remarks": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "student_id",
+    "student_name",
+    "leave_type",
+    "destination",
+    "reason",
+    "departure_date",
+    "return_date"
+  ]
+}

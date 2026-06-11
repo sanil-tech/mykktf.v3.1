@@ -1,0 +1,41 @@
+{
+  "name": "Announcement",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "General Notice",
+        "Emergency Notice",
+        "Event Notice"
+      ]
+    },
+    "attachment": {
+      "type": "string",
+      "format": "uri"
+    },
+    "publish_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "expiry_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "published_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "content",
+    "type",
+    "publish_date"
+  ]
+}

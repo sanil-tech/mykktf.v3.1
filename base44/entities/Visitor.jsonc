@@ -1,0 +1,46 @@
+{
+  "name": "Visitor",
+  "type": "object",
+  "properties": {
+    "visitor_name": {
+      "type": "string"
+    },
+    "ic_passport": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "student_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "visit_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "time_in": {
+      "type": "string"
+    },
+    "time_out": {
+      "type": "string"
+    },
+    "purpose": {
+      "type": "string"
+    },
+    "qr_code": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "visitor_name",
+    "ic_passport",
+    "phone",
+    "student_id",
+    "student_name",
+    "visit_date",
+    "time_in"
+  ]
+}

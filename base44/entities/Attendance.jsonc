@@ -1,0 +1,54 @@
+{
+  "name": "Attendance",
+  "type": "object",
+  "properties": {
+    "student_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "Assembly",
+        "Briefing",
+        "Emergency Drill",
+        "Sports Activity",
+        "Other"
+      ]
+    },
+    "event_name": {
+      "type": "string"
+    },
+    "attendance_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "method": {
+      "type": "string",
+      "enum": [
+        "QR Code",
+        "Manual",
+        "Event"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Present",
+        "Absent",
+        "Late"
+      ],
+      "default": "Present"
+    }
+  },
+  "required": [
+    "student_id",
+    "student_name",
+    "event_type",
+    "event_name",
+    "attendance_date",
+    "method"
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "name": "DisciplineRecord",
+  "type": "object",
+  "properties": {
+    "student_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "incident_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "offence_category": {
+      "type": "string",
+      "enum": [
+        "Noise Violation",
+        "Property Damage",
+        "Unauthorized Guest",
+        "Substance Abuse",
+        "Curfew Violation",
+        "Other"
+      ]
+    },
+    "description": {
+      "type": "string"
+    },
+    "evidence": {
+      "type": "string",
+      "format": "uri"
+    },
+    "action_taken": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Investigation",
+        "Warning",
+        "Fine",
+        "Closed"
+      ],
+      "default": "Investigation"
+    },
+    "reported_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "student_id",
+    "student_name",
+    "incident_date",
+    "offence_category",
+    "description"
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "name": "Parcel",
+  "type": "object",
+  "properties": {
+    "tracking_number": {
+      "type": "string"
+    },
+    "courier_company": {
+      "type": "string"
+    },
+    "student_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "arrival_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "collection_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "staff_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Pending Collection",
+        "Collected"
+      ],
+      "default": "Pending Collection"
+    },
+    "qr_code": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "tracking_number",
+    "courier_company",
+    "student_id",
+    "student_name",
+    "arrival_date"
+  ]
+}
