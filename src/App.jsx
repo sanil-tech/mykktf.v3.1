@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/toaster"
+import { base44 } from '@/api/base44Client';
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
@@ -28,11 +29,29 @@ import Announcements from '@/pages/Announcements';
 import Fees from '@/pages/Fees';
 import Reports from '@/pages/Reports';
 import AuditLog from '@/pages/AuditLog';
+import StudentSetup from '@/pages/StudentSetup';
+import { useState, useEffect } from 'react';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, user } = useAuth();
+  const [needsSetup, setNeedsSetup] = useState(false);
+  const [checkingSetup, setCheckingSetup] = useState(false);
 
-  if (isLoadingPublicSettings || isLoadingAuth) {
+  useEffect(() => {
+    // Only check setup for newly registered users (no role yet or role is default)
+    if (user && !isLoadingAuth) {
+      const isStudent = !user.role || user.role === 'student';
+      if (isStudent) {
+        setCheckingSetup(true);
+        base44.entities.Student.filter({ email: user.email }).then(results => {
+          setNeedsSetup(results.length === 0);
+          setCheckingSetup(false);
+        });
+      }
+    }
+  }, [user, isLoadingAuth]);
+
+  if (isLoadingPublicSettings || isLoadingAuth || checkingSetup) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -50,6 +69,10 @@ const AuthenticatedApp = () => {
       navigateToLogin();
       return null;
     }
+  }
+
+  if (needsSetup && user) {
+    return <StudentSetup user={user} onComplete={() => { setNeedsSetup(false); window.location.href = '/'; }} />;
   }
 
   return (
@@ -79,6 +102,7 @@ const AuthenticatedApp = () => {
         </Route>
       </Route>
 
+      <Route path="/student-setup" element={<StudentSetup user={user} onComplete={() => { window.location.href = '/'; }} />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
