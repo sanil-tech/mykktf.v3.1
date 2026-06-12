@@ -47,6 +47,14 @@
       "type": "string",
       "format": "email"
     },
+    "block_name": {
+      "type": "string",
+      "description": "Assigned residential block"
+    },
+    "room_number": {
+      "type": "string",
+      "description": "Assigned room number"
+    },
     "parent_name": {
       "type": "string"
     },

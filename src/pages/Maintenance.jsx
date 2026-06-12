@@ -12,38 +12,58 @@ import { useToast } from '@/components/ui/use-toast';
 import { Plus, Wrench } from 'lucide-react';
 
 const statusBadge = { Submitted: 'bg-gray-100 text-gray-700', Assigned: 'bg-blue-100 text-blue-700', 'In Progress': 'bg-yellow-100 text-yellow-700', Completed: 'bg-green-100 text-green-700' };
+const STAFF_ROLES = ['warden', 'staff', 'admin'];
 
 export default function Maintenance() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [students, setStudents] = useState([]);
-  const [form, setForm] = useState({ student_id: '', student_name: '', room_number: '', block_name: '', category: 'Electrical', description: '' });
+  const [currentUser, setCurrentUser] = useState(null);
+  const [myStudent, setMyStudent] = useState(null);
+  const [form, setForm] = useState({ room_number: '', block_name: '', category: 'Electrical', description: '' });
   const [filter, setFilter] = useState('all');
   const { toast } = useToast();
 
-  useEffect(() => { load(); }, []);
-  async function load() {
+  const isStaff = currentUser && STAFF_ROLES.includes(currentUser.role);
+
+  useEffect(() => { init(); }, []);
+  async function init() {
     setLoading(true);
-    const [r, s] = await Promise.all([base44.entities.MaintenanceRequest.list('-created_date'), base44.entities.Student.list()]);
-    setRequests(r);
-    setStudents(s);
+    const user = await base44.auth.me();
+    setCurrentUser(user);
+    const isStaffRole = STAFF_ROLES.includes(user?.role);
+    let reqs;
+    if (isStaffRole) {
+      reqs = await base44.entities.MaintenanceRequest.list('-created_date');
+    } else {
+      const students = await base44.entities.Student.filter({ email: user.email });
+      const student = students[0] || null;
+      setMyStudent(student);
+      reqs = student
+        ? await base44.entities.MaintenanceRequest.filter({ student_id: student.id })
+        : [];
+    }
+    setRequests(reqs);
     setLoading(false);
   }
 
   async function handleSubmit() {
-    if (!form.student_id || !form.room_number || !form.description) { toast({ title: 'Fill required fields', variant: 'destructive' }); return; }
-    const student = students.find(s => s.id === form.student_id);
-    await base44.entities.MaintenanceRequest.create({ ...form, student_name: student?.full_name || '' });
+    if (!form.room_number || !form.description) { toast({ title: 'Fill required fields', variant: 'destructive' }); return; }
+    if (!myStudent) { toast({ title: 'Student profile not found', variant: 'destructive' }); return; }
+    await base44.entities.MaintenanceRequest.create({
+      ...form,
+      student_id: myStudent.id,
+      student_name: myStudent.full_name,
+    });
     toast({ title: 'Request submitted' });
     setDialogOpen(false);
-    load();
+    init();
   }
 
   async function updateStatus(id, status) {
     await base44.entities.MaintenanceRequest.update(id, { status });
     toast({ title: `Status updated to ${status}` });
-    load();
+    init();
   }
 
   const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter);
@@ -52,17 +72,27 @@ export default function Maintenance() {
 
   return (
     <div>
-      <PageHeader title="Maintenance Requests" description="Track and manage maintenance issues" actions={<Button size="sm" onClick={() => { setForm({ student_id: '', student_name: '', room_number: '', block_name: '', category: 'Electrical', description: '' }); setDialogOpen(true); }}><Plus className="w-4 h-4 mr-1.5" /> New Request</Button>} />
+      <PageHeader
+        title="Maintenance Requests"
+        description={isStaff ? "Review and manage maintenance issues" : "Report a maintenance issue in your room"}
+        actions={!isStaff && (
+          <Button size="sm" onClick={() => { setForm({ room_number: myStudent?.room_number || '', block_name: myStudent?.block_name || '', category: 'Electrical', description: '' }); setDialogOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1.5" /> New Request
+          </Button>
+        )}
+      />
 
-      <div className="mb-5">
-        <Select value={filter} onValueChange={setFilter}>
-          <SelectTrigger className="w-full sm:w-48 h-9 text-sm"><SelectValue placeholder="Filter status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            {['Submitted','Assigned','In Progress','Completed'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      {isStaff && (
+        <div className="mb-5">
+          <Select value={filter} onValueChange={setFilter}>
+            <SelectTrigger className="w-full sm:w-48 h-9 text-sm"><SelectValue placeholder="Filter status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              {['Submitted','Assigned','In Progress','Completed'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {filtered.length === 0 ? <EmptyState icon={Wrench} title="No maintenance requests" /> : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -78,11 +108,13 @@ export default function Maintenance() {
               <span className="inline-block px-2 py-0.5 rounded bg-muted text-[10px] font-medium text-muted-foreground mb-2">{r.category}</span>
               <p className="text-xs text-foreground line-clamp-2">{r.description}</p>
               {r.photo && <img src={r.photo} alt="" className="w-full h-24 object-cover rounded-lg mt-2" />}
-              <div className="flex gap-1 mt-3">
-                {r.status === 'Submitted' && <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => updateStatus(r.id, 'Assigned')}>Assign</Button>}
-                {r.status === 'Assigned' && <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => updateStatus(r.id, 'In Progress')}>Start</Button>}
-                {r.status === 'In Progress' && <Button size="sm" className="text-xs h-7" onClick={() => updateStatus(r.id, 'Completed')}>Complete</Button>}
-              </div>
+              {isStaff && (
+                <div className="flex gap-1 mt-3">
+                  {r.status === 'Submitted' && <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => updateStatus(r.id, 'Assigned')}>Assign</Button>}
+                  {r.status === 'Assigned' && <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => updateStatus(r.id, 'In Progress')}>Start</Button>}
+                  {r.status === 'In Progress' && <Button size="sm" className="text-xs h-7" onClick={() => updateStatus(r.id, 'Completed')}>Complete</Button>}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -92,13 +124,10 @@ export default function Maintenance() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>New Maintenance Request</DialogTitle></DialogHeader>
           <div className="space-y-3 mt-2">
-            <div><Label className="text-xs">Student *</Label>
-              <Select value={form.student_id} onValueChange={v => setForm({ ...form, student_id: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select student" /></SelectTrigger>
-                <SelectContent>{students.map(s => <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>)}</SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs">Room Number *</Label><Input value={form.room_number} onChange={e => setForm({ ...form, room_number: e.target.value })} className="h-9 text-sm mt-1" /></div>
+              <div><Label className="text-xs">Block</Label><Input value={form.block_name} onChange={e => setForm({ ...form, block_name: e.target.value })} className="h-9 text-sm mt-1" /></div>
             </div>
-            <div><Label className="text-xs">Room Number *</Label><Input value={form.room_number} onChange={e => setForm({ ...form, room_number: e.target.value })} className="h-9 text-sm mt-1" /></div>
             <div><Label className="text-xs">Category</Label>
               <Select value={form.category} onValueChange={v => setForm({ ...form, category: v })}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>

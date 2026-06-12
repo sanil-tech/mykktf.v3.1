@@ -13,37 +13,54 @@ import { Plus, Megaphone, Trash2, AlertTriangle, Calendar, Info } from 'lucide-r
 
 const typeIcon = { 'General Notice': Info, 'Emergency Notice': AlertTriangle, 'Event Notice': Calendar };
 const typeBg = { 'General Notice': 'border-l-blue-500', 'Emergency Notice': 'border-l-red-500', 'Event Notice': 'border-l-green-500' };
+const PUBLISHER_ROLES = ['warden', 'admin', 'staff'];
 
 export default function Announcements() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const [form, setForm] = useState({ title: '', content: '', type: 'General Notice', publish_date: '', expiry_date: '' });
   const { toast } = useToast();
 
-  useEffect(() => { load(); }, []);
-  async function load() {
+  const canPublish = currentUser && PUBLISHER_ROLES.includes(currentUser.role);
+
+  useEffect(() => { init(); }, []);
+  async function init() {
     setLoading(true);
-    const data = await base44.entities.Announcement.list('-created_date');
+    const [user, data] = await Promise.all([base44.auth.me(), base44.entities.Announcement.list('-created_date')]);
+    setCurrentUser(user);
     setItems(data);
     setLoading(false);
   }
 
   async function handleSubmit() {
     if (!form.title || !form.content || !form.publish_date) { toast({ title: 'Fill required fields', variant: 'destructive' }); return; }
-    await base44.entities.Announcement.create(form);
+    await base44.entities.Announcement.create({ ...form, published_by: currentUser?.full_name || currentUser?.email });
     toast({ title: 'Announcement published' });
     setDialogOpen(false);
-    load();
+    init();
   }
 
-  async function handleDelete(id) { await base44.entities.Announcement.delete(id); load(); }
+  async function handleDelete(id) {
+    if (!canPublish) return;
+    await base44.entities.Announcement.delete(id);
+    init();
+  }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
 
   return (
     <div>
-      <PageHeader title="Announcements" description="Publish notices and events" actions={<Button size="sm" onClick={() => { setForm({ title: '', content: '', type: 'General Notice', publish_date: new Date().toISOString().split('T')[0], expiry_date: '' }); setDialogOpen(true); }}><Plus className="w-4 h-4 mr-1.5" /> New Announcement</Button>} />
+      <PageHeader
+        title="Announcements"
+        description="College notices and events"
+        actions={canPublish && (
+          <Button size="sm" onClick={() => { setForm({ title: '', content: '', type: 'General Notice', publish_date: new Date().toISOString().split('T')[0], expiry_date: '' }); setDialogOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1.5" /> New Announcement
+          </Button>
+        )}
+      />
 
       {items.length === 0 ? <EmptyState icon={Megaphone} title="No announcements" /> : (
         <div className="space-y-4">
@@ -58,13 +75,18 @@ export default function Announcements() {
                     </div>
                     <div>
                       <h3 className="text-sm font-heading font-semibold">{item.title}</h3>
-                      <span className="text-[10px] text-muted-foreground">{item.type} · {item.publish_date}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {item.type} · {item.publish_date}
+                        {item.published_by && ` · By ${item.published_by}`}
+                      </span>
                       <p className="text-xs text-foreground mt-2 whitespace-pre-wrap">{item.content}</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive shrink-0" onClick={() => handleDelete(item.id)}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                  {canPublish && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive shrink-0" onClick={() => handleDelete(item.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
                 </div>
               </div>
             );
@@ -72,26 +94,28 @@ export default function Announcements() {
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>New Announcement</DialogTitle></DialogHeader>
-          <div className="space-y-3 mt-2">
-            <div><Label className="text-xs">Title *</Label><Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="h-9 text-sm mt-1" /></div>
-            <div><Label className="text-xs">Type</Label>
-              <Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>{['General Notice','Emergency Notice','Event Notice'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-              </Select>
+      {canPublish && (
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>New Announcement</DialogTitle></DialogHeader>
+            <div className="space-y-3 mt-2">
+              <div><Label className="text-xs">Title *</Label><Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="h-9 text-sm mt-1" /></div>
+              <div><Label className="text-xs">Type</Label>
+                <Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}>
+                  <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>{['General Notice','Emergency Notice','Event Notice'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label className="text-xs">Content *</Label><Textarea value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} className="text-sm mt-1" rows={4} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label className="text-xs">Publish Date *</Label><Input type="date" value={form.publish_date} onChange={e => setForm({ ...form, publish_date: e.target.value })} className="h-9 text-sm mt-1" /></div>
+                <div><Label className="text-xs">Expiry Date</Label><Input type="date" value={form.expiry_date} onChange={e => setForm({ ...form, expiry_date: e.target.value })} className="h-9 text-sm mt-1" /></div>
+              </div>
             </div>
-            <div><Label className="text-xs">Content *</Label><Textarea value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} className="text-sm mt-1" rows={4} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-xs">Publish Date *</Label><Input type="date" value={form.publish_date} onChange={e => setForm({ ...form, publish_date: e.target.value })} className="h-9 text-sm mt-1" /></div>
-              <div><Label className="text-xs">Expiry Date</Label><Input type="date" value={form.expiry_date} onChange={e => setForm({ ...form, expiry_date: e.target.value })} className="h-9 text-sm mt-1" /></div>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-4"><Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>Cancel</Button><Button size="sm" onClick={handleSubmit}>Publish</Button></div>
-        </DialogContent>
-      </Dialog>
+            <div className="flex justify-end gap-2 mt-4"><Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>Cancel</Button><Button size="sm" onClick={handleSubmit}>Publish</Button></div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

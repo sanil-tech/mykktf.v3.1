@@ -6,12 +6,26 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GraduationCap, User, Phone, BookOpen, Car, Users, CheckCircle2, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
 
-const FACULTIES = ['Engineering', 'Science', 'Arts', 'Business', 'Medicine', 'Education', 'Law', 'IT'];
+const FACULTIES = [
+  'Faculty of Computing and Informatics (FCI)',
+  'Faculty of Business, Economics and Accountancy (FBEA)',
+  'Faculty of Engineering (FE)',
+  'Faculty of Science and Natural Resources (FSNR)',
+  'Faculty of Social Sciences and Humanities (FSSH)',
+  'Faculty of Education (FPEND)',
+  'Faculty of Medicine (FM)',
+  'Faculty of Law (FL)',
+  'Faculty of Humanities, Arts and Heritage (FKAB)',
+  'Faculty of Food Technology and Nutrition Sciences (FSTMN)',
+  'Faculty of Pharmacy (FP)',
+  'Academy of Language Studies (APB)',
+  'Centre for the Promotion of Knowledge and Language Learning (PPIB)',
+];
 
 const STEPS = [
   { id: 1, title: 'Personal Info', icon: User, description: 'Your basic personal details' },
   { id: 2, title: 'Academic Info', icon: BookOpen, description: 'Your university & programme details' },
-  { id: 3, title: 'Contact & Emergency', icon: Phone, description: 'Contact and emergency information' },
+  { id: 3, title: 'Room & Contact', icon: Phone, description: 'Room assignment and emergency information' },
 ];
 
 export default function StudentSetup({ user, onComplete }) {
@@ -32,6 +46,8 @@ export default function StudentSetup({ user, onComplete }) {
     parent_phone: '',
     emergency_contact: '',
     vehicle_reg: '',
+    block_name: '',
+    room_number: '',
     status: 'Active',
     user_id: user?.id || '',
   });
@@ -192,9 +208,17 @@ export default function StudentSetup({ user, onComplete }) {
             </div>
           )}
 
-          {/* Step 3: Contact & Emergency */}
+          {/* Step 3: Room & Contact */}
           {step === 3 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs font-medium">Block Name</Label>
+                <Input value={form.block_name} onChange={e => set('block_name', e.target.value)} placeholder="e.g. Block A" className="mt-1 h-10 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Room Number</Label>
+                <Input value={form.room_number} onChange={e => set('room_number', e.target.value)} placeholder="e.g. A-101" className="mt-1 h-10 text-sm" />
+              </div>
               <div>
                 <Label className="text-xs font-medium">Phone Number <span className="text-red-500">*</span></Label>
                 <Input value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="e.g. 011-1234567" className={`mt-1 h-10 text-sm ${errors.phone ? 'border-red-400' : ''}`} />
