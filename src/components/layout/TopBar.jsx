@@ -25,7 +25,7 @@ export default function TopBar({ onMenuClick, user }) {
           <Menu className="w-5 h-5 text-foreground" />
         </button>
         <div className="hidden sm:block">
-          <h2 className="text-sm font-heading font-semibold text-foreground">Kolej Kediaman Tun Fuad Management</h2>
+          <h2 className="text-sm font-heading font-semibold text-foreground">Kolej Kediaman Tun Fuad Resident Management</h2>
         </div>
       </div>
       <div className="flex items-center gap-2">
