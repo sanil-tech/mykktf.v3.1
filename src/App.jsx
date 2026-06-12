@@ -29,6 +29,7 @@ import Announcements from '@/pages/Announcements';
 import Fees from '@/pages/Fees';
 import Reports from '@/pages/Reports';
 import AuditLog from '@/pages/AuditLog';
+import MyProfile from '@/pages/MyProfile';
 import StudentSetup from '@/pages/StudentSetup';
 import { useState, useEffect } from 'react';
 
@@ -99,6 +100,7 @@ const AuthenticatedApp = () => {
           <Route path="/fees" element={<Fees />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/audit-log" element={<AuditLog />} />
+          <Route path="/my-profile" element={<MyProfile />} />
         </Route>
       </Route>
 

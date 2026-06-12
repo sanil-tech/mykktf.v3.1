@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, Bell, LogOut, User } from 'lucide-react';
+import { Menu, Bell, LogOut, User, UserCog } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { ROLE_LABELS } from '@/lib/roles';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,11 @@ export default function TopBar({ onMenuClick, user }) {
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem className="text-xs text-muted-foreground" disabled>
               {user?.email}
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/my-profile" className="flex items-center">
+                <UserCog className="w-4 h-4 mr-2" /> My Profile
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => base44.auth.logout('/')} className="text-destructive">
