@@ -12,9 +12,9 @@ export default function TopBar({ onMenuClick, user }) {
 
   useEffect(() => {
     if (user?.id) {
-      base44.entities.Notification.filter({ user_id: user.id, is_read: false })
-        .then(notifs => setUnreadCount(notifs.length))
-        .catch(() => {});
+      base44.entities.Notification.filter({ user_id: user.id, is_read: false }).
+      then((notifs) => setUnreadCount(notifs.length)).
+      catch(() => {});
     }
   }, [user?.id]);
 
@@ -25,18 +25,18 @@ export default function TopBar({ onMenuClick, user }) {
           <Menu className="w-5 h-5 text-foreground" />
         </button>
         <div className="hidden sm:block">
-          <h2 className="text-sm font-heading font-semibold text-foreground">Kolej Kediaman Management</h2>
+          <h2 className="text-sm font-heading font-semibold text-foreground">Kolej Kediaman Tun Fuad Management</h2>
         </div>
       </div>
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" className="relative" asChild>
           <a href="/announcements">
             <Bell className="w-[18px] h-[18px]" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
+            {unreadCount > 0 &&
+            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
-            )}
+            }
           </a>
         </Button>
         <DropdownMenu>
@@ -67,6 +67,6 @@ export default function TopBar({ onMenuClick, user }) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </header>
-  );
+    </header>);
+
 }
