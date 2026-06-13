@@ -35,6 +35,13 @@ export default function Maintenance() {
     let reqs;
     if (isStaffRole) {
       reqs = await base44.entities.MaintenanceRequest.list('-created_date');
+      if (user.role === 'warden') {
+        const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
+        if (wb.length > 0) {
+          const blockNames = wb.map(w => w.block_name);
+          reqs = reqs.filter(r => blockNames.includes(r.block_name));
+        }
+      }
     } else {
       const students = await base44.entities.Student.filter({ email: user.email });
       const student = students[0] || null;

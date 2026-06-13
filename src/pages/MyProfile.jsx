@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
-import { User, Save, Loader2 } from 'lucide-react';
+import { User, Save, Loader2, Building2, Plus, X } from 'lucide-react';
 
 const UMS_FACULTIES = [
   'Faculty of Business, Economics and Accountancy (FPEP)',
@@ -31,6 +31,10 @@ export default function MyProfile() {
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [blocks, setBlocks] = useState([]);
+  const [wardenAssignments, setWardenAssignments] = useState([]);
+  const [selectedBlock, setSelectedBlock] = useState('');
+  const [savingBlock, setSavingBlock] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => { init(); }, []);
@@ -48,6 +52,14 @@ export default function MyProfile() {
       phone: '', email: user.email || '', block_name: '', room_number: '',
       parent_name: '', parent_phone: '', emergency_contact: '', vehicle_reg: '',
     });
+    if (user.role === 'warden') {
+      const [b, wa] = await Promise.all([
+        base44.entities.Block.list(),
+        base44.entities.WardenBlock.filter({ warden_user_id: user.id }),
+      ]);
+      setBlocks(b);
+      setWardenAssignments(wa);
+    }
     setLoading(false);
   }
 
@@ -79,6 +91,32 @@ export default function MyProfile() {
       )}
     </div>
   );
+
+  async function addWardenBlock() {
+    if (!selectedBlock) return;
+    const block = blocks.find(b => b.id === selectedBlock);
+    const exists = wardenAssignments.find(a => a.block_id === selectedBlock);
+    if (exists) { toast({ title: 'Block already assigned', variant: 'destructive' }); return; }
+    setSavingBlock(true);
+    await base44.entities.WardenBlock.create({
+      warden_user_id: currentUser.id,
+      warden_name: currentUser.full_name || currentUser.email,
+      warden_email: currentUser.email,
+      block_id: selectedBlock,
+      block_name: block?.block_name || '',
+    });
+    const wa = await base44.entities.WardenBlock.filter({ warden_user_id: currentUser.id });
+    setWardenAssignments(wa);
+    setSelectedBlock('');
+    setSavingBlock(false);
+    toast({ title: `Block ${block?.block_name} assigned` });
+  }
+
+  async function removeWardenBlock(id) {
+    await base44.entities.WardenBlock.delete(id);
+    setWardenAssignments(wa => wa.filter(a => a.id !== id));
+    toast({ title: 'Block removed' });
+  }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
 
@@ -130,6 +168,35 @@ export default function MyProfile() {
             {f('room_number', 'Room Number')}
           </div>
         </div>
+
+        {/* Warden Block Assignment */}
+        {currentUser?.role === 'warden' && (
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Assigned Blocks</h3>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {wardenAssignments.length === 0 && <p className="text-xs text-muted-foreground">No blocks assigned yet.</p>}
+              {wardenAssignments.map(a => (
+                <span key={a.id} className="flex items-center gap-1.5 bg-primary/10 text-primary px-2.5 py-1 rounded-full text-xs font-medium">
+                  <Building2 className="w-3 h-3" /> {a.block_name}
+                  <button onClick={() => removeWardenBlock(a.id)} className="hover:text-red-500 transition-colors"><X className="w-3 h-3" /></button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Select value={selectedBlock} onValueChange={setSelectedBlock}>
+                <SelectTrigger className="h-9 text-sm flex-1"><SelectValue placeholder="Select a block to add" /></SelectTrigger>
+                <SelectContent>
+                  {blocks.filter(b => !wardenAssignments.find(a => a.block_id === b.id)).map(b => (
+                    <SelectItem key={b.id} value={b.id}>{b.block_name} ({b.gender_restriction})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" onClick={addWardenBlock} disabled={!selectedBlock || savingBlock} className="shrink-0">
+                <Plus className="w-4 h-4 mr-1" /> Add
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Emergency */}
         <div>

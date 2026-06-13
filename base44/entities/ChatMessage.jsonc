@@ -1,0 +1,55 @@
+{
+  "name": "ChatMessage",
+  "type": "object",
+  "properties": {
+    "channel": {
+      "type": "string",
+      "enum": [
+        "room",
+        "block",
+        "community"
+      ]
+    },
+    "channel_key": {
+      "type": "string",
+      "description": "room_number+block for room chat, block_name for block, 'kktf' for community"
+    },
+    "sender_user_id": {
+      "type": "string"
+    },
+    "sender_name": {
+      "type": "string"
+    },
+    "sender_role": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "image_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "is_pinned": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_deleted": {
+      "type": "boolean",
+      "default": false
+    },
+    "reported": {
+      "type": "boolean",
+      "default": false
+    },
+    "report_reason": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "channel",
+    "channel_key",
+    "sender_user_id",
+    "sender_name"
+  ]
+}

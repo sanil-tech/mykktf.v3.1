@@ -1,0 +1,82 @@
+{
+  "name": "Complaint",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "Complaint",
+        "Suggestion"
+      ]
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Facilities",
+        "Internet",
+        "Security",
+        "Cleanliness",
+        "Staff Services",
+        "Others"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "block_name": {
+      "type": "string"
+    },
+    "room_number": {
+      "type": "string"
+    },
+    "is_anonymous": {
+      "type": "boolean",
+      "default": false
+    },
+    "student_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "student_user_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Submitted",
+        "Under Review",
+        "Resolved",
+        "Closed"
+      ],
+      "default": "Submitted"
+    },
+    "admin_response": {
+      "type": "string"
+    },
+    "warden_response": {
+      "type": "string"
+    },
+    "resolved_by": {
+      "type": "string"
+    },
+    "resolved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "attachment": {
+      "type": "string",
+      "format": "uri"
+    }
+  },
+  "required": [
+    "type",
+    "category",
+    "title",
+    "description"
+  ]
+}

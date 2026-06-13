@@ -1,0 +1,28 @@
+{
+  "name": "WardenBlock",
+  "type": "object",
+  "properties": {
+    "warden_user_id": {
+      "type": "string",
+      "description": "User ID of the warden"
+    },
+    "warden_name": {
+      "type": "string"
+    },
+    "warden_email": {
+      "type": "string"
+    },
+    "block_id": {
+      "type": "string"
+    },
+    "block_name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "warden_user_id",
+    "warden_name",
+    "block_id",
+    "block_name"
+  ]
+}

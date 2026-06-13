@@ -34,6 +34,19 @@ export default function Leave() {
     let leaveList, student = null;
     if (isRev) {
       leaveList = await base44.entities.LeaveApplication.list('-created_date');
+      if (user.role === 'warden') {
+        const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
+        if (wb.length > 0) {
+          const blockNames = wb.map(w => w.block_name);
+          const allStudents = await base44.entities.Student.filter({ status: 'Active' });
+          const stuMap = {};
+          allStudents.forEach(s => { stuMap[s.student_id] = s; });
+          leaveList = leaveList.filter(l => {
+            const stu = stuMap[l.student_id];
+            return stu && blockNames.includes(stu.block_name);
+          });
+        }
+      }
     } else {
       const students = await base44.entities.Student.filter({ email: user.email });
       student = students[0] || null;

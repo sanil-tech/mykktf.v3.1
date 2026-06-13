@@ -1,0 +1,27 @@
+{
+  "name": "AnnouncementRead",
+  "type": "object",
+  "properties": {
+    "announcement_id": {
+      "type": "string"
+    },
+    "student_user_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "read_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "acknowledged": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "announcement_id",
+    "student_user_id"
+  ]
+}

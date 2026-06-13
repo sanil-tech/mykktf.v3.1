@@ -1,0 +1,56 @@
+{
+  "name": "Survey",
+  "type": "object",
+  "properties": {
+    "student_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "student_user_id": {
+      "type": "string"
+    },
+    "block_name": {
+      "type": "string"
+    },
+    "room_number": {
+      "type": "string"
+    },
+    "semester": {
+      "type": "string"
+    },
+    "room_satisfaction": {
+      "type": "number"
+    },
+    "facility_satisfaction": {
+      "type": "number"
+    },
+    "internet_satisfaction": {
+      "type": "number"
+    },
+    "staff_satisfaction": {
+      "type": "number"
+    },
+    "security_satisfaction": {
+      "type": "number"
+    },
+    "overall_satisfaction": {
+      "type": "number"
+    },
+    "comments": {
+      "type": "string"
+    },
+    "suggestions": {
+      "type": "string"
+    },
+    "checkout_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "student_id",
+    "student_name",
+    "overall_satisfaction"
+  ]
+}
