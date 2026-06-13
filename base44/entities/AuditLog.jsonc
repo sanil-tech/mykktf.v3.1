@@ -27,5 +27,15 @@
     "user_name",
     "action",
     "module"
-  ]
+  ],
+  "rls": {
+    "create": true,
+    "read": {
+      "user_condition": {
+        "role": "super_admin"
+      }
+    },
+    "update": false,
+    "delete": false
+  }
 }
