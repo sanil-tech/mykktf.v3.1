@@ -31,6 +31,11 @@ import Reports from '@/pages/Reports';
 import AuditLog from '@/pages/AuditLog';
 import MyProfile from '@/pages/MyProfile';
 import StudentSetup from '@/pages/StudentSetup';
+import BlockAssignment from '@/pages/BlockAssignment';
+import Complaints from '@/pages/Complaints';
+import Chat from '@/pages/Chat';
+import LeaveMonitor from '@/pages/LeaveMonitor';
+import SurveyAnalytics from '@/pages/SurveyAnalytics';
 import { useState, useEffect } from 'react';
 
 const AuthenticatedApp = () => {
@@ -101,6 +106,11 @@ const AuthenticatedApp = () => {
           <Route path="/reports" element={<Reports />} />
           <Route path="/audit-log" element={<AuditLog />} />
           <Route path="/my-profile" element={<MyProfile />} />
+          <Route path="/block-assignment" element={<BlockAssignment />} />
+          <Route path="/complaints" element={<Complaints />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/leave-monitor" element={<LeaveMonitor />} />
+          <Route path="/survey-analytics" element={<SurveyAnalytics />} />
         </Route>
       </Route>
 

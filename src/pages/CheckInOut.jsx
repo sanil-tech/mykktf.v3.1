@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeftRight, LogIn, LogOut } from 'lucide-react';
+import SurveyModal from '@/components/SurveyModal';
 
 export default function CheckInOut() {
   const [checkIns, setCheckIns] = useState([]);
@@ -20,9 +21,14 @@ export default function CheckInOut() {
   const [loading, setLoading] = useState(true);
   const [ciDialog, setCiDialog] = useState(false);
   const [coDialog, setCoDialog] = useState(false);
+  const [pendingCheckout, setPendingCheckout] = useState(null); // { checkoutData, student }
+  const [showSurvey, setShowSurvey] = useState(false);
   const [ciForm, setCiForm] = useState({ student_id: '', room_id: '', check_in_date: '', check_in_time: '', notes: '' });
   const [coForm, setCoForm] = useState({ student_id: '', room_id: '', check_out_date: '', check_out_time: '', room_condition: 'Good', damage_assessment: '', refund_amount: 0 });
+  const [currentUser, setCurrentUser] = useState(null);
   const { toast } = useToast();
+
+  useEffect(() => { base44.auth.me().then(setCurrentUser); }, []);
 
   useEffect(() => { load(); }, []);
   async function load() {
@@ -55,13 +61,21 @@ export default function CheckInOut() {
     if (!coForm.student_id || !coForm.room_id || !coForm.check_out_date) { toast({ title: 'Fill required fields', variant: 'destructive' }); return; }
     const student = students.find(s => s.id === coForm.student_id);
     const room = rooms.find(r => r.id === coForm.room_id);
-    await base44.entities.CheckOut.create({ ...coForm, student_name: student?.full_name || '', room_number: room?.room_number || '', block_name: room?.block_name || '' });
+    const checkout = await base44.entities.CheckOut.create({ ...coForm, student_name: student?.full_name || '', room_number: room?.room_number || '', block_name: room?.block_name || '' });
     if (room) {
       const newOcc = Math.max(0, (room.current_occupancy || 0) - 1);
       await base44.entities.Room.update(room.id, { current_occupancy: newOcc, status: newOcc === 0 ? 'Available' : 'Occupied' });
     }
-    toast({ title: 'Check-out recorded' });
     setCoDialog(false);
+    // Show survey before completing
+    setPendingCheckout({ checkoutId: checkout.id, student });
+    setShowSurvey(true);
+  }
+
+  async function onSurveyComplete() {
+    setShowSurvey(false);
+    setPendingCheckout(null);
+    toast({ title: 'Check-out recorded successfully' });
     load();
   }
 
@@ -161,6 +175,14 @@ export default function CheckInOut() {
           <div className="flex justify-end gap-2 mt-4"><Button variant="outline" size="sm" onClick={() => setCiDialog(false)}>Cancel</Button><Button size="sm" onClick={handleCheckIn}>Check In</Button></div>
         </DialogContent>
       </Dialog>
+
+      <SurveyModal
+        open={showSurvey}
+        onComplete={onSurveyComplete}
+        user={currentUser}
+        student={pendingCheckout?.student}
+        checkoutId={pendingCheckout?.checkoutId}
+      />
 
       <Dialog open={coDialog} onOpenChange={setCoDialog}>
         <DialogContent className="max-w-md">

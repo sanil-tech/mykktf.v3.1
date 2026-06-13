@@ -2,25 +2,43 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { CalendarOff, Wrench, Check, X, Clock, AlertCircle } from 'lucide-react';
-
-const statusBadge = { Pending: 'bg-yellow-100 text-yellow-700', Submitted: 'bg-gray-100 text-gray-700' };
+import { CalendarOff, Wrench, Check, X, Clock, AlertCircle, Building2 } from 'lucide-react';
 
 export default function WardenDashboard({ user }) {
   const [leaves, setLeaves] = useState([]);
   const [maintenance, setMaintenance] = useState([]);
+  const [wardenBlocks, setWardenBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
-    const [l, m] = await Promise.all([
+    const [wb, l, m] = await Promise.all([
+      base44.entities.WardenBlock.filter({ warden_user_id: user.id }),
       base44.entities.LeaveApplication.filter({ status: 'Pending' }, '-created_date'),
       base44.entities.MaintenanceRequest.filter({ status: 'Submitted' }, '-created_date'),
     ]);
-    setLeaves(l);
-    setMaintenance(m);
+    setWardenBlocks(wb);
+
+    const blockNames = wb.map(w => w.block_name);
+    // If warden has block assignments, filter to those blocks via student lookup
+    if (blockNames.length > 0) {
+      const students = await base44.entities.Student.list();
+      const stuByStudentId = {};
+      students.forEach(s => { stuByStudentId[s.student_id] = s; });
+
+      const filteredLeaves = l.filter(lv => {
+        const stu = stuByStudentId[lv.student_id];
+        return stu && blockNames.includes(stu.block_name);
+      });
+      const filteredMaint = m.filter(mx => blockNames.includes(mx.block_name));
+      setLeaves(filteredLeaves);
+      setMaintenance(filteredMaint);
+    } else {
+      setLeaves(l);
+      setMaintenance(m);
+    }
     setLoading(false);
   }
 
@@ -46,6 +64,15 @@ export default function WardenDashboard({ user }) {
       <div className="bg-primary text-primary-foreground rounded-xl p-5">
         <h1 className="text-lg font-heading font-bold">Welcome, {user?.full_name || 'Warden'}</h1>
         <p className="text-sm opacity-80 mt-0.5">Here's what needs your attention today.</p>
+        {wardenBlocks.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {wardenBlocks.map(wb => (
+              <span key={wb.id} className="text-xs bg-white/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Building2 className="w-3 h-3" /> {wb.block_name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Summary cards */}

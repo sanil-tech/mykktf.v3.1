@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { Wrench, CalendarOff, Package, Bell, Home, ClipboardList, Calendar, ChevronRight } from 'lucide-react';
+import { Wrench, CalendarOff, Package, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, Megaphone, CheckCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+
+const PRIORITY_BORDER = { Critical: 'border-l-4 border-l-red-500', Important: 'border-l-4 border-l-yellow-400', General: '' };
+const PRIORITY_ICON = { Critical: AlertTriangle, Important: Bell, General: Info };
 
 const statusConfig = {
   'Pending': { color: 'bg-yellow-100 text-yellow-800' },
@@ -44,16 +47,18 @@ export default function StudentDashboard({ user }) {
   const [myMaint, setMyMaint] = useState([]);
   const [myParcels, setMyParcels] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
+  const [readMap, setReadMap] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
-      const [students, leave, maint, parcels, ann] = await Promise.all([
+      const [students, leave, maint, parcels, ann, reads] = await Promise.all([
         base44.entities.Student.filter({ email: user.email }),
         base44.entities.LeaveApplication.list('-created_date', 5),
         base44.entities.MaintenanceRequest.list('-created_date', 5),
         base44.entities.Parcel.list('-created_date', 5),
-        base44.entities.Announcement.list('-publish_date', 5),
+        base44.entities.Announcement.list('-publish_date'),
+        base44.entities.AnnouncementRead.filter({ student_user_id: user.id }),
       ]);
 
       const myStudent = students[0] || null;
@@ -65,20 +70,65 @@ export default function StudentDashboard({ user }) {
         setMyParcels(parcels.filter(p => p.student_id === myStudent.student_id));
       }
 
+      const map = {};
+      reads.forEach(r => { map[r.announcement_id] = r; });
+      setReadMap(map);
       setAnnouncements(ann);
       setLoading(false);
     }
     load();
   }, [user]);
 
+  async function markRead(ann) {
+    if (readMap[ann.id]) return;
+    await base44.entities.AnnouncementRead.create({
+      announcement_id: ann.id,
+      student_user_id: user.id,
+      student_name: user.full_name || user.email,
+      read_at: new Date().toISOString(),
+      acknowledged: ann.priority === 'Critical',
+    });
+    setReadMap(m => ({ ...m, [ann.id]: { acknowledged: true } }));
+  }
+
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
 
   const pendingParcels = myParcels.filter(p => p.status === 'Pending Collection').length;
   const activeMaint = myMaint.filter(m => m.status !== 'Completed').length;
   const pendingLeave = myLeave.filter(l => l.status === 'Pending').length;
+  const unreadAnn = announcements.filter(a => !readMap[a.id]);
 
   return (
     <div className="space-y-6">
+      {/* Unread Announcements Banner — shown at top */}
+      {unreadAnn.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" /> {unreadAnn.length} Unread Announcement{unreadAnn.length > 1 ? 's' : ''}</p>
+          {unreadAnn.map(ann => {
+            const PriorityIcon = PRIORITY_ICON[ann.priority || 'General'] || Info;
+            return (
+              <div
+                key={ann.id}
+                onClick={() => markRead(ann)}
+                className={`bg-card border border-border rounded-xl p-3 cursor-pointer hover:bg-muted/30 transition-colors ${PRIORITY_BORDER[ann.priority || 'General']}`}
+              >
+                <div className="flex items-start gap-2.5">
+                  <PriorityIcon className={`w-4 h-4 mt-0.5 shrink-0 ${ann.priority === 'Critical' ? 'text-red-600' : ann.priority === 'Important' ? 'text-yellow-500' : 'text-blue-500'}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold">{ann.title}</p>
+                      {ann.priority && ann.priority !== 'General' && <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${ann.priority === 'Critical' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>{ann.priority}</span>}
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{ann.content}</p>
+                    <p className="text-xs text-primary mt-1">Click to mark as read</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Welcome Banner */}
       <div className="bg-gradient-to-r from-[hsl(222,47%,21%)] to-[hsl(199,89%,48%)] rounded-2xl p-6 text-white">
         <p className="text-sm opacity-80 mb-1">Welcome back,</p>
@@ -212,16 +262,19 @@ export default function StudentDashboard({ user }) {
             <p className="text-xs text-muted-foreground text-center py-8">No announcements yet.</p>
           ) : (
             <div className="space-y-3">
-              {announcements.map(a => (
-                <div key={a.id} className="p-3 bg-muted/40 rounded-lg">
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <p className="text-sm font-medium line-clamp-1">{a.title}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap font-medium ${a.type === 'Emergency Notice' ? 'bg-red-100 text-red-700' : a.type === 'Event Notice' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{a.type}</span>
+              {announcements.slice(0, 5).map(a => {
+                const isRead = !!readMap[a.id];
+                return (
+                  <div key={a.id} onClick={() => markRead(a)} className={`p-3 rounded-lg cursor-pointer transition-colors ${isRead ? 'bg-muted/30 opacity-70' : 'bg-primary/5 border border-primary/20'}`}>
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <p className="text-sm font-medium line-clamp-1">{a.title}</p>
+                      {isRead ? <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0 mt-0.5" /> : <Bell className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />}
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{a.content}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{a.publish_date}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{a.content}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{a.publish_date}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

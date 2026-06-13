@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
+import AIAssistant from '@/components/AIAssistant';
 
 export default function AppLayout({ user }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -22,6 +23,7 @@ export default function AppLayout({ user }) {
           <Outlet />
         </main>
       </div>
+      <AIAssistant />
     </div>
   );
 }
