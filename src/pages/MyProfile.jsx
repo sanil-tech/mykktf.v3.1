@@ -43,8 +43,15 @@ export default function MyProfile() {
     setLoading(true);
     const user = await base44.auth.me();
     setCurrentUser(user);
-    const studs = await base44.entities.Student.filter({ email: user.email });
+    // Match by user_id first (most reliable), then fall back to email
+    let studs = await base44.entities.Student.filter({ user_id: user.id });
+    if (!studs.length) studs = await base44.entities.Student.filter({ email: user.email });
     const s = studs[0] || null;
+    // If found by email but missing user_id, link it now
+    if (s && !s.user_id) {
+      await base44.entities.Student.update(s.id, { user_id: user.id });
+      s.user_id = user.id;
+    }
     setStudent(s);
     setForm(s ? { ...s } : {
       student_id: '', full_name: user.full_name || '', ic_passport: '', gender: 'Male',
@@ -69,7 +76,7 @@ export default function MyProfile() {
     }
     setSaving(true);
     if (student) {
-      await base44.entities.Student.update(student.id, form);
+      await base44.entities.Student.update(student.id, { ...form, user_id: currentUser.id });
     } else {
       const created = await base44.entities.Student.create({ ...form, user_id: currentUser.id });
       setStudent(created);
