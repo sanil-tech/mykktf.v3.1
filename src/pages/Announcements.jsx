@@ -18,8 +18,10 @@ const PRIORITY_CONFIG = {
   Important: 'bg-yellow-100 text-yellow-700',
   Critical: 'bg-red-100 text-red-700',
 };
-const PUBLISH_ROLES = ['super_admin', 'college_admin', 'warden'];
+const PUBLISH_ROLES = ['super_admin', 'college_admin', 'warden', 'jakmas'];
 const ADMIN_ROLES = ['super_admin', 'college_admin'];
+const OFFICIAL_TYPES = ['General Notice', 'Emergency Notice', 'Event Notice'];
+const JAKMAS_TYPES = ['Student Activities', 'Sports', 'Community Programs', 'Volunteer Programs', 'Club Activities', 'General Student Notices'];
 
 export default function Announcements() {
   const [user, setUser] = useState(null);
@@ -32,6 +34,7 @@ export default function Announcements() {
   const [acknowledgeModal, setAcknowledgeModal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ title: '', content: '', type: 'General Notice', priority: 'General', publish_date: new Date().toISOString().split('T')[0], expiry_date: '' });
+  const [announcementLink, setAnnouncementLink] = useState('');
 
   useEffect(() => { init(); }, []);
 
@@ -40,8 +43,8 @@ export default function Announcements() {
     setUser(u);
     const [ann, reads, students] = await Promise.all([
       base44.entities.Announcement.list('-publish_date'),
-      u.role === 'student' ? base44.entities.AnnouncementRead.filter({ student_user_id: u.id }) : base44.entities.AnnouncementRead.list(),
-      ADMIN_ROLES.includes(u.role) ? base44.entities.Student.filter({ status: 'Active' }) : Promise.resolve([]),
+      (u.role === 'student') ? base44.entities.AnnouncementRead.filter({ student_user_id: u.id }) : base44.entities.AnnouncementRead.list(),
+      (ADMIN_ROLES.includes(u.role) || u.role === 'jakmas') ? base44.entities.Student.filter({ status: 'Active' }) : Promise.resolve([]),
     ]);
     setAnnouncements(ann);
     setTotalStudents(students.length);
@@ -101,6 +104,8 @@ export default function Announcements() {
   const canPublish = user && PUBLISH_ROLES.includes(user.role);
   const isAdmin = user && ADMIN_ROLES.includes(user.role);
   const isStudent = user?.role === 'student';
+  const isJakmas = user?.role === 'jakmas';
+  const availableTypes = isJakmas ? JAKMAS_TYPES : OFFICIAL_TYPES;
 
   if (loading) return <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
 
@@ -111,7 +116,7 @@ export default function Announcements() {
         description="College notices and updates"
         actions={
           <div className="flex gap-2">
-            {isAdmin && <Button size="sm" variant="outline" onClick={() => setShowAnalytics(true)}><BarChart2 className="w-4 h-4 mr-1" /> Analytics</Button>}
+            {(isAdmin || isJakmas) && <Button size="sm" variant="outline" onClick={() => setShowAnalytics(true)}><BarChart2 className="w-4 h-4 mr-1" /> Analytics</Button>}
             {canPublish && <Button size="sm" onClick={() => setShowForm(true)}><Plus className="w-4 h-4 mr-1" /> Post</Button>}
           </div>
         }
@@ -169,7 +174,12 @@ export default function Announcements() {
                       </div>
                     </div>
                   </div>
-                  {canPublish && (
+                  {(canPublish && !isJakmas) && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-100 shrink-0" onClick={(e) => { e.stopPropagation(); remove(ann.id); }}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {isJakmas && ann.published_by === (user?.full_name || user?.email) && (
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-100 shrink-0" onClick={(e) => { e.stopPropagation(); remove(ann.id); }}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -192,7 +202,7 @@ export default function Announcements() {
               <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {['General Notice', 'Emergency Notice', 'Event Notice'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  {availableTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={form.priority} onValueChange={v => setForm(f => ({ ...f, priority: v }))}>

@@ -5,14 +5,16 @@ import {
   LayoutDashboard, GraduationCap, DoorOpen, ArrowLeftRight, CalendarOff,
   Wrench, UserCheck, Package, ShieldAlert, Building2, ClipboardCheck,
   Megaphone, CreditCard, FileBarChart, ScrollText, X, ChevronLeft,
-  MessageSquare, MessagesSquare, CalendarCheck, Star, UserCog
+  MessageSquare, MessagesSquare, CalendarCheck, Star, UserCog,
+  CalendarDays, ClipboardList, Users
 } from 'lucide-react';
 
 const iconMap = {
   LayoutDashboard, GraduationCap, DoorOpen, ArrowLeftRight, CalendarOff,
   Wrench, UserCheck, Package, ShieldAlert, Building2, ClipboardCheck,
   Megaphone, CreditCard, FileBarChart, ScrollText,
-  MessageSquare, MessagesSquare, CalendarCheck, Star, UserCog
+  MessageSquare, MessagesSquare, CalendarCheck, Star, UserCog,
+  CalendarDays, ClipboardList, Users
 };
 
 export default function Sidebar({ userRole, open, onClose, collapsed, onToggleCollapse }) {

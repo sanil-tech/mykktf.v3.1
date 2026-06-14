@@ -1,0 +1,185 @@
+{
+  "name": "RoomInspection",
+  "type": "object",
+  "properties": {
+    "student_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "room_number": {
+      "type": "string"
+    },
+    "block_name": {
+      "type": "string"
+    },
+    "inspected_by_user_id": {
+      "type": "string"
+    },
+    "inspected_by_name": {
+      "type": "string"
+    },
+    "inspection_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "room_cleanliness": {
+      "type": "string",
+      "enum": [
+        "Pass",
+        "Fail",
+        "Needs Attention"
+      ]
+    },
+    "furniture_complete": {
+      "type": "string",
+      "enum": [
+        "Pass",
+        "Fail",
+        "Needs Attention"
+      ]
+    },
+    "visible_damage": {
+      "type": "string",
+      "enum": [
+        "None",
+        "Minor",
+        "Major"
+      ]
+    },
+    "resident_present": {
+      "type": "boolean",
+      "default": false
+    },
+    "notes": {
+      "type": "string"
+    },
+    "photos": {
+      "type": "string",
+      "format": "uri"
+    },
+    "flagged_issues": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Submitted",
+        "Reviewed",
+        "Verified"
+      ],
+      "default": "Submitted"
+    },
+    "checkout_student_user_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "student_id",
+    "student_name",
+    "room_number",
+    "inspection_date"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "jakmas"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "warden"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "warden"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "jakmas"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "warden"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        },
+        {
+          "data.inspected_by_user_id": "{{user.id}}"
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        }
+      ]
+    }
+  }
+}

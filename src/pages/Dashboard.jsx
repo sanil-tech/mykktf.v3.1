@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import AdminDashboard from '@/components/dashboard/AdminDashboard';
 import StudentDashboard from '@/components/dashboard/StudentDashboard';
 import WardenDashboard from '@/components/dashboard/WardenDashboard';
+import JakmasDashboard from '@/components/dashboard/JakmasDashboard';
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -22,5 +23,6 @@ export default function Dashboard() {
 
   if (user?.role === 'student') return <StudentDashboard user={user} />;
   if (user?.role === 'warden') return <WardenDashboard user={user} />;
+  if (user?.role === 'jakmas') return <JakmasDashboard user={user} />;
   return <AdminDashboard />;
 }

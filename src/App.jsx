@@ -36,6 +36,9 @@ import Complaints from '@/pages/Complaints';
 import Chat from '@/pages/Chat';
 import LeaveMonitor from '@/pages/LeaveMonitor';
 import SurveyAnalytics from '@/pages/SurveyAnalytics';
+import Events from '@/pages/Events';
+import RoomInspections from '@/pages/RoomInspections';
+import ResidentDirectory from '@/pages/ResidentDirectory';
 import { useState, useEffect } from 'react';
 
 const AuthenticatedApp = () => {
@@ -111,6 +114,9 @@ const AuthenticatedApp = () => {
           <Route path="/chat" element={<Chat />} />
           <Route path="/leave-monitor" element={<LeaveMonitor />} />
           <Route path="/survey-analytics" element={<SurveyAnalytics />} />
+          <Route path="/events" element={<Events />} />
+          <Route path="/room-inspections" element={<RoomInspections />} />
+          <Route path="/directory" element={<ResidentDirectory />} />
         </Route>
       </Route>
 

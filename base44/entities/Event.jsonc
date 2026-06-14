@@ -1,0 +1,140 @@
+{
+  "name": "Event",
+  "type": "object",
+  "properties": {
+    "event_name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "venue": {
+      "type": "string"
+    },
+    "event_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "event_time": {
+      "type": "string"
+    },
+    "organizer": {
+      "type": "string"
+    },
+    "organizer_user_id": {
+      "type": "string"
+    },
+    "registration_limit": {
+      "type": "number"
+    },
+    "current_registrations": {
+      "type": "number",
+      "default": 0
+    },
+    "poster_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "registration_status": {
+      "type": "string",
+      "enum": [
+        "Open",
+        "Closed",
+        "Full"
+      ],
+      "default": "Open"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Upcoming",
+        "Ongoing",
+        "Completed",
+        "Cancelled"
+      ],
+      "default": "Upcoming"
+    }
+  },
+  "required": [
+    "event_name",
+    "venue",
+    "event_date",
+    "organizer"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "warden"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "jakmas"
+          }
+        }
+      ]
+    },
+    "read": true,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "warden"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        },
+        {
+          "data.organizer_user_id": "{{user.id}}"
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        },
+        {
+          "data.organizer_user_id": "{{user.id}}"
+        }
+      ]
+    }
+  }
+}
