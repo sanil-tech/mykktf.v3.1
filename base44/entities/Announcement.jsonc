@@ -13,12 +13,21 @@
       "enum": [
         "General Notice",
         "Emergency Notice",
-        "Event Notice"
+        "Event Notice",
+        "Student Activities",
+        "Sports",
+        "Community Programs",
+        "Volunteer Programs",
+        "Club Activities",
+        "General Student Notices"
       ]
     },
     "attachment": {
       "type": "string",
       "format": "uri"
+    },
+    "link": {
+      "type": "string"
     },
     "publish_date": {
       "type": "string",
@@ -30,6 +39,15 @@
     },
     "published_by": {
       "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "General",
+        "Important",
+        "Critical"
+      ],
+      "default": "General"
     }
   },
   "required": [
@@ -54,6 +72,11 @@
         {
           "user_condition": {
             "role": "warden"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "jakmas"
           }
         }
       ]
@@ -97,6 +120,9 @@
           "user_condition": {
             "role": "warden"
           }
+        },
+        {
+          "created_by_id": "{{user.id}}"
         }
       ]
     }
