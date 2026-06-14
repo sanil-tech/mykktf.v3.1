@@ -65,7 +65,7 @@
         }
       ]
     },
-    "read": true,
+    "read": null,
     "update": {
       "$or": [
         {
