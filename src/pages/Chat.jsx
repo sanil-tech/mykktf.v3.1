@@ -25,18 +25,30 @@ export default function Chat() {
   async function init() {
     const u = await base44.auth.me();
     setUser(u);
-    const sp = await base44.entities.Student.filter({ email: u.email });
-    const s = sp[0] || null;
 
     const chs = [COMMUNITY_CHANNEL];
-    if (s?.block_name) {
-      chs.unshift({ key: 'block', label: `Block ${s.block_name}`, channelKey: s.block_name, description: `Block ${s.block_name} residents` });
+
+    if (u.role === 'warden') {
+      // Wardens get block channels for all their assigned blocks
+      const wb = await base44.entities.WardenBlock.filter({ warden_user_id: u.id });
+      wb.forEach(w => {
+        chs.unshift({ key: `block_${w.block_name}`, label: `Block ${w.block_name}`, channelKey: w.block_name, description: `Block ${w.block_name} residents` });
+      });
+    } else {
+      // Students/staff get channels based on their student profile
+      let sp = await base44.entities.Student.filter({ user_id: u.id });
+      if (!sp.length) sp = await base44.entities.Student.filter({ email: u.email });
+      const s = sp[0] || null;
+      if (s?.block_name) {
+        chs.unshift({ key: 'block', label: `Block ${s.block_name}`, channelKey: s.block_name, description: `Block ${s.block_name} residents` });
+      }
+      if (s?.room_number && s?.block_name) {
+        chs.unshift({ key: 'room', label: `Room ${s.room_number}`, channelKey: `${s.room_number}_${s.block_name}`, description: 'Your room' });
+      }
     }
-    if (s?.room_number && s?.block_name) {
-      chs.unshift({ key: 'room', label: `Room ${s.room_number}`, channelKey: `${s.room_number}_${s.block_name}`, description: 'Your room' });
-    }
+
     setChannels(chs);
-    setActiveChannel(chs[chs.length - 1]);
+    setActiveChannel(chs[0]);
     setLoading(false);
   }
 

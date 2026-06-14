@@ -47,7 +47,8 @@ export default function Complaints() {
       }
     } else {
       data = await base44.entities.Complaint.filter({ student_user_id: u.id }, '-created_date');
-      const sp = await base44.entities.Student.filter({ email: u.email });
+      let sp = await base44.entities.Student.filter({ user_id: u.id });
+      if (!sp.length) sp = await base44.entities.Student.filter({ email: u.email });
       if (sp.length) setStudent(sp[0]);
     }
     setItems(data);

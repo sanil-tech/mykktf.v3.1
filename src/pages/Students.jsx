@@ -16,6 +16,7 @@ const emptyForm = { student_id: '', full_name: '', ic_passport: '', gender: 'Mal
 
 export default function Students() {
   const [students, setStudents] = useState([]);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterFaculty, setFilterFaculty] = useState('all');
@@ -31,7 +32,17 @@ export default function Students() {
 
   async function load() {
     setLoading(true);
-    const data = await base44.entities.Student.list('-created_date');
+    const u = await base44.auth.me();
+    setUser(u);
+    let data = [];
+    if (u.role === 'warden') {
+      const wb = await base44.entities.WardenBlock.filter({ warden_user_id: u.id });
+      const blockNames = wb.map(w => w.block_name);
+      const all = await base44.entities.Student.list('-created_date');
+      data = blockNames.length > 0 ? all.filter(s => blockNames.includes(s.block_name)) : [];
+    } else {
+      data = await base44.entities.Student.list('-created_date');
+    }
     setStudents(data);
     setLoading(false);
   }

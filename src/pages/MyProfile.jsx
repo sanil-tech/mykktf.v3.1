@@ -32,6 +32,7 @@ export default function MyProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [blocks, setBlocks] = useState([]);
+  const [rooms, setRooms] = useState([]);
   const [wardenAssignments, setWardenAssignments] = useState([]);
   const [selectedBlock, setSelectedBlock] = useState('');
   const [savingBlock, setSavingBlock] = useState(false);
@@ -59,12 +60,14 @@ export default function MyProfile() {
       phone: '', email: user.email || '', block_name: '', room_number: '',
       parent_name: '', parent_phone: '', emergency_contact: '', vehicle_reg: '',
     });
+    const [b, r] = await Promise.all([
+      base44.entities.Block.list(),
+      base44.entities.Room.list(),
+    ]);
+    setBlocks(b);
+    setRooms(r);
     if (user.role === 'warden') {
-      const [b, wa] = await Promise.all([
-        base44.entities.Block.list(),
-        base44.entities.WardenBlock.filter({ warden_user_id: user.id }),
-      ]);
-      setBlocks(b);
+      const wa = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
       setWardenAssignments(wa);
     }
     setLoading(false);
@@ -75,12 +78,37 @@ export default function MyProfile() {
       toast({ title: 'Full name and phone are required', variant: 'destructive' }); return;
     }
     setSaving(true);
+
+    const oldRoomId = student?.room_id;
+    const newRoomId = form.room_id;
+
     if (student) {
       await base44.entities.Student.update(student.id, { ...form, user_id: currentUser.id });
     } else {
       const created = await base44.entities.Student.create({ ...form, user_id: currentUser.id });
       setStudent(created);
     }
+
+    // Update room occupancy if room changed
+    if (oldRoomId !== newRoomId) {
+      if (oldRoomId) {
+        const oldRoom = rooms.find(r => r.id === oldRoomId);
+        if (oldRoom) {
+          const newOcc = Math.max(0, (oldRoom.current_occupancy || 1) - 1);
+          const newStatus = newOcc === 0 ? 'Available' : newOcc >= oldRoom.capacity ? 'Full' : 'Occupied';
+          await base44.entities.Room.update(oldRoomId, { current_occupancy: newOcc, status: newStatus });
+        }
+      }
+      if (newRoomId) {
+        const newRoom = rooms.find(r => r.id === newRoomId);
+        if (newRoom) {
+          const newOcc = (newRoom.current_occupancy || 0) + 1;
+          const newStatus = newOcc >= newRoom.capacity ? 'Full' : 'Occupied';
+          await base44.entities.Room.update(newRoomId, { current_occupancy: newOcc, status: newStatus });
+        }
+      }
+    }
+
     toast({ title: 'Profile saved successfully' });
     setSaving(false);
   }
@@ -168,13 +196,37 @@ export default function MyProfile() {
         </div>
 
         {/* Room */}
-        <div>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Room Assignment</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {f('block_name', 'Block Name')}
-            {f('room_number', 'Room Number')}
+        {(currentUser?.role === 'student' || !currentUser?.role || currentUser?.role === 'user') && (
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Room Assignment</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Block</Label>
+                <Select value={form.block_name || ''} onValueChange={v => {
+                  const block = blocks.find(b => b.block_name === v);
+                  setForm({ ...form, block_name: v, block_id: block?.id || '', room_number: '', room_id: '' });
+                }}>
+                  <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select block" /></SelectTrigger>
+                  <SelectContent>{blocks.map(b => <SelectItem key={b.id} value={b.block_name}>{b.block_name} ({b.gender_restriction})</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Room Number</Label>
+                <Select value={form.room_number || ''} onValueChange={v => {
+                  const room = rooms.find(r => r.room_number === v && r.block_name === form.block_name);
+                  setForm({ ...form, room_number: v, room_id: room?.id || '' });
+                }} disabled={!form.block_name}>
+                  <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select room" /></SelectTrigger>
+                  <SelectContent>
+                    {rooms.filter(r => r.block_name === form.block_name && r.status !== 'Maintenance').map(r => (
+                      <SelectItem key={r.id} value={r.room_number}>{r.room_number} ({r.room_type}, {r.current_occupancy}/{r.capacity})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Warden Block Assignment */}
         {currentUser?.role === 'warden' && (

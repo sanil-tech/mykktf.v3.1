@@ -2,42 +2,54 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { CalendarOff, Wrench, Check, X, Clock, AlertCircle, Building2 } from 'lucide-react';
+import { CalendarOff, Wrench, Check, X, Clock, AlertCircle, Building2, Users, DoorOpen, MessageSquare, Megaphone } from 'lucide-react';
 
 export default function WardenDashboard({ user }) {
   const [leaves, setLeaves] = useState([]);
   const [maintenance, setMaintenance] = useState([]);
   const [wardenBlocks, setWardenBlocks] = useState([]);
+  const [stats, setStats] = useState({ totalStudents: 0, occupiedRooms: 0, vacantRooms: 0, activeComplaints: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
-    const [wb, l, m] = await Promise.all([
-      base44.entities.WardenBlock.filter({ warden_user_id: user.id }),
+    const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
+    setWardenBlocks(wb);
+    const blockNames = wb.map(w => w.block_name);
+
+    const [allLeaves, allMaint, allStudents, allRooms, allComplaints] = await Promise.all([
       base44.entities.LeaveApplication.filter({ status: 'Pending' }, '-created_date'),
       base44.entities.MaintenanceRequest.filter({ status: 'Submitted' }, '-created_date'),
+      base44.entities.Student.list(),
+      base44.entities.Room.list(),
+      base44.entities.Complaint.list('-created_date'),
     ]);
-    setWardenBlocks(wb);
 
-    const blockNames = wb.map(w => w.block_name);
-    // If warden has block assignments, filter to those blocks via student lookup
     if (blockNames.length > 0) {
-      const students = await base44.entities.Student.list();
       const stuByStudentId = {};
-      students.forEach(s => { stuByStudentId[s.student_id] = s; });
+      allStudents.forEach(s => { stuByStudentId[s.student_id] = s; });
 
-      const filteredLeaves = l.filter(lv => {
+      const blockStudents = allStudents.filter(s => blockNames.includes(s.block_name));
+      const blockRooms = allRooms.filter(r => blockNames.includes(r.block_name));
+      const blockComplaints = allComplaints.filter(c => blockNames.includes(c.block_name));
+
+      setLeaves(allLeaves.filter(lv => {
         const stu = stuByStudentId[lv.student_id];
         return stu && blockNames.includes(stu.block_name);
+      }));
+      setMaintenance(allMaint.filter(mx => blockNames.includes(mx.block_name)));
+
+      setStats({
+        totalStudents: blockStudents.length,
+        occupiedRooms: blockRooms.filter(r => r.status === 'Occupied' || r.status === 'Full').length,
+        vacantRooms: blockRooms.filter(r => r.status === 'Available').length,
+        activeComplaints: blockComplaints.filter(c => c.status === 'Submitted' || c.status === 'Under Review').length,
       });
-      const filteredMaint = m.filter(mx => blockNames.includes(mx.block_name));
-      setLeaves(filteredLeaves);
-      setMaintenance(filteredMaint);
     } else {
-      setLeaves(l);
-      setMaintenance(m);
+      setLeaves(allLeaves);
+      setMaintenance(allMaint);
     }
     setLoading(false);
   }
@@ -75,27 +87,71 @@ export default function WardenDashboard({ user }) {
         )}
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center shrink-0">
-            <CalendarOff className="w-5 h-5 text-yellow-600" />
+      {/* Stats grid */}
+      {wardenBlocks.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{stats.totalStudents}</p>
+              <p className="text-xs text-muted-foreground">Total Students</p>
+            </div>
           </div>
-          <div>
-            <p className="text-2xl font-bold">{leaves.length}</p>
-            <p className="text-xs text-muted-foreground">Pending Leaves</p>
+          <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
+              <DoorOpen className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{stats.vacantRooms}</p>
+              <p className="text-xs text-muted-foreground">Vacant Rooms</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center shrink-0">
+              <CalendarOff className="w-5 h-5 text-yellow-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{leaves.length}</p>
+              <p className="text-xs text-muted-foreground">Pending Leaves</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
+              <MessageSquare className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{stats.activeComplaints}</p>
+              <p className="text-xs text-muted-foreground">Active Complaints</p>
+            </div>
           </div>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-            <Wrench className="w-5 h-5 text-blue-600" />
+      )}
+
+      {/* Summary cards (when no blocks assigned) */}
+      {wardenBlocks.length === 0 && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center shrink-0">
+              <CalendarOff className="w-5 h-5 text-yellow-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{leaves.length}</p>
+              <p className="text-xs text-muted-foreground">Pending Leaves</p>
+            </div>
           </div>
-          <div>
-            <p className="text-2xl font-bold">{maintenance.length}</p>
-            <p className="text-xs text-muted-foreground">New Maintenance</p>
+          <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+              <Wrench className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{maintenance.length}</p>
+              <p className="text-xs text-muted-foreground">New Maintenance</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Pending Leave Applications */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
