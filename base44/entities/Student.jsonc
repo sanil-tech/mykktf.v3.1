@@ -123,14 +123,46 @@
           }
         },
         {
-          "user_condition": {
-            "role": "warden"
-          }
+          "$and": [
+            {
+              "user_condition": {
+                "role": "warden"
+              }
+            },
+            {
+              "data.block_name": {
+                "$in": "{{user.data.assigned_block_names}}"
+              }
+            }
+          ]
         },
         {
-          "user_condition": {
-            "role": "staff"
-          }
+          "$and": [
+            {
+              "user_condition": {
+                "role": "staff"
+              }
+            },
+            {
+              "data.block_name": {
+                "$in": "{{user.data.assigned_block_names}}"
+              }
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "jakmas"
+              }
+            },
+            {
+              "data.block_name": {
+                "$in": "{{user.data.assigned_block_names}}"
+              }
+            }
+          ]
         },
         {
           "data.user_id": "{{user.id}}"
