@@ -3,10 +3,19 @@
   "type": "object",
   "properties": {
     "student_id": {
-      "type": "string"
+      "type": "string",
+      "description": "Student matric number"
     },
     "student_name": {
       "type": "string"
+    },
+    "block_name": {
+      "type": "string",
+      "description": "Student's block at time of submission"
+    },
+    "room_number": {
+      "type": "string",
+      "description": "Student's room at time of submission"
     },
     "leave_type": {
       "type": "string",
