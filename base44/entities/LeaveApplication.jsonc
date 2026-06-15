@@ -83,76 +83,15 @@
         },
         {
           "user_condition": {
-            "role": "super_admin"
+            "role": "user"
           }
-        },
-        {
-          "user_condition": {
-            "role": "college_admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "staff"
-          }
-        },
-        {
-          "$and": [
-            {
-              "user_condition": {
-                "role": "warden"
-              }
-            },
-            {
-              "data.block_name": {
-                "$in": "{{user.data.assigned_blocks}}"
-              }
-            }
-          ]
-        },
-        {
-          "created_by_id": "{{user.id}}"
         }
       ]
     },
     "update": {
-      "$or": [
-        {
-          "created_by_id": "{{user.id}}"
-        },
-        {
-          "user_condition": {
-            "role": "super_admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "college_admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "staff"
-          }
-        },
-        {
-          "$and": [
-            {
-              "user_condition": {
-                "role": "warden"
-              }
-            },
-            {
-              "data.block_name": {
-                "$in": "{{user.data.assigned_blocks}}"
-              }
-            }
-          ]
-        },
-        {
-          "created_by_id": "{{user.id}}"
-        }
-      ]
+      "user_condition": {
+        "role": "user"
+      }
     },
     "delete": {
       "$or": [
@@ -161,12 +100,7 @@
         },
         {
           "user_condition": {
-            "role": "super_admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "college_admin"
+            "role": "user"
           }
         }
       ]
