@@ -4,19 +4,14 @@ const [user, setUser] = useState(undefined);
 // object = logged in
 
 useEffect(() => {
-  let active = true;
-
   const run = async () => {
     try {
       const u = await base44.auth.me();
-      if (!active) return;
       setUser(u || null);
-    } catch (e) {
+    } catch {
       setUser(null);
     }
   };
 
   run();
-
-  return () => { active = false };
 }, []);
