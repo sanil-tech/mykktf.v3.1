@@ -32,7 +32,7 @@ export default function Students() {
 
   async function load() {
     setLoading(true);
-    const u = await base44.auth.me();
+    const u = await base44.props.user;
     setUser(u);
     let data = [];
     if (u.role === 'warden') {
