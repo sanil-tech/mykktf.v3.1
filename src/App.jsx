@@ -169,7 +169,7 @@ export default function App() {
           profile = await base44.entities.Student.create({
             user_id: auth.id,
             email: auth.email,
-            role: auth.role || "student",
+            role: profile.role || "student",
             onboarding_status: "pending",
           });
 
