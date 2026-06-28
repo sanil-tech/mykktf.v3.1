@@ -43,7 +43,7 @@ export default function MyProfile() {
   async function init() {
     setLoading(true);
 
-    const user = await base44.auth.me();
+    const user = await base44.props.user;
     setCurrentUser(user);
 
     let studs = await base44.entities.Student.filter({ user_id: user.id });
