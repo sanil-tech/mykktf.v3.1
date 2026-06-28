@@ -40,7 +40,7 @@ export default function RoomInspections() {
   useEffect(() => { init(); }, []);
 
   async function init() {
-    const u = await base44.auth.me();
+    const u = await base44.props.user;
     setUser(u);
     const [insp, studs] = await Promise.all([
       base44.entities.RoomInspection.list('-created_date'),
