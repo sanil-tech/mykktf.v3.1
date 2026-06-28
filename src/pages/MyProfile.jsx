@@ -258,7 +258,129 @@ export default function MyProfile() {
           </div>
         </div>
 
-        {/* (ALL YOUR ORIGINAL FIELDS KEPT UNCHANGED) */}
+{/* Personal Info */}
+<div>
+  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+    Personal Information
+  </h3>
+
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    {f('full_name', 'Full Name *')}
+    {f('student_id', 'Student / Staff ID')}
+    {f('ic_passport', 'IC / Passport Number')}
+    {f('gender', 'Gender', 'text', [
+      { v: 'Male', l: 'Male' },
+      { v: 'Female', l: 'Female' }
+    ])}
+    {f('date_of_birth', 'Date of Birth', 'date')}
+    {f('phone', 'Phone Number *')}
+  </div>
+</div>
+
+{/* Academic */}
+<div>
+  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+    Academic Details
+  </h3>
+
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    {f('faculty', 'Faculty', 'text',
+      UMS_FACULTIES.map(fc => ({ v: fc, l: fc }))
+    )}
+    {f('programme', 'Programme')}
+    {f('year_of_study', 'Year of Study', 'number',
+      [1,2,3,4,5].map(y => ({ v: y, l: `Year ${y}` }))
+    )}
+  </div>
+</div>
+
+{/* Room */}
+<div>
+  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+    Room Assignment
+  </h3>
+
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div>
+      <Label className="text-xs">Block</Label>
+      <Select
+        value={form.block_name || ''}
+        onValueChange={v => {
+          const block = blocks.find(b => b.block_name === v);
+          setForm({
+            ...form,
+            block_name: v,
+            block_id: block?.id || '',
+            room_number: '',
+            room_id: ''
+          });
+        }}
+      >
+        <SelectTrigger className="h-9 text-sm mt-1">
+          <SelectValue placeholder="Select block" />
+        </SelectTrigger>
+
+        <SelectContent>
+          {blocks.map(b => (
+            <SelectItem key={b.id} value={b.block_name}>
+              {b.block_name} ({b.gender_restriction})
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+
+    <div>
+      <Label className="text-xs">Room Number</Label>
+      <Select
+        value={form.room_number || ''}
+        onValueChange={v => {
+          const room = rooms.find(
+            r => r.room_number === v && r.block_name === form.block_name
+          );
+          setForm({
+            ...form,
+            room_number: v,
+            room_id: room?.id || ''
+          });
+        }}
+        disabled={!form.block_name}
+      >
+        <SelectTrigger className="h-9 text-sm mt-1">
+          <SelectValue placeholder="Select room" />
+        </SelectTrigger>
+
+        <SelectContent>
+          {rooms
+            .filter(
+              r =>
+                r.block_name === form.block_name &&
+                r.status !== 'Maintenance'
+            )
+            .map(r => (
+              <SelectItem key={r.id} value={r.room_number}>
+                {r.room_number} ({r.room_type}, {r.current_occupancy}/{r.capacity})
+              </SelectItem>
+            ))}
+        </SelectContent>
+      </Select>
+    </div>
+  </div>
+</div>
+
+{/* Emergency */}
+<div>
+  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+    Emergency Contact
+  </h3>
+
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    {f('parent_name', 'Parent / Guardian Name')}
+    {f('parent_phone', 'Parent Phone')}
+    {f('emergency_contact', 'Emergency Contact')}
+    {f('vehicle_reg', 'Vehicle Registration')}
+  </div>
+</div>
 
         {/* Save */}
         <div className="flex justify-end pt-2 border-t border-border">
