@@ -77,7 +77,7 @@ const handleSubmit = async (e) => {
         break;
 
       default:
-        window.location.href = "/";
+        await base44.auth.loginViaEmailPassword(email, password);
     }
 
   } catch (err) {
