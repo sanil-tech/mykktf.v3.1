@@ -53,7 +53,7 @@ export default function Register() {
   onboarding_status: "pending",
 });
       }
-      base44.auth.loginWithProvider("google", "/");
+      base44.auth.loginWithProvider("google");
 
 // DO NOTHING ELSE
 // App.jsx handles routing;
