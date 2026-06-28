@@ -17,7 +17,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
 
-      const auth = await base44.auth.me();
+      const auth = await base44.props.user;
 
       const students = await base44.entities.Student.filter({
         user_id: auth.id,
