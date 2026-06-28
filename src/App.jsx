@@ -138,5 +138,80 @@ function App() {
     </AuthProvider>
   )
 }
+import { useEffect, useState } from "react";
+import { base44 } from "@/api/base44Client";
+import Dashboard from "@/pages/Dashboard";
+import Onboarding from "@/pages/Onboarding";
 
+export default function App() {
+  const [loading, setLoading] = useState(true);
+  const [route, setRoute] = useState("loading");
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const auth = await base44.auth.me();
+
+        let students = await base44.entities.Student.filter({
+          user_id: auth.id,
+        });
+
+        if (!students.length) {
+          students = await base44.entities.Student.filter({
+            email: auth.email,
+          });
+        }
+
+        let profile = students?.[0];
+
+        // AUTO CREATE PROFILE (important fix)
+        if (!profile) {
+          profile = await base44.entities.Student.create({
+            user_id: auth.id,
+            email: auth.email,
+            role: auth.role || "student",
+            onboarding_status: "pending",
+          });
+
+          setRoute("onboarding");
+          setLoading(false);
+          return;
+        }
+
+        const incomplete =
+          !profile.full_name ||
+          !profile.phone ||
+          !profile.faculty;
+
+        if (
+          profile.onboarding_status !== "completed" ||
+          incomplete
+        ) {
+          setRoute("onboarding");
+        } else {
+          setRoute("dashboard");
+        }
+
+      } catch (err) {
+        console.error(err);
+        setRoute("dashboard");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    init();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        Loading...
+      </div>
+    );
+  }
+
+  if (route === "onboarding") return <Onboarding />;
+  return <Dashboard />;
+}
 export default App
