@@ -48,7 +48,10 @@ export default function Register() {
         base44.auth.setToken(result.access_token);
         await base44.auth.updateMe({ role });
       }
-      window.location.href = "/";
+      await base44.auth.loginViaEmailPassword(email, password);
+
+// DO NOTHING ELSE
+// App.jsx handles routing;
     } catch (err) {
       setError(err.message || "Invalid verification code");
     } finally {
