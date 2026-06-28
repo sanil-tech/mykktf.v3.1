@@ -10,26 +10,29 @@ export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ---------------------------
-  // LOAD USER (FIXED)
-  // ---------------------------
   const loadUser = async () => {
     try {
       setLoading(true);
 
-      // 1. Auth session user (base identity)
-      const authUser = await base44.auth.me();
+      // 1. AUTH ONLY (identity + role only)
+      const auth = await base44.auth.me();
 
-      // 2. Try to get latest profile (if your backend supports it)
-      const profileUser = await base44.users?.getMe?.();
+      // 2. REAL PROFILE SOURCE (IMPORTANT FIX)
+      const students = await base44.entities.Student.filter({
+        user_id: auth.id,
+      });
 
-      // 3. Merge both to avoid stale data issues
-      const mergedUser = {
-        ...authUser,
-        ...profileUser
+      const profile = students?.[0] || null;
+
+      // 3. FINAL MERGED USER (PROFILE WINS)
+      const merged = {
+        id: auth.id,
+        email: auth.email,
+        role: auth.role,
+        ...profile,
       };
 
-      setUser(mergedUser);
+      setUser(merged);
     } catch (error) {
       console.error('Failed to load user:', error);
       setUser(null);
@@ -42,9 +45,6 @@ export default function Dashboard() {
     loadUser();
   }, []);
 
-  // ---------------------------
-  // LOADING UI
-  // ---------------------------
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -53,23 +53,11 @@ export default function Dashboard() {
     );
   }
 
-  // ---------------------------
-  // ROLE SAFE HANDLING
-  // ---------------------------
   const role = user?.role;
 
-  if (role === 'student') {
-    return <StudentDashboard user={user} />;
-  }
+  if (role === 'student') return <StudentDashboard user={user} />;
+  if (role === 'warden') return <WardenDashboard user={user} />;
+  if (role === 'jakmas') return <JakmasDashboard user={user} />;
 
-  if (role === 'warden') {
-    return <WardenDashboard user={user} />;
-  }
-
-  if (role === 'jakmas') {
-    return <JakmasDashboard user={user} />;
-  }
-
-  // default fallback
   return <AdminDashboard user={user} />;
 }
