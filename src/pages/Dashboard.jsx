@@ -60,4 +60,6 @@ export default function Dashboard() {
   if (role === 'jakmas') return <JakmasDashboard user={user} />;
 
   return <AdminDashboard user={user} />;
+  console.log("AUTH:", auth);
+console.log("STUDENTS:", students);
 }
