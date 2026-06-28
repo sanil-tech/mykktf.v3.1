@@ -199,7 +199,7 @@ export default function MyProfile() {
 
     await base44.entities.WardenBlock.create({
       warden_user_id: currentUser.id,
-      warden_name: currentUser.full_name || currentUser.email,
+      warden_name: s?.full_name || currentUser?.email,
       warden_email: currentUser.email,
       block_id: selectedBlock,
       block_name: block?.block_name || '',
