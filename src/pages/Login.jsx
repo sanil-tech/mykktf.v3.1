@@ -1,22 +1,16 @@
 const handleSubmit = async (e) => {
   e.preventDefault();
   setError("");
-
-  if (processing) return;
-  setProcessing(true);
   setLoading(true);
 
   try {
     await base44.auth.loginViaEmailPassword(email, password);
 
-    // DO NOTHING ELSE HERE
-    // let App.jsx handle routing
-    navigate("/", { replace: true });
-
+    // ONLY THIS REDIRECT
+    window.location.replace("/");
   } catch (err) {
-    setError(err.message || "Invalid email or password");
+    setError(err.message || "Invalid login");
   } finally {
     setLoading(false);
-    setProcessing(false);
   }
 };
