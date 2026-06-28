@@ -1,48 +1,73 @@
 import React, { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 
 import Login from "@/pages/Login";
-import Register from "@/pages/Register";
 import Onboarding from "@/pages/Onboarding";
 
-import Dashboard from "@/pages/Dashboard";
 import AdminDashboard from "@/components/dashboard/AdminDashboard";
 import StudentDashboard from "@/components/dashboard/StudentDashboard";
 import WardenDashboard from "@/components/dashboard/WardenDashboard";
 import JakmasDashboard from "@/components/dashboard/JakmasDashboard";
 
 export default function App() {
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
+  // -----------------------------
+  // STATES (IMPORTANT: undefined = not loaded yet)
+  // -----------------------------
+  const [user, setUser] = useState(undefined);
+  const [profile, setProfile] = useState(undefined);
   const [loading, setLoading] = useState(true);
 
-  // -------------------------
-  // LOAD AUTH + PROFILE
-  // -------------------------
+  // -----------------------------
+  // INIT AUTH (NO LOOP POSSIBLE HERE)
+  // -----------------------------
   useEffect(() => {
+    let mounted = true;
+
     const init = async () => {
       try {
-        const auth = await base44.auth.me();
-        setUser(auth);
+        const authUser = await base44.auth.me();
 
-        if (!auth) {
-          setLoading(false);
-          return;
-        }
+        if (!mounted) return;
 
-        // IMPORTANT: ONLY USE user_id (no email fallback)
-        let students = await base44.entities.Student.filter({
-          user_id: auth.id,
+        setUser(authUser || null);
+      } catch (err) {
+        if (!mounted) return;
+        setUser(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    init();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // -----------------------------
+  // LOAD PROFILE AFTER AUTH READY
+  // -----------------------------
+  useEffect(() => {
+    if (user === undefined || user === null) return;
+
+    let mounted = true;
+
+    const loadProfile = async () => {
+      try {
+        const res = await base44.entities.Student.filter({
+          user_id: user.id,
         });
 
-        let p = students?.[0];
+        if (!mounted) return;
 
-        // auto-create profile if missing
+        let p = res?.[0];
+
+        // AUTO CREATE PROFILE IF MISSING
         if (!p) {
           p = await base44.entities.Student.create({
-            user_id: auth.id,
-            email: auth.email,
+            user_id: user.id,
+            email: user.email,
             role: "student",
             onboarding_status: "pending",
           });
@@ -50,21 +75,22 @@ export default function App() {
 
         setProfile(p);
       } catch (err) {
-        console.error("App init error:", err);
-        setUser(null);
+        console.error("Profile load error:", err);
         setProfile(null);
-      } finally {
-        setLoading(false);
       }
     };
 
-    init();
-  }, []);
+    loadProfile();
 
-  // -------------------------
-  // LOADING STATE
-  // -------------------------
-  if (loading) {
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
+
+  // -----------------------------
+  // LOADING STATE (CRITICAL)
+  // -----------------------------
+  if (loading || user === undefined || profile === undefined) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
@@ -72,22 +98,16 @@ export default function App() {
     );
   }
 
-  // -------------------------
-  // NOT LOGGED IN → LOGIN
-  // -------------------------
+  // -----------------------------
+  // NOT LOGGED IN → LOGIN PAGE
+  // -----------------------------
   if (!user) {
-    return (
-      <BrowserRouter>
-        <Routes>
-          <Route path="*" element={<Login />} />
-        </Routes>
-      </BrowserRouter>
-    );
+    return <Login />;
   }
 
-  // -------------------------
-  // ONBOARDING CHECK (GLOBAL GATE)
-  // -------------------------
+  // -----------------------------
+  // ONBOARDING CHECK (SAFE GATE)
+  // -----------------------------
   const isIncomplete =
     !profile?.full_name ||
     !profile?.phone ||
@@ -97,48 +117,26 @@ export default function App() {
   const needsOnboarding =
     profile?.onboarding_status !== "completed" || isIncomplete;
 
-  // -------------------------
-  // ROLE DASHBOARD SELECTOR
-  // -------------------------
-  const getDashboard = () => {
-    const role = profile?.role || "student";
+  if (needsOnboarding) {
+    return <Onboarding user={user} profile={profile} />;
+  }
 
-    switch (role) {
-      case "admin":
-        return <AdminDashboard user={user} profile={profile} />;
-      case "warden":
-        return <WardenDashboard user={user} profile={profile} />;
-      case "jakmas":
-        return <JakmasDashboard user={user} profile={profile} />;
-      default:
-        return <StudentDashboard user={user} profile={profile} />;
-    }
-  };
+  // -----------------------------
+  // ROLE ROUTING (FINAL SAFE STEP)
+  // -----------------------------
+  const role = profile?.role || "student";
 
-  // -------------------------
-  // MAIN APP ROUTER
-  // -------------------------
-  return (
-    <BrowserRouter>
-      <Routes>
+  switch (role) {
+    case "admin":
+      return <AdminDashboard user={user} profile={profile} />;
 
-        {/* ONBOARDING GATE (HIGHEST PRIORITY) */}
-        {needsOnboarding ? (
-          <>
-            <Route path="/onboarding" element={<Onboarding user={user} profile={profile} />} />
-            <Route path="*" element={<Navigate to="/onboarding" replace />} />
-          </>
-        ) : (
-          <>
-            {/* MAIN DASHBOARD */}
-            <Route path="/" element={getDashboard()} />
+    case "warden":
+      return <WardenDashboard user={user} profile={profile} />;
 
-            {/* fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </>
-        )}
+    case "jakmas":
+      return <JakmasDashboard user={user} profile={profile} />;
 
-      </Routes>
-    </BrowserRouter>
-  );
+    default:
+      return <StudentDashboard user={user} profile={profile} />;
+  }
 }
