@@ -21,7 +21,7 @@ const loadUser = async () => {
     const merged = {
       id: auth.id,
       email: auth.email,
-      role: auth.role,
+      role: profile.role,
       ...profile,
     };
 
