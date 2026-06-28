@@ -66,9 +66,6 @@
     "read": {
       "$or": [
         {
-          "data.student_id": "{{user.data.student_profile_id}}"
-        },
-        {
           "user_condition": {
             "role": "super_admin"
           }

@@ -46,17 +46,9 @@ export default function Register() {
       const result = await base44.auth.verifyOtp({ email, otpCode });
       if (result?.access_token) {
         base44.auth.setToken(result.access_token);
-        await base44.entities.Student.create({
-  user_id: user.id,
-  email: email,
-  role: role, // <-- store here, NOT auth
-  onboarding_status: "pending",
-});
+        await base44.auth.updateMe({ role });
       }
-      base44.auth.loginWithProvider("google");
-
-// DO NOTHING ELSE
-// App.jsx handles routing;
+      window.location.href = "/";
     } catch (err) {
       setError(err.message || "Invalid verification code");
     } finally {
@@ -78,7 +70,7 @@ export default function Register() {
   };
 
   const handleGoogle = () => {
-    base44.auth.loginWithProvider("google");
+    base44.auth.loginWithProvider("google", "/");
   };
 
   if (showOtp) {

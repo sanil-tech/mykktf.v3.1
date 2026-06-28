@@ -1,35 +1,28 @@
-const loadUser = async () => {
-  try {
-    setLoading(true);
+import React, { useState, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
+import AdminDashboard from '@/components/dashboard/AdminDashboard';
+import StudentDashboard from '@/components/dashboard/StudentDashboard';
+import WardenDashboard from '@/components/dashboard/WardenDashboard';
+import JakmasDashboard from '@/components/dashboard/JakmasDashboard';
 
-    const auth = await base44.auth.me();
+export default function Dashboard() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-    // 🔥 TRY MULTIPLE MATCHING STRATEGIES (VERY IMPORTANT FIX)
-    let students = await base44.entities.Student.filter({
-      user_id: auth.id,
-    });
+  useEffect(() => {
+    base44.auth.me().then(u => { setUser(u); setLoading(false); });
+  }, []);
 
-    // fallback 1: email match
-    if (!students.length) {
-      students = await base44.entities.Student.filter({
-        email: auth.email,
-      });
-    }
-
-    const profile = students?.[0] || null;
-
-    const merged = {
-      id: auth.id,
-      email: auth.email,
-      role: profile.role,
-      ...profile,
-    };
-
-    setUser(merged);
-  } catch (error) {
-    console.error("Failed to load user:", error);
-    setUser(null);
-  } finally {
-    setLoading(false);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
+      </div>
+    );
   }
-};
+
+  if (user?.role === 'student') return <StudentDashboard user={user} />;
+  if (user?.role === 'warden') return <WardenDashboard user={user} />;
+  if (user?.role === 'jakmas') return <JakmasDashboard user={user} />;
+  return <AdminDashboard />;
+}

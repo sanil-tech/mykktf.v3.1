@@ -1,135 +1,125 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { LogIn, Mail, Lock, Loader2 } from "lucide-react";
+import AuthLayout from "@/components/AuthLayout";
+import GoogleIcon from "@/components/GoogleIcon";
 
-import Login from "@/pages/Login";
-import Onboarding from "@/pages/Onboarding";
+export default function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-import AdminDashboard from "@/components/dashboard/AdminDashboard";
-import StudentDashboard from "@/components/dashboard/StudentDashboard";
-import WardenDashboard from "@/components/dashboard/WardenDashboard";
-import JakmasDashboard from "@/components/dashboard/JakmasDashboard";
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await base44.auth.loginViaEmailPassword(email, password);
+      window.location.href = "/";
+    } catch (err) {
+      setError(err.message || "Invalid email or password");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-export default function App() {
-  const [authReady, setAuthReady] = useState(false);
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
+  const handleGoogle = () => {
+    base44.auth.loginWithProvider("google", "/");
+  };
 
-  // -----------------------------
-  // STEP 1: LOCK AUTH UNTIL CONFIRMED
-  // -----------------------------
-  useEffect(() => {
-    let active = true;
-
-    const initAuth = async () => {
-      try {
-        const u = await base44.auth.me();
-
-        if (!active) return;
-
-        setUser(u || null);
-      } catch (err) {
-        setUser(null);
-      } finally {
-        if (active) setAuthReady(true);
+  return (
+    <AuthLayout
+      icon={LogIn}
+      title="Welcome back"
+      subtitle="Log in to your account"
+      footer={
+        <>
+          Don't have an account?{" "}
+          <Link to="/register" className="text-primary font-medium hover:underline">
+            Create one
+          </Link>
+        </>
       }
-    };
+    >
+      <Button
+        variant="outline"
+        className="w-full h-12 text-sm font-medium mb-6"
+        onClick={handleGoogle}
+      >
+        <GoogleIcon className="w-5 h-5 mr-2" />
+        Continue with Google
+      </Button>
 
-    initAuth();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // -----------------------------
-  // STEP 2: LOAD PROFILE ONLY AFTER AUTH READY
-  // -----------------------------
-  useEffect(() => {
-    if (!authReady || !user) return;
-
-    let active = true;
-
-    const loadProfile = async () => {
-      const res = await base44.entities.Student.filter({
-        user_id: user.id,
-      });
-
-      if (!active) return;
-
-      let p = res?.[0];
-
-      if (!p) {
-        p = await base44.entities.Student.create({
-          user_id: user.id,
-          email: user.email,
-          role: "student",
-          onboarding_status: "pending",
-        });
-      }
-
-      setProfile(p);
-    };
-
-    loadProfile();
-
-    return () => {
-      active = false;
-    };
-  }, [authReady, user]);
-
-  // -----------------------------
-  // HARD LOCK (THIS IS WHAT STOPS LOOP)
-  // -----------------------------
-  if (!authReady) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
+      <div className="relative mb-6">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-card px-3 text-muted-foreground">or</span>
+        </div>
       </div>
-    );
-  }
 
-  // -----------------------------
-  // NOT LOGGED IN
-  // -----------------------------
-  if (!user) {
-    return <Login />;
-  }
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+          {error}
+        </div>
+      )}
 
-  // -----------------------------
-  // PROFILE LOADING LOCK
-  // -----------------------------
-  if (!profile) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  // -----------------------------
-  // ONBOARDING GATE
-  // -----------------------------
-  const incomplete =
-    !profile.full_name ||
-    !profile.phone ||
-    !profile.faculty ||
-    !profile.room_id;
-
-  if (profile.onboarding_status !== "completed" || incomplete) {
-    return <Onboarding user={user} profile={profile} />;
-  }
-
-  // -----------------------------
-  // DASHBOARD ROUTING
-  // -----------------------------
-  switch (profile.role) {
-    case "admin":
-      return <AdminDashboard user={user} profile={profile} />;
-    case "warden":
-      return <WardenDashboard user={user} profile={profile} />;
-    case "jakmas":
-      return <JakmasDashboard user={user} profile={profile} />;
-    default:
-      return <StudentDashboard user={user} profile={profile} />;
-  }
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              autoFocus
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="pl-10 h-12"
+              required
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">Password</Label>
+            <Link to="/forgot-password" className="text-xs text-primary hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="pl-10 h-12"
+              required
+            />
+          </div>
+        </div>
+        <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
+          {loading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Logging in...
+            </>
+          ) : (
+            "Log in"
+          )}
+        </Button>
+      </form>
+    </AuthLayout>
+  );
 }
