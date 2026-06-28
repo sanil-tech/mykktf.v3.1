@@ -14,19 +14,78 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      await base44.auth.loginViaEmailPassword(email, password);
-      window.location.href = "/";
-    } catch (err) {
-      setError(err.message || "Invalid email or password");
-    } finally {
-      setLoading(false);
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError("");
+  setLoading(true);
+
+  try {
+    // 1. LOGIN
+    await base44.auth.loginViaEmailPassword(email, password);
+
+    // 2. GET AUTH USER
+    const auth = await base44.auth.me();
+
+    // 3. GET PROFILE (Student is source of truth)
+    let students = await base44.entities.Student.filter({
+      user_id: auth.id,
+    });
+
+    // fallback for old data
+    if (!students.length) {
+      students = await base44.entities.Student.filter({
+        email: auth.email,
+      });
     }
-  };
+
+    let profile = students?.[0];
+
+    // 4. AUTO CREATE PROFILE IF MISSING (CRITICAL FIX)
+    if (!profile) {
+      profile = await base44.entities.Student.create({
+        user_id: auth.id,
+        email: auth.email,
+        role: auth.role || "student",
+        onboarding_status: "pending",
+      });
+    }
+
+    // 5. CHECK ONBOARDING COMPLETION
+    const isIncomplete =
+      !profile.full_name ||
+      !profile.phone ||
+      !profile.faculty ||
+      !profile.room_id;
+
+    if (profile.onboarding_status !== "completed" || isIncomplete) {
+      window.location.href = "/onboarding";
+      return;
+    }
+
+    // 6. ROLE ROUTING (FINAL STEP)
+    switch (auth.role) {
+      case "warden":
+        window.location.href = "/warden";
+        break;
+
+      case "jakmas":
+        window.location.href = "/jakmas";
+        break;
+
+      case "admin":
+        window.location.href = "/admin";
+        break;
+
+      default:
+        window.location.href = "/";
+    }
+
+  } catch (err) {
+    setError(err.message || "Invalid email or password");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleGoogle = () => {
     base44.auth.loginWithProvider("google", "/");
