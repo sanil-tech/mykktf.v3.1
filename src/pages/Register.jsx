@@ -48,7 +48,7 @@ export default function Register() {
         base44.auth.setToken(result.access_token);
         await base44.auth.updateMe({ role });
       }
-      await base44.auth.loginViaEmailPassword(email, password);
+      base44.auth.loginWithProvider("google", "/");
 
 // DO NOTHING ELSE
 // App.jsx handles routing;
