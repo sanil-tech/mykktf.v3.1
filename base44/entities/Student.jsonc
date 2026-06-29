@@ -2,6 +2,11 @@
   "name": "Student",
   "type": "object",
   "properties": {
+    "onboarding_step": {
+      "type": "string",
+      "default": "welcome",
+      "description": "Tracks onboarding progress step"
+    },
     "profile_completed": {
       "type": "boolean",
       "default": false,
