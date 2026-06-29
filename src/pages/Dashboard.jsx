@@ -4,7 +4,7 @@ import AdminDashboard from '@/components/dashboard/AdminDashboard';
 import StudentDashboard from '@/components/dashboard/StudentDashboard';
 import WardenDashboard from '@/components/dashboard/WardenDashboard';
 import JakmasDashboard from '@/components/dashboard/JakmasDashboard';
-import ProfileCompletionFrom from '@/components/dashboard/profilecompletionForm';
+import ProfileCompletionForm from '@/components/dashboard/ProfileCompletionForm';
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
