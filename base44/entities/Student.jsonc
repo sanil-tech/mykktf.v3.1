@@ -2,6 +2,11 @@
   "name": "Student",
   "type": "object",
   "properties": {
+    "profile_completed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indicates whether student has completed onboarding profile"
+    },
     "student_id": {
       "type": "string",
       "description": "University student ID"
