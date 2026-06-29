@@ -40,35 +40,35 @@ export default function Register() {
   };
 
   const handleVerify = async () => {
-    setError("");
-    setLoading(true);
-    try {
-      const result = await base44.auth.verifyOtp({ email, otpCode });
-      if (result?.access_token) {
-    base44.auth.setToken(result.access_token);
+  setError("");
+  setLoading(true);
 
-    await base44.auth.updateMe({
+  try {
+    const result = await base44.auth.verifyOtp({
+      email,
+      otpCode
+    });
+
+    if (result?.access_token) {
+      base44.auth.setToken(result.access_token);
+
+      // FORCE ROLE = STUDENT
+      await base44.auth.updateMe({
         role: "student"
-    });
+      });
 
-    const me = await base44.auth.me();
+      // DO NOT create Student here (important fix)
+      // Let Dashboard handle Student creation automatically
 
-    await base44.entities.Student.create({
-        user_id: me.id,
-        email: me.email,
-        status: "Registered",
-        profile_completed: false,
-        onboarding_step: "welcome"
-    });
-
-      }
       window.location.href = "/";
-    } catch (err) {
-      setError(err.message || "Invalid verification code");
-    } finally {
-      setLoading(false);
     }
-  };
+
+  } catch (err) {
+    setError(err.message || "Invalid verification code");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleResend = async () => {
     setError("");
