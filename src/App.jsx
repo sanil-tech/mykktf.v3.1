@@ -1,192 +1,139 @@
-import { Toaster } from "@/components/ui/toaster";
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClientInstance } from "@/lib/query-client";
-import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
-import { useState, useEffect, useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { UserPlus, Mail, Loader2 } from "lucide-react";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
+import AuthLayout from "@/components/AuthLayout";
+import { toast } from "@/components/ui/use-toast";
 
-import { AuthProvider, useAuth } from "@/lib/AuthContext";
-import UserNotRegisteredError from "@/components/UserNotRegisteredError";
-import ProtectedRoute from "@/components/ProtectedRoute";
+export default function Register() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showOtp, setShowOtp] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [error, setError] = useState("");
 
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
-import ForgotPassword from "@/pages/ForgotPassword";
-import ResetPassword from "@/pages/ResetPassword";
+  // REGISTER
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
 
-import AppLayout from "@/components/layout/AppLayout";
-import Dashboard from "@/pages/Dashboard";
-import Students from "@/pages/Students";
-import Rooms from "@/pages/Rooms";
-import CheckInOut from "@/pages/CheckInOut";
-import Leave from "@/pages/Leave";
-import Maintenance from "@/pages/Maintenance";
-import Visitors from "@/pages/Visitors";
-import Parcels from "@/pages/Parcels";
-import Discipline from "@/pages/Discipline";
-import Facilities from "@/pages/Facilities";
-import AttendancePage from "@/pages/AttendancePage";
-import Announcements from "@/pages/Announcements";
-import Fees from "@/pages/Fees";
-import Reports from "@/pages/Reports";
-import AuditLog from "@/pages/AuditLog";
-import MyProfile from "@/pages/MyProfile";
-import StudentSetup from "@/pages/StudentSetup";
-import BlockAssignment from "@/pages/BlockAssignment";
-import Complaints from "@/pages/Complaints";
-import Chat from "@/pages/Chat";
-import LeaveMonitor from "@/pages/LeaveMonitor";
-import SurveyAnalytics from "@/pages/SurveyAnalytics";
-import Events from "@/pages/Events";
-import RoomInspections from "@/pages/RoomInspections";
-import ResidentDirectory from "@/pages/ResidentDirectory";
-
-const AuthenticatedApp = () => {
-  const {
-    isLoadingAuth,
-    isLoadingPublicSettings,
-    authError,
-    navigateToLogin,
-    user,
-  } = useAuth();
-
-  const [needsSetup, setNeedsSetup] = useState(false);
-  const [checkingSetup, setCheckingSetup] = useState(false);
-
-  // ✅ SAFE ROLE CHECK (ONLY ONCE)
-  const isAdmin = useMemo(() => {
-    return (
-      user?.role === "super_admin" ||
-      user?.role === "warden" ||
-      user?.role === "staff" ||
-      user?.role === "jakmas"
-    );
-  }, [user?.role]);
-
-  useEffect(() => {
-    if (!user || isLoadingAuth) return;
-
-    // ❌ ADMIN NEVER GOES TO SETUP
-    if (isAdmin) {
-      setNeedsSetup(false);
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
       return;
     }
 
-    // ❌ WAIT FOR VALID USER
-    if (!user?.id) return;
+    setLoading(true);
 
-    const checkStudent = async () => {
-      setCheckingSetup(true);
+    try {
+      await base44.auth.register({
+        email,
+        password,
+      });
 
-      try {
-        const results = await base44.entities.Student.filter({
-          user_id: user.id,
-        });
+      setShowOtp(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        setNeedsSetup(results.length === 0);
-      } catch (err) {
-        console.error("Student check failed:", err);
-        setNeedsSetup(true);
-      } finally {
-        setCheckingSetup(false);
+  // VERIFY OTP
+  const handleVerify = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await base44.auth.verifyOtp({
+        email,
+        otpCode,
+      });
+
+      if (!result?.access_token) {
+        throw new Error("Invalid OTP");
       }
-    };
 
-    checkStudent();
-  }, [user, isLoadingAuth, isAdmin]);
+      // SAVE SESSION
+      base44.auth.setToken(result.access_token);
 
-  // LOADING STATE
-  if (isLoadingPublicSettings || isLoadingAuth || checkingSetup) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin"></div>
-          <p className="text-xs text-muted-foreground">Loading KKMS...</p>
-        </div>
-      </div>
-    );
-  }
+      // ❗ DO NOTHING ELSE (NO ROLE UPDATE)
 
-  // AUTH ERROR
-  if (authError) {
-    if (authError.type === "user_not_registered") {
-      return <UserNotRegisteredError />;
+      // GO APP
+      window.location.href = "/";
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    if (authError.type === "auth_required") {
-      navigateToLogin();
-      return null;
-    }
-  }
-
-  // ✅ STUDENT SETUP (ONLY NON-ADMINS)
-  if (needsSetup && user && !isAdmin) {
-    return (
-      <StudentSetup
-        user={user}
-        onComplete={() => {
-          setNeedsSetup(false);
-          window.location.href = "/";
-        }}
-      />
-    );
-  }
+  };
 
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+    <AuthLayout
+      icon={UserPlus}
+      title="Create Account"
+      subtitle="Sign up as student"
+    >
+      {showOtp ? (
+        <>
+          <InputOTP
+            maxLength={6}
+            value={otpCode}
+            onChange={setOtpCode}
+          >
+            <InputOTPGroup>
+              <InputOTPSlot index={0} />
+              <InputOTPSlot index={1} />
+              <InputOTPSlot index={2} />
+              <InputOTPSlot index={3} />
+              <InputOTPSlot index={4} />
+              <InputOTPSlot index={5} />
+            </InputOTPGroup>
+          </InputOTP>
 
-      <Route
-        element={
-          <ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />
-        }
-      >
-        <Route element={<AppLayout user={user} />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/students" element={<Students />} />
-          <Route path="/rooms" element={<Rooms />} />
-          <Route path="/check-in-out" element={<CheckInOut />} />
-          <Route path="/leave" element={<Leave />} />
-          <Route path="/maintenance" element={<Maintenance />} />
-          <Route path="/visitors" element={<Visitors />} />
-          <Route path="/parcels" element={<Parcels />} />
-          <Route path="/discipline" element={<Discipline />} />
-          <Route path="/facilities" element={<Facilities />} />
-          <Route path="/attendance" element={<AttendancePage />} />
-          <Route path="/announcements" element={<Announcements />} />
-          <Route path="/fees" element={<Fees />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/audit-log" element={<AuditLog />} />
-          <Route path="/my-profile" element={<MyProfile />} />
-          <Route path="/block-assignment" element={<BlockAssignment />} />
-          <Route path="/complaints" element={<Complaints />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/leave-monitor" element={<LeaveMonitor />} />
-          <Route path="/survey-analytics" element={<SurveyAnalytics />} />
-          <Route path="/events" element={<Events />} />
-          <Route path="/room-inspections" element={<RoomInspections />} />
-          <Route path="/directory" element={<ResidentDirectory />} />
-        </Route>
-      </Route>
+          <Button
+            className="w-full mt-4"
+            onClick={handleVerify}
+            disabled={loading}
+          >
+            {loading ? "Verifying..." : "Verify"}
+          </Button>
+        </>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="text-red-500 text-sm">{error}</div>
+          )}
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
-};
+          <div>
+            <Label>Email</Label>
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
 
-function App() {
-  return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <AuthenticatedApp />
-        </Router>
-        <Toaster />
-      </QueryClientProvider>
-    </AuthProvider>
+          <div>
+            <Label>Password</Label>
+            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </div>
+
+          <div>
+            <Label>Confirm Password</Label>
+            <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+          </div>
+
+          <Button disabled={loading} className="w-full">
+            {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Create Account"}
+          </Button>
+        </form>
+      )}
+    </AuthLayout>
   );
 }
-
-export default App;
