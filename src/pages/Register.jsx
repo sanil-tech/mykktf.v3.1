@@ -66,7 +66,7 @@ export default function Register() {
 
       // Set session
       localStorage.setItem("base44_token", result.access_token);
-     base44.auth.setToken(result.access_token););
+     base44.auth.setToken(result.access_token);
 
       // FORCE ROLE = STUDENT (IMPORTANT)
       await base44.auth.updateMe({
