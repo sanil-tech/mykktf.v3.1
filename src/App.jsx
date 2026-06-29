@@ -52,7 +52,7 @@ const AuthenticatedApp = () => {
       const isStudent = !user.role || user.role === 'student';
       if (isStudent) {
         setCheckingSetup(true);
-        base44.entities.Student.filter({ email: user.email }).then(results => {
+        base44.entities.Student.filter({ user_id: user.idl }).then(results => {
           setNeedsSetup(results.length === 0);
           setCheckingSetup(false);
         });
