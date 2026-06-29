@@ -84,7 +84,7 @@
         "CheckedOut",
         "Inactive"
       ],
-      "default": "Active"
+      "default": "registered"
     },
     "user_id": {
       "type": "string",
