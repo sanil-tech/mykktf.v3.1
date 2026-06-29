@@ -49,7 +49,16 @@ const AuthenticatedApp = () => {
   useEffect(() => {
     // Only check setup for newly registered users (no role yet or role is default)
     if (user && !isLoadingAuth) {
-      const isStudent = !user.role || user.role === 'student';
+      const isAdmin =
+  user.role === 'super_admin' ||
+  user.role === 'warden' ||
+  user.role === 'staff' ||
+  user.role === 'jakmas';
+
+if (isAdmin) {
+  setNeedsSetup(false);
+  return;
+};
       if (isStudent) {
         setCheckingSetup(true);
         base44.entities.Student.filter({ user_id: user.id }).then(results => {
