@@ -180,17 +180,7 @@ export default function Register() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="role">I am registering as</Label>
-          <Select value={role} onValueChange={setRole}>
-            <SelectTrigger className="h-12">
-              <SelectValue placeholder="Select your role" />
-            </SelectTrigger>
-            <SelectContent>
-              const [role] = useState("student");
-            </SelectContent>
-          </Select>
-        </div>
+        
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <div className="relative">
