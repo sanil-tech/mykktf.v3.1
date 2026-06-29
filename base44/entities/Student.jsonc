@@ -74,7 +74,14 @@
     "status": {
       "type": "string",
       "enum": [
-        "Active",
+        "Registered",
+        "ProfileIncomplete",
+        "ProfileCompleted",
+        "PendingVerification",
+        "Approved",
+        "CheckedIn",
+        "ActiveResident",
+        "CheckedOut",
         "Inactive"
       ],
       "default": "Active"
