@@ -1,74 +1,85 @@
-import { Toaster } from "@/components/ui/toaster"
-import { base44 } from '@/api/base44Client';
-import { QueryClientProvider } from '@tanstack/react-query'
-import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
-import PageNotFound from './lib/PageNotFound';
-import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import ProtectedRoute from '@/components/ProtectedRoute';
+import { Toaster } from "@/components/ui/toaster";
+import { base44 } from "@/api/base44Client";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClientInstance } from "@/lib/query-client";
+import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 
-import Login from '@/pages/Login';
-import Register from '@/pages/Register';
-import ForgotPassword from '@/pages/ForgotPassword';
-import ResetPassword from '@/pages/ResetPassword';
+import { AuthProvider, useAuth } from "@/lib/AuthContext";
+import UserNotRegisteredError from "@/components/UserNotRegisteredError";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
-import AppLayout from '@/components/layout/AppLayout';
-import Dashboard from '@/pages/Dashboard';
-import Students from '@/pages/Students';
-import Rooms from '@/pages/Rooms';
-import CheckInOut from '@/pages/CheckInOut';
-import Leave from '@/pages/Leave';
-import Maintenance from '@/pages/Maintenance';
-import Visitors from '@/pages/Visitors';
-import Parcels from '@/pages/Parcels';
-import Discipline from '@/pages/Discipline';
-import Facilities from '@/pages/Facilities';
-import AttendancePage from '@/pages/AttendancePage';
-import Announcements from '@/pages/Announcements';
-import Fees from '@/pages/Fees';
-import Reports from '@/pages/Reports';
-import AuditLog from '@/pages/AuditLog';
-import MyProfile from '@/pages/MyProfile';
-import StudentSetup from '@/pages/StudentSetup';
-import BlockAssignment from '@/pages/BlockAssignment';
-import Complaints from '@/pages/Complaints';
-import Chat from '@/pages/Chat';
-import LeaveMonitor from '@/pages/LeaveMonitor';
-import SurveyAnalytics from '@/pages/SurveyAnalytics';
-import Events from '@/pages/Events';
-import RoomInspections from '@/pages/RoomInspections';
-import ResidentDirectory from '@/pages/ResidentDirectory';
-import { useState, useEffect } from 'react';
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
+
+import AppLayout from "@/components/layout/AppLayout";
+import Dashboard from "@/pages/Dashboard";
+import Students from "@/pages/Students";
+import Rooms from "@/pages/Rooms";
+import CheckInOut from "@/pages/CheckInOut";
+import Leave from "@/pages/Leave";
+import Maintenance from "@/pages/Maintenance";
+import Visitors from "@/pages/Visitors";
+import Parcels from "@/pages/Parcels";
+import Discipline from "@/pages/Discipline";
+import Facilities from "@/pages/Facilities";
+import AttendancePage from "@/pages/AttendancePage";
+import Announcements from "@/pages/Announcements";
+import Fees from "@/pages/Fees";
+import Reports from "@/pages/Reports";
+import AuditLog from "@/pages/AuditLog";
+import MyProfile from "@/pages/MyProfile";
+import StudentSetup from "@/pages/StudentSetup";
+import BlockAssignment from "@/pages/BlockAssignment";
+import Complaints from "@/pages/Complaints";
+import Chat from "@/pages/Chat";
+import LeaveMonitor from "@/pages/LeaveMonitor";
+import SurveyAnalytics from "@/pages/SurveyAnalytics";
+import Events from "@/pages/Events";
+import RoomInspections from "@/pages/RoomInspections";
+import ResidentDirectory from "@/pages/ResidentDirectory";
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, user } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, user } =
+    useAuth();
+
   const [needsSetup, setNeedsSetup] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(false);
 
   useEffect(() => {
-    // Only check setup for newly registered users (no role yet or role is default)
-    if (user && !isLoadingAuth) {
-      const isAdmin =
-  user.role === 'super_admin' ||
-  user.role === 'warden' ||
-  user.role === 'staff' ||
-  user.role === 'jakmas';
+    if (!user || isLoadingAuth) return;
 
-if (isAdmin) {
-  setNeedsSetup(false);
-  return;
-};
-      if (isStudent) {
-        setCheckingSetup(true);
-        base44.entities.Student.filter({ user_id: user.id }).then(results => {
-          setNeedsSetup(results.length === 0);
-          setCheckingSetup(false);
-        });
-      }
+    const isAdmin =
+      user.role === "super_admin" ||
+      user.role === "warden" ||
+      user.role === "staff" ||
+      user.role === "jakmas";
+
+    // ADMIN SKIP SETUP
+    if (isAdmin) {
+      setNeedsSetup(false);
+      return;
     }
+
+    // STUDENT CHECK (ONLY STUDENT TABLE)
+    setCheckingSetup(true);
+
+    base44.entities.Student
+      .filter({ user_id: user.id })
+      .then((results) => {
+        setNeedsSetup(results.length === 0);
+        setCheckingSetup(false);
+      })
+      .catch(() => {
+        setNeedsSetup(true);
+        setCheckingSetup(false);
+      });
+
   }, [user, isLoadingAuth]);
 
+  // LOADING SCREEN
   if (isLoadingPublicSettings || isLoadingAuth || checkingSetup) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-background">
@@ -80,27 +91,50 @@ if (isAdmin) {
     );
   }
 
+  // AUTH ERROR HANDLING
   if (authError) {
-    if (authError.type === 'user_not_registered') {
+    if (authError.type === "user_not_registered") {
       return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
+    }
+    if (authError.type === "auth_required") {
       navigateToLogin();
       return null;
     }
   }
 
-  if (needsSetup && user) {
-    return <StudentSetup user={user} onComplete={() => { setNeedsSetup(false); window.location.href = '/'; }} />;
+  // FORCE STUDENT SETUP (ONLY NON-ADMINS)
+  const isAdmin =
+    user?.role === "super_admin" ||
+    user?.role === "warden" ||
+    user?.role === "staff" ||
+    user?.role === "jakmas";
+
+  if (needsSetup && user && !isAdmin) {
+    return (
+      <StudentSetup
+        user={user}
+        onComplete={() => {
+          setNeedsSetup(false);
+          window.location.href = "/";
+        }}
+      />
+    );
   }
 
   return (
     <Routes>
+      {/* AUTH ROUTES */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
 
-      <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
+      {/* PROTECTED ROUTES */}
+      <Route
+        element={
+          <ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />
+        }
+      >
         <Route element={<AppLayout user={user} />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/students" element={<Students />} />
@@ -129,8 +163,18 @@ if (isAdmin) {
         </Route>
       </Route>
 
-      <Route path="/student-setup" element={<StudentSetup user={user} onComplete={() => { window.location.href = '/'; }} />} />
-      <Route path="*" element={<PageNotFound />} />
+      {/* SETUP ROUTE */}
+      <Route
+        path="/student-setup"
+        element={
+          <StudentSetup
+            user={user}
+            onComplete={() => (window.location.href = "/")}
+          />
+        }
+      />
+
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };
@@ -145,7 +189,7 @@ function App() {
         <Toaster />
       </QueryClientProvider>
     </AuthProvider>
-  )
+  );
 }
 
-export default App
+export default App;
