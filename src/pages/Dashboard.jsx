@@ -52,4 +52,15 @@ export default function Dashboard() {
   if (user?.role === 'jakmas') return <JakmasDashboard user={user} />;
   
   return <AdminDashboard user={user} />;
+  if (isStudent && !student?.profile_completed) {
+  return (
+    <ProfileCompletionForm
+      user={user}
+      onComplete={() => {
+        setLoading(true);
+        fetchUser();
+      }}
+    />
+  );
+}
 }
