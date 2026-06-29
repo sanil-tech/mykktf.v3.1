@@ -5,17 +5,7 @@ import StudentDashboard from '@/components/dashboard/StudentDashboard';
 import WardenDashboard from '@/components/dashboard/WardenDashboard';
 import JakmasDashboard from '@/components/dashboard/JakmasDashboard';
 import ProfileCompletionForm from '@/pages/StudentSetup';
-if (isStudent && !student?.profile_completed) {
-  return (
-    <ProfileCompletionForm
-      user={user}
-      onComplete={() => {
-        setLoading(true);
-        fetchUser();
-      }}
-    />
-  );
-}
+
 export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
