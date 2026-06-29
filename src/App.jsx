@@ -1,139 +1,142 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { UserPlus, Mail, Loader2 } from "lucide-react";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
-import AuthLayout from "@/components/AuthLayout";
-import { toast } from "@/components/ui/use-toast";
+import { Toaster } from "@/components/ui/toaster"
+import { base44 } from '@/api/base44Client';
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClientInstance } from '@/lib/query-client'
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import PageNotFound from './lib/PageNotFound';
+import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
-export default function Register() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showOtp, setShowOtp] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
-  const [error, setError] = useState("");
+import Login from '@/pages/Login';
+import Register from '@/pages/Register';
+import ForgotPassword from '@/pages/ForgotPassword';
+import ResetPassword from '@/pages/ResetPassword';
 
-  // REGISTER
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
+import AppLayout from '@/components/layout/AppLayout';
+import Dashboard from '@/pages/Dashboard';
+import Students from '@/pages/Students';
+import Rooms from '@/pages/Rooms';
+import CheckInOut from '@/pages/CheckInOut';
+import Leave from '@/pages/Leave';
+import Maintenance from '@/pages/Maintenance';
+import Visitors from '@/pages/Visitors';
+import Parcels from '@/pages/Parcels';
+import Discipline from '@/pages/Discipline';
+import Facilities from '@/pages/Facilities';
+import AttendancePage from '@/pages/AttendancePage';
+import Announcements from '@/pages/Announcements';
+import Fees from '@/pages/Fees';
+import Reports from '@/pages/Reports';
+import AuditLog from '@/pages/AuditLog';
+import MyProfile from '@/pages/MyProfile';
+import StudentSetup from '@/pages/StudentSetup';
+import BlockAssignment from '@/pages/BlockAssignment';
+import Complaints from '@/pages/Complaints';
+import Chat from '@/pages/Chat';
+import LeaveMonitor from '@/pages/LeaveMonitor';
+import SurveyAnalytics from '@/pages/SurveyAnalytics';
+import Events from '@/pages/Events';
+import RoomInspections from '@/pages/RoomInspections';
+import ResidentDirectory from '@/pages/ResidentDirectory';
+import { useState, useEffect } from 'react';
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
+const AuthenticatedApp = () => {
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, user } = useAuth();
+  const [needsSetup, setNeedsSetup] = useState(false);
+  const [checkingSetup, setCheckingSetup] = useState(false);
 
-    setLoading(true);
-
-    try {
-      await base44.auth.register({
-        email,
-        password,
-      });
-
-      setShowOtp(true);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // VERIFY OTP
-  const handleVerify = async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const result = await base44.auth.verifyOtp({
-        email,
-        otpCode,
-      });
-
-      if (!result?.access_token) {
-        throw new Error("Invalid OTP");
+  useEffect(() => {
+    // Only check setup for newly registered users (no role yet or role is default)
+    if (user && !isLoadingAuth) {
+      const isStudent = !user.role || user.role === 'student';
+      if (isStudent) {
+        setCheckingSetup(true);
+        base44.entities.Student.filter({ email: user.email }).then(results => {
+          setNeedsSetup(results.length === 0);
+          setCheckingSetup(false);
+        });
       }
-
-      // SAVE SESSION
-      base44.auth.setToken(result.access_token);
-
-      // ❗ DO NOTHING ELSE (NO ROLE UPDATE)
-
-      // GO APP
-      window.location.href = "/";
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [user, isLoadingAuth]);
+
+  if (isLoadingPublicSettings || isLoadingAuth || checkingSetup) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin"></div>
+          <p className="text-xs text-muted-foreground">Loading KKMS...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (authError) {
+    if (authError.type === 'user_not_registered') {
+      return <UserNotRegisteredError />;
+    } else if (authError.type === 'auth_required') {
+      navigateToLogin();
+      return null;
+    }
+  }
+
+  if (needsSetup && user) {
+    return <StudentSetup user={user} onComplete={() => { setNeedsSetup(false); window.location.href = '/'; }} />;
+  }
 
   return (
-    <AuthLayout
-      icon={UserPlus}
-      title="Create Account"
-      subtitle="Sign up as student"
-    >
-      {showOtp ? (
-        <>
-          <InputOTP
-            maxLength={6}
-            value={otpCode}
-            onChange={setOtpCode}
-          >
-            <InputOTPGroup>
-              <InputOTPSlot index={0} />
-              <InputOTPSlot index={1} />
-              <InputOTPSlot index={2} />
-              <InputOTPSlot index={3} />
-              <InputOTPSlot index={4} />
-              <InputOTPSlot index={5} />
-            </InputOTPGroup>
-          </InputOTP>
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
-          <Button
-            className="w-full mt-4"
-            onClick={handleVerify}
-            disabled={loading}
-          >
-            {loading ? "Verifying..." : "Verify"}
-          </Button>
-        </>
-      ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="text-red-500 text-sm">{error}</div>
-          )}
+      <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
+        <Route element={<AppLayout user={user} />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/students" element={<Students />} />
+          <Route path="/rooms" element={<Rooms />} />
+          <Route path="/check-in-out" element={<CheckInOut />} />
+          <Route path="/leave" element={<Leave />} />
+          <Route path="/maintenance" element={<Maintenance />} />
+          <Route path="/visitors" element={<Visitors />} />
+          <Route path="/parcels" element={<Parcels />} />
+          <Route path="/discipline" element={<Discipline />} />
+          <Route path="/facilities" element={<Facilities />} />
+          <Route path="/attendance" element={<AttendancePage />} />
+          <Route path="/announcements" element={<Announcements />} />
+          <Route path="/fees" element={<Fees />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/audit-log" element={<AuditLog />} />
+          <Route path="/my-profile" element={<MyProfile />} />
+          <Route path="/block-assignment" element={<BlockAssignment />} />
+          <Route path="/complaints" element={<Complaints />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/leave-monitor" element={<LeaveMonitor />} />
+          <Route path="/survey-analytics" element={<SurveyAnalytics />} />
+          <Route path="/events" element={<Events />} />
+          <Route path="/room-inspections" element={<RoomInspections />} />
+          <Route path="/directory" element={<ResidentDirectory />} />
+        </Route>
+      </Route>
 
-          <div>
-            <Label>Email</Label>
-            <Input value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-
-          <div>
-            <Label>Password</Label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          </div>
-
-          <div>
-            <Label>Confirm Password</Label>
-            <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-          </div>
-
-          <Button disabled={loading} className="w-full">
-            {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Create Account"}
-          </Button>
-        </form>
-      )}
-    </AuthLayout>
+      <Route path="/student-setup" element={<StudentSetup user={user} onComplete={() => { window.location.href = '/'; }} />} />
+      <Route path="*" element={<PageNotFound />} />
+    </Routes>
   );
+};
+
+function App() {
+  return (
+    <AuthProvider>
+      <QueryClientProvider client={queryClientInstance}>
+        <Router>
+          <AuthenticatedApp />
+        </Router>
+        <Toaster />
+      </QueryClientProvider>
+    </AuthProvider>
+  )
 }
+
+export default App
