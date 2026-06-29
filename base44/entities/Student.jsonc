@@ -94,7 +94,7 @@
         "CheckedOut",
         "Inactive"
       ],
-      "default": "registered"
+      "default": "Registered"
     },
     "user_id": {
       "type": "string",
