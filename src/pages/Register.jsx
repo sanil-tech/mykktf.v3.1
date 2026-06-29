@@ -45,8 +45,22 @@ export default function Register() {
     try {
       const result = await base44.auth.verifyOtp({ email, otpCode });
       if (result?.access_token) {
-        base44.auth.setToken(result.access_token);
-        await base44.auth.updateMe({ role });
+    base44.auth.setToken(result.access_token);
+
+    await base44.auth.updateMe({
+        role: "student"
+    });
+
+    const me = await base44.auth.me();
+
+    await base44.entities.Student.create({
+        user_id: me.id,
+        email: me.email,
+        status: "Registered",
+        profile_completed: false,
+        onboarding_step: "welcome"
+    });
+
       }
       window.location.href = "/";
     } catch (err) {
@@ -173,10 +187,7 @@ export default function Register() {
               <SelectValue placeholder="Select your role" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="student">Student / Resident</SelectItem>
-              <SelectItem value="staff">Staff</SelectItem>
-              <SelectItem value="warden">Warden</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
+              const [role] = useState("student");
             </SelectContent>
           </Select>
         </div>
