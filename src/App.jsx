@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClientInstance } from "@/lib/query-client";
 import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import UserNotRegisteredError from "@/components/UserNotRegisteredError";
@@ -42,44 +42,60 @@ import RoomInspections from "@/pages/RoomInspections";
 import ResidentDirectory from "@/pages/ResidentDirectory";
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, user } =
-    useAuth();
+  const {
+    isLoadingAuth,
+    isLoadingPublicSettings,
+    authError,
+    navigateToLogin,
+    user,
+  } = useAuth();
 
   const [needsSetup, setNeedsSetup] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(false);
 
+  // ✅ SAFE ROLE CHECK (ONLY ONCE)
+  const isAdmin = useMemo(() => {
+    return (
+      user?.role === "super_admin" ||
+      user?.role === "warden" ||
+      user?.role === "staff" ||
+      user?.role === "jakmas"
+    );
+  }, [user?.role]);
+
   useEffect(() => {
     if (!user || isLoadingAuth) return;
 
-    const isAdmin =
-      user.role === "super_admin" ||
-      user.role === "warden" ||
-      user.role === "staff" ||
-      user.role === "jakmas";
-
-    // ADMIN SKIP SETUP
+    // ❌ ADMIN NEVER GOES TO SETUP
     if (isAdmin) {
       setNeedsSetup(false);
       return;
     }
 
-    // STUDENT CHECK (ONLY STUDENT TABLE)
-    setCheckingSetup(true);
+    // ❌ WAIT FOR VALID USER
+    if (!user?.id) return;
 
-    base44.entities.Student
-      .filter({ user_id: user.id })
-      .then((results) => {
+    const checkStudent = async () => {
+      setCheckingSetup(true);
+
+      try {
+        const results = await base44.entities.Student.filter({
+          user_id: user.id,
+        });
+
         setNeedsSetup(results.length === 0);
-        setCheckingSetup(false);
-      })
-      .catch(() => {
+      } catch (err) {
+        console.error("Student check failed:", err);
         setNeedsSetup(true);
+      } finally {
         setCheckingSetup(false);
-      });
+      }
+    };
 
-  }, [user, isLoadingAuth]);
+    checkStudent();
+  }, [user, isLoadingAuth, isAdmin]);
 
-  // LOADING SCREEN
+  // LOADING STATE
   if (isLoadingPublicSettings || isLoadingAuth || checkingSetup) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-background">
@@ -91,7 +107,7 @@ const AuthenticatedApp = () => {
     );
   }
 
-  // AUTH ERROR HANDLING
+  // AUTH ERROR
   if (authError) {
     if (authError.type === "user_not_registered") {
       return <UserNotRegisteredError />;
@@ -102,13 +118,7 @@ const AuthenticatedApp = () => {
     }
   }
 
-  // FORCE STUDENT SETUP (ONLY NON-ADMINS)
-  const isAdmin =
-    user?.role === "super_admin" ||
-    user?.role === "warden" ||
-    user?.role === "staff" ||
-    user?.role === "jakmas";
-
+  // ✅ STUDENT SETUP (ONLY NON-ADMINS)
   if (needsSetup && user && !isAdmin) {
     return (
       <StudentSetup
@@ -123,13 +133,11 @@ const AuthenticatedApp = () => {
 
   return (
     <Routes>
-      {/* AUTH ROUTES */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
 
-      {/* PROTECTED ROUTES */}
       <Route
         element={
           <ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />
@@ -162,17 +170,6 @@ const AuthenticatedApp = () => {
           <Route path="/directory" element={<ResidentDirectory />} />
         </Route>
       </Route>
-
-      {/* SETUP ROUTE */}
-      <Route
-        path="/student-setup"
-        element={
-          <StudentSetup
-            user={user}
-            onComplete={() => (window.location.href = "/")}
-          />
-        }
-      />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
