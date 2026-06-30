@@ -30,11 +30,11 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      // Pass the selected role inside the registration configuration object
+      // Pass the selected role directly into the registration data payload
       await base44.auth.register({ 
         email, 
         password,
-        role: role // Passes role directly or as user attributes depending on your Base44 setup
+        role: role 
       });
       setShowOtp(true);
     } catch (err) {
@@ -51,7 +51,7 @@ export default function Register() {
       const result = await base44.auth.verifyOtp({ email, otpCode });
       if (result?.access_token) {
         base44.auth.setToken(result.access_token);
-        // The role is already handled on user creation, skipping client-side updateMe
+        // Skipped client-side updateMe since role is set during creation!
       }
       window.location.href = "/";
     } catch (err) {
@@ -181,7 +181,7 @@ export default function Register() {
               <SelectItem value="student">Student / Resident</SelectItem>
               <SelectItem value="staff">Staff</SelectItem>
               <SelectItem value="warden">Warden</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="college_admin">Admin</SelectItem>
             </SelectContent>
           </Select>
         </div>
