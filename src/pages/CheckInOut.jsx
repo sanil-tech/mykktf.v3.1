@@ -22,7 +22,7 @@ export default function CheckInOut() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Lapisan Keselamatan 1: Guard state UI (Mengelakkan klik spam berunsur milisaat)
+  // Guard state UI anti-spam click
   const [submitting, setSubmitting] = useState(false);
   
   // Dialog States
@@ -57,7 +57,7 @@ export default function CheckInOut() {
     load();
   }, []);
 
-  // Sinkronasi data pelajar apabila state global berubah
+  // Sinkronasi data apabila state global berubah
   useEffect(() => {
     if (selectedStudent && students.length > 0) {
       const updatedData = students.find(s => s.id === selectedStudent.id);
@@ -67,7 +67,7 @@ export default function CheckInOut() {
     }
   }, [students]);
 
-  // Fungsi menyemak jika pelajar sudah mempunyai bilik aktif
+  // Fungsi menyemak bilik aktif
   const hasActiveRoom = (student) => {
     if (!student) return false;
     
@@ -85,7 +85,7 @@ export default function CheckInOut() {
     return false;
   };
 
-  // Penapisan senarai carian berdasarkan konteks dialog
+  // Penapisan senarai carian pelajar
   useEffect(() => {
     if (!studentSearch.trim()) {
       setFilteredStudents([]);
@@ -265,7 +265,6 @@ export default function CheckInOut() {
     setSelectedBlock('');
   };
 
-  // FUNGSI CHECK-IN DENGAN PERLINDUNGAN DOUBLE-PROCESS TERAMAT KETAT
   async function handleCheckIn() {
     if (submitting) return; 
     if (!selectedStudent || !ciForm.room_id || !ciForm.check_in_date) {
@@ -273,12 +272,12 @@ export default function CheckInOut() {
       return;
     }
 
-    // 🛡️ LAPISAN KESELAMATAN 2 (State Validation): Semakan saat-akhir pada data state global terkini
+    // Semakan keselamatan saat akhir pada state terkini
     const freshStudentData = students.find(s => s.id === selectedStudent.id);
     if (hasActiveRoom(freshStudentData) || hasActiveRoom(selectedStudent)) {
       toast({ 
         title: 'Sekatan Keselamatan', 
-        description: 'Pelajar ini sudah dicheck-in kan sebentar tadi! Sistem menyekat percubaan duplikasi.', 
+        description: 'Pelajar ini sudah mendaftar masuk sebentar tadi!', 
         variant: 'destructive' 
       });
       setCiDialog(false);
@@ -303,13 +302,14 @@ export default function CheckInOut() {
         block_name: room?.block_name || ''
       });
 
-      // 2. Kemaskini status bilik pelajar di pangkalan data secara kekal
+      // 2. DI SINI: Kemaskini status bilik pelajar SERTA menukar status jenis pengguna kepada 'Student'
       await base44.entities.Student.update(selectedStudent.id, {
         block_name: room.block_name || '',
         room_number: room.room_number || '',
         room_id: room.id,
         check_in_date: ciForm.check_in_date,
-        room_status: 'Checked In'
+        room_status: 'Checked In',
+        status: 'Student' // 🌟 Memulihkan kod asal awak: Mengubah status pengguna menjadi Pelajar/Student secara rasmi
       });
 
       // 3. Kemaskini kapasiti bilik semasa
