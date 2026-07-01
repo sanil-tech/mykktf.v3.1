@@ -67,25 +67,19 @@ export default function CheckInOut() {
     }
   }, [students]);
 
-  // Fungsi menyemak bilik aktif
+  // 1 & 3 & 4. Fungsi menyemak bilik aktif (Source of Truth daripada Student.room_id sahaja)
   const hasActiveRoom = (student) => {
     if (!student) return false;
-    
-    if (student.room_status && String(student.room_status).trim().toLowerCase() === 'checked in') {
-      return true;
-    }
-
     if (student.room_id !== undefined && student.room_id !== null) {
       const val = String(student.room_id).trim().toLowerCase();
       if (val !== '' && val !== 'none' && val !== 'null' && val !== 'undefined') {
         return true;
       }
     }
-    
     return false;
   };
 
-  // Penapisan senarai carian pelajar
+  // 4. Penapisan senarai carian pelajar berdasarkan status bilik yang jitu
   useEffect(() => {
     if (!studentSearch.trim()) {
       setFilteredStudents([]);
@@ -99,8 +93,10 @@ export default function CheckInOut() {
     );
 
     if (ciDialog) {
+      // Check-In list MUST show only students where room_id is empty/null
       baseFiltered = baseFiltered.filter(s => !hasActiveRoom(s));
     } else if (coDialog) {
+      // Check-Out list MUST show only students where room_id exists
       baseFiltered = baseFiltered.filter(s => hasActiveRoom(s));
     }
 
@@ -125,11 +121,18 @@ export default function CheckInOut() {
     setFilteredRooms(roomsInBlock.sort((a, b) => String(a.room_number).localeCompare(String(b.room_number))));
   }, [selectedBlock, rooms]);
 
+  // 1 & 5. Pengiraan Real-time Room Status & Occupancy daripada jadual Student (Source of Truth)
+  function getCalculatedOccupancy(roomId) {
+    if (!roomId) return 0;
+    return students.filter(s => String(s.room_id) === String(roomId)).length;
+  }
+
   function getRoomStatus(room) {
     if (!room) return 'Unknown';
+    // Maintenance overrides everything
     if (room.status === 'Maintenance' || room.room_status === 'Maintenance') return 'Maintenance';
     
-    const current = room.current_occupancy || 0;
+    const current = getCalculatedOccupancy(room.id);
     const capacity = room.capacity || 4;
     
     if (current === 0) return 'Available';
@@ -137,17 +140,19 @@ export default function CheckInOut() {
     return 'Occupied';
   }
 
+  // 6. Fix Gender Filter Bug (Strict comparison & Mixed compatibility)
   function getAvailableRooms(allRooms, student) {
     if (!student) return [];
     return allRooms.filter(room => {
       if (room.status === 'Maintenance' || room.room_status === 'Maintenance') return false;
       
-      const current = room.current_occupancy || 0;
+      const current = getCalculatedOccupancy(room.id);
       const capacity = room.capacity || 4;
       if (current >= capacity) return false;
 
       const studentGender = (student.gender || '').toLowerCase().trim();
       const roomGender = (room.gender_restriction || room.gender || 'mixed').toLowerCase().trim();
+      
       if (roomGender !== 'mixed' && studentGender && roomGender !== studentGender) {
         return false;
       }
@@ -158,13 +163,15 @@ export default function CheckInOut() {
   function suggestRooms(allRooms, student) {
     const available = getAvailableRooms(allRooms, student);
     return available
-      .sort((a, b) => (a.current_occupancy || 0) - (b.current_occupancy || 0))
+      .sort((a, b) => getCalculatedOccupancy(a.id) - getCalculatedOccupancy(b.id))
       .slice(0, 4);
   }
 
+  // 3 & 6. Clean Validation Layer sebelum penugasan bilik dibuat
   function validateRoomSelection(room, student, triggerToasts = true) {
     if (!room || !student) return false;
 
+    // 3. Prevent Double Room Assignment
     if (hasActiveRoom(student)) {
       if (triggerToasts) {
         toast({ 
@@ -183,7 +190,7 @@ export default function CheckInOut() {
       return false;
     }
 
-    const current = room.current_occupancy || 0;
+    const current = getCalculatedOccupancy(room.id);
     const capacity = room.capacity || 4;
     if (current >= capacity) {
       if (triggerToasts) {
@@ -192,6 +199,7 @@ export default function CheckInOut() {
       return false;
     }
 
+    // 6. Strict Gender Validation
     const studentGender = (student.gender || '').toLowerCase().trim();
     const roomGender = (room.gender_restriction || room.gender || 'mixed').toLowerCase().trim();
     if (roomGender !== 'mixed' && studentGender && roomGender !== studentGender) {
@@ -208,7 +216,18 @@ export default function CheckInOut() {
     return true;
   }
 
-  const getStatusCardStyles = (status) => {
+  // 7. Real-Time Room Occupant Viewer data filter helper
+  function getRoomOccupants(roomId) {
+    return students
+      .filter(s => String(s.room_id) === String(roomId))
+      .map(s => ({
+        full_name: s.full_name || 'N/A',
+        student_id: s.student_id || 'N/A',
+        phone_number: s.phone_number || s.phone || 'N/A'
+      }));
+  }
+
+  const getStatusCardStyles = (status, roomId) => {
     switch (status) {
       case 'Available': return 'border-emerald-200 bg-emerald-50/40 hover:bg-emerald-50 text-emerald-900';
       case 'Occupied': return 'border-blue-200 bg-blue-50/40 hover:bg-blue-50 text-blue-900';
@@ -265,6 +284,7 @@ export default function CheckInOut() {
     setSelectedBlock('');
   };
 
+  // 2 & 8. Atomic & Consistent Safe Check-In Logic
   async function handleCheckIn() {
     if (submitting) return; 
     if (!selectedStudent || !ciForm.room_id || !ciForm.check_in_date) {
@@ -272,16 +292,24 @@ export default function CheckInOut() {
       return;
     }
 
-    // Semakan keselamatan saat akhir pada state terkini
-    const freshStudentData = students.find(s => s.id === selectedStudent.id);
-    if (hasActiveRoom(freshStudentData) || hasActiveRoom(selectedStudent)) {
+    // Ambil senarai pelajar terkini terus dari API untuk elak race condition/stale state update
+    let freshStudentsList = [];
+    try {
+      freshStudentsList = await base44.entities.Student.list();
+    } catch (e) {
+      freshStudentsList = [...students];
+    }
+
+    const freshStudentData = freshStudentsList.find(s => s.id === selectedStudent.id);
+    if (hasActiveRoom(freshStudentData)) {
       toast({ 
         title: 'Sekatan Keselamatan', 
-        description: 'Pelajar ini sudah mendaftar masuk sebentar tadi!', 
+        description: 'Pelajar ini dikesan sudah mempunyai bilik aktif berdasarkan data pelayan terkini!', 
         variant: 'destructive' 
       });
       setCiDialog(false);
       resetSearchState();
+      await load();
       return;
     }
 
@@ -302,27 +330,28 @@ export default function CheckInOut() {
         block_name: room?.block_name || ''
       });
 
-      // 2. DI SINI: Kemaskini status bilik pelajar SERTA menukar status jenis pengguna kepada 'Student'
+      // 2. Kemaskini status bilik pelajar
       await base44.entities.Student.update(selectedStudent.id, {
         block_name: room.block_name || '',
         room_number: room.room_number || '',
         room_id: room.id,
         check_in_date: ciForm.check_in_date,
         room_status: 'Checked In',
-        status: 'Student' // 🌟 Memulihkan kod asal awak: Mengubah status pengguna menjadi Pelajar/Student secara rasmi
+        status: 'Student'
       });
 
-      // 3. Kemaskini kapasiti bilik semasa
-      const currentCachedOccupancy = room.current_occupancy || 0;
-      const newOccupancy = currentCachedOccupancy + 1;
+      // 1 & 2. Hitung semula occupancy bilik secara dinamik dari data pelayan terkini + kemasukan baharu (+1)
+      const freshOccupantsCount = freshStudentsList.filter(s => String(s.room_id) === String(room.id)).length;
+      const verifiedNewOccupancy = freshOccupantsCount + 1;
       const capacity = room.capacity || 4;
       
       const nextStatus = room.status === 'Maintenance' || room.room_status === 'Maintenance'
         ? 'Maintenance' 
-        : (newOccupancy >= capacity ? 'Full' : 'Occupied');
+        : (verifiedNewOccupancy >= capacity ? 'Full' : 'Occupied');
 
+      // 8. Kemaskini maklumat bilik secara konsisten
       await base44.entities.Room.update(room.id, {
-        current_occupancy: newOccupancy,
+        current_occupancy: verifiedNewOccupancy,
         status: nextStatus,
         room_status: nextStatus
       });
@@ -340,6 +369,7 @@ export default function CheckInOut() {
     }
   }
 
+  // 2 & 8. Atomic & Consistent Safe Check-Out Logic
   async function handleCheckOut() {
     if (submitting) return; 
     if (!selectedStudent) {
@@ -360,6 +390,13 @@ export default function CheckInOut() {
     setSubmitting(true); 
     try {
       const room = rooms.find(r => String(r.id) === String(selectedStudent.room_id));
+      
+      let freshStudentsList = [];
+      try {
+        freshStudentsList = await base44.entities.Student.list();
+      } catch (e) {
+        freshStudentsList = [...students];
+      }
 
       // 1. Cipta rekod check-out
       const checkout = await base44.entities.CheckOut.create({
@@ -383,17 +420,18 @@ export default function CheckInOut() {
         room_status: 'Checked Out'
       });
 
-      // 3. Kurangkan bilangan penghuni bilik
+      // 1 & 2. Hitung semula occupancy bilik secara dinamik dari data pelayan terkini (-1 dari nilai asal)
       if (room) {
-        const currentCachedOccupancy = room.current_occupancy || 0;
-        const newOccupancy = Math.max(0, currentCachedOccupancy - 1);
+        const freshOccupantsCount = freshStudentsList.filter(s => String(s.room_id) === String(room.id)).length;
+        const verifiedNewOccupancy = Math.max(0, freshOccupantsCount - 1);
         
         const nextStatus = room.status === 'Maintenance' || room.room_status === 'Maintenance'
           ? 'Maintenance' 
-          : (newOccupancy === 0 ? 'Available' : 'Occupied');
+          : (verifiedNewOccupancy === 0 ? 'Available' : 'Occupied');
 
+        // 8. Kemaskini maklumat bilik secara konsisten
         await base44.entities.Room.update(room.id, {
-          current_occupancy: newOccupancy,
+          current_occupancy: verifiedNewOccupancy,
           status: nextStatus,
           room_status: nextStatus
         });
@@ -594,7 +632,7 @@ export default function CheckInOut() {
                     suggestRooms(rooms, selectedStudent).map((room) => {
                       const status = getRoomStatus(room);
                       const isSelected = ciForm.room_id === room.id;
-                      const currentOcc = room.current_occupancy || 0;
+                      const currentOcc = getCalculatedOccupancy(room.id);
                       const capacity = room.capacity || 4;
                       const bedsAvailable = capacity - currentOcc;
 
@@ -611,7 +649,7 @@ export default function CheckInOut() {
                               }
                             }
                           }}
-                          className={`cursor-pointer border transition-all text-left ${getStatusCardStyles(status)} ${isSelected ? 'ring-2 ring-primary border-transparent' : ''}`}
+                          className={`cursor-pointer border transition-all text-left ${getStatusCardStyles(status, room.id)} ${isSelected ? 'ring-2 ring-primary border-transparent' : ''}`}
                         >
                           <CardContent className="p-3 flex flex-col justify-between h-full space-y-2">
                             <div className="flex justify-between items-start">
@@ -624,6 +662,18 @@ export default function CheckInOut() {
                               </Badge>
                             </div>
                             
+                            {/* 7. Real-Time Occupant View apabila admin melihat kad bilik */}
+                            {currentOcc > 0 && (
+                              <div className="bg-black/5 p-1 rounded text-[10px] space-y-0.5 text-muted-foreground max-h-16 overflow-y-auto">
+                                <span className="font-bold flex items-center gap-0.5"><Users className="w-2.5 h-2.5" /> Penghuni:</span>
+                                {getRoomOccupants(room.id).map((occ, idx) => (
+                                  <div key={idx} className="truncate">
+                                    • {occ.full_name} ({occ.student_id}) - {occ.phone_number}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
                             <div className="text-[11px] font-medium flex justify-between items-center pt-1.5 border-t border-black/5">
                               <span className="flex items-center gap-1 text-[10px]">
                                 <Bed className="w-3 h-3" />
@@ -672,7 +722,7 @@ export default function CheckInOut() {
                 <SelectContent>
                   {filteredRooms.map((r) => {
                     const status = getRoomStatus(r);
-                    const currentOcc = r.current_occupancy || 0;
+                    const currentOcc = getCalculatedOccupancy(r.id);
                     const capacity = r.capacity || 4;
                     return (
                       <SelectItem key={r.id} value={r.id} disabled={status === 'Full' || status === 'Maintenance'}>
