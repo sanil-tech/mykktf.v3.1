@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import PageHeader from '@/components/shared/PageHeader';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/components/ui/use-toast';
-import { User, Save, Loader2, Building2, Plus, X } from 'lucide-react';
+import AdminDashboard from '@/components/dashboard/AdminDashboard';
+import StudentDashboard from '@/components/dashboard/StudentDashboard';
+import WardenDashboard from '@/components/dashboard/WardenDashboard';
+import JakmasDashboard from '@/components/dashboard/JakmasDashboard';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "@/components/ui/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
 
 const UMS_FACULTIES = [
   'Faculty of Business, Economics and Accountancy (FPEP)',
@@ -25,256 +28,238 @@ const UMS_FACULTIES = [
   'Other',
 ];
 
-export default function MyProfile() {
+export default function Dashboard() {
   const [currentUser, setCurrentUser] = useState(null);
-  const [student, setStudent] = useState(null);
-  const [form, setForm] = useState(null);
+  const [hasStudentProfile, setHasStudentProfile] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [blocks, setBlocks] = useState([]);
-  const [rooms, setRooms] = useState([]);
-  const [wardenAssignments, setWardenAssignments] = useState([]);
-  const [selectedBlock, setSelectedBlock] = useState('');
-  const [savingBlock, setSavingBlock] = useState(false);
-  const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { init(); }, []);
+  // Form State mengikut keperluan field entiti Student asal anda
+  const [form, setForm] = useState({
+    full_name: '',
+    student_id: '',
+    ic_passport: '',
+    gender: 'Male',
+    date_of_birth: '',
+    phone: '',
+    faculty: '',
+    programme: '',
+    year_of_study: 1,
+    parent_name: '',
+    parent_phone: '',
+    emergency_contact: '',
+    vehicle_reg: '',
+    block_name: '', // Kekal kosong untuk tugasan Admin kemudian
+    room_number: '', // Kekal kosong untuk tugasan Admin kemudian
+  });
 
-  async function init() {
-    setLoading(true);
-    const user = await base44.auth.me();
-    setCurrentUser(user);
-    // Match by user_id first (most reliable), then fall back to email
-    let studs = await base44.entities.Student.filter({ user_id: user.id });
-    if (!studs.length) studs = await base44.entities.Student.filter({ email: user.email });
-    const s = studs[0] || null;
-    // If found by email but missing user_id, link it now
-    if (s && !s.user_id) {
-      await base44.entities.Student.update(s.id, { user_id: user.id });
-      s.user_id = user.id;
-    }
-    setStudent(s);
-    setForm(s ? { ...s } : {
-      student_id: '', full_name: user.full_name || '', ic_passport: '', gender: 'Male',
-      date_of_birth: '', faculty: '', programme: '', year_of_study: 1,
-      phone: '', email: user.email || '', block_name: '', room_number: '',
-      parent_name: '', parent_phone: '', emergency_contact: '', vehicle_reg: '',
-    });
-    const [b, r] = await Promise.all([
-      base44.entities.Block.list(),
-      base44.entities.Room.list(),
-    ]);
-    setBlocks(b);
-    setRooms(r);
-    if (user.role === 'warden') {
-      const wa = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
-      setWardenAssignments(wa);
-    }
-    setLoading(false);
-  }
+  useEffect(() => {
+    async function initDashboard() {
+      try {
+        setLoading(true);
+        const user = await base44.auth.me();
+        setCurrentUser(user);
 
-  async function handleSave() {
-    if (!form.full_name || !form.phone) {
-      toast({ title: 'Full name and phone are required', variant: 'destructive' }); return;
-    }
-    setSaving(true);
-
-    const oldRoomId = student?.room_id;
-    const newRoomId = form.room_id;
-
-    if (student) {
-      await base44.entities.Student.update(student.id, { ...form, user_id: currentUser.id });
-    } else {
-      const created = await base44.entities.Student.create({ ...form, user_id: currentUser.id });
-      setStudent(created);
-    }
-
-    // Update room occupancy if room changed
-    if (oldRoomId !== newRoomId) {
-      if (oldRoomId) {
-        const oldRoom = rooms.find(r => r.id === oldRoomId);
-        if (oldRoom) {
-          const newOcc = Math.max(0, (oldRoom.current_occupancy || 1) - 1);
-          const newStatus = newOcc === 0 ? 'Available' : newOcc >= oldRoom.capacity ? 'Full' : 'Occupied';
-          await base44.entities.Room.update(oldRoomId, { current_occupancy: newOcc, status: newStatus });
+        // Jika staf pengurusan kolej, lepaskan terus ke dashboard masing-masing
+        if (user?.role === 'warden' || user?.role === 'jakmas' || user?.role === 'super_admin' || user?.role === 'college_admin') {
+          setHasStudentProfile(true);
+          setLoading(false);
+          return;
         }
-      }
-      if (newRoomId) {
-        const newRoom = rooms.find(r => r.id === newRoomId);
-        if (newRoom) {
-          const newOcc = (newRoom.current_occupancy || 0) + 1;
-          const newStatus = newOcc >= newRoom.capacity ? 'Full' : 'Occupied';
-          await base44.entities.Room.update(newRoomId, { current_occupancy: newOcc, status: newStatus });
+
+        // Semak kewujudan profile secara agresif di entiti Student
+        let studs = [];
+        if (user?.id) {
+          studs = await base44.entities.Student.filter({ user_id: user.id });
         }
+        if (!studs.length && user?.email) {
+          studs = await base44.entities.Student.filter({ email: user.email });
+        }
+        
+        // Lepas ke dashboard utama pelajar jika data profil student_id sudah sedia wujud
+        if (studs.length > 0 && studs[0]?.student_id) {
+          setHasStudentProfile(true);
+        } else {
+          setHasStudentProfile(false);
+          setForm(prev => ({
+            ...prev,
+            full_name: user?.full_name || '',
+            email: user?.email || ''
+          }));
+        }
+      } catch (err) {
+        console.error("Gagal memuatkan peranan:", err);
+      } finally {
+        setLoading(false);
       }
     }
+    initDashboard();
+  }, []);
 
-    toast({ title: 'Profile saved successfully' });
-    setSaving(false);
-  }
+  const handleCompleteProfile = async (e) => {
+    e.preventDefault();
+    
+    // Validasi Mandatori (Nama, No. Matrik, No. Telefon, Maklumat Waris)
+    if (!form.full_name.trim() || !form.student_id.trim() || !form.phone.trim() || !form.parent_name.trim() || !form.parent_phone.trim()) {
+      toast({ 
+        title: "Maklumat Tidak Lengkap", 
+        description: "Sila isi sekurang-kurangnya Nama Penuh, No. Matrik, No. Telefon Pelajar, serta Nama & Telefon Ibu Bapa/Penjaga.", 
+        variant: "destructive" 
+      });
+      return;
+    }
 
-  const f = (field, label, type = 'text', opts = null) => (
-    <div key={field}>
-      <Label className="text-xs">{label}</Label>
-      {opts ? (
-        <Select value={String(form[field] || '')} onValueChange={v => setForm({ ...form, [field]: type === 'number' ? Number(v) : v })}>
-          <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
-          <SelectContent>{opts.map(o => <SelectItem key={o.v} value={String(o.v)}>{o.l}</SelectItem>)}</SelectContent>
-        </Select>
-      ) : (
-        <Input type={type} value={form[field] || ''} onChange={e => setForm({ ...form, [field]: e.target.value })} className="h-9 text-sm mt-1" />
-      )}
-    </div>
-  );
+    setSubmitting(true);
+    try {
+      // Cipta profil pelajar baru dalam pangkalan data
+      await base44.entities.Student.create({ 
+        ...form, 
+        user_id: currentUser.id,
+        email: currentUser.email
+      });
 
-  async function addWardenBlock() {
-    if (!selectedBlock) return;
-    const block = blocks.find(b => b.id === selectedBlock);
-    const exists = wardenAssignments.find(a => a.block_id === selectedBlock);
-    if (exists) { toast({ title: 'Block already assigned', variant: 'destructive' }); return; }
-    setSavingBlock(true);
-    await base44.entities.WardenBlock.create({
-      warden_user_id: currentUser.id,
-      warden_name: currentUser.full_name || currentUser.email,
-      warden_email: currentUser.email,
-      block_id: selectedBlock,
-      block_name: block?.block_name || '',
-    });
-    const wa = await base44.entities.WardenBlock.filter({ warden_user_id: currentUser.id });
-    setWardenAssignments(wa);
-    setSelectedBlock('');
-    setSavingBlock(false);
-    toast({ title: `Block ${block?.block_name} assigned` });
-  }
+      toast({ title: "Profil Berjaya Disimpan", description: "Pendaftaran awal selesai. Pentadbir akan menugaskan blok bilik anda tidak lama lagi." });
+      window.location.reload(); 
+    } catch (err) {
+      toast({ title: "Gagal Mengaktifkan Profil", description: err.message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-  async function removeWardenBlock(id) {
-    await base44.entities.WardenBlock.delete(id);
-    setWardenAssignments(wa => wa.filter(a => a.id !== id));
-    toast({ title: 'Block removed' });
-  }
-
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
-
-  return (
-    <div className="max-w-2xl">
-      <PageHeader title="My Profile" description="View and update your personal information" />
-
-      <div className="bg-card border border-border rounded-xl p-6 space-y-6">
-        {/* Avatar */}
-        <div className="flex items-center gap-4 pb-4 border-b border-border">
-          <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center">
-            <User className="w-7 h-7 text-primary-foreground" />
-          </div>
-          <div>
-            <p className="font-heading font-semibold text-base">{form.full_name || currentUser?.full_name}</p>
-            <p className="text-xs text-muted-foreground">{currentUser?.email}</p>
-            <p className="text-xs text-muted-foreground capitalize">{currentUser?.role || 'student'}</p>
-          </div>
-        </div>
-
-        {/* Personal Info */}
-        <div>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Personal Information</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {f('full_name', 'Full Name *')}
-            {f('student_id', 'Student / Staff ID')}
-            {f('ic_passport', 'IC / Passport Number')}
-            {f('gender', 'Gender', 'text', [{ v: 'Male', l: 'Male' }, { v: 'Female', l: 'Female' }])}
-            {f('date_of_birth', 'Date of Birth', 'date')}
-            {f('phone', 'Phone Number *')}
-          </div>
-        </div>
-
-        {/* Academic */}
-        <div>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Academic Details</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {f('faculty', 'Faculty', 'text', UMS_FACULTIES.map(fc => ({ v: fc, l: fc })))}
-            {f('programme', 'Programme')}
-            {f('year_of_study', 'Year of Study', 'number', [1,2,3,4,5].map(y => ({ v: y, l: `Year ${y}` })))}
-          </div>
-        </div>
-
-        {/* Room */}
-        {(currentUser?.role === 'student' || !currentUser?.role || currentUser?.role === 'user') && (
-          <div>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Room Assignment</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Block</Label>
-                <Select value={form.block_name || ''} onValueChange={v => {
-                  const block = blocks.find(b => b.block_name === v);
-                  setForm({ ...form, block_name: v, block_id: block?.id || '', room_number: '', room_id: '' });
-                }}>
-                  <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select block" /></SelectTrigger>
-                  <SelectContent>{blocks.map(b => <SelectItem key={b.id} value={b.block_name}>{b.block_name} ({b.gender_restriction})</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Room Number</Label>
-                <Select value={form.room_number || ''} onValueChange={v => {
-                  const room = rooms.find(r => r.room_number === v && r.block_name === form.block_name);
-                  setForm({ ...form, room_number: v, room_id: room?.id || '' });
-                }} disabled={!form.block_name}>
-                  <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select room" /></SelectTrigger>
-                  <SelectContent>
-                    {rooms.filter(r => r.block_name === form.block_name && r.status !== 'Maintenance').map(r => (
-                      <SelectItem key={r.id} value={r.room_number}>{r.room_number} ({r.room_type}, {r.current_occupancy}/{r.capacity})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Warden Block Assignment */}
-        {currentUser?.role === 'warden' && (
-          <div>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Assigned Blocks</h3>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {wardenAssignments.length === 0 && <p className="text-xs text-muted-foreground">No blocks assigned yet.</p>}
-              {wardenAssignments.map(a => (
-                <span key={a.id} className="flex items-center gap-1.5 bg-primary/10 text-primary px-2.5 py-1 rounded-full text-xs font-medium">
-                  <Building2 className="w-3 h-3" /> {a.block_name}
-                  <button onClick={() => removeWardenBlock(a.id)} className="hover:text-red-500 transition-colors"><X className="w-3 h-3" /></button>
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <Select value={selectedBlock} onValueChange={setSelectedBlock}>
-                <SelectTrigger className="h-9 text-sm flex-1"><SelectValue placeholder="Select a block to add" /></SelectTrigger>
-                <SelectContent>
-                  {blocks.filter(b => !wardenAssignments.find(a => a.block_id === b.id)).map(b => (
-                    <SelectItem key={b.id} value={b.id}>{b.block_name} ({b.gender_restriction})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button size="sm" onClick={addWardenBlock} disabled={!selectedBlock || savingBlock} className="shrink-0">
-                <Plus className="w-4 h-4 mr-1" /> Add
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Emergency */}
-        <div>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Emergency Contact</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {f('parent_name', 'Parent / Guardian Name')}
-            {f('parent_phone', 'Parent Phone')}
-            {f('emergency_contact', 'Emergency Contact')}
-            {f('vehicle_reg', 'Vehicle Registration')}
-          </div>
-        </div>
-
-        <div className="flex justify-end pt-2 border-t border-border">
-          <Button onClick={handleSave} size="sm" disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Save className="w-4 h-4 mr-1.5" />}
-            Save Profile
-          </Button>
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Mengesahkan sesi kediaman...</p>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // ====================================================================
+  // 🎯 SKRIN LENGKAPKAN PROFIL BARU (TIADA BLOK & BILIK)
+  // ====================================================================
+  if (!hasStudentProfile) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-background">
+        <div className="max-w-xl w-full space-y-6 bg-card p-8 rounded-xl border shadow-sm my-8">
+          <div className="text-center space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight">Profil Pelajar Baru 👋</h1>
+            <p className="text-muted-foreground text-sm">
+              Sila isikan maklumat peribadi, akademik, dan kecemasan anda di bawah untuk mengaktifkan akaun portal KKMS.
+            </p>
+          </div>
+
+          <form onSubmit={handleCompleteProfile} className="space-y-4">
+            
+            {/* Bahagian 1: Profil Peribadi */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b pb-1">Maklumat Peribadi</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Nama Penuh *</Label>
+                  <Input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                </div>
+                <div>
+                  <Label className="text-xs">No. Matrik Pelajar *</Label>
+                  <Input placeholder="Contoh: BI21110043" value={form.student_id} onChange={e => setForm({ ...form, student_id: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                </div>
+                <div>
+                  <Label className="text-xs">No. IC / Pasport</Label>
+                  <Input value={form.ic_passport} onChange={e => setForm({ ...form, ic_passport: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                </div>
+                <div>
+                  <Label className="text-xs">No. Telefon Bimbit *</Label>
+                  <Input placeholder="Contoh: 0123456789" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                </div>
+                <div>
+                  <Label className="text-xs">Jantina</Label>
+                  <Select value={form.gender} onValueChange={v => setForm({ ...form, gender: v })} disabled={submitting}>
+                    <SelectTrigger className="h-9 mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Male">Male</SelectItem>
+                      <SelectItem value="Female">Female</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Tarikh Lahir</Label>
+                  <Input type="date" value={form.date_of_birth} onChange={e => setForm({ ...form, date_of_birth: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                </div>
+              </div>
+            </div>
+
+            {/* Bahagian 2: Akademik */}
+            <div className="space-y-3 pt-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b pb-1">Maklumat Akademik</h3>
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs">Fakulti</Label>
+                  <Select value={form.faculty} onValueChange={v => setForm({ ...form, faculty: v })} disabled={submitting}>
+                    <SelectTrigger className="h-9 mt-1"><SelectValue placeholder="Pilih Fakulti" /></SelectTrigger>
+                    <SelectContent>
+                      {UMS_FACULTIES.map(fc => <SelectItem key={fc} value={fc}>{fc}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Program Pengajian</Label>
+                    <Input placeholder="Contoh: Sains Komputer" value={form.programme} onChange={e => setForm({ ...form, programme: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Tahun Pengajian</Label>
+                    <Select value={String(form.year_of_study)} onValueChange={v => setForm({ ...form, year_of_study: Number(v) })} disabled={submitting}>
+                      <SelectTrigger className="h-9 mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {[1,2,3,4,5].map(y => <SelectItem key={y} value={String(y)}>Year {y}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bahagian 3: Waris & Kecemasan */}
+            <div className="space-y-3 pt-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b pb-1">Maklumat Kecemasan & Kenderaan</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Nama Ibu Bapa / Penjaga *</Label>
+                  <Input value={form.parent_name} onChange={e => setForm({ ...form, parent_name: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                </div>
+                <div>
+                  <Label className="text-xs">No. Telefon Ibu Bapa / Penjaga *</Label>
+                  <Input placeholder="Contoh: 0134567890" value={form.parent_phone} onChange={e => setForm({ ...form, parent_phone: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                </div>
+                <div>
+                  <Label className="text-xs">Hubungan / Kontak Kecemasan Lain</Label>
+                  <Input placeholder="Contoh: Pakcik / Kakak" value={form.emergency_contact} onChange={e => setForm({ ...form, emergency_contact: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                </div>
+                <div>
+                  <Label className="text-xs">No. Pendaftaran Kenderaan (Jika Ada)</Label>
+                  <Input placeholder="Contoh: SAB 1234 X (Optional)" value={form.vehicle_reg} onChange={e => setForm({ ...form, vehicle_reg: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                </div>
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full h-11 mt-4" disabled={submitting}>
+              {submitting ? "Menghantar Profil Pelajar..." : "Sahkan Profil & Masuk Portal"}
+            </Button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ====================================================================
+  // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD ASAL (TERPERLIHARA)
+  // ====================================================================
+  if (currentUser?.role === 'warden') return <WardenDashboard user={currentUser} />;
+  if (currentUser?.role === 'jakmas') return <JakmasDashboard user={currentUser} />;
+  if (currentUser?.role === 'student') return <StudentDashboard user={currentUser} />;
+  
+  return <AdminDashboard user={currentUser} />;
 }
