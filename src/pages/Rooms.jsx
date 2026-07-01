@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom'; 
 import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
@@ -11,26 +11,31 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Home, Search, Plus, LayoutGrid, List, Bed, Users, ShieldAlert, ChevronDown, ChevronUp, User } from 'lucide-react';
+import { 
+  Home, Search, Plus, LayoutGrid, List, Bed, Users, 
+  ShieldAlert, ChevronDown, ChevronUp, User, RotateCcw 
+} from 'lucide-react';
 
 export default function Rooms() {
-  // Read query filters from the URL (react-router-dom)
   const [searchParams] = useSearchParams();
-  const statusParam = searchParams.get('status');
-  const filterParam = searchParams.get('filter');
+  const statusParam = searchParams.get('status'); 
+  const filterParam = searchParams.get('filter'); 
 
+  // Structural Core States
   const [rooms, setRooms] = useState([]);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
-  
-  // Track which room's occupant preview list panel is currently selected / expanded
   const [expandedRoomId, setExpandedRoomId] = useState(null);
   
-  // Search and Filter States
+  // Advanced Filter System States
   const [searchQuery, setSearchQuery] = useState('');
-  const [blockFilter, setBlockFilter] = useState('all');
   const [genderFilter, setGenderFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [blockFilter, setBlockFilter] = useState('all');
+  const [floorFilter, setFloorFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [occupancyFilter, setOccupancyFilter] = useState('all');
   
   // Dialog State
   const [openDialog, setOpenDialog] = useState(false);
@@ -65,11 +70,6 @@ export default function Rooms() {
       return;
     }
 
-    if (form.gender_restriction !== 'male' && form.gender_restriction !== 'female') {
-      toast({ title: 'Validation Error', description: 'Rooms must be explicitly configured as Male Only or Female Only.', variant: 'destructive' });
-      return;
-    }
-
     try {
       await base44.entities.Room.create({
         ...form,
@@ -77,7 +77,7 @@ export default function Rooms() {
         current_occupancy: 0,
         status: 'Available'
       });
-      toast({ title: 'Single-gender room registered successfully' });
+      toast({ title: 'Room registered successfully' });
       setOpenDialog(false);
       setForm({ room_number: '', block_name: '', capacity: 4, gender_restriction: 'female' });
       loadData();
@@ -87,7 +87,24 @@ export default function Rooms() {
     }
   }
 
-  // Retrieve matching assigned student profiles reactively without duplication
+  // Pure helper functions for clear status determinations
+  const getRoomStatus = (room) => {
+    if (room.status === 'Maintenance' || room.status === 'Under Maintenance') return 'Maintenance';
+    const occupied = room.current_occupancy || 0;
+    const capacity = room.capacity || 4;
+    if (occupied === 0) return 'Available';
+    if (occupied >= capacity) return 'Full';
+    return 'Occupied';
+  };
+
+  const getRoomType = (capacity) => {
+    if (capacity === 1) return 'Single';
+    if (capacity === 2) return 'Double';
+    if (capacity === 3) return 'Triple';
+    if (capacity >= 4) return 'Quad';
+    return 'Other';
+  };
+
   const getRoomResidents = (roomId) => {
     if (!roomId) return [];
     return students.filter(s => String(s.room_id).trim().toLowerCase() === String(roomId).trim().toLowerCase());
@@ -97,46 +114,103 @@ export default function Rooms() {
     setExpandedRoomId(expandedRoomId === roomId ? null : roomId);
   };
 
-  const getStatusBadgeStyles = (current, capacity) => {
-    if (current === 0) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-    if (current >= capacity) return 'bg-red-50 text-red-700 border-red-200';
+  const getStatusBadgeStyles = (status) => {
+    if (status === 'Available') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (status === 'Full') return 'bg-red-50 text-red-700 border-red-200';
+    if (status === 'Maintenance') return 'bg-amber-50 text-amber-700 border-amber-200';
     return 'bg-blue-50 text-blue-700 border-blue-200';
   };
 
-  const uniqueBlocks = ['all', ...new Set(rooms.map(r => r.block_name).filter(Boolean))];
+  const handleResetFilters = () => {
+    setGenderFilter('all');
+    setStatusFilter('all');
+    setBlockFilter('all');
+    setFloorFilter('all');
+    setTypeFilter('all');
+    setOccupancyFilter('all');
+    setSearchQuery('');
+  };
 
-  // Process search, localized select configurations, and structural dashboard filters reactively
+  // Automatically derive unique entity dimensions from dataset changes
+  const uniqueBlocks = useMemo(() => {
+    return ['all', ...new Set(rooms.map(r => r.block_name).filter(Boolean))].sort();
+  }, [rooms]);
+
+  const uniqueFloors = useMemo(() => {
+    const floors = rooms.map(room => {
+      if (room.floor !== undefined && room.floor !== null) return String(room.floor);
+      const firstDigitMatch = String(room.room_number).match(/\d/);
+      return firstDigitMatch ? firstDigitMatch[0] : null;
+    }).filter(Boolean);
+    return ['all', ...new Set(floors)].sort((a, b) => Number(a) - Number(b));
+  }, [rooms]);
+
+  // Unified, ultra-efficient O(N) multi-criteria filtering processor
   const filteredRooms = useMemo(() => {
     return rooms.filter(room => {
       const capacity = room.capacity || 4;
       const occupied = room.current_occupancy || 0;
-
-      const matchesSearch = room.room_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            room.block_name?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesBlock = blockFilter === 'all' || room.block_name === blockFilter;
+      const calculatedStatus = getRoomStatus(room);
+      const calculatedType = getRoomType(capacity);
       
-      const currentGender = (room.gender_restriction || room.gender || '').toLowerCase().trim();
-      const matchesGender = genderFilter === 'all' || currentGender === genderFilter;
+      const inferredFloor = room.floor !== undefined && room.floor !== null 
+        ? String(room.floor) 
+        : (String(room.room_number).match(/\d/)?.[0] || '');
 
-      // Handle the dashboard metric links parameters
-      let matchesDashboardUrl = true;
-      
-      if (statusParam === 'Available') {
-        matchesDashboardUrl = (room.status === 'Available');
-      } else if (statusParam === 'Occupied') {
-        matchesDashboardUrl = (occupied > 0);
+      // 1. Search Query Box
+      if (searchQuery.trim() !== '') {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = room.room_number?.toLowerCase().includes(query) ||
+                              room.block_name?.toLowerCase().includes(query);
+        if (!matchesSearch) return false;
       }
 
-      if (filterParam === 'has-empty-beds') {
-        matchesDashboardUrl = (capacity - occupied > 0);
+      // 2. Gender Restriction Filter
+      const normalizedGender = (room.gender_restriction || room.gender || 'mixed').toLowerCase().trim();
+      if (genderFilter !== 'all' && normalizedGender !== genderFilter.toLowerCase()) return false;
+
+      // 3. Room Status Filter
+      if (statusFilter !== 'all' && calculatedStatus !== statusFilter) return false;
+
+      // 4. Block Filter
+      if (blockFilter !== 'all' && room.block_name !== blockFilter) return false;
+
+      // 5. Floor Filter
+      if (floorFilter !== 'all' && inferredFloor !== floorFilter) return false;
+
+      // 6. Room Type Filter
+      if (typeFilter !== 'all' && calculatedType !== typeFilter) return false;
+
+      // 7. Occupancy Filter Group
+      if (occupancyFilter !== 'all') {
+        if (occupancyFilter === 'Empty' && occupied !== 0) return false;
+        if (occupancyFilter === 'Partially' && (occupied === 0 || occupied >= capacity)) return false;
+        if (occupancyFilter === 'Fully' && occupied !== capacity) return false;
       }
 
-      return matchesSearch && matchesBlock && matchesGender && matchesDashboardUrl;
+      // 8. Backward URL compatibility parameter links from Dashboard Router
+      if (statusParam === 'Available' && calculatedStatus !== 'Available') return false;
+      if (statusParam === 'Occupied' && occupied === 0) return false;
+      if (filterParam === 'has-empty-beds' && (capacity - occupied <= 0)) return false;
+
+      return true;
     });
-  }, [rooms, searchQuery, blockFilter, genderFilter, statusParam, filterParam]);
+  }, [rooms, searchQuery, genderFilter, statusFilter, blockFilter, floorFilter, typeFilter, occupancyFilter, statusParam, filterParam]);
+
+  // Compute live sub-summary metric aggregations reactively
+  const summaryMetrics = useMemo(() => {
+    const counts = { Available: 0, Occupied: 0, Full: 0, Maintenance: 0 };
+    filteredRooms.forEach(room => {
+      const currentStatus = getRoomStatus(room);
+      if (counts[currentStatus] !== undefined) {
+        counts[currentStatus]++;
+      }
+    });
+    return counts;
+  }, [filteredRooms]);
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Room Configuration Management"
         description="Configure single-gender layouts, track real-time occupancy changes, and preview current occupant rosters."
@@ -147,68 +221,188 @@ export default function Rooms() {
         }
       />
 
-      {/* Filters and Controls */}
-      <div className="flex flex-col sm:flex-row gap-3 justify-between items-center mb-6">
-        <div className="flex flex-1 flex-col sm:flex-row gap-2 w-full">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search room or block..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 text-sm"
-            />
+      {/* 🛠️ ADVANCED RESPONSIVE FILTER TOOLBAR */}
+      <Card className="bg-card border-border shadow-sm">
+        <CardContent className="p-4 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-2.5 items-end">
+            
+            {/* Search Input */}
+            <div className="xl:col-span-2 space-y-1">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Search</Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Room no, block..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 h-9 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Gender Filter */}
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Gender</Label>
+              <Select value={genderFilter} onValueChange={setGenderFilter}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Genders</SelectItem>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="mixed">Mixed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Status Filter */}
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Status</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="Available">Available</SelectItem>
+                  <SelectItem value="Occupied">Occupied</SelectItem>
+                  <SelectItem value="Full">Full</SelectItem>
+                  <SelectItem value="Maintenance">Maintenance</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Block Filter */}
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Block Location</Label>
+              <Select value={blockFilter} onValueChange={setBlockFilter}>
+                <SelectTrigger className="h-9 text-sm capitalize">
+                  <SelectValue placeholder="Block" />
+                </SelectTrigger>
+                <SelectContent>
+                  {uniqueBlocks.map(block => (
+                    <SelectItem key={block} value={block} className="capitalize">
+                      {block === 'all' ? 'All Blocks' : `Block ${block}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Floor Filter */}
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Floor Level</Label>
+              <Select value={floorFilter} onValueChange={setFloorFilter}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Floor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {uniqueFloors.map(floor => (
+                    <SelectItem key={floor} value={floor}>
+                      {floor === 'all' ? 'All Floors' : `Floor ${floor}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Room Type Filter */}
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Layout Type</Label>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="Single">Single</SelectItem>
+                  <SelectItem value="Double">Double</SelectItem>
+                  <SelectItem value="Triple">Triple</SelectItem>
+                  <SelectItem value="Quad">Quad</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Occupancy State Filter */}
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Occupancy</Label>
+              <Select value={occupancyFilter} onValueChange={setOccupancyFilter}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Occupancy" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Levels</SelectItem>
+                  <SelectItem value="Empty">Empty Rooms</SelectItem>
+                  <SelectItem value="Partially">Partially Occupied</SelectItem>
+                  <SelectItem value="Fully">Fully Occupied</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
           </div>
-          <Select value={blockFilter} onValueChange={setBlockFilter}>
-            <SelectTrigger className="w-full sm:w-[160px] h-9 text-sm">
-              <SelectValue placeholder="Filter by Block" />
-            </SelectTrigger>
-            <SelectContent>
-              {uniqueBlocks.map(block => (
-                <SelectItem key={block} value={block} className="capitalize">
-                  {block === 'all' ? 'All Blocks' : `Block ${block}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Select value={genderFilter} onValueChange={setGenderFilter}>
-            <SelectTrigger className="w-full sm:w-[160px] h-9 text-sm">
-              <SelectValue placeholder="Filter by Gender" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Genders</SelectItem>
-              <SelectItem value="male">Male Wings Only</SelectItem>
-              <SelectItem value="female">Female Wings Only</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
 
-        <div className="flex items-center gap-1 bg-muted p-1 rounded-lg self-end sm:self-auto">
-          <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" className="h-7 w-7" onClick={() => setViewMode('grid')}>
-            <LayoutGrid className="w-4 h-4" />
-          </Button>
-          <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" className="h-7 w-7" onClick={() => setViewMode('list')}>
-            <List className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2 border-t border-muted">
+            
+            {/* 📊 FEATURE 9: FILTER RESULT SUMMARY PANEL */}
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground">
+                Showing {filteredRooms.length} of {rooms.length} rooms
+              </span>
+              <span className="text-muted-foreground/40">|</span>
+              <span className="flex items-center gap-1.5">
+                Available: <span className="font-mono font-bold text-emerald-600">{summaryMetrics.Available}</span>
+              </span>
+              <span className="text-muted-foreground/30">•</span>
+              <span className="flex items-center gap-1.5">
+                Occupied: <span className="font-mono font-bold text-blue-600">{summaryMetrics.Occupied}</span>
+              </span>
+              <span className="text-muted-foreground/30">•</span>
+              <span className="flex items-center gap-1.5">
+                Full: <span className="font-mono font-bold text-red-600">{summaryMetrics.Full}</span>
+              </span>
+              <span className="text-muted-foreground/30">•</span>
+              <span className="flex items-center gap-1.5">
+                Maintenance: <span className="font-mono font-bold text-amber-600">{summaryMetrics.Maintenance}</span>
+              </span>
+            </div>
 
+            <div className="flex items-center gap-2 self-end sm:self-auto w-full sm:w-auto justify-end">
+              {/* 🔄 FEATURE 10: RESET FILTERS BUTTON */}
+              <Button variant="outline" size="sm" onClick={handleResetFilters} className="h-8 text-xs font-medium">
+                <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reset Filters
+              </Button>
+              <div className="h-8 w-[1px] bg-muted hidden sm:block" />
+              <div className="flex items-center gap-0.5 bg-muted p-1 rounded-lg">
+                <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" className="h-6 w-6 rounded-md" onClick={() => setViewMode('grid')}>
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </Button>
+                <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" className="h-6 w-6 rounded-md" onClick={() => setViewMode('list')}>
+                  <List className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* RENDER MODES */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
       ) : filteredRooms.length === 0 ? (
-        <EmptyState icon={Home} title="No room registrations found matching filters" />
+        <EmptyState icon={Home} title="No room registrations found matching layout filters" />
       ) : viewMode === 'grid' ? (
         
-        /* 🎴 GRID VIEW WITH INTERACTIVE OCCUPANT PREVIEW PANEL */
+        /* 🎴 GRID CARD DISPLAY DESIGN LAYER */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredRooms.map((room) => {
             const capacity = room.capacity || 4;
             const occupied = room.current_occupancy || 0;
             const bedsAvailable = capacity - occupied;
-            const genderTag = room.gender_restriction || room.gender || 'female';
+            const currentStatus = getRoomStatus(room);
+            const genderTag = room.gender_restriction || room.gender || 'mixed';
             const roomResidents = getRoomResidents(room.id);
             const isExpanded = expandedRoomId === room.id;
 
@@ -220,8 +414,8 @@ export default function Rooms() {
                       <h3 className="text-sm font-bold font-mono tracking-tight text-foreground">Room {room.room_number}</h3>
                       <p className="text-xs text-muted-foreground">Block {room.block_name}</p>
                     </div>
-                    <Badge variant="outline" className={`text-[10px] px-2 py-0.5 font-medium ${getStatusBadgeStyles(occupied, capacity)}`}>
-                      {occupied === 0 ? 'Empty' : occupied >= capacity ? 'Full' : 'Occupied'}
+                    <Badge variant="outline" className={`text-[10px] px-2 py-0.5 font-medium uppercase tracking-wider ${getStatusBadgeStyles(currentStatus)}`}>
+                      {currentStatus}
                     </Badge>
                   </div>
 
@@ -231,23 +425,23 @@ export default function Rooms() {
                       <span className="text-foreground font-mono">{occupied} / {capacity}</span>
                     </div>
                     <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden flex">
-                      <div className={`h-full ${occupied >= capacity ? 'bg-red-500' : 'bg-primary'}`} style={{ width: `${(occupied / capacity) * 100}%` }} />
+                      <div className={`h-full ${currentStatus === 'Full' ? 'bg-red-500' : currentStatus === 'Maintenance' ? 'bg-amber-500' : 'bg-primary'}`} style={{ width: `${(occupied / capacity) * 100}%` }} />
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between text-xs pt-1">
                     <span className="flex items-center gap-1 font-medium text-foreground">
                       <Bed className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className={bedsAvailable > 0 ? "text-emerald-700 font-medium" : "text-muted-foreground"}>
-                        {bedsAvailable} left
+                      <span className={bedsAvailable > 0 && currentStatus !== 'Maintenance' ? "text-emerald-700 font-medium" : "text-muted-foreground"}>
+                        {currentStatus === 'Maintenance' ? 'Locked' : `${bedsAvailable} left`}
                       </span>
                     </span>
-                    <Badge className={`text-[9px] px-1.5 py-0 border-0 font-medium ${genderTag === 'male' ? 'bg-blue-600' : 'bg-pink-600'}`}>
-                      {genderTag === 'male' ? 'Male Only' : 'Female Only'}
+                    <Badge className={`text-[9px] px-1.5 py-0 border-0 font-medium uppercase tracking-wide ${genderTag === 'male' ? 'bg-blue-600' : genderTag === 'female' ? 'bg-pink-600' : 'bg-purple-600'}`}>
+                      {genderTag === 'male' ? 'Male Only' : genderTag === 'female' ? 'Female Only' : 'Mixed Gender'}
                     </Badge>
                   </div>
 
-                  {/* 👥 AUTOMATIC RETRIEVAL OCCUPANT PREVIEW PANEL */}
+                  {/* Dynamic Occupant Expandable Subsection Panel */}
                   <div className="pt-2 border-t mt-2">
                     <Button 
                       variant="ghost" 
@@ -275,9 +469,6 @@ export default function Rooms() {
                               <div className="text-muted-foreground pl-4">
                                 <span className="font-medium">Matric No :</span> {student.student_id || 'N/A'}
                               </div>
-                              <div className="text-muted-foreground pl-4">
-                                <span className="font-medium">Phone      :</span> {student.phone_number || student.phone || 'N/A'}
-                              </div>
                             </div>
                           ))
                         )}
@@ -292,15 +483,16 @@ export default function Rooms() {
         </div>
       ) : (
         
-        /* 📋 TABLE VIEW VARIANT WITH EXPANDABLE PANEL ROWS */
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
+        /* 📋 TABLE ROWS PERSPECTIVE VIEW */
+        <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50 text-muted-foreground font-medium">
                   <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Room Number</th>
                   <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Block Location</th>
-                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Designated Gender</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Designated Restriction</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Dynamic Status</th>
                   <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Total Capacity</th>
                   <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Action</th>
                 </tr>
@@ -309,7 +501,8 @@ export default function Rooms() {
                 {filteredRooms.map((room) => {
                   const capacity = room.capacity || 4;
                   const occupied = room.current_occupancy || 0;
-                  const genderTag = room.gender_restriction || room.gender || 'female';
+                  const currentStatus = getRoomStatus(room);
+                  const genderTag = room.gender_restriction || room.gender || 'mixed';
                   const roomResidents = getRoomResidents(room.id);
                   const isExpanded = expandedRoomId === room.id;
 
@@ -317,13 +510,18 @@ export default function Rooms() {
                     <React.Fragment key={room.id}>
                       <tr className="border-b hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3 font-mono font-bold text-foreground">Room {room.room_number}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{room.block_name}</td>
+                        <td className="px-4 py-3 text-muted-foreground">Block {room.block_name}</td>
                         <td className="px-4 py-3">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${genderTag === 'male' ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'}`}>
-                            {genderTag === 'male' ? '👨 Male Wing' : '👩 Female Wing'}
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${genderTag === 'male' ? 'bg-blue-50 text-blue-700' : genderTag === 'female' ? 'bg-pink-50 text-pink-700' : 'bg-purple-50 text-purple-700'}`}>
+                            {genderTag === 'male' ? '👨 Male Wing' : genderTag === 'female' ? '👩 Female Wing' : '🚻 Mixed Wing'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground">{occupied} / {capacity} Beds Filled</td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline" className={`text-[10px] font-medium uppercase ${getStatusBadgeStyles(currentStatus)}`}>
+                            {currentStatus}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground font-mono">{occupied} / {capacity} Beds Filled</td>
                         <td className="px-4 py-2">
                           <Button 
                             variant="outline" 
@@ -339,17 +537,17 @@ export default function Rooms() {
                       
                       {isExpanded && (
                         <tr className="bg-muted/20 border-b">
-                          <td colSpan={5} className="px-6 py-3">
+                          <td colSpan={6} className="px-6 py-3">
                             <div className="bg-card border rounded-lg p-3 max-w-xl space-y-3">
                               <p className="text-xs font-bold text-muted-foreground border-b pb-1">
-                                Room {room.room_number} — Occupants ({roomResidents.length}/{capacity})
+                                Room {room.room_number} — Current Occupants ({roomResidents.length}/{capacity})
                               </p>
                               {roomResidents.length === 0 ? (
                                 <p className="text-xs text-muted-foreground py-1">
                                   No students currently assigned to this room.
                                 </p>
                               ) : (
-                                <div className="space-y-3 text-xs">
+                                <div className="space-y-2 text-xs">
                                   {roomResidents.map((student) => (
                                     <div key={student.id} className="space-y-0.5 pb-2 last:pb-0 border-b last:border-0 border-muted/40">
                                       <div className="font-bold text-foreground flex items-center gap-1 uppercase">
@@ -358,9 +556,6 @@ export default function Rooms() {
                                       </div>
                                       <div className="text-muted-foreground font-mono pl-4">
                                         <span className="font-sans font-medium">Matric No :</span> {student.student_id || 'N/A'}
-                                      </div>
-                                      <div className="text-muted-foreground pl-4">
-                                        <span className="font-medium">Phone      :</span> {student.phone_number || student.phone || 'N/A'}
                                       </div>
                                     </div>
                                   ))}
@@ -379,24 +574,24 @@ export default function Rooms() {
         </div>
       )}
 
-      {/* ADD NEW ROOM DIALOG */}
+      {/* REGISTER SINGLE-GENDER CONFIGURATION DIALOG */}
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New Single-Gender Room</DialogTitle>
+            <DialogTitle>Register New Dormitory Room</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded-lg flex gap-2 items-start text-xs leading-relaxed">
               <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <strong>Superadmin Enforcement Notice:</strong> Mixed-gender dormitory room models are disabled. Assign strict binary single-gender wings only.
+                <strong>Superadmin Enforcement Notice:</strong> Ensure binary layouts adhere to wing-specific structural zoning directives.
               </div>
             </div>
 
             <div>
               <Label className="text-xs font-medium">Room Number *</Label>
               <Input 
-                placeholder="e.g., N-1.06, H-2.04" 
+                placeholder="e.g., A-101, B-304" 
                 value={form.room_number} 
                 onChange={(e) => setForm({ ...form, room_number: e.target.value })} 
                 className="h-9 mt-1"
@@ -405,7 +600,7 @@ export default function Rooms() {
             <div>
               <Label className="text-xs font-medium">Block Name *</Label>
               <Input 
-                placeholder="e.g., Block N, Block H" 
+                placeholder="e.g., Block A, Block B" 
                 value={form.block_name} 
                 onChange={(e) => setForm({ ...form, block_name: e.target.value })} 
                 className="h-9 mt-1"
@@ -431,6 +626,7 @@ export default function Rooms() {
                   <SelectContent>
                     <SelectItem value="female">Female Only (Wing 👩)</SelectItem>
                     <SelectItem value="male">Male Only (Wing 👨)</SelectItem>
+                    <SelectItem value="mixed">Mixed (General 🚻)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
