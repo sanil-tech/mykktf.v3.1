@@ -13,10 +13,5 @@
       ],
       "default": "student"
     }
-  },
-  "permissions": {
-    "create": "public",
-    "read": "authenticated",
-    "update": "owner"
   }
 }
