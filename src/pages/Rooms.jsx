@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-// 1. ADD THIS IMPORT FOR THE ROUTER (Use 'next/navigation' if using Next.js App Router)
-import { useSearchParams } from 'next/navigation'; 
+// Corrected to use Pages Router hook
+import { useRouter } from 'next/router'; 
 import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
@@ -15,21 +15,24 @@ import { Badge } from '@/components/ui/badge';
 import { Home, Search, Plus, LayoutGrid, List, Bed, Users, ShieldAlert, ChevronDown, ChevronUp, User } from 'lucide-react';
 
 export default function Rooms() {
-  // Read URL query parameters dynamically
-  const searchParams = useSearchParams();
-  const statusParam = searchParams.get('status'); // e.g. "Available", "Occupied"
-  const filterParam = searchParams.get('filter'); // e.g. "has-empty-beds"
+  // Read query filters from the URL structure via Next Pages router
+  const router = useRouter();
+  const { status: statusParam, filter: filterParam } = router.query;
 
   const [rooms, setRooms] = useState([]);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
+  
+  // Track which room's occupant preview list panel is currently selected / expanded
   const [expandedRoomId, setExpandedRoomId] = useState(null);
   
+  // Search and Filter States
   const [searchQuery, setSearchQuery] = useState('');
   const [blockFilter, setBlockFilter] = useState('all');
   const [genderFilter, setGenderFilter] = useState('all');
   
+  // Dialog State
   const [openDialog, setOpenDialog] = useState(false);
   const [form, setForm] = useState({ room_number: '', block_name: '', capacity: 4, gender_restriction: 'female' });
   
@@ -84,6 +87,7 @@ export default function Rooms() {
     }
   }
 
+  // Retrieve matching assigned student profiles reactively without duplication
   const getRoomResidents = (roomId) => {
     if (!roomId) return [];
     return students.filter(s => String(s.room_id).trim().toLowerCase() === String(roomId).trim().toLowerCase());
@@ -101,20 +105,20 @@ export default function Rooms() {
 
   const uniqueBlocks = ['all', ...new Set(rooms.map(r => r.block_name).filter(Boolean))];
 
-  // Modified to handle raw data queries seamlessly via useMemo
+  // Process search, localized select configurations, and structural dashboard filters reactively
   const filteredRooms = useMemo(() => {
     return rooms.filter(room => {
       const capacity = room.capacity || 4;
       const occupied = room.current_occupancy || 0;
 
-      // Filter via layout search bar and selectors
       const matchesSearch = room.room_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             room.block_name?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesBlock = blockFilter === 'all' || room.block_name === blockFilter;
+      
       const currentGender = (room.gender_restriction || room.gender || '').toLowerCase().trim();
       const matchesGender = genderFilter === 'all' || currentGender === genderFilter;
 
-      // 2. DYNAMIC ROUTE HANDLING FOR THE DASHBOARD LINKS
+      // Handle the dashboard metric links parameters
       let matchesDashboardUrl = true;
       
       if (statusParam === 'Available') {
@@ -198,7 +202,7 @@ export default function Rooms() {
         <EmptyState icon={Home} title="No room registrations found matching filters" />
       ) : viewMode === 'grid' ? (
         
-        /* 🎴 GRID VIEW */
+        /* 🎴 GRID VIEW WITH INTERACTIVE OCCUPANT PREVIEW PANEL */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredRooms.map((room) => {
             const capacity = room.capacity || 4;
@@ -243,7 +247,7 @@ export default function Rooms() {
                     </Badge>
                   </div>
 
-                  {/* Occupant Preview Sub-Panel */}
+                  {/* 👥 AUTOMATIC RETRIEVAL OCCUPANT PREVIEW PANEL */}
                   <div className="pt-2 border-t mt-2">
                     <Button 
                       variant="ghost" 
@@ -288,7 +292,7 @@ export default function Rooms() {
         </div>
       ) : (
         
-        /* 📋 TABLE VIEW */
+        /* 📋 TABLE VIEW VARIANT WITH EXPANDABLE PANEL ROWS */
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
