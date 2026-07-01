@@ -11,7 +11,7 @@ import {
   ShieldAlert, 
   Building2, 
   ClipboardCheck,
-  BedDouble // Added icon for available beds
+  BedDouble // Icon for available beds
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -64,7 +64,7 @@ export default function AdminDashboard() {
     const totalCapacity = rooms.reduce((a, r) => a + (r.capacity || 0), 0);
     const totalOccupancy = rooms.reduce((a, r) => a + (r.current_occupancy || 0), 0);
     
-    // NEW: Calculate sum of all available beds across rooms
+    // Calculate total available beds across all rooms
     const totalAvailableBeds = rooms.reduce((a, r) => {
       const roomBedsAvailable = (r.capacity || 0) - (r.current_occupancy || 0);
       return a + (roomBedsAvailable > 0 ? roomBedsAvailable : 0);
@@ -102,7 +102,7 @@ export default function AdminDashboard() {
     return {
       totalResidents: activeStudents.length,
       availableRooms,
-      totalAvailableBeds, // Exposed to UI
+      totalAvailableBeds,
       occupiedRooms: rooms.length - availableRooms,
       pendingMaint,
       pendingLeave,
@@ -129,7 +129,7 @@ export default function AdminDashboard() {
     <div>
       <PageHeader title="Dashboard" description="Overview of residential college operations" />
       
-      {/* Primary KPI Row - Updated to 5-column layout to fit the new metric seamlessly */}
+      {/* Primary KPI Row - Changed to lg:grid-cols-5 to accommodate the new card cleanly */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <StatCard label="Total Residents" value={stats.totalResidents} icon={Users} color="bg-[hsl(222,47%,21%)]" />
         <StatCard label="Available Rooms" value={stats.availableRooms} icon={DoorOpen} color="bg-[hsl(162,63%,41%)]" />
