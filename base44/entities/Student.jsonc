@@ -107,6 +107,11 @@
           "user_condition": {
             "role": "college_admin"
           }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
         }
       ]
     },
@@ -151,6 +156,11 @@
           "user_condition": {
             "role": "college_admin"
           }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
         }
       ]
     },
@@ -167,6 +177,11 @@
         {
           "user_condition": {
             "role": "college_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
           }
         }
       ]
