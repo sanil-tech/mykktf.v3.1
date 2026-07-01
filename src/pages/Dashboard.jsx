@@ -61,9 +61,13 @@ export default function Dashboard() {
         setCurrentUser(user);
 
         // Jika staf pengurusan kolej, lepaskan terus ke dashboard masing-masing
-        if (user?.role === 'warden' || user?.role === 'jakmas' || user?.role === 'super_admin' || user?.role === 'college_admin') {
+        if (
+          user?.role === 'warden' || 
+          user?.role === 'jakmas' || 
+          user?.role === 'super_admin' || 
+          user?.role === 'college_admin'
+        ) {
           setHasStudentProfile(true);
-          setLoading(false);
           return;
         }
 
@@ -93,6 +97,7 @@ export default function Dashboard() {
         setLoading(false);
       }
     }
+
     initDashboard();
   }, []);
 
@@ -255,11 +260,20 @@ export default function Dashboard() {
   }
 
   // ====================================================================
-  // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD ASAL (TERPERLIHARA)
+  // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD ASAL (DIPERBAIKI)
   // ====================================================================
+  // 1. Staf pengurusan kolej kekal ke dashboard masing-masing
   if (currentUser?.role === 'warden') return <WardenDashboard user={currentUser} />;
   if (currentUser?.role === 'jakmas') return <JakmasDashboard user={currentUser} />;
-  if (currentUser?.role === 'student') return <StudentDashboard user={currentUser} />;
-
+  if (currentUser?.role === 'super_admin' || currentUser?.role === 'college_admin') {
+    return <AdminDashboard user={currentUser} />;
+  }
+  
+  // 2. Jika profil Student wujud, PAKSA paparan StudentDashboard (walaupun role auth mereka 'user')
+  if (hasStudentProfile) {
+    return <StudentDashboard user={currentUser} />;
+  }
+  
+  // 3. Fallback sekiranya tiada sebarang padanan role
   return <AdminDashboard user={currentUser} />;
 }
