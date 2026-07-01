@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeftRight, LogIn, LogOut, Search, User, CreditCard } from 'lucide-react';
+import { ArrowLeftRight, LogIn, LogOut, Search, User, CreditCard, Home } from 'lucide-react';
 import SurveyModal from '@/components/SurveyModal';
 
 export default function CheckInOut() {
@@ -48,11 +48,24 @@ export default function CheckInOut() {
     setLoading(false);
   }
 
-  // Cari butiran pelajar padan secara automatik berdasarkan input Student / Staff ID
-  const matchedCiStudent = students.find(s => s.student_id?.toLowerCase() === ciSearchQuery.trim().toLowerCase());
-  const matchedCoStudent = students.find(s => s.student_id?.toLowerCase() === coSearchQuery.trim().toLowerCase());
+  // 📥 Padanan untuk CHECK-IN: Cari mana-mana ID yang sepadan
+  const matchedCiStudent = students.find(s => {
+    if (!s.student_id || !ciSearchQuery) return false;
+    return String(s.student_id).trim().toLowerCase() === String(ciSearchQuery).trim().toLowerCase();
+  });
 
-  // Kemas kini borang secara automatik jika ID dijumpai
+  // 📤 Padanan untuk CHECK-OUT: Mesti sepadan ID DAN mempunyai bilik aktif (room_id wujud)
+  const matchedCoStudent = students.find(s => {
+    if (!s.student_id || !coSearchQuery) return false;
+    const isIdMatch = String(s.student_id).trim().toLowerCase() === String(coSearchQuery).trim().toLowerCase();
+    
+    // Memastikan pelajar sedang aktif mendiami bilik asrama (bukan string kosong atau null)
+    const hasActiveRoom = s.room_id && String(s.room_id).trim() !== '';
+    
+    return isIdMatch && hasActiveRoom;
+  });
+
+  // Kesan perubahan pelajar yang dijumpai untuk set borang secara automatik
   useEffect(() => {
     if (matchedCiStudent) {
       setCiForm(prev => ({ ...prev, student_id: matchedCiStudent.id }));
@@ -63,10 +76,7 @@ export default function CheckInOut() {
 
   useEffect(() => {
     if (matchedCoStudent) {
-      setCoForm(prev => ({ ...prev, student_id: matchedCoStudent.id }));
-      if (matchedCoStudent.room_id) {
-        setCoForm(prev => ({ ...prev, room_id: matchedCoStudent.room_id }));
-      }
+      setCoForm(prev => ({ ...prev, student_id: matchedCoStudent.id, room_id: matchedCoStudent.room_id || '' }));
     } else {
       setCoForm(prev => ({ ...prev, student_id: '', room_id: '' }));
     }
@@ -271,7 +281,7 @@ export default function CheckInOut() {
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground text-xs">
                   <CreditCard className="w-4 h-4 text-muted-foreground" />
-                  <span>No. IC / Pasport: {matchedCiStudent.ic_passport || 'Tiada rekod IC'}</span>
+                  <span>No. IC / Pasport: {matchedCiStudent.ic_passport || matchedCiStudent.ic_passport_number || 'Tiada rekod IC'}</span>
                 </div>
               </div>
             ) : ciSearchQuery.trim() !== '' && (
@@ -326,33 +336,35 @@ export default function CheckInOut() {
               </div>
             </div>
 
-            {/* Kad Butiran Pelajar */}
+            {/* Kad Butiran Pelajar & Maklumat Bilik Automatik */}
             {matchedCoStudent ? (
-              <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-foreground font-medium">
-                  <User className="w-4 h-4 text-amber-600" />
-                  <span>Nama: {matchedCoStudent.full_name}</span>
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                  <CreditCard className="w-4 h-4" />
-                  <span>No. IC / Pasport: {matchedCoStudent.ic_passport || 'Tiada rekod IC'}</span>
-                </div>
-                {matchedCoStudent.room_number && (
-                  <div className="text-xs font-medium text-amber-700 mt-1">
-                    Bilik Semasa: {matchedCoStudent.room_number} ({matchedCoStudent.block_name})
+              <div className="space-y-3">
+                {/* Info Peribadi */}
+                <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-2 text-sm animate-in fade-in-50 duration-200">
+                  <div className="flex items-center gap-2 text-foreground font-medium">
+                    <User className="w-4 h-4 text-amber-600" />
+                    <span>Nama: {matchedCoStudent.full_name}</span>
                   </div>
-                )}
+                  <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                    <CreditCard className="w-4 h-4" />
+                    <span>No. IC / Pasport: {matchedCoStudent.ic_passport || matchedCoStudent.ic_passport_number || 'Tiada rekod IC'}</span>
+                  </div>
+                </div>
+
+                {/* Paparan Bilik Semasa (Read-Only untuk Semakan Admin) */}
+                <div className="p-3 bg-muted border border-border rounded-lg space-y-1 text-sm">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Semakan Bilik Asrama</Label>
+                  <div className="flex items-center gap-2 text-foreground font-medium mt-1">
+                    <Home className="w-4 h-4 text-muted-foreground" />
+                    <span>Bilik Semasa: <strong className="text-amber-700">{matchedCoStudent.room_number || 'Tiada No. Bilik'}</strong> ({matchedCoStudent.block_name || 'Tiada Blok'})</span>
+                  </div>
+                </div>
               </div>
             ) : coSearchQuery.trim() !== '' && (
-              <p className="text-xs text-destructive">Pengguna tidak dijumpai. Sila pastikan Student / Staff ID tepat.</p>
+              <p className="text-xs text-destructive">
+                Pengguna tidak dijumpai atau tiada rekod kediaman yang aktif (belum check-in/sudah check-out).
+              </p>
             )}
-
-            <div><Label className="text-xs">Room *</Label>
-              <Select value={coForm.room_id} onValueChange={v => setCoForm({ ...coForm, room_id: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select room" /></SelectTrigger>
-                <SelectContent>{rooms.map(r => <SelectItem key={r.id} value={r.id}>{r.room_number} ({r.block_name})</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
             
             <div className="grid grid-cols-2 gap-3">
               <div><Label className="text-xs">Date *</Label><Input type="date" value={coForm.check_out_date} onChange={e => setCoForm({ ...coForm, check_out_date: e.target.value })} className="h-9 text-sm mt-1" /></div>
