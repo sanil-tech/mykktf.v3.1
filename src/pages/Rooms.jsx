@@ -4,301 +4,334 @@ import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/use-toast';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/components/ui/use-toast';
-import { Plus, DoorOpen, Building2, Trash2, Edit } from 'lucide-react';
-
-const statusColors = { 
-  Available: 'bg-green-100 text-green-700 border-green-200', 
-  Occupied: 'bg-blue-100 text-blue-700 border-blue-200', 
-  Full: 'bg-red-100 text-red-700 border-red-200', 
-  Maintenance: 'bg-yellow-100 text-yellow-700 border-yellow-200' 
-};
+import { Home, Search, Plus, Filter, LayoutGrid, List, Bed, Users } from 'lucide-react';
 
 export default function Rooms() {
-  const [blocks, setBlocks] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [blockDialog, setBlockDialog] = useState(false);
-  const [roomDialog, setRoomDialog] = useState(false);
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   
-  // Track selected floors for individual blocks in Room Map tab (e.g., { [blockId]: floorNumber })
-  const [selectedBlockFloors, setSelectedBlockFloors] = useState({});
-
-  const [blockForm, setBlockForm] = useState({ block_name: '', gender_restriction: 'Mixed', total_floors: 1 });
-  const [roomForm, setRoomForm] = useState({ room_number: '', block_id: '', block_name: '', floor: 1, capacity: 2, room_type: 'Double', status: 'Available', current_occupancy: 0 });
-  const [editBlockId, setEditBlockId] = useState(null);
-  const [editRoomId, setEditRoomId] = useState(null);
+  // Search and Filter States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [blockFilter, setBlockFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  
+  // Dialog State
+  const [openDialog, setOpenDialog] = useState(false);
+  const [form, setForm] = useState({ room_number: '', block_name: '', capacity: 4, gender_restriction: 'mixed' });
+  
   const { toast } = useToast();
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    loadRooms();
+  }, []);
 
-  async function load() {
-    setLoading(true);
+  async function loadRooms() {
     try {
-      const [b, r] = await Promise.all([base44.entities.Block.list(), base44.entities.Room.list()]);
-      setBlocks(b);
-      setRooms(r);
-      
-      // Initialize default selected floor (Floor 1) for newly loaded blocks if not already tracked
-      setSelectedBlockFloors(prev => {
-        const next = { ...prev };
-        b.forEach(block => {
-          if (!next[block.id]) next[block.id] = 1;
-        });
-        return next;
-      });
-    } catch (error) {
-      toast({ title: 'Failed to load data', variant: 'destructive' });
+      setLoading(true);
+      const data = await base44.entities.Room.list();
+      setRooms(data || []);
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Error loading rooms', description: err.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   }
 
-  async function saveBlock() {
-    if (!blockForm.block_name) { toast({ title: 'Enter block name', variant: 'destructive' }); return; }
-    if (editBlockId) await base44.entities.Block.update(editBlockId, blockForm);
-    else await base44.entities.Block.create(blockForm);
-    setBlockDialog(false);
-    setEditBlockId(null);
-    load();
-  }
-
-  async function saveRoom() {
-    if (!roomForm.room_number || !roomForm.block_id) { toast({ title: 'Fill required fields', variant: 'destructive' }); return; }
-    const block = blocks.find(b => b.id === roomForm.block_id);
-    
-    if (roomForm.floor > (block?.total_floors || 1)) {
-      toast({ title: `Floor cannot exceed block's max floors (${block?.total_floors})`, variant: 'destructive' });
+  async function handleCreateRoom() {
+    if (!form.room_number || !form.block_name) {
+      toast({ title: 'Please fill in all required fields', variant: 'destructive' });
       return;
     }
 
-    const data = { ...roomForm, block_name: block?.block_name || '' };
-    if (editRoomId) await base44.entities.Room.update(editRoomId, data);
-    else await base44.entities.Room.create(data);
-    setRoomDialog(false);
-    setEditRoomId(null);
-    load();
+    try {
+      await base44.entities.Room.create({
+        ...form,
+        capacity: Number(form.capacity),
+        current_occupancy: 0,
+        status: 'Available'
+      });
+      toast({ title: 'Room added successfully' });
+      setOpenDialog(false);
+      setForm({ room_number: '', block_name: '', capacity: 4, gender_restriction: 'mixed' });
+      loadRooms();
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Failed to create room', description: err.message, variant: 'destructive' });
+    }
   }
 
-  async function deleteBlock(id) { await base44.entities.Block.delete(id); load(); }
-  async function deleteRoom(id) { await base44.entities.Room.delete(id); load(); }
-
-  const handleFloorChange = (blockId, floor) => {
-    setSelectedBlockFloors(prev => ({ ...prev, [blockId]: floor }));
+  // Get dynamic status badge color
+  const getStatusBadgeStyles = (current, capacity) => {
+    if (current === 0) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (current >= capacity) return 'bg-red-50 text-red-700 border-red-200';
+    if (current / capacity >= 0.75) return 'bg-amber-50 text-amber-700 border-amber-200';
+    return 'bg-blue-50 text-blue-700 border-blue-200';
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
+  // Extract unique blocks for filter dropdown
+  const uniqueBlocks = ['all', ...new Set(rooms.map(r => r.block_name).filter(Boolean))];
+
+  // Filter Logic
+  const filteredRooms = rooms.filter(room => {
+    const matchesSearch = room.room_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          room.block_name?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesBlock = blockFilter === 'all' || room.block_name === blockFilter;
+    
+    const availableBeds = (room.capacity || 4) - (room.current_occupancy || 0);
+    let matchesStatus = true;
+    if (statusFilter === 'available') matchesStatus = availableBeds > 0;
+    if (statusFilter === 'full') matchesStatus = availableBeds === 0;
+    if (statusFilter === 'empty') matchesStatus = room.current_occupancy === 0;
+
+    return matchesSearch && matchesBlock && matchesStatus;
+  });
 
   return (
     <div>
-      <PageHeader title="Room Management" description="Manage building blocks, floors, and rooms" />
+      <PageHeader
+        title="Room Management"
+        description="Monitor room configurations, overall capacity, and real-time bed availability"
+        actions={
+          <Button size="sm" onClick={() => setOpenDialog(true)}>
+            <Plus className="w-4 h-4 mr-1.5" /> Add New Room
+          </Button>
+        }
+      />
 
-      <Tabs defaultValue="map" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="map">Room Map</TabsTrigger>
-          <TabsTrigger value="blocks">Blocks</TabsTrigger>
-          <TabsTrigger value="rooms">Room List</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="map">
-          {blocks.length === 0 ? (
-            <EmptyState icon={Building2} title="No blocks" description="Create a block first to see the room map." />
-          ) : (
-            <div className="space-y-6">
-              {blocks.map(block => {
-                const blockRooms = rooms.filter(r => r.block_id === block.id);
-                const currentFloor = selectedBlockFloors[block.id] || 1;
-                const floorRooms = blockRooms.filter(r => r.floor === currentFloor);
-                
-                // Create an iterable array of floor numbers based on building stats
-                const floorsArray = Array.from({ length: block.total_floors || 1 }, (_, i) => i + 1);
-
-                return (
-                  <div key={block.id} className="bg-card border border-border rounded-xl p-5 space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-3">
-                      <div>
-                        <h3 className="font-heading font-semibold text-sm">{block.block_name}</h3>
-                        <p className="text-xs text-muted-foreground">{block.gender_restriction} · {block.total_floors} Floors total</p>
-                      </div>
-                      <Badge variant="outline" className="text-xs w-fit">
-                        {blockRooms.filter(r => r.status === 'Available').length} rooms available total
-                      </Badge>
-                    </div>
-
-                    {/* Floor Selector Row */}
-                    {block.total_floors > 1 && (
-                      <div className="flex flex-wrap items-center gap-1.5 bg-muted/40 p-1.5 rounded-lg border">
-                        <span className="text-[11px] font-medium text-muted-foreground px-2">Floor:</span>
-                        {floorsArray.map(floorNum => (
-                          <button
-                            key={floorNum}
-                            onClick={() => handleFloorChange(block.id, floorNum)}
-                            className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                              currentFloor === floorNum 
-                                ? 'bg-background text-foreground shadow-sm border' 
-                                : 'text-muted-foreground hover:bg-muted'
-                            }`}
-                          >
-                            Floor {floorNum} ({blockRooms.filter(r => r.floor === floorNum).length})
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Rooms Display for Selected Floor */}
-                    {floorRooms.length === 0 ? (
-                      <p className="text-xs text-muted-foreground italic py-2">No rooms added on Floor {currentFloor} yet.</p>
-                    ) : (
-                      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-                        {floorRooms.map(room => (
-                          <div 
-                            key={room.id} 
-                            className={`p-2 rounded-lg text-center text-[10px] font-medium border transition-colors ${statusColors[room.status] || 'bg-muted text-muted-foreground'}`} 
-                            title={`${room.room_number} - ${room.room_type} (${room.current_occupancy}/${room.capacity})`}
-                          >
-                            <div className="font-bold text-xs">{room.room_number}</div>
-                            <div>{room.current_occupancy}/{room.capacity} beds</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              
-              {/* Legend map indicators */}
-              <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground pt-2">
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-200" /> Available</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-100 border border-blue-200" /> Occupied</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-200" /> Full</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-100 border border-yellow-200" /> Maintenance</span>
-              </div>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="blocks">
-          <div className="mb-4"><Button size="sm" onClick={() => { setBlockForm({ block_name: '', gender_restriction: 'Mixed', total_floors: 1 }); setEditBlockId(null); setBlockDialog(true); }}><Plus className="w-4 h-4 mr-1" /> Add Block</Button></div>
-          {blocks.length === 0 ? <EmptyState icon={Building2} title="No blocks" /> : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {blocks.map(b => (
-                <div key={b.id} className="bg-card border border-border rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-heading font-semibold text-sm">{b.block_name}</h3>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setBlockForm(b); setEditBlockId(b.id); setBlockDialog(true); }}><Edit className="w-3.5 h-3.5" /></Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteBlock(b.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{b.gender_restriction} · {b.total_floors} floors</p>
-                  <p className="text-xs text-muted-foreground mt-1">{rooms.filter(r => r.block_id === b.id).length} rooms total</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="rooms">
-          <div className="mb-4"><Button size="sm" onClick={() => { setRoomForm({ room_number: '', block_id: blocks[0]?.id || '', block_name: '', floor: 1, capacity: 2, room_type: 'Double', status: 'Available', current_occupancy: 0 }); setEditRoomId(null); setRoomDialog(true); }}><Plus className="w-4 h-4 mr-1" /> Add Room</Button></div>
-          {rooms.length === 0 ? <EmptyState icon={DoorOpen} title="No rooms" /> : (
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead><tr className="border-b bg-muted/50">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Room</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Block</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Floor</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden sm:table-cell">Type</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Occupancy</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Status</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Actions</th>
-                  </tr></thead>
-                  <tbody>
-                    {rooms.map(r => (
-                      <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
-                        <td className="px-4 py-3 font-medium">{r.room_number}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{r.block_name}</td>
-                        <td className="px-4 py-3"><Badge variant="secondary" className="text-[11px]">F{r.floor}</Badge></td>
-                        <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{r.room_type}</td>
-                        <td className="px-4 py-3">{r.current_occupancy}/{r.capacity}</td>
-                        <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${statusColors[r.status]}`}>{r.status}</span></td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setRoomForm(r); setEditRoomId(r.id); setRoomDialog(true); }}><Edit className="w-3.5 h-3.5" /></Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteRoom(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {/* Block Dialog */}
-      <Dialog open={blockDialog} onOpenChange={setBlockDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>{editBlockId ? 'Edit Block' : 'Add Block'}</DialogTitle></DialogHeader>
-          <div className="space-y-3 mt-2">
-            <div><Label className="text-xs">Block Name *</Label><Input value={blockForm.block_name} onChange={e => setBlockForm({ ...blockForm, block_name: e.target.value })} className="h-9 text-sm mt-1" /></div>
-            <div><Label className="text-xs">Gender Restriction</Label>
-              <Select value={blockForm.gender_restriction} onValueChange={v => setBlockForm({ ...blockForm, gender_restriction: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="Male">Male</SelectItem><SelectItem value="Female">Female</SelectItem><SelectItem value="Mixed">Mixed</SelectItem></SelectContent>
-              </Select>
-            </div>
-            <div><Label className="text-xs">Total Floors</Label><Input type="number" min="1" value={blockForm.total_floors} onChange={e => setBlockForm({ ...blockForm, total_floors: Number(e.target.value) })} className="h-9 text-sm mt-1" /></div>
+      {/* Filters and Controls */}
+      <div className="flex flex-col sm:flex-row gap-3 justify-between items-center mb-6">
+        <div className="flex flex-1 flex-col sm:flex-row gap-2 w-full">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search room or block..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-9 text-sm"
+            />
           </div>
-          <div className="flex justify-end gap-2 mt-4"><Button variant="outline" size="sm" onClick={() => setBlockDialog(false)}>Cancel</Button><Button size="sm" onClick={saveBlock}>Save</Button></div>
-        </DialogContent>
-      </Dialog>
+          <Select value={blockFilter} onValueChange={setBlockFilter}>
+            <SelectTrigger className="w-full sm:w-[160px] h-9 text-sm">
+              <SelectValue placeholder="Filter by Block" />
+            </SelectTrigger>
+            <SelectContent>
+              {uniqueBlocks.map(block => (
+                <SelectItem key={block} value={block} className="capitalize">
+                  {block === 'all' ? 'All Blocks' : `Block ${block}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-[160px] h-9 text-sm">
+              <SelectValue placeholder="Filter by Beds" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Vacancies</SelectItem>
+              <SelectItem value="available">Has Free Beds</SelectItem>
+              <SelectItem value="full">No Free Beds (Full)</SelectItem>
+              <SelectItem value="empty">Completely Empty</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-      {/* Room Dialog */}
-      <Dialog open={roomDialog} onOpenChange={setRoomDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>{editRoomId ? 'Edit Room' : 'Add Room'}</DialogTitle></DialogHeader>
-          <div className="space-y-3 mt-2">
-            <div><Label className="text-xs">Room Number *</Label><Input value={roomForm.room_number} onChange={e => setRoomForm({ ...roomForm, room_number: e.target.value })} className="h-9 text-sm mt-1" /></div>
-            <div><Label className="text-xs">Block *</Label>
-              <Select value={roomForm.block_id} onValueChange={v => setRoomForm({ ...roomForm, block_id: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select block" /></SelectTrigger>
-                <SelectContent>{blocks.map(b => <SelectItem key={b.id} value={b.id}>{b.block_name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
+        {/* View Toggle Buttons */}
+        <div className="flex items-center gap-1 bg-muted p-1 rounded-lg self-end sm:self-auto">
+          <Button 
+            variant={viewMode === 'grid' ? 'secondary' : 'ghost'} 
+            size="icon" 
+            className="h-7 w-7" 
+            onClick={() => setViewMode('grid')}
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </Button>
+          <Button 
+            variant={viewMode === 'list' ? 'secondary' : 'ghost'} 
+            size="icon" 
+            className="h-7 w-7" 
+            onClick={() => setViewMode('list')}
+          >
+            <List className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
+        </div>
+      ) : filteredRooms.length === 0 ? (
+        <EmptyState icon={Home} title="No rooms found matching the criteria" />
+      ) : viewMode === 'grid' ? (
+        
+        /* GRID VIEW WITH EXPLICIT BED COUNTS */
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {filteredRooms.map((room) => {
+            const capacity = room.capacity || 4;
+            const occupied = room.current_occupancy || 0;
+            const bedsAvailable = capacity - occupied;
+
+            return (
+              <Card key={room.id} className="overflow-hidden border border-border hover:shadow-md transition-all">
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-sm font-bold font-mono tracking-tight text-foreground">Room {room.room_number}</h3>
+                      <p className="text-xs text-muted-foreground">Block {room.block_name}</p>
+                    </div>
+                    <Badge variant="outline" className={`text-[10px] px-2 py-0.5 font-medium ${getStatusBadgeStyles(occupied, capacity)}`}>
+                      {occupied === 0 ? 'Empty' : occupied >= capacity ? 'Full' : 'Occupied'}
+                    </Badge>
+                  </div>
+
+                  {/* Bed Allocation Visual Meter */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-[11px] font-medium text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Users className="w-3 h-3" /> Occupancy Ratio
+                      </span>
+                      <span className="text-foreground font-mono">{occupied} / {capacity}</span>
+                    </div>
+                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden flex">
+                      <div 
+                        className={`h-full transition-all ${occupied >= capacity ? 'bg-red-500' : 'bg-primary'}`}
+                        style={{ width: `${(occupied / capacity) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Bed Availability Readout */}
+                  <div className="pt-2 border-t flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 font-medium text-foreground">
+                      <Bed className={`w-3.5 h-3.5 ${bedsAvailable > 0 ? 'text-emerald-600' : 'text-muted-foreground'}`} />
+                      {bedsAvailable > 0 ? (
+                        <span className="text-emerald-700 font-semibold">{bedsAvailable} {bedsAvailable === 1 ? 'bed' : 'beds'} free</span>
+                      ) : (
+                        <span className="text-muted-foreground">No beds available</span>
+                      )}
+                    </span>
+                    <Badge variant="secondary" className="text-[10px] capitalize px-1.5 py-0 bg-secondary/60 text-secondary-foreground">
+                      {room.gender_restriction || 'Mixed'}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        
+        /* TABLE VIEW WITH EXPLICIT BED COUNTS */
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50 text-muted-foreground font-medium">
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Room Number</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Block</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Gender Rule</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Total Capacity</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Beds Taken</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Beds Available</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRooms.map((room) => {
+                  const capacity = room.capacity || 4;
+                  const occupied = room.current_occupancy || 0;
+                  const bedsAvailable = capacity - occupied;
+
+                  return (
+                    <tr key={room.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3 font-mono font-bold text-foreground">Room {room.room_number}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{room.block_name}</td>
+                      <td className="px-4 py-3 text-muted-foreground capitalize">{room.gender_restriction || 'Mixed'}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{capacity} Beds</td>
+                      <td className="px-4 py-3 font-medium text-foreground">{occupied} occupied</td>
+                      <td className="px-4 py-3">
+                        {bedsAvailable > 0 ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded text-xs border border-emerald-100">
+                            {bedsAvailable} Free
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-red-700 font-semibold bg-red-50 px-2 py-0.5 rounded text-xs border border-red-100">
+                            Full
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ADD NEW ROOM DIALOG */}
+      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Room</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
             <div>
-              <Label className="text-xs">Floor</Label>
+              <Label className="text-xs font-medium">Room Number *</Label>
               <Input 
-                type="number" 
-                min="1" 
-                max={blocks.find(b => b.id === roomForm.block_id)?.total_floors || 99}
-                value={roomForm.floor} 
-                onChange={e => setRoomForm({ ...roomForm, floor: Number(e.target.value) })} 
-                className="h-9 text-sm mt-1" 
+                placeholder="e.g., 101, A-23" 
+                value={form.room_number} 
+                onChange={(e) => setForm({ ...form, room_number: e.target.value })} 
+                className="h-9 mt-1"
               />
             </div>
-            <div><Label className="text-xs">Capacity</Label><Input type="number" min="1" value={roomForm.capacity} onChange={e => setRoomForm({ ...roomForm, capacity: Number(e.target.value) })} className="h-9 text-sm mt-1" /></div>
-            <div><Label className="text-xs">Room Type</Label>
-              <Select value={roomForm.room_type} onValueChange={v => setRoomForm({ ...roomForm, room_type: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>{['Single','Double','Triple','Quad'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-              </Select>
+            <div>
+              <Label className="text-xs font-medium">Block Name *</Label>
+              <Input 
+                placeholder="e.g., Block A, Female Wing" 
+                value={form.block_name} 
+                onChange={(e) => setForm({ ...form, block_name: e.target.value })} 
+                className="h-9 mt-1"
+              />
             </div>
-            <div><Label className="text-xs">Status</Label>
-              <Select value={roomForm.status} onValueChange={v => setRoomForm({ ...roomForm, status: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>{['Available','Occupied','Full','Maintenance'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-medium">Total Beds (Capacity)</Label>
+                <Input 
+                  type="number" 
+                  min="1"
+                  value={form.capacity} 
+                  onChange={(e) => setForm({ ...form, capacity: e.target.value })} 
+                  className="h-9 mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Gender Restriction</Label>
+                <Select value={form.gender_restriction} onValueChange={(v) => setForm({ ...form, gender_restriction: v })}>
+                  <SelectTrigger className="h-9 mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mixed">Mixed</SelectItem>
+                    <SelectItem value="male">Male Only</SelectItem>
+                    <SelectItem value="female">Female Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
-          <div className="flex justify-end gap-2 mt-4"><Button variant="outline" size="sm" onClick={() => setRoomDialog(false)}>Cancel</Button><Button size="sm" onClick={saveRoom}>Save</Button></div>
+          <DialogFooter className="mt-2">
+            <Button variant="outline" size="sm" onClick={() => setOpenDialog(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleCreateRoom}>Save Room</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
