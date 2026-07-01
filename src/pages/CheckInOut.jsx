@@ -44,17 +44,59 @@ export default function CheckInOut() {
   }
 
   async function handleCheckIn() {
-    if (!ciForm.student_id || !ciForm.room_id || !ciForm.check_in_date) { toast({ title: 'Fill required fields', variant: 'destructive' }); return; }
+  if (!ciForm.student_id || !ciForm.room_id || !ciForm.check_in_date) { 
+    toast({ title: 'Fill required fields', variant: 'destructive' }); 
+    return; 
+  }
+  
+  try {
     const student = students.find(s => s.id === ciForm.student_id);
     const room = rooms.find(r => r.id === ciForm.room_id);
-    await base44.entities.CheckIn.create({ ...ciForm, student_name: student?.full_name || '', room_number: room?.room_number || '', block_name: room?.block_name || '' });
+
+    // 1. Cipta rekod log masuk asrama (Check-In)
+    await base44.entities.CheckIn.create({ 
+      ...ciForm, 
+      student_name: student?.full_name || '', 
+      room_number: room?.room_number || '', 
+      block_name: room?.block_name || '' 
+    });
+
+    // 2. KEMAS KINI PROFIL PELAJAR (Masukkan Blok, Bilik & ID Bilik)
+    if (student && room) {
+      await base44.entities.Student.update(student.id, {
+        block_name: room.block_name || '',
+        room_number: room.room_number || '',
+        block_id: room.block_id || '', // Jika schema anda menggunakan block_id
+        room_id: room.id
+      });
+
+      // 3. KEMAS KINI ROLE USER (Tukar daripada 'user' kepada 'student')
+      if (student.user_id) {
+        // Semak cara update mengikut SDK base44 anda
+        if (base44.entities.User) {
+          await base44.entities.User.update(student.user_id, { role: 'student' });
+        } else if (base44.auth.updateUserRole) {
+          await base44.auth.updateUserRole(student.user_id, 'student');
+        }
+      }
+    }
+
+    // 4. Kemas kini kapasiti bilik semasa
     if (room) {
       const newOcc = (room.current_occupancy || 0) + 1;
-      await base44.entities.Room.update(room.id, { current_occupancy: newOcc, status: newOcc >= room.capacity ? 'Full' : 'Occupied' });
+      await base44.entities.Room.update(room.id, { 
+        current_occupancy: newOcc, 
+        status: newOcc >= room.capacity ? 'Full' : 'Occupied' 
+      });
     }
-    toast({ title: 'Check-in recorded' });
+
+    toast({ title: 'Check-in recorded and profile updated successfully' });
     setCiDialog(false);
     load();
+  } catch (err) {
+    console.error("Gagal melakukan proses check-in:", err);
+    toast({ title: 'Error recording check-in', description: err.message, variant: 'destructive' });
+  }
   }
 
   async function handleCheckOut() {
