@@ -34,11 +34,11 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // States untuk pilihan Blok & Bilik (Dinamik seperti MyProfile)
+  // States untuk pilihan Blok & Bilik
   const [blocks, setBlocks] = useState([]);
   const [rooms, setRooms] = useState([]);
 
-  // Form State yang dipadankan dengan entiti Student sistem anda
+  // Form State
   const [form, setForm] = useState({
     full_name: '',
     student_id: '',
@@ -61,30 +61,43 @@ export default function Dashboard() {
         const user = await base44.auth.me();
         setCurrentUser(user);
 
-        // Semak sekiranya pelajar ini sudah mempunyai rekod profile Student
-        let studs = await base44.entities.Student.filter({ user_id: user.id });
-        if (!studs.length) studs = await base44.entities.Student.filter({ email: user.email });
+        // Langkau sekatan jika pengguna ialah Warden, Jakmas atau Admin tegar
+        if (user?.role === 'warden' || user?.role === 'jakmas' || user?.role === 'super_admin' || user?.role === 'college_admin') {
+          setHasStudentProfile(true); // Benarkan mereka lepas terus ke dashboard masing-masing
+          setLoading(false);
+          return;
+        }
+
+        // Cari profil pelajar dalam entiti Student secara agresif
+        let studs = [];
+        if (user?.id) {
+          studs = await base44.entities.Student.filter({ user_id: user.id });
+        }
+        if (!studs.length && user?.email) {
+          studs = await base44.entities.Student.filter({ email: user.email });
+        }
         
-        if (studs.length > 0) {
+        // Memastikan rekod yang dijumpai mempunyai data sah (bukan rekod kosong)
+        if (studs.length > 0 && studs[0]?.student_id) {
           setHasStudentProfile(true);
         } else {
-          // Hanya muat turun data blok & bilik jika profil belum wujud (New User)
+          setHasStudentProfile(false);
+          // Ambil data blok & bilik daripada pangkalan data
           const [b, r] = await Promise.all([
-            base44.entities.Block.list(),
-            base44.entities.Room.list(),
+            base44.entities.Block.list().catch(() => []),
+            base44.entities.Room.list().catch(() => []),
           ]);
           setBlocks(b);
           setRooms(r);
           
-          // Set nama & email laluan awal daripada akaun auth/Google
           setForm(prev => ({
             ...prev,
-            full_name: user.full_name || '',
-            email: user.email || ''
+            full_name: user?.full_name || '',
+            email: user?.email || ''
           }));
         }
       } catch (err) {
-        console.error("Initialization failed", err);
+        console.error("Gagal memuatkan sistem dashboard:", err);
       } finally {
         setLoading(false);
       }
@@ -95,21 +108,21 @@ export default function Dashboard() {
   const handleCompleteProfile = async (e) => {
     e.preventDefault();
     
-    // Validasi mandatori (Nama, No Matrik, No Telefon, Blok & Bilik)
     if (!form.full_name.trim() || !form.student_id.trim() || !form.phone.trim() || !form.block_id || !form.room_id) {
-      toast({ title: "Maklumat Tidak Lengkap", description: "Sila isi Nama, No. Matrik, No. Telefon serta pilihan Blok & Bilik.", variant: "destructive" });
+      toast({ title: "Maklumat Tidak Lengkap", description: "Sila isikan Nama, No. Matrik, No. Telefon serta pilihan Blok & Bilik.", variant: "destructive" });
       return;
     }
 
     setSubmitting(true);
     try {
-      // 1. Cipta rekod pelajar baru di dalam entiti Student (Sama seperti handleSave MyProfile)
-      const createdStudent = await base44.entities.Student.create({ 
+      // 1. Cipta rekod Student baru
+      await base44.entities.Student.create({ 
         ...form, 
-        user_id: currentUser.id 
+        user_id: currentUser.id,
+        email: currentUser.email
       });
 
-      // 2. Kemaskini jumlah kapasiti bilik (Occupancy counter) secara dinamik
+      // 2. Kemaskini jumlah occupancy bilik
       const selectedRoom = rooms.find(r => r.id === form.room_id);
       if (selectedRoom) {
         const newOcc = (selectedRoom.current_occupancy || 0) + 1;
@@ -117,9 +130,7 @@ export default function Dashboard() {
         await base44.entities.Room.update(form.room_id, { current_occupancy: newOcc, status: newStatus });
       }
 
-      toast({ title: "Pendaftaran Berjaya", description: "Profil anda telah diaktifkan secara rasmi!" });
-      
-      // Muat semula halaman untuk terus membuka StudentDashboard penuh
+      toast({ title: "Pendaftaran Berjaya", description: "Profil kediaman anda telah diaktifkan!" });
       window.location.reload(); 
     } catch (err) {
       toast({ title: "Gagal Mendaftar", description: err.message, variant: "destructive" });
@@ -130,32 +141,33 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Memuatkan peranan portal...</p>
+        </div>
       </div>
     );
   }
 
   // ====================================================================
-  // 🎯 SKRIN LENGKAPKAN PROFIL KHAS UNTUK PELAJAR BARU (BELUM ADA REKOD STUDENT)
+  // 🎯 VERIFIKASI UTAMA: JIKA TIADA PROFIL STUDENT, PAKSA ISI BORANG INI
   // ====================================================================
-  if (currentUser?.role === 'student' && !hasStudentProfile) {
+  if (!hasStudentProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-background">
         <div className="max-w-xl w-full space-y-6 bg-card p-8 rounded-xl border shadow-sm my-8">
           <div className="text-center space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">Pendaftaran Kolej Kediaman 👋</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Pendaftaran Kediaman (KKMS) 👋</h1>
             <p className="text-muted-foreground text-sm">
-              Sila lengkapkan profil akademik dan bilik anda untuk mengaktifkan akaun portal KKMS.
+              Akaun anda dikesan belum mempunyai rekod bilik. Sila sahkan profil pelajar anda untuk mengaktifkan dashboard utama.
             </p>
           </div>
 
           <form onSubmit={handleCompleteProfile} className="space-y-4">
-            
             {/* Bahagian 1: Profil Peribadi */}
             <div className="space-y-3">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b pb-1">Maklumat Peribadi</h3>
-              
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs">Nama Penuh *</Label>
@@ -251,12 +263,7 @@ export default function Dashboard() {
             </div>
 
             <Button type="submit" className="w-full h-11 mt-4" disabled={submitting}>
-              {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Mengaktifkan Profil & Bilik...
-                </>
-              ) : "Sahkan Profil & Check-In"}
+              {submitting ? "Mengaktifkan Akaun Pelajar..." : "Sahkan Profil & Ambil Bilik"}
             </Button>
           </form>
         </div>
@@ -265,11 +272,12 @@ export default function Dashboard() {
   }
 
   // ====================================================================
-  // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD ASAL (TERPERLIHARA)
+  // 🛡️ DASHBOARD PERANAN UTAMA (Hanya jika profil Student wujud / Staff Sah)
   // ====================================================================
-  if (currentUser?.role === 'student') return <StudentDashboard user={currentUser} />;
   if (currentUser?.role === 'warden') return <WardenDashboard user={currentUser} />;
   if (currentUser?.role === 'jakmas') return <JakmasDashboard user={currentUser} />;
+  if (currentUser?.role === 'student') return <StudentDashboard user={currentUser} />;
   
+  // Jika tiada role sepadan tetapi ia lepas sekatan profil di atas, paparkan AdminDashboard
   return <AdminDashboard user={currentUser} />;
 }
