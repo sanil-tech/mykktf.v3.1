@@ -49,8 +49,8 @@ export default function Dashboard() {
     parent_phone: '',
     emergency_contact: '',
     vehicle_reg: '',
-    block_name: '', 
-    room_number: '', 
+    block_name: '', // Kekal kosong untuk tugasan Admin kemudian
+    room_number: '', // Kekal kosong untuk tugasan Admin kemudian
   });
 
   useEffect(() => {
@@ -260,11 +260,20 @@ export default function Dashboard() {
   }
 
   // ====================================================================
-  // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD ASAL (TERPERLIHARA)
+  // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD ASAL (DIPERBAIKI)
   // ====================================================================
+  // 1. Staf pengurusan kolej kekal ke dashboard masing-masing
   if (currentUser?.role === 'warden') return <WardenDashboard user={currentUser} />;
   if (currentUser?.role === 'jakmas') return <JakmasDashboard user={currentUser} />;
-  if (currentUser?.role === 'student') return <StudentDashboard user={currentUser} />;
+  if (currentUser?.role === 'super_admin' || currentUser?.role === 'college_admin') {
+    return <AdminDashboard user={currentUser} />;
+  }
   
+  // 2. Jika profil Student wujud, PAKSA paparan StudentDashboard (walaupun role auth mereka 'user')
+  if (hasStudentProfile) {
+    return <StudentDashboard user={currentUser} />;
+  }
+  
+  // 3. Fallback sekiranya tiada sebarang padanan role
   return <AdminDashboard user={currentUser} />;
 }
