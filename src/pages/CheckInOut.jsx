@@ -759,61 +759,89 @@ export default function CheckInOut() {
             </div>
 
             {selectedStudent && (
-              <div className="space-y-3">
-                <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-2 text-xs">
-                  <div className="flex items-center gap-2 font-medium text-foreground">
-                    <User className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Nama: {selectedStudent.full_name}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-muted-foreground">
-                    <div>ID: <span className="text-foreground font-mono">{selectedStudent.student_id}</span></div>
-                    <div>IC/Pasport: <span className="text-foreground">{selectedStudent.ic_passport || 'N/A'}</span></div>
-                  </div>
+              <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 text-xs">
+                <div className="flex items-center gap-2 font-medium text-foreground">
+                  <User className="w-3.5 h-3.5 text-primary" />
+                  <span>Nama: {selectedStudent.full_name}</span>
                 </div>
-
-                <div className="p-3 bg-muted border border-border rounded-lg space-y-1 text-xs">
-                  <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Peruntukan Bilik Semasa</Label>
-                  <div className="grid grid-cols-2 gap-y-1 font-medium mt-1">
-                    <div>Blok: <span className="text-foreground font-mono">{selectedStudent.block_name || 'N/A'}</span></div>
-                    <div>Nombor Bilik: <span className="text-foreground font-mono">{selectedStudent.room_number || 'N/A'}</span></div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs font-medium">Tarikh Check-out *</Label>
-                    <Input type="date" disabled={submitting} value={coForm.check_out_date} onChange={(e) => setCoForm({ ...coForm, check_out_date: e.target.value })} className="h-9 text-sm mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs font-medium">Masa Check-out</Label>
-                    <Input type="time" disabled={submitting} value={coForm.check_out_time} onChange={(e) => setCoForm({ ...coForm, check_out_time: e.target.value })} className="h-9 text-sm mt-1" />
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-xs font-medium">Penilaian Keadaan Bilik</Label>
-                  <Select disabled={submitting} value={coForm.room_condition} onValueChange={(v) => setCoForm({ ...coForm, room_condition: v })}>
-                    <SelectTrigger className="h-9 text-sm mt-1">
-                      <SelectValue placeholder="Pilih status keadaan bilik" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Good">Baik / Boleh Diterima</SelectItem>
-                      <SelectItem value="Damaged">Terdapat Kerosakan</SelectItem>
-                      <SelectItem value="Dirty">Perlu Pembersihan Mendalam</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label className="text-xs font-medium">Nota Penilaian Kerosakan</Label>
-                  <Textarea disabled={submitting} value={coForm.damage_assessment} onChange={(e) => setCoForm({ ...coForm, damage_assessment: e.target.value })} placeholder="Nyatakan butiran pemotongan deposit jika ada..." className="text-sm mt-1" rows={2} />
+                <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                  <div>ID: <span className="text-foreground font-mono">{selectedStudent.student_id}</span></div>
+                  <div>Bilik Semasa: <span className="text-foreground font-mono">{selectedStudent.room_number || 'N/A'}</span></div>
+                  <div>Blok: <span className="text-foreground">{selectedStudent.block_name || 'N/A'}</span></div>
+                  <div>Tarikh Masuk: <span className="text-foreground">{selectedStudent.check_in_date || 'N/A'}</span></div>
                 </div>
               </div>
             )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-medium">Tarikh Check Out *</Label>
+                <Input 
+                  type="date" 
+                  disabled={submitting} 
+                  value={coForm.check_out_date} 
+                  onChange={(e) => setCoForm({ ...coForm, check_out_date: e.target.value })} 
+                  className="h-9 text-sm mt-1" 
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Masa Check Out</Label>
+                <Input 
+                  type="time" 
+                  disabled={submitting} 
+                  value={coForm.check_out_time} 
+                  onChange={(e) => setCoForm({ ...coForm, check_out_time: e.target.value })} 
+                  className="h-9 text-sm mt-1" 
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium">Keadaan Bilik</Label>
+              <Select 
+                disabled={submitting} 
+                value={coForm.room_condition} 
+                onValueChange={(v) => setCoForm({ ...coForm, room_condition: v })}
+              >
+                <SelectTrigger className="h-9 text-sm mt-1">
+                  <SelectValue placeholder="Pilih keadaan bilik" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Good">Baik (Good)</SelectItem>
+                  <SelectItem value="Fair">Sederhana (Fair)</SelectItem>
+                  <SelectItem value="Damaged">Rosak (Damaged)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium">Penilaian Kerosakan (Jika Ada)</Label>
+              <Textarea 
+                disabled={submitting} 
+                value={coForm.damage_assessment} 
+                onChange={(e) => setCoForm({ ...coForm, damage_assessment: e.target.value })} 
+                className="text-sm mt-1" 
+                rows={2} 
+                placeholder="Nyatakan kerosakan sekiranya ada..."
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium">Jumlah Pemulangan Deposit (RM)</Label>
+              <Input 
+                type="number" 
+                disabled={submitting} 
+                value={coForm.refund_amount} 
+                onChange={(e) => setCoForm({ ...coForm, refund_amount: parseFloat(e.target.value) || 0 })} 
+                className="h-9 text-sm mt-1" 
+              />
+            </div>
+
           </div>
+
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" size="sm" disabled={submitting} onClick={() => setCoDialog(false)}>Batal</Button>
-            <Button size="sm" onClick={handleCheckOut} disabled={!selectedStudent || !coForm.check_out_date || submitting}>
+            <Button size="sm" variant="destructive" onClick={handleCheckOut} disabled={!selectedStudent || submitting}>
               {submitting ? 'Merekodkan...' : 'Sahkan Check Out'}
             </Button>
           </div>
