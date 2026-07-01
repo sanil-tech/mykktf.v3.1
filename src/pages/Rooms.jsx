@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Home, Search, Plus, LayoutGrid, List, Bed, Users, ShieldAlert, ChevronDown, ChevronUp, Phone, IdCard, User } from 'lucide-react';
+import { Home, Search, Plus, LayoutGrid, List, Bed, Users, ShieldAlert, ChevronDown, ChevronUp, User } from 'lucide-react';
 
 export default function Rooms() {
   const [rooms, setRooms] = useState([]);
@@ -18,7 +18,7 @@ export default function Rooms() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
   
-  // Track which room's resident roster dropdown is currently open
+  // Track which room's occupant preview list panel is currently selected / expanded
   const [expandedRoomId, setExpandedRoomId] = useState(null);
   
   // Search and Filter States
@@ -81,7 +81,7 @@ export default function Rooms() {
     }
   }
 
-  // Helper matching current room ID context to assigned student profiles safely
+  // Section 8 Filter Rule: Retrieve matching assigned student profiles reactively without duplication
   const getRoomResidents = (roomId) => {
     if (!roomId) return [];
     return students.filter(s => String(s.room_id).trim().toLowerCase() === String(roomId).trim().toLowerCase());
@@ -114,7 +114,7 @@ export default function Rooms() {
     <div>
       <PageHeader
         title="Room Configuration Management"
-        description="Configure single-gender dormitory layouts, view occupancy profiles, and manage current room assignments."
+        description="Configure single-gender layouts, track real-time occupancy changes, and preview current occupant rosters."
         actions={
           <Button size="sm" onClick={() => setOpenDialog(true)}>
             <Plus className="w-4 h-4 mr-1.5" /> Add New Room
@@ -177,7 +177,7 @@ export default function Rooms() {
         <EmptyState icon={Home} title="No room registrations found matching filters" />
       ) : viewMode === 'grid' ? (
         
-        /* 🎴 GRID VIEW WITH INLINE RESIDENTS VIEW PANEL */
+        /* 🎴 GRID VIEW WITH INTERACTIVE OCCUPANT PREVIEW PANEL */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredRooms.map((room) => {
             const capacity = room.capacity || 4;
@@ -222,42 +222,44 @@ export default function Rooms() {
                     </Badge>
                   </div>
 
-                  {/* Dynamic Accordion Dropdown Trigger for Resident Assignment details */}
-                  {roomResidents.length > 0 && (
-                    <div className="pt-2 border-t mt-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => toggleExpandRoom(room.id)}
-                        className="w-full h-7 text-[11px] font-semibold flex justify-between items-center px-2 bg-muted/40 hover:bg-muted text-muted-foreground"
-                      >
-                        <span>View Registered Residents ({roomResidents.length})</span>
-                        {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                      </Button>
+                  {/* 👥 SECTION 8: AUTOMATIC RETRIEVAL OCCUPANT PREVIEW PANEL */}
+                  <div className="pt-2 border-t mt-2">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => toggleExpandRoom(room.id)}
+                      className="w-full h-7 text-[11px] font-semibold flex justify-between items-center px-2 bg-muted/40 hover:bg-muted text-muted-foreground"
+                    >
+                      <span>Occupants ({roomResidents.length}/{capacity})</span>
+                      {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </Button>
 
-                      {/* Display limited profile parameters: Name, Matric (student_id), Phone */}
-                      {isExpanded && (
-                        <div className="mt-2 space-y-2 border border-dashed rounded-lg p-2 bg-muted/10 max-h-40 overflow-y-auto animate-in fade-in duration-200">
-                          {roomResidents.map((student) => (
-                            <div key={student.id} className="text-[11px] pb-1.5 last:pb-0 border-b last:border-0 border-muted/50 space-y-0.5">
-                              <div className="font-bold text-foreground flex items-center gap-1">
-                                <User className="w-2.5 h-2.5 text-primary" />
+                    {isExpanded && (
+                      <div className="mt-2 border border-dashed rounded-lg p-2 bg-muted/10 max-h-48 overflow-y-auto text-xs space-y-3 font-sans animate-in fade-in duration-150">
+                        {roomResidents.length === 0 ? (
+                          <p className="text-[11px] text-muted-foreground text-center py-2">
+                            No students currently assigned to this room.
+                          </p>
+                        ) : (
+                          roomResidents.map((student) => (
+                            <div key={student.id} className="pb-2 last:pb-0 border-b last:border-0 border-muted/60 space-y-0.5">
+                              <div className="font-bold text-foreground flex items-center gap-1 uppercase">
+                                <User className="w-3 h-3 text-primary shrink-0" />
                                 {student.full_name}
                               </div>
-                              <div className="text-muted-foreground font-mono flex items-center gap-1 pl-3">
-                                <IdCard className="w-2.5 h-2.5" />
-                                {student.student_id || 'N/A'}
+                              <div className="text-muted-foreground pl-4">
+                                <span className="font-medium">Matric No :</span> {student.student_id || 'N/A'}
                               </div>
-                              <div className="text-muted-foreground flex items-center gap-1 pl-3">
-                                <Phone className="w-2.5 h-2.5" />
-                                {student.phone_number || student.phone || 'No phone record'}
+                              <div className="text-muted-foreground pl-4">
+                                <span className="font-medium">Phone      :</span> {student.phone_number || student.phone || 'N/A'}
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                 </CardContent>
               </Card>
             );
@@ -265,7 +267,7 @@ export default function Rooms() {
         </div>
       ) : (
         
-        /* 📋 TABLE VIEW WITH EXPANDABLE ROW DRAWER */
+        /* 📋 TABLE VIEW VARIANT WITH EXPANDABLE PANEL ROWS */
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -301,36 +303,44 @@ export default function Rooms() {
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            disabled={roomResidents.length === 0}
                             onClick={() => toggleExpandRoom(room.id)}
                             className="h-7 text-xs font-medium px-2.5"
                           >
-                            Residents ({roomResidents.length})
+                            Occupants ({roomResidents.length})
                             {isExpanded ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
                           </Button>
                         </td>
                       </tr>
                       
-                      {isExpanded && roomResidents.length > 0 && (
+                      {isExpanded && (
                         <tr className="bg-muted/20 border-b">
                           <td colSpan={5} className="px-6 py-3">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                              {roomResidents.map((student) => (
-                                <div key={student.id} className="p-2.5 bg-card border rounded-lg text-xs space-y-1 shadow-sm">
-                                  <div className="font-bold text-foreground flex items-center gap-1.5">
-                                    <User className="w-3 h-3 text-primary" />
-                                    {student.full_name}
-                                  </div>
-                                  <div className="text-muted-foreground font-mono text-[11px] flex items-center gap-1.5 pl-0.5">
-                                    <IdCard className="w-3 h-3 text-muted-foreground" />
-                                    Matric: {student.student_id || 'N/A'}
-                                  </div>
-                                  <div className="text-muted-foreground text-[11px] flex items-center gap-1.5 pl-0.5">
-                                    <Phone className="w-3 h-3 text-muted-foreground" />
-                                    Phone: {student.phone_number || student.phone || 'N/A'}
-                                  </div>
+                            <div className="bg-card border rounded-lg p-3 max-w-xl space-y-3">
+                              <p className="text-xs font-bold text-muted-foreground border-b pb-1">
+                                Room {room.room_number} — Occupants ({roomResidents.length}/{capacity})
+                              </p>
+                              {roomResidents.length === 0 ? (
+                                <p className="text-xs text-muted-foreground py-1">
+                                  No students currently assigned to this room.
+                                </p>
+                              ) : (
+                                <div className="space-y-3 text-xs">
+                                  {roomResidents.map((student) => (
+                                    <div key={student.id} className="space-y-0.5 pb-2 last:pb-0 border-b last:border-0 border-muted/40">
+                                      <div className="font-bold text-foreground flex items-center gap-1 uppercase">
+                                        <User className="w-3 h-3 text-primary shrink-0" />
+                                        {student.full_name}
+                                      </div>
+                                      <div className="text-muted-foreground font-mono pl-4">
+                                        <span className="font-sans font-medium">Matric No :</span> {student.student_id || 'N/A'}
+                                      </div>
+                                      <div className="text-muted-foreground pl-4">
+                                        <span className="font-medium">Phone      :</span> {student.phone_number || student.phone || 'N/A'}
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -361,7 +371,7 @@ export default function Rooms() {
             <div>
               <Label className="text-xs font-medium">Room Number *</Label>
               <Input 
-                placeholder="e.g., N-101, H-B08" 
+                placeholder="e.g., N-1.06, H-2.04" 
                 value={form.room_number} 
                 onChange={(e) => setForm({ ...form, room_number: e.target.value })} 
                 className="h-9 mt-1"
