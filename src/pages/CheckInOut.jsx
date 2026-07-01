@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
@@ -29,8 +29,8 @@ export default function CheckInCheckOutPage() {
     try {
       setLoading(true);
       const [studentsData, roomsData] = await Promise.all([
-        api.getStudents(), // Pastikan API ini memulangkan data student terkini
-        api.getRooms()     // Pastikan API ini memulangkan data room terkini
+        base44.entities.Student.list(),
+        base44.entities.Room.list()
       ]);
       setStudents(studentsData || []);
       setRooms(roomsData || []);
@@ -122,9 +122,9 @@ export default function CheckInCheckOutPage() {
       const newOccupancyCount = currentOccupancy + 1;
 
       await Promise.all([
-        api.updateStudent(student.id, { room_id: room.id }),
-        api.updateRoom(room.id, { current_occupancy: newOccupancyCount }),
-        api.createLog({ student_id: student.id, room_id: room.id, action: 'CHECK_IN', timestamp: new Date().toISOString() })
+        base44.entities.Student.update(student.id, { room_id: room.id, room_number: room.room_number, block_name: room.block_name }),
+        base44.entities.Room.update(room.id, { current_occupancy: newOccupancyCount }),
+        base44.entities.CheckIn.create({ student_id: student.id, student_name: student.full_name, room_id: room.id, room_number: room.room_number, block_name: room.block_name, check_in_date: new Date().toISOString().split('T')[0] })
       ]);
 
       showMessage('success', `Check-In Berjaya untuk ${student.full_name}`);
@@ -143,6 +143,7 @@ export default function CheckInCheckOutPage() {
   const handleCheckOut = async (studentId) => {
     const student = students.find(s => s.id === studentId);
     if (!student || !student.room_id) return;
+    const room = rooms.find(r => String(r.id) === String(student.room_id));
 
     try {
       setLoading(true);
@@ -151,9 +152,9 @@ export default function CheckInCheckOutPage() {
 
       // Kemas kini semua table serentak (Fix 8)
       await Promise.all([
-        api.updateStudent(student.id, { room_id: null }),
-        api.updateRoom(student.room_id, { current_occupancy: newOccupancyCount }),
-        api.createLog({ student_id: student.id, room_id: student.room_id, action: 'CHECK_OUT', timestamp: new Date().toISOString() })
+        base44.entities.Student.update(student.id, { room_id: null, room_number: '', block_name: '' }),
+        base44.entities.Room.update(student.room_id, { current_occupancy: newOccupancyCount }),
+        base44.entities.CheckOut.create({ student_id: student.id, student_name: student.full_name, room_id: student.room_id, room_number: room?.room_number || '', block_name: room?.block_name || '', check_out_date: new Date().toISOString().split('T')[0] })
       ]);
 
       showMessage('success', `Check-Out Berjaya untuk ${student.full_name}`);
