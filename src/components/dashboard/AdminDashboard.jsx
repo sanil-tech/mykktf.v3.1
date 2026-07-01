@@ -11,7 +11,7 @@ import {
   ShieldAlert, 
   Building2, 
   ClipboardCheck,
-  BedDouble // Icon for available beds
+  BedDouble 
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -64,7 +64,6 @@ export default function AdminDashboard() {
     const totalCapacity = rooms.reduce((a, r) => a + (r.capacity || 0), 0);
     const totalOccupancy = rooms.reduce((a, r) => a + (r.current_occupancy || 0), 0);
     
-    // Calculate total available beds across all rooms
     const totalAvailableBeds = rooms.reduce((a, r) => {
       const roomBedsAvailable = (r.capacity || 0) - (r.current_occupancy || 0);
       return a + (roomBedsAvailable > 0 ? roomBedsAvailable : 0);
@@ -129,21 +128,75 @@ export default function AdminDashboard() {
     <div>
       <PageHeader title="Dashboard" description="Overview of residential college operations" />
       
-      {/* Primary KPI Row - Changed to lg:grid-cols-5 to accommodate the new card cleanly */}
+      {/* Primary KPI Row - Dynamic Routes Included */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <StatCard label="Total Residents" value={stats.totalResidents} icon={Users} color="bg-[hsl(222,47%,21%)]" />
-        <StatCard label="Available Rooms" value={stats.availableRooms} icon={DoorOpen} color="bg-[hsl(162,63%,41%)]" />
-        <StatCard label="Available Beds" value={stats.totalAvailableBeds} icon={BedDouble} color="bg-[hsl(142,71%,45%)]" />
-        <StatCard label="Occupancy Rate" value={`${stats.occupancyRate}%`} icon={Building2} color="bg-[hsl(199,89%,48%)]" />
-        <StatCard label="Pending Maintenance" value={stats.pendingMaint} icon={Wrench} color="bg-[hsl(38,92%,50%)]" />
+        <StatCard 
+          label="Total Residents" 
+          value={stats.totalResidents} 
+          icon={Users} 
+          color="bg-[hsl(222,47%,21%)]" 
+          href="/admin/students?status=Active" 
+        />
+        <StatCard 
+          label="Available Rooms" 
+          value={stats.availableRooms} 
+          icon={DoorOpen} 
+          color="bg-[hsl(162,63%,41%)]" 
+          href="/admin/rooms?status=Available" 
+        />
+        <StatCard 
+          label="Available Beds" 
+          value={stats.totalAvailableBeds} 
+          icon={BedDouble} 
+          color="bg-[hsl(142,71%,45%)]" 
+          href="/admin/rooms?filter=has-empty-beds" 
+        />
+        <StatCard 
+          label="Occupancy Rate" 
+          value={`${stats.occupancyRate}%`} 
+          icon={Building2} 
+          color="bg-[hsl(199,89%,48%)]" 
+          href="/admin/rooms" 
+        />
+        <StatCard 
+          label="Pending Maintenance" 
+          value={stats.pendingMaint} 
+          icon={Wrench} 
+          color="bg-[hsl(38,92%,50%)]" 
+          href="/admin/maintenance?status=Pending" 
+        />
       </div>
 
-      {/* Secondary Operational Row */}
+      {/* Secondary Operational Row - Dynamic Routes Included */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Pending Leave" value={stats.pendingLeave} icon={CalendarOff} color="bg-[hsl(280,65%,50%)]" />
-        <StatCard label="Pending Parcels" value={stats.pendingParcels} icon={Package} color="bg-[hsl(25,80%,50%)]" />
-        <StatCard label="Active Discipline" value={stats.activeDiscipline} icon={ShieldAlert} color="bg-[hsl(0,84%,60%)]" />
-        <StatCard label="Occupied Rooms" value={stats.occupiedRooms} icon={ClipboardCheck} color="bg-[hsl(222,47%,35%)]" />
+        <StatCard 
+          label="Pending Leave" 
+          value={stats.pendingLeave} 
+          icon={CalendarOff} 
+          color="bg-[hsl(280,65%,50%)]" 
+          href="/admin/leave?status=Pending" 
+        />
+        <StatCard 
+          label="Pending Parcels" 
+          value={stats.pendingParcels} 
+          icon={Package} 
+          color="bg-[hsl(25,80%,50%)]" 
+          href="/admin/parcels?status=Pending Collection" 
+        />
+        <StatCard 
+          label="Active Discipline" 
+          value={stats.activeDiscipline} 
+          icon={ShieldAlert} 
+          color="bg-[hsl(0,84%,60%)]" 
+          href="/admin/discipline?status=Active" 
+        />
+        <StatCard 
+          label="Occupied Rooms" 
+          value={stats.occupiedRooms} 
+          icon={ClipboardCheck} 
+          color="bg-[hsl(222,47%,35%)]" 
+          href="/admin/rooms?status=Occupied" 
+        />
       </div>
 
       {/* Data Visualizations */}
