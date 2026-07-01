@@ -40,9 +40,9 @@ export default function Rooms() {
   useEffect(() => {
     loadData();
 
-    // 🔗 Mendengar perubahan event global daripada modul CheckInOut untuk kemas kini data real-time
+    // 🔗 Sentiasa dengar event perubahan dari CheckInOut untuk kemas kini real-time
     const handleGlobalRefresh = () => {
-      loadData(false); // reload tanpa memaparkan spinner loading utama
+      loadData(false);
     };
     window.addEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
     return () => window.removeEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
@@ -56,13 +56,13 @@ export default function Rooms() {
     }
   }, [rooms]);
 
-  // 🎯 SOURCE OF TRUTH: Kira occupancy dinamik berdasarkan pautan data jadual Student yang sah
+  // 🎯 SOURCE OF TRUTH: Kira occupancy berdasarkan pautan data jadual Student secara dinamik
   function getCalculatedOccupancy(roomId, currentStudentList = students) {
     if (!roomId) return 0;
     return currentStudentList.filter(s => String(s.room_id) === String(roomId)).length;
   }
 
-  // 🎯 REAL-TIME STATUS GENERATOR: Status bilik ditentukan secara mutlak oleh occupancy sebenar & Maintenance
+  // 🎯 REAL-TIME STATUS GENERATOR: Status bilik ditentukan sepenuhnya oleh occupancy & Maintenance
   function getRoomStatus(room, currentStudentList = students) {
     if (!room) return 'Unknown';
     if (room.status === 'Maintenance' || room.room_status === 'Maintenance') return 'Maintenance';
@@ -97,8 +97,7 @@ export default function Rooms() {
       setRooms(r);
       setStudents(s);
 
-      // ⚡ REPAIRED AUTO-HEAL: Logik penyelarasan latar belakang yang selamat
-      // Berfungsi membetulkan ralat 'current_occupancy' yang lari di pangkalan data secara mutlak menggunakan Source of Truth.
+      // 🔄 Menjalankan fungsi sync yang telah diperbaiki tanpa mengganggu state tempatan sekiranya data sepadan
       await safeBackgroundSync(r, s);
 
     } catch (err) {
@@ -109,17 +108,18 @@ export default function Rooms() {
     }
   }
 
-  // 🛡️ Safe Background Sync: Menyinkronasikan ruangan DB jika nilai sedia ada tidak sama dengan bilangan sebenar Student
+  // 🛡️ Safe Background Sync: Diperbaiki sepenuhnya agar tidak overwrite data secara membuta tuli
   async function safeBackgroundSync(currentRooms, currentStudents) {
     let anomaliesFixed = 0;
 
     for (const room of currentRooms) {
+      // Dapatkan bilangan penghuni sebenar dari database Student (Terkini)
       const actualOccupancy = getCalculatedOccupancy(room.id, currentStudents);
       const computedStatus = room.status === 'Maintenance' || room.room_status === 'Maintenance' 
         ? 'Maintenance' 
         : (actualOccupancy === 0 ? 'Available' : (actualOccupancy >= (room.capacity || 4) ? 'Full' : 'Occupied'));
 
-      // Jika data di DB didapati berbeza dengan Source of Truth, kemas kini DB dengan data yang betul
+      // 🛑 Hanya jalankan kemas kini jika data di pangkalan data didapati tidak sah (Desynced)
       if (room.current_occupancy !== actualOccupancy || room.status !== computedStatus) {
         try {
           await base44.entities.Room.update(room.id, {
@@ -134,10 +134,8 @@ export default function Rooms() {
       }
     }
 
-    // Paparkan maklumat penyelarasan automatik yang berjaya jika ada kerosakan data dikesan sebelum ini
     if (anomaliesFixed > 0) {
-      console.log(`[Sync System] Auto-healed ${anomaliesFixed} room allocation anomalies successfully.`);
-      // Muat semula state tempatan untuk mengelakkan paparan data lapuk
+      // Jika terdapat pembetulan data salah, tarik semula senarai bilik terkini secara senyap
       const updatedRooms = await base44.entities.Room.list();
       setRooms(updatedRooms);
     }
@@ -155,10 +153,18 @@ export default function Rooms() {
 
     setSubmitting(true);
     try {
+      // Ambil semula data pelajar terkini dari API untuk mengelakkan penggunaan state lama semasa menyimpan bilik
+      let freshStudents = [];
+      try {
+        freshStudents = await base44.entities.Student.list();
+      } catch (e) {
+        freshStudents = [...students];
+      }
+
       if (selectedRoom) {
         // Mode: Kemaskini Bilik Sedia Ada
-        // Occupancy dikekalkan daripada pengiraan sebenar bagi mengelakkan overwrite data lapuk
-        const actualOcc = getCalculatedOccupancy(selectedRoom.id);
+        // Occupancy diambil secara dinamik berdasarkan pelajar yang sedang terikat ke bilik ini
+        const actualOcc = getCalculatedOccupancy(selectedRoom.id, freshStudents);
         const capacity = parseInt(roomForm.capacity) || 4;
         
         let determinedStatus = roomForm.status;
@@ -173,7 +179,7 @@ export default function Rooms() {
           gender_restriction: roomForm.gender_restriction,
           status: determinedStatus,
           room_status: determinedStatus,
-          current_occupancy: actualOcc
+          current_occupancy: actualOcc // 🛡️ Lindungi occupancy dari diset menjadi 0
         });
         toast({ title: 'Bilik berjaya dikemaskini' });
       } else {
@@ -337,7 +343,7 @@ export default function Rooms() {
                     </div>
                   </div>
 
-                  {/* 👥 REAL-TIME VIEW: Memaparkan senarai penghuni bilik (Nama, ID, No Telefon) */}
+                  {/* 👥 Real-Time view senarai penghuni bilik */}
                   {occupants.length > 0 ? (
                     <div className="bg-background/60 border border-border/40 p-2 rounded-lg text-xs space-y-1.5">
                       <span className="font-bold text-foreground flex items-center gap-1 text-[11px]">
