@@ -64,14 +64,14 @@ export default function CheckInOut() {
     }
   }, [students]);
 
-  // Requirement 3: Explicitly evaluate active room assignments by avoiding literal strings
+  // Evaluate active room allocations cleanly
   const hasActiveRoom = (student) => {
     if (!student || student.room_id === undefined || student.room_id === null) return false;
     const val = String(student.room_id).trim().toLowerCase();
     return val !== '' && val !== 'none' && val !== 'null';
   };
 
-  // Requirement 7: Enforce clean filter mappings
+  // Enforce filter search lists matching context
   useEffect(() => {
     if (!studentSearch.trim()) {
       setFilteredStudents([]);
@@ -111,17 +111,16 @@ export default function CheckInOut() {
     setFilteredRooms(roomsInBlock.sort((a, b) => String(a.room_number).localeCompare(String(b.room_number))));
   }, [selectedBlock, rooms]);
 
-  // Requirement 4: Dynamically calculate room status based on true occupant links
+  // Compute room status interface targets
   function getRoomStatus(room) {
     if (!room) return 'Unknown';
     if (room.status === 'Maintenance' || room.room_status === 'Maintenance') return 'Maintenance';
     
-    // Fall back to looking at real student counts if room counter desynchronizes
-    const actualOccupancy = students.filter(s => String(s.room_id) === String(room.id)).length;
+    const current = room.current_occupancy || 0;
     const capacity = room.capacity || 4;
     
-    if (actualOccupancy === 0) return 'Available';
-    if (actualOccupancy >= capacity) return 'Full';
+    if (current === 0) return 'Available';
+    if (current >= capacity) return 'Full';
     return 'Occupied';
   }
 
@@ -130,9 +129,9 @@ export default function CheckInOut() {
     return allRooms.filter(room => {
       if (room.status === 'Maintenance' || room.room_status === 'Maintenance') return false;
       
-      const actualOccupancy = students.filter(s => String(s.room_id) === String(room.id)).length;
+      const current = room.current_occupancy || 0;
       const capacity = room.capacity || 4;
-      if (actualOccupancy >= capacity) return false;
+      if (current >= capacity) return false;
 
       const studentGender = (student.gender || '').toLowerCase().trim();
       const roomGender = (room.gender_restriction || room.gender || 'mixed').toLowerCase().trim();
@@ -146,15 +145,11 @@ export default function CheckInOut() {
   function suggestRooms(allRooms, student) {
     const available = getAvailableRooms(allRooms, student);
     return available
-      .sort((a, b) => {
-        const occA = students.filter(s => String(s.room_id) === String(a.id)).length;
-        const occB = students.filter(s => String(s.room_id) === String(b.id)).length;
-        return occA - occB;
-      })
+      .sort((a, b) => (a.current_occupancy || 0) - (b.current_occupancy || 0))
       .slice(0, 4);
   }
 
-  // Requirement 7 & 8: Room Selection Validations Pipeline
+  // Room Selection Validations Pipeline
   function validateRoomSelection(room, student, triggerToasts = true) {
     if (!room || !student) return false;
 
@@ -176,9 +171,9 @@ export default function CheckInOut() {
       return false;
     }
 
-    const actualOccupancy = students.filter(s => String(s.room_id) === String(room.id)).length;
+    const current = room.current_occupancy || 0;
     const capacity = room.capacity || 4;
-    if (actualOccupancy >= capacity) {
+    if (current >= capacity) {
       if (triggerToasts) {
         toast({ title: 'Overbooking Protection', description: 'This room has reached max capacity.', variant: 'destructive' });
       }
@@ -228,15 +223,10 @@ export default function CheckInOut() {
         base44.entities.Student.list(),
         base44.entities.Room.list(),
       ]);
-      
       setCheckIns(ci);
       setCheckOuts(co);
       setStudents(s);
       setRooms(r);
-
-      // Requirement 11: Self-Consistency Cross-Check Execution
-      runSelfConsistencyCheck(r, s);
-
     } catch (err) {
       console.error(err);
       toast({ title: 'Error loading data', description: err.message, variant: 'destructive' });
@@ -245,24 +235,6 @@ export default function CheckInOut() {
     }
   }
 
-  // Requirement 11: Cross-Compare Cached Counter States with Source-of-Truth Allocations
-  function runSelfConsistencyCheck(allRooms, allStudents) {
-    allRooms.forEach(async (room) => {
-      const actualCount = allStudents.filter(s => String(s.room_id) === String(room.id)).length;
-      if ((room.current_occupancy || 0) !== actualCount) {
-        console.warn(`Mismatch detected on Room ${room.room_number}. Cache: ${room.current_occupancy}, Real: ${actualCount}. Syncing...`);
-        
-        const nextStatus = room.status === 'Maintenance' ? 'Maintenance' : (actualCount === 0 ? 'Available' : (actualCount >= (room.capacity || 4) ? 'Full' : 'Occupied'));
-        
-        await base44.entities.Room.update(room.id, {
-          current_occupancy: actualCount,
-          status: nextStatus
-        });
-      }
-    });
-  }
-
-  // Requirement 6 & 10: Dispatch State Mutation Events to External Modules
   function dispatchGlobalRefresh() {
     window.dispatchEvent(new CustomEvent('KRMS_MODULES_REFRESH'));
   }
@@ -281,7 +253,7 @@ export default function CheckInOut() {
     setSelectedBlock('');
   };
 
-  // Requirement 1: Atomic Check-In Execution Pipeline
+  // Fixed Symmetrical Atomic Lookahead Check-In Logic 
   async function handleCheckIn() {
     if (!selectedStudent || !ciForm.room_id || !ciForm.check_in_date) {
       toast({ title: 'Please select a student, room, and check-in date', variant: 'destructive' });
@@ -297,7 +269,7 @@ export default function CheckInOut() {
     if (!validateRoomSelection(room, selectedStudent, true)) return;
 
     try {
-      // 1. Write the base activity history entry
+      // 1. Create check-in history entry
       await base44.entities.CheckIn.create({
         student_id: selectedStudent.id,
         room_id: ciForm.room_id,
@@ -318,16 +290,23 @@ export default function CheckInOut() {
         room_status: 'Checked In'
       });
 
-      // 3. Atomically evaluate current occupancy via state array matching
-      const actualOccupancy = students.filter(s => String(s.room_id) === String(room.id)).length + 1;
-      const nextStatus = room.status === 'Maintenance' ? 'Maintenance' : (actualOccupancy >= (room.capacity || 4) ? 'Full' : 'Occupied');
+      // 3. Increment lookahead counter targets (fixes lookahead desynchronization)
+      const currentCachedOccupancy = room.current_occupancy || 0;
+      const newOccupancy = currentCachedOccupancy + 1;
+      const capacity = room.capacity || 4;
+      
+      const nextStatus = room.status === 'Maintenance' || room.room_status === 'Maintenance'
+        ? 'Maintenance' 
+        : (newOccupancy >= capacity ? 'Full' : 'Occupied');
 
+      // Update both 'status' and 'room_status' properties to accommodate schema variations
       await base44.entities.Room.update(room.id, {
-        current_occupancy: actualOccupancy,
-        status: nextStatus
+        current_occupancy: newOccupancy,
+        status: nextStatus,
+        room_status: nextStatus
       });
 
-      toast({ title: 'Success', description: 'Check-in recorded and profile updated successfully' });
+      toast({ title: 'Success', description: 'Check-in recorded and room status updated successfully!' });
       setCiDialog(false);
       resetSearchState();
       await load();
@@ -338,7 +317,7 @@ export default function CheckInOut() {
     }
   }
 
-  // Requirement 2: Clean Check-Out Execution Pipeline
+  // Fixed Symmetrical Atomic Lookahead Check-Out Logic
   async function handleCheckOut() {
     if (!selectedStudent) {
       toast({ title: 'Please select a student to check-out', variant: 'destructive' });
@@ -358,7 +337,7 @@ export default function CheckInOut() {
     try {
       const room = rooms.find(r => String(r.id) === String(selectedStudent.room_id));
 
-      // 1. Record history entry logs
+      // 1. Create history entry
       const checkout = await base44.entities.CheckOut.create({
         student_id: selectedStudent.id,
         room_id: selectedStudent.room_id,
@@ -372,7 +351,7 @@ export default function CheckInOut() {
         block_name: selectedStudent.block_name || room?.block_name || ''
       });
 
-      // 2. Nullify room associations using clean primitive states
+      // 2. Clear out room associations using native null parameters
       await base44.entities.Student.update(selectedStudent.id, {
         block_name: null,
         room_number: null,
@@ -380,14 +359,19 @@ export default function CheckInOut() {
         room_status: 'Checked Out'
       });
 
-      // 3. Atomically decrement Room counters
+      // 3. Decrement lookahead counter targets cleanly
       if (room) {
-        const actualOccupancy = Math.max(0, students.filter(s => String(s.room_id) === String(room.id)).length - 1);
-        const nextStatus = room.status === 'Maintenance' ? 'Maintenance' : (actualOccupancy === 0 ? 'Available' : 'Occupied');
+        const currentCachedOccupancy = room.current_occupancy || 0;
+        const newOccupancy = Math.max(0, currentCachedOccupancy - 1);
+        
+        const nextStatus = room.status === 'Maintenance' || room.room_status === 'Maintenance'
+          ? 'Maintenance' 
+          : (newOccupancy === 0 ? 'Available' : 'Occupied');
 
         await base44.entities.Room.update(room.id, {
-          current_occupancy: actualOccupancy,
-          status: nextStatus
+          current_occupancy: newOccupancy,
+          status: nextStatus,
+          room_status: nextStatus
         });
       }
 
@@ -395,6 +379,7 @@ export default function CheckInOut() {
       setPendingCheckout({ checkoutId: checkout.id, student: { ...selectedStudent, room_id: null, room_number: null, block_name: null } });
       setShowSurvey(true);
       resetSearchState();
+      await load();
       dispatchGlobalRefresh();
     } catch (err) {
       console.error(err);
@@ -586,7 +571,7 @@ export default function CheckInOut() {
                     suggestRooms(rooms, selectedStudent).map((room) => {
                       const status = getRoomStatus(room);
                       const isSelected = ciForm.room_id === room.id;
-                      const currentOcc = students.filter(s => String(s.room_id) === String(room.id)).length;
+                      const currentOcc = room.current_occupancy || 0;
                       const capacity = room.capacity || 4;
                       const bedsAvailable = capacity - currentOcc;
 
@@ -664,7 +649,7 @@ export default function CheckInOut() {
                 <SelectContent>
                   {filteredRooms.map((r) => {
                     const status = getRoomStatus(r);
-                    const currentOcc = students.filter(s => String(s.room_id) === String(r.id)).length;
+                    const currentOcc = r.current_occupancy || 0;
                     const capacity = r.capacity || 4;
                     return (
                       <SelectItem key={r.id} value={r.id} disabled={status === 'Full' || status === 'Maintenance'}>
