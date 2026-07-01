@@ -22,6 +22,9 @@ export default function CheckInOut() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  // Guard state untuk mengelakkan double-click
+  const [submitting, setSubmitting] = useState(false);
+  
   // Dialog States
   const [ciDialog, setCiDialog] = useState(false);
   const [coDialog, setCoDialog] = useState(false);
@@ -54,7 +57,7 @@ export default function CheckInOut() {
     load();
   }, []);
 
-  // Sync selected student data when global students array updates
+  // Sinkronasi data pelajar apabila state global berubah
   useEffect(() => {
     if (selectedStudent && students.length > 0) {
       const updatedData = students.find(s => s.id === selectedStudent.id);
@@ -64,14 +67,27 @@ export default function CheckInOut() {
     }
   }, [students]);
 
-  // Evaluate active room allocations cleanly
+  // PENAMBAHBAIKAN UTAMA: Menyemak dengan ketat jika pelajar sudah mempunyai bilik atau berstatus 'Checked In'
   const hasActiveRoom = (student) => {
-    if (!student || student.room_id === undefined || student.room_id === null) return false;
-    const val = String(student.room_id).trim().toLowerCase();
-    return val !== '' && val !== 'none' && val !== 'null';
+    if (!student) return false;
+    
+    // Semak string room_status
+    if (student.room_status && String(student.room_status).trim().toLowerCase() === 'checked in') {
+      return true;
+    }
+
+    // Semak jika room_id wujud dan sah
+    if (student.room_id !== undefined && student.room_id !== null) {
+      const val = String(student.room_id).trim().toLowerCase();
+      if (val !== '' && val !== 'none' && val !== 'null' && val !== 'undefined') {
+        return true;
+      }
+    }
+    
+    return false;
   };
 
-  // Enforce filter search lists matching context
+  // Enforce penapisan carian pelajar mengikut konteks dialog (Check-In vs Check-Out)
   useEffect(() => {
     if (!studentSearch.trim()) {
       setFilteredStudents([]);
@@ -85,15 +101,17 @@ export default function CheckInOut() {
     );
 
     if (ciDialog) {
+      // Untuk Check-In: HANYA tunjuk pelajar yang BELUM ada bilik aktif
       baseFiltered = baseFiltered.filter(s => !hasActiveRoom(s));
     } else if (coDialog) {
+      // Untuk Check-Out: HANYA tunjuk pelajar yang SUDAH ada bilik aktif
       baseFiltered = baseFiltered.filter(s => hasActiveRoom(s));
     }
 
     setFilteredStudents(baseFiltered);
   }, [studentSearch, students, ciDialog, coDialog]);
 
-  // Extract unique blocks from rooms list
+  // Ekstrak nama blok unik daripada senarai bilik
   useEffect(() => {
     if (rooms.length > 0) {
       const blocks = [...new Set(rooms.map(r => r.block_name).filter(Boolean))];
@@ -101,7 +119,7 @@ export default function CheckInOut() {
     }
   }, [rooms]);
 
-  // Filter rooms based on chosen Block
+  // Tapis bilik berdasarkan blok yang dipilih
   useEffect(() => {
     if (!selectedBlock) {
       setFilteredRooms([]);
@@ -111,7 +129,6 @@ export default function CheckInOut() {
     setFilteredRooms(roomsInBlock.sort((a, b) => String(a.room_number).localeCompare(String(b.room_number))));
   }, [selectedBlock, rooms]);
 
-  // Compute room status interface targets
   function getRoomStatus(room) {
     if (!room) return 'Unknown';
     if (room.status === 'Maintenance' || room.room_status === 'Maintenance') return 'Maintenance';
@@ -149,15 +166,14 @@ export default function CheckInOut() {
       .slice(0, 4);
   }
 
-  // Room Selection Validations Pipeline
   function validateRoomSelection(room, student, triggerToasts = true) {
     if (!room || !student) return false;
 
     if (hasActiveRoom(student)) {
       if (triggerToasts) {
         toast({ 
-          title: 'Validation Error', 
-          description: 'Student is already assigned to a room.', 
+          title: 'Ralat Validasi', 
+          description: 'Pelajar ini sudah pun mendaftar masuk (Check-In) ke bilik lain.', 
           variant: 'destructive' 
         });
       }
@@ -166,7 +182,7 @@ export default function CheckInOut() {
 
     if (room.status === 'Maintenance' || room.room_status === 'Maintenance') {
       if (triggerToasts) {
-        toast({ title: 'Selection Error', description: 'This room is under maintenance.', variant: 'destructive' });
+        toast({ title: 'Ralat Pilihan', description: 'Bilik ini sedang dalam penyelenggaraan.', variant: 'destructive' });
       }
       return false;
     }
@@ -175,7 +191,7 @@ export default function CheckInOut() {
     const capacity = room.capacity || 4;
     if (current >= capacity) {
       if (triggerToasts) {
-        toast({ title: 'Overbooking Protection', description: 'This room has reached max capacity.', variant: 'destructive' });
+        toast({ title: 'Bilik Penuh', description: 'Bilik ini telah mencapai kapasiti maksimum.', variant: 'destructive' });
       }
       return false;
     }
@@ -185,8 +201,8 @@ export default function CheckInOut() {
     if (roomGender !== 'mixed' && studentGender && roomGender !== studentGender) {
       if (triggerToasts) {
         toast({ 
-          title: 'Gender restriction mismatch', 
-          description: `This room is configured for ${room.gender_restriction || room.gender} allocations only.`, 
+          title: 'Sekatan Jantina', 
+          description: `Bilik ini dikhaskan untuk pelajar ${room.gender_restriction || room.gender} sahaja.`, 
           variant: 'destructive' 
         });
       }
@@ -229,7 +245,7 @@ export default function CheckInOut() {
       setRooms(r);
     } catch (err) {
       console.error(err);
-      toast({ title: 'Error loading data', description: err.message, variant: 'destructive' });
+      toast({ title: 'Ralat memuatkan data', description: err.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -253,23 +269,24 @@ export default function CheckInOut() {
     setSelectedBlock('');
   };
 
-  // Fixed Symmetrical Atomic Lookahead Check-In Logic 
   async function handleCheckIn() {
+    if (submitting) return; 
     if (!selectedStudent || !ciForm.room_id || !ciForm.check_in_date) {
-      toast({ title: 'Please select a student, room, and check-in date', variant: 'destructive' });
+      toast({ title: 'Sila pilih pelajar, bilik, dan tarikh check-in', variant: 'destructive' });
       return;
     }
 
     if (hasActiveRoom(selectedStudent)) {
-      toast({ title: 'Student is already assigned to a room.', variant: 'destructive' });
+      toast({ title: 'Pelajar ini sudah mendaftar masuk ke bilik.', variant: 'destructive' });
       return;
     }
 
     const room = rooms.find(r => r.id === ciForm.room_id);
     if (!validateRoomSelection(room, selectedStudent, true)) return;
 
+    setSubmitting(true); 
     try {
-      // 1. Create check-in history entry
+      // 1. Cipta rekod sejarah check-in
       await base44.entities.CheckIn.create({
         student_id: selectedStudent.id,
         room_id: ciForm.room_id,
@@ -281,7 +298,7 @@ export default function CheckInOut() {
         block_name: room?.block_name || ''
       });
 
-      // 2. Link Student fields cleanly
+      // 2. Kemaskini status bilik pelajar di pangkalan data secara kekal
       await base44.entities.Student.update(selectedStudent.id, {
         block_name: room.block_name || '',
         room_number: room.room_number || '',
@@ -290,7 +307,7 @@ export default function CheckInOut() {
         room_status: 'Checked In'
       });
 
-      // 3. Increment lookahead counter targets (fixes lookahead desynchronization)
+      // 3. Kemaskini kapasiti bilik semasa
       const currentCachedOccupancy = room.current_occupancy || 0;
       const newOccupancy = currentCachedOccupancy + 1;
       const capacity = room.capacity || 4;
@@ -299,45 +316,47 @@ export default function CheckInOut() {
         ? 'Maintenance' 
         : (newOccupancy >= capacity ? 'Full' : 'Occupied');
 
-      // Update both 'status' and 'room_status' properties to accommodate schema variations
       await base44.entities.Room.update(room.id, {
         current_occupancy: newOccupancy,
         status: nextStatus,
         room_status: nextStatus
       });
 
-      toast({ title: 'Success', description: 'Check-in recorded and room status updated successfully!' });
+      toast({ title: 'Berjaya', description: 'Check-in direkodkan dan status senarai telah dikemaskini.' });
       setCiDialog(false);
       resetSearchState();
-      await load();
+      await load(); // Memuatkan semula data segar dari DB supaya penapis dikemaskini serta-merta
       dispatchGlobalRefresh();
     } catch (err) {
       console.error(err);
-      toast({ title: 'Error recording check-in', description: err.message, variant: 'destructive' });
+      toast({ title: 'Ralat rekod check-in', description: err.message, variant: 'destructive' });
+    } finally {
+      setSubmitting(false); 
     }
   }
 
-  // Fixed Symmetrical Atomic Lookahead Check-Out Logic
   async function handleCheckOut() {
+    if (submitting) return; 
     if (!selectedStudent) {
-      toast({ title: 'Please select a student to check-out', variant: 'destructive' });
+      toast({ title: 'Sila pilih pelajar untuk check-out', variant: 'destructive' });
       return;
     }
 
     if (!hasActiveRoom(selectedStudent)) {
-      toast({ title: 'Student has no active room assignment to check-out from', variant: 'destructive' });
+      toast({ title: 'Pelajar tidak mempunyai rekod bilik aktif untuk didaftar keluar', variant: 'destructive' });
       return;
     }
 
     if (!coForm.check_out_date) {
-      toast({ title: 'Please fill all required fields', variant: 'destructive' });
+      toast({ title: 'Sila isi ruangan wajib', variant: 'destructive' });
       return;
     }
 
+    setSubmitting(true); 
     try {
       const room = rooms.find(r => String(r.id) === String(selectedStudent.room_id));
 
-      // 1. Create history entry
+      // 1. Cipta rekod check-out
       const checkout = await base44.entities.CheckOut.create({
         student_id: selectedStudent.id,
         room_id: selectedStudent.room_id,
@@ -351,7 +370,7 @@ export default function CheckInOut() {
         block_name: selectedStudent.block_name || room?.block_name || ''
       });
 
-      // 2. Clear out room associations using native null parameters
+      // 2. Kosongkan perkaitan bilik pada pelajar
       await base44.entities.Student.update(selectedStudent.id, {
         block_name: null,
         room_number: null,
@@ -359,7 +378,7 @@ export default function CheckInOut() {
         room_status: 'Checked Out'
       });
 
-      // 3. Decrement lookahead counter targets cleanly
+      // 3. Kurangkan bilangan penghuni bilik
       if (room) {
         const currentCachedOccupancy = room.current_occupancy || 0;
         const newOccupancy = Math.max(0, currentCachedOccupancy - 1);
@@ -383,14 +402,16 @@ export default function CheckInOut() {
       dispatchGlobalRefresh();
     } catch (err) {
       console.error(err);
-      toast({ title: 'Error recording check-out', description: err.message, variant: 'destructive' });
+      toast({ title: 'Ralat rekod check-out', description: err.message, variant: 'destructive' });
+    } finally {
+      setSubmitting(false); 
     }
   }
 
   async function onSurveyComplete() {
     setShowSurvey(false);
     setPendingCheckout(null);
-    toast({ title: 'Check-out recorded successfully' });
+    toast({ title: 'Check-out selesai sepenuhnya.' });
     await load();
   }
 
@@ -410,7 +431,7 @@ export default function CheckInOut() {
     <div>
       <PageHeader
         title="Check-In / Check-Out"
-        description="Manage resident movements with smart administrative validations"
+        description="Urus pergerakan residen dengan validasi pintar"
         actions={
           <div className="flex gap-2">
             <Button size="sm" onClick={() => {
@@ -435,18 +456,18 @@ export default function CheckInOut() {
 
         <TabsContent value="checkins">
           {checkIns.length === 0 ? (
-            <EmptyState icon={LogIn} title="No check-ins recorded yet" />
+            <EmptyState icon={LogIn} title="Tiada rekod check-in baru" />
           ) : (
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50 text-muted-foreground font-medium">
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Resident</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Room</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider hidden sm:table-cell">Block</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Date</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider hidden md:table-cell">Time</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Residen</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Bilik</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider hidden sm:table-cell">Blok</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Tarikh</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider hidden md:table-cell">Masa</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -468,17 +489,17 @@ export default function CheckInOut() {
 
         <TabsContent value="checkouts">
           {checkOuts.length === 0 ? (
-            <EmptyState icon={LogOut} title="No check-outs recorded yet" />
+            <EmptyState icon={LogOut} title="Tiada rekod check-out baru" />
           ) : (
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50 text-muted-foreground font-medium">
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Resident</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Room</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Date</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider hidden sm:table-cell">Condition</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Residen</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Bilik</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Tarikh</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider hidden sm:table-cell">Keadaan Bilik</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -499,21 +520,21 @@ export default function CheckInOut() {
       </Tabs>
 
       {/* 📥 RECORD CHECK IN DIALOG */}
-      <Dialog open={ciDialog} onOpenChange={setCiDialog}>
+      <Dialog open={ciDialog} onOpenChange={(val) => !submitting && setCiDialog(val)}>
         <DialogContent className="max-w-xl overflow-y-auto max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>Record Check In</DialogTitle>
+            <DialogTitle>Rekod Check In</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2 relative">
             
-            {/* Live Search Input */}
             <div className="relative">
-              <Label className="text-xs font-medium">Search Unassigned Student / Staff ID *</Label>
+              <Label className="text-xs font-medium">Cari ID Pelajar / Staf Belum Diundi *</Label>
               <div className="relative mt-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Enter unassigned Student/Staff ID or Name..." 
+                  placeholder="Masukkan Matrik ID atau Nama..." 
                   value={studentSearch} 
+                  disabled={submitting}
                   onChange={(e) => {
                     setStudentSearch(e.target.value);
                     setShowSuggestions(true);
@@ -524,13 +545,12 @@ export default function CheckInOut() {
                 />
               </div>
 
-              {/* Autocomplete Dropdown List */}
               {showSuggestions && filteredStudents.length > 0 && (
                 <div className="absolute z-50 w-full bg-popover text-popover-foreground border border-border rounded-md shadow-md mt-1 max-h-48 overflow-y-auto text-sm">
                   {filteredStudents.map((s) => (
                     <div 
                       key={s.id} 
-                      onClick={() => handleSelectStudent(s)}
+                      onClick={() => !submitting && handleSelectStudent(s)}
                       className="px-3 py-2 hover:bg-muted cursor-pointer transition-colors flex justify-between items-center"
                     >
                       <span className="font-medium">{s.student_id}</span>
@@ -541,32 +561,30 @@ export default function CheckInOut() {
               )}
             </div>
 
-            {/* Selected Student Info Card */}
             {selectedStudent && (
               <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 text-xs">
                 <div className="flex items-center gap-2 font-medium text-foreground">
                   <User className="w-3.5 h-3.5 text-primary" />
-                  <span>Name: {selectedStudent.full_name}</span>
+                  <span>Nama: {selectedStudent.full_name}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-muted-foreground">
                   <div>ID: <span className="text-foreground font-mono">{selectedStudent.student_id}</span></div>
-                  <div>IC/Passport: <span className="text-foreground">{selectedStudent.ic_passport || 'N/A'}</span></div>
-                  <div>Gender: <span className="text-foreground capitalize">{selectedStudent.gender || 'N/A'}</span></div>
-                  <div>Status: <span className="text-emerald-600 font-medium">Clear for Assignment</span></div>
+                  <div>IC/Pasport: <span className="text-foreground">{selectedStudent.ic_passport || 'N/A'}</span></div>
+                  <div>Jantina: <span className="text-foreground capitalize">{selectedStudent.gender || 'N/A'}</span></div>
+                  <div>Status: <span className="text-emerald-600 font-medium">Sedia Ditugaskan</span></div>
                 </div>
               </div>
             )}
 
-            {/* SMART ROOM SUGGESTIONS */}
             {selectedStudent && (
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
                   <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  <span>Available Room Vacancies</span>
+                  <span>Cadangan Kekosongan Bilik</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {suggestRooms(rooms, selectedStudent).length === 0 ? (
-                    <p className="text-[11px] text-muted-foreground col-span-2 py-1">No vacant rooms fit current criteria configurations perfectly.</p>
+                    <p className="text-[11px] text-muted-foreground col-span-2 py-1">Tiada bilik kosong bersesuaian buat masa ini.</p>
                   ) : (
                     suggestRooms(rooms, selectedStudent).map((room) => {
                       const status = getRoomStatus(room);
@@ -579,6 +597,7 @@ export default function CheckInOut() {
                         <Card 
                           key={room.id}
                           onClick={() => {
+                            if (submitting) return;
                             if (status !== 'Full' && status !== 'Maintenance') {
                               if (validateRoomSelection(room, selectedStudent, true)) {
                                 setCiForm({ ...ciForm, room_id: room.id });
@@ -592,7 +611,7 @@ export default function CheckInOut() {
                           <CardContent className="p-3 flex flex-col justify-between h-full space-y-2">
                             <div className="flex justify-between items-start">
                               <div>
-                                <p className="text-xs font-bold font-mono">Room {room.room_number}</p>
+                                <p className="text-xs font-bold font-mono">Bilik {room.room_number}</p>
                                 <p className="text-[10px] opacity-80">{room.block_name}</p>
                               </div>
                               <Badge className={`text-[9px] px-1.5 py-0 rounded font-medium ${getStatusBadgeVariant(status)}`}>
@@ -603,9 +622,9 @@ export default function CheckInOut() {
                             <div className="text-[11px] font-medium flex justify-between items-center pt-1.5 border-t border-black/5">
                               <span className="flex items-center gap-1 text-[10px]">
                                 <Bed className="w-3 h-3" />
-                                {bedsAvailable} beds free
+                                {bedsAvailable} katil kosong
                               </span>
-                              <strong className="font-mono">{currentOcc}/{capacity} Full</strong>
+                              <strong className="font-mono">{currentOcc}/{capacity} Penuh</strong>
                             </div>
                           </CardContent>
                         </Card>
@@ -616,12 +635,11 @@ export default function CheckInOut() {
               </div>
             )}
 
-            {/* Manual Assignment Options */}
             <div className="pt-2 border-t">
-              <Label className="text-xs font-medium">Select Block *</Label>
-              <Select value={selectedBlock} onValueChange={(v) => { setSelectedBlock(v); setCiForm({ ...ciForm, room_id: '' }); }}>
+              <Label className="text-xs font-medium">Pilih Blok *</Label>
+              <Select disabled={submitting} value={selectedBlock} onValueChange={(v) => { setSelectedBlock(v); setCiForm({ ...ciForm, room_id: '' }); }}>
                 <SelectTrigger className="h-9 text-sm mt-1">
-                  <SelectValue placeholder="Choose a block first" />
+                  <SelectValue placeholder="Pilih blok" />
                 </SelectTrigger>
                 <SelectContent>
                   {availableBlocks.map((block) => (
@@ -632,7 +650,7 @@ export default function CheckInOut() {
             </div>
 
             <div>
-              <Label className="text-xs font-medium">Room Assignment *</Label>
+              <Label className="text-xs font-medium">Tugasan Bilik *</Label>
               <Select 
                 value={ciForm.room_id} 
                 onValueChange={(v) => {
@@ -641,10 +659,10 @@ export default function CheckInOut() {
                     setCiForm({ ...ciForm, room_id: v });
                   }
                 }}
-                disabled={!selectedBlock}
+                disabled={!selectedBlock || submitting}
               >
                 <SelectTrigger className="h-9 text-sm mt-1">
-                  <SelectValue placeholder={selectedBlock ? "Select an available room" : "Please select a block first"} />
+                  <SelectValue placeholder={selectedBlock ? "Pilih bilik yang tersedia" : "Sila pilih blok terlebih dahulu"} />
                 </SelectTrigger>
                 <SelectContent>
                   {filteredRooms.map((r) => {
@@ -653,7 +671,7 @@ export default function CheckInOut() {
                     const capacity = r.capacity || 4;
                     return (
                       <SelectItem key={r.id} value={r.id} disabled={status === 'Full' || status === 'Maintenance'}>
-                        Room {r.room_number} ({status} — {currentOcc}/{capacity} Beds filled)
+                        Bilik {r.room_number} ({status} — {currentOcc}/{capacity} Katil Terisi)
                       </SelectItem>
                     );
                   })}
@@ -663,22 +681,24 @@ export default function CheckInOut() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-medium">Date *</Label>
-                <Input type="date" value={ciForm.check_in_date} onChange={(e) => setCiForm({ ...ciForm, check_in_date: e.target.value })} className="h-9 text-sm mt-1" />
+                <Label className="text-xs font-medium">Tarikh *</Label>
+                <Input type="date" disabled={submitting} value={ciForm.check_in_date} onChange={(e) => setCiForm({ ...ciForm, check_in_date: e.target.value })} className="h-9 text-sm mt-1" />
               </div>
               <div>
-                <Label className="text-xs font-medium">Time</Label>
-                <Input type="time" value={ciForm.check_in_time} onChange={(e) => setCiForm({ ...ciForm, check_in_time: e.target.value })} className="h-9 text-sm mt-1" />
+                <Label className="text-xs font-medium">Masa</Label>
+                <Input type="time" disabled={submitting} value={ciForm.check_in_time} onChange={(e) => setCiForm({ ...ciForm, check_in_time: e.target.value })} className="h-9 text-sm mt-1" />
               </div>
             </div>
             <div>
-              <Label className="text-xs font-medium">Notes</Label>
-              <Textarea value={ciForm.notes} onChange={(e) => setCiForm({ ...ciForm, notes: e.target.value })} className="text-sm mt-1" rows={2} />
+              <Label className="text-xs font-medium">Nota</Label>
+              <Textarea disabled={submitting} value={ciForm.notes} onChange={(e) => setCiForm({ ...ciForm, notes: e.target.value })} className="text-sm mt-1" rows={2} />
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" size="sm" onClick={() => setCiDialog(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleCheckIn} disabled={!selectedStudent || !ciForm.room_id}>Record Check In</Button>
+            <Button variant="outline" size="sm" disabled={submitting} onClick={() => setCiDialog(false)}>Batal</Button>
+            <Button size="sm" onClick={handleCheckIn} disabled={!selectedStudent || !ciForm.room_id || submitting}>
+              {submitting ? 'Merekodkan...' : 'Sahkan Check In'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -692,21 +712,21 @@ export default function CheckInOut() {
       />
 
       {/* 📤 RECORD CHECK OUT DIALOG */}
-      <Dialog open={coDialog} onOpenChange={setCoDialog}>
+      <Dialog open={coDialog} onOpenChange={(val) => !submitting && setCoDialog(val)}>
         <DialogContent className="max-w-md overflow-visible">
           <DialogHeader>
-            <DialogTitle>Record Check Out</DialogTitle>
+            <DialogTitle>Rekod Check Out</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2 relative">
             
-            {/* Live Search Input */}
             <div className="relative">
-              <Label className="text-xs font-medium">Search Active Resident ID *</Label>
+              <Label className="text-xs font-medium">Cari Residen Aktif *</Label>
               <div className="relative mt-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Enter assigned Student/Staff ID or Name..." 
+                  placeholder="Masukkan Matrik ID atau Nama..." 
                   value={studentSearch} 
+                  disabled={submitting}
                   onChange={(e) => {
                     setStudentSearch(e.target.value);
                     setShowSuggestions(true);
@@ -717,13 +737,12 @@ export default function CheckInOut() {
                 />
               </div>
 
-              {/* Autocomplete Dropdown List */}
               {showSuggestions && filteredStudents.length > 0 && (
                 <div className="absolute z-50 w-full bg-popover text-popover-foreground border border-border rounded-md shadow-md mt-1 max-h-48 overflow-y-auto text-sm">
                   {filteredStudents.map((s) => (
                     <div 
                       key={s.id} 
-                      onClick={() => handleSelectStudent(s)}
+                      onClick={() => !submitting && handleSelectStudent(s)}
                       className="px-3 py-2 hover:bg-muted cursor-pointer transition-colors flex justify-between items-center"
                     >
                       <span className="font-medium">{s.student_id}</span>
@@ -734,63 +753,64 @@ export default function CheckInOut() {
               )}
             </div>
 
-            {/* Selected Student Profile & Active Room Validation Card */}
             {selectedStudent && (
               <div className="space-y-3">
                 <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-2 text-xs">
                   <div className="flex items-center gap-2 font-medium text-foreground">
                     <User className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Name: {selectedStudent.full_name}</span>
+                    <span>Nama: {selectedStudent.full_name}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-muted-foreground">
                     <div>ID: <span className="text-foreground font-mono">{selectedStudent.student_id}</span></div>
-                    <div>IC/Passport: <span className="text-foreground">{selectedStudent.ic_passport || 'N/A'}</span></div>
+                    <div>IC/Pasport: <span className="text-foreground">{selectedStudent.ic_passport || 'N/A'}</span></div>
                   </div>
                 </div>
 
                 <div className="p-3 bg-muted border border-border rounded-lg space-y-1 text-xs">
-                  <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Current Room Allocation</Label>
+                  <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Peruntukan Bilik Semasa</Label>
                   <div className="grid grid-cols-2 gap-y-1 font-medium mt-1">
-                    <div>Block: <span className="text-foreground font-mono">{selectedStudent.block_name || 'N/A'}</span></div>
-                    <div>Room Number: <span className="text-foreground font-mono">{selectedStudent.room_number || 'N/A'}</span></div>
+                    <div>Blok: <span className="text-foreground font-mono">{selectedStudent.block_name || 'N/A'}</span></div>
+                    <div>Nombor Bilik: <span className="text-foreground font-mono">{selectedStudent.room_number || 'N/A'}</span></div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-xs font-medium">Check-out Date *</Label>
-                    <Input type="date" value={coForm.check_out_date} onChange={(e) => setCoForm({ ...coForm, check_out_date: e.target.value })} className="h-9 text-sm mt-1" />
+                    <Label className="text-xs font-medium">Tarikh Check-out *</Label>
+                    <Input type="date" disabled={submitting} value={coForm.check_out_date} onChange={(e) => setCoForm({ ...coForm, check_out_date: e.target.value })} className="h-9 text-sm mt-1" />
                   </div>
                   <div>
-                    <Label className="text-xs font-medium">Check-out Time</Label>
-                    <Input type="time" value={coForm.check_out_time} onChange={(e) => setCoForm({ ...coForm, check_out_time: e.target.value })} className="h-9 text-sm mt-1" />
+                    <Label className="text-xs font-medium">Masa Check-out</Label>
+                    <Input type="time" disabled={submitting} value={coForm.check_out_time} onChange={(e) => setCoForm({ ...coForm, check_out_time: e.target.value })} className="h-9 text-sm mt-1" />
                   </div>
                 </div>
 
                 <div>
-                  <Label className="text-xs font-medium">Room Condition Evaluation</Label>
-                  <Select value={coForm.room_condition} onValueChange={(v) => setCoForm({ ...coForm, room_condition: v })}>
+                  <Label className="text-xs font-medium">Penilaian Keadaan Bilik</Label>
+                  <Select disabled={submitting} value={coForm.room_condition} onValueChange={(v) => setCoForm({ ...coForm, room_condition: v })}>
                     <SelectTrigger className="h-9 text-sm mt-1">
-                      <SelectValue placeholder="Select condition status" />
+                      <SelectValue placeholder="Pilih status keadaan bilik" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Good">Good / Acceptable</SelectItem>
-                      <SelectItem value="Damaged">Damaged Items Present</SelectItem>
-                      <SelectItem value="Dirty">Requires Deep Cleaning</SelectItem>
+                      <SelectItem value="Good">Baik / Boleh Diterima</SelectItem>
+                      <SelectItem value="Damaged">Terdapat Kerosakan</SelectItem>
+                      <SelectItem value="Dirty">Perlu Pembersihan Mendalam</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div>
-                  <Label className="text-xs font-medium">Damage Assessment / Notes</Label>
-                  <Textarea value={coForm.damage_assessment} onChange={(e) => setCoForm({ ...coForm, damage_assessment: e.target.value })} placeholder="Describe details regarding deposit deductions if applicable..." className="text-sm mt-1" rows={2} />
+                  <Label className="text-xs font-medium">Nota Penilaian Kerosakan</Label>
+                  <Textarea disabled={submitting} value={coForm.damage_assessment} onChange={(e) => setCoForm({ ...coForm, damage_assessment: e.target.value })} placeholder="Nyatakan butiran pemotongan deposit jika ada..." className="text-sm mt-1" rows={2} />
                 </div>
               </div>
             )}
           </div>
           <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" size="sm" onClick={() => setCoDialog(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleCheckOut} disabled={!selectedStudent || !coForm.check_out_date}>Record Check Out</Button>
+            <Button variant="outline" size="sm" disabled={submitting} onClick={() => setCoDialog(false)}>Batal</Button>
+            <Button size="sm" onClick={handleCheckOut} disabled={!selectedStudent || !coForm.check_out_date || submitting}>
+              {submitting ? 'Merekodkan...' : 'Sahkan Check Out'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
