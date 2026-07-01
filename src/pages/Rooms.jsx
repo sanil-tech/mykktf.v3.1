@@ -5,15 +5,15 @@ import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Home, Search, Plus, LayoutGrid, List, Bed, Users, AlertTriangle,
-  ShieldAlert, ChevronDown, ChevronUp, User, RotateCcw, Edit2, Trash2, ShieldCheck, Lock, Phone, FileText
+  Home, Search, Plus, LayoutGrid, List, Bed, Users, AlertTriangle, RefreshCw, CheckCircle,
+  ShieldAlert, ChevronDown, ChevronUp, User, RotateCcw, Edit2, Trash2, ShieldCheck, Phone, FileText
 } from 'lucide-react';
 
 export default function Rooms() {
@@ -22,7 +22,7 @@ export default function Rooms() {
   const filterParam = searchParams.get('filter'); 
   const { toast } = useToast();
 
-  // --- 👥 ROLE-BASED ACCESS CONTROL STATE SIMULATOR ---
+  // --- 👥 ROLE-BASED ACCESS CONTROL SIMULATOR ---
   const [currentUser, setCurrentUser] = useState({
     name: 'John Doe',
     role: 'super_admin', 
@@ -34,6 +34,7 @@ export default function Rooms() {
   const [blocks, setBlocks] = useState([]); 
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
   const [expandedRoomId, setExpandedRoomId] = useState(null);
   
@@ -70,8 +71,6 @@ export default function Rooms() {
       canCreateRoom: ['super_admin', 'college_admin'].includes(role),
       canEditRoom: ['super_admin', 'college_admin', 'staff'].includes(role),
       canDeleteRoom: role === 'super_admin',
-      canDeleteBlock: role === 'super_admin',
-      
       canModifyCapacityAndGender: ['super_admin', 'college_admin'].includes(role),
       canModifyBlockLocation: ['super_admin', 'college_admin'].includes(role),
       canModifyRoomNumber: ['super_admin', 'college_admin', 'staff'].includes(role),
@@ -81,12 +80,12 @@ export default function Rooms() {
 
   useEffect(() => {
     if (permissions.canViewModule) {
-      loadData();
+      loadDataAndHeal();
     }
   }, [permissions.canViewModule]);
 
-  // --- 🔄 SELF-HEALING SYSTEM DATA CONVERGENCE ENGINE ---
-  async function loadData() {
+  // --- 🔄 SELF-HEALING SYSTEM DATA CONVERGENCE LOOP ---
+  async function loadDataAndHeal() {
     try {
       setLoading(true);
       const [roomsData, studentsData, blocksData] = await Promise.all([
@@ -100,60 +99,105 @@ export default function Rooms() {
       setStudents(freshStudents);
       setBlocks(blocksData || []);
 
-      // Cross-examine values immediately on load against the Student dataset (Source of Truth)
-      const executionRepairs = freshRooms.map(async (room) => {
-        const actualOccupancyCount = freshStudents.filter(s => String(s.room_id) === String(room.id)).length;
-        if (Number(room.current_occupancy) !== actualOccupancyCount) {
+      // AUTOMATIC DATA CONSISTENCY CHECK ON LOAD
+      let repairCount = 0;
+      const autoRepairPromises = freshRooms.map(async (room) => {
+        const actualOccupancy = freshStudents.filter(s => String(s.room_id) === String(room.id)).length;
+        const currentDerivedStatus = determineStatus(room, actualOccupancy);
+
+        // If stored properties drift from the Student source of truth, heal them
+        if (Number(room.current_occupancy) !== actualOccupancy || room.status !== currentDerivedStatus) {
+          repairCount++;
           try {
-            return await base44.entities.Room.update(room.id, { current_occupancy: actualOccupancyCount });
+            return await base44.entities.Room.update(room.id, { 
+              current_occupancy: actualOccupancy,
+              status: currentDerivedStatus
+            });
           } catch (e) {
-            console.error(`Self-healing failed to sync room data context ${room.room_number}:`, e);
+            console.error(`Automatic data reconciliation failed for room ${room.room_number}:`, e);
           }
         }
         return room;
       });
 
-      await Promise.all(executionRepairs);
-      const structuralRefresh = await base44.entities.Room.list();
-      setRooms(structuralRefresh || freshRooms);
+      await Promise.all(autoRepairPromises);
+      
+      // If records were modified during healing, pull down fresh state variables
+      if (repairCount > 0) {
+        const sanitizedRooms = await base44.entities.Room.list();
+        setRooms(sanitizedRooms || freshRooms);
+        toast({ title: "Background Optimization Complete", description: `Auto-healed ${repairCount} room allocation anomalies successfully.` });
+      } else {
+        setRooms(freshRooms);
+      }
     } catch (err) {
       console.error(err);
-      toast({ title: 'Error loading structural data', description: err.message, variant: 'destructive' });
+      toast({ title: 'System loading fault', description: err.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   }
 
-  // Helper utility to resolve gender mapping boundaries accurately across layout cards
+  // --- 🛠️ ADMIN DATA REPAIR TOOL ENGINE ---
+  async function runManualGlobalSync() {
+    if (currentUser.role !== 'super_admin') return;
+    try {
+      setSyncing(true);
+      const [roomsData, studentsData] = await Promise.all([
+        base44.entities.Room.list(),
+        base44.entities.Student.list()
+      ]);
+
+      let roomsUpdated = 0;
+      const syncTasks = roomsData.map(async (room) => {
+        const actualOccupancy = studentsData.filter(s => String(s.room_id) === String(room.id)).length;
+        const correctStatus = determineStatus(room, actualOccupancy);
+
+        if (Number(room.current_occupancy) !== actualOccupancy || room.status !== correctStatus) {
+          roomsUpdated++;
+          return await base44.entities.Room.update(room.id, {
+            current_occupancy: actualOccupancy,
+            status: correctStatus
+          });
+        }
+      });
+
+      await Promise.all(syncTasks);
+      await loadDataAndHeal();
+      toast({ title: "Synchronization Complete", description: `${roomsUpdated} rooms verified and synced.` });
+    } catch (err) {
+      toast({ title: "Sync pipeline execution failed", description: err.message, variant: 'destructive' });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  // --- 📊 CORE RESOLUTION LOGIC MECHANICS ---
+  function determineStatus(room, actualOccupancy) {
+    if (room.status === 'Maintenance' || room.status === 'Under Maintenance') return 'Maintenance';
+    const capacity = Number(room.capacity || 4);
+    if (actualOccupancy === 0) return 'Available';
+    if (actualOccupancy >= capacity) return 'Full';
+    return 'Occupied';
+  }
+
   const resolveRoomGender = (roomInstance) => {
     if (!roomInstance) return 'mixed';
     let rawGender = roomInstance.gender_restriction || roomInstance.gender;
     if ((!rawGender || String(rawGender).trim() === '') && roomInstance.block_id && blocks.length > 0) {
       const parentBlock = blocks.find(b => String(b.id) === String(roomInstance.block_id));
-      if (parentBlock) {
-        rawGender = parentBlock.gender_restriction || parentBlock.gender;
-      }
+      if (parentBlock) rawGender = parentBlock.gender_restriction || parentBlock.gender;
     }
     return (rawGender || 'mixed').trim().toLowerCase();
   };
 
-  // --- 📊 DERIVED RECONCILIATION MATRICES (DETERMINISTIC FROM SOURCE OF TRUTH) ---
   const getRoomMetrics = (room) => {
+    // ALWAYS QUERY LIVE STUDENT RECORDS FOR DATA PANEL & MAP VIEWS
     const assignedStudents = students.filter(s => String(s.room_id) === String(room.id));
     const actualOccupancy = assignedStudents.length;
     const capacity = Number(room.capacity || 4);
     const availableBeds = Math.max(0, capacity - actualOccupancy);
-    
-    let resolvedStatus = 'Available';
-    if (room.status === 'Maintenance' || room.status === 'Under Maintenance') {
-      resolvedStatus = 'Maintenance';
-    } else if (actualOccupancy === 0) {
-      resolvedStatus = 'Available';
-    } else if (actualOccupancy >= capacity) {
-      resolvedStatus = 'Full';
-    } else {
-      resolvedStatus = 'Occupied';
-    }
+    const resolvedStatus = determineStatus(room, actualOccupancy);
 
     return { assignedStudents, actualOccupancy, capacity, availableBeds, resolvedStatus };
   };
@@ -166,7 +210,136 @@ export default function Rooms() {
     return 'Other';
   }
 
-  // --- 🛑 SECURE CRUD OPERATIONS ---
+  // --- 🔄 ATOMIC STATE WORKFLOW ENGINES ---
+  
+  // CHECK-IN PIPELINE
+  async function executeCheckInWorkflow(student, targetRoom) {
+    const { actualOccupancy, capacity, resolvedStatus } = getRoomMetrics(targetRoom);
+    const roomGender = resolveRoomGender(targetRoom);
+    const studentGender = (student.gender || '').trim().toLowerCase();
+
+    if (student.room_id) {
+      toast({ title: "Check-in Blocked", description: "Student is already assigned to a room.", variant: "destructive" });
+      return;
+    }
+    if (resolvedStatus === 'Full' || actualOccupancy >= capacity) {
+      toast({ title: "Check-in Blocked", description: "Room is already full.", variant: "destructive" });
+      return;
+    }
+    if (roomGender !== 'mixed' && roomGender !== studentGender) {
+      toast({ title: "Check-in Blocked", description: "Gender restriction mismatch.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const nextOccupancy = actualOccupancy + 1;
+      const targetStatus = determineStatus({ ...targetRoom, status: targetRoom.status }, nextOccupancy);
+
+      await base44.entities.Student.update(student.id, {
+        room_id: targetRoom.id,
+        room_number: targetRoom.room_number,
+        block_name: targetRoom.block_name,
+        check_in_date: new Date().toISOString().split('T')[0],
+        room_status: "Checked In"
+      });
+
+      await base44.entities.Room.update(targetRoom.id, {
+        current_occupancy: nextOccupancy,
+        status: targetStatus
+      });
+
+      toast({ title: "Check-in Complete", description: `${student.full_name} moved to Room ${targetRoom.room_number}.` });
+      loadDataAndHeal();
+    } catch (e) {
+      toast({ title: "Check-in transaction fault", description: e.message, variant: "destructive" });
+    }
+  }
+
+  // CHECK-OUT PIPELINE
+  async function executeCheckOutWorkflow(student) {
+    if (!student.room_id) {
+      toast({ title: "Checkout Blocked", description: "Student has no active room assignment.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const activeRoom = rooms.find(r => String(r.id) === String(student.room_id));
+      
+      await base44.entities.Student.update(student.id, {
+        room_id: null,
+        room_number: null,
+        block_name: null,
+        check_in_date: null,
+        room_status: "Checked Out"
+      });
+
+      if (activeRoom) {
+        const remainingOccupancy = Math.max(0, students.filter(s => String(s.room_id) === String(activeRoom.id) && s.id !== student.id).length);
+        const nextStatus = determineStatus(activeRoom, remainingOccupancy);
+
+        await base44.entities.Room.update(activeRoom.id, {
+          current_occupancy: remainingOccupancy,
+          status: nextStatus
+        });
+      }
+
+      toast({ title: "Checkout Complete", description: "Allocation logs released." });
+      loadDataAndHeal();
+    } catch (e) {
+      toast({ title: "Checkout transaction fault", description: e.message, variant: "destructive" });
+    }
+  }
+
+  // MOVE ROOM PIPELINE
+  async function executeMoveRoomWorkflow(student, destinationRoom) {
+    if (!student.room_id) {
+      await executeCheckInWorkflow(student, destinationRoom);
+      return;
+    }
+
+    const sourceRoom = rooms.find(r => String(r.id) === String(student.room_id));
+    if (sourceRoom?.id === destinationRoom.id) {
+      toast({ title: "Move Ignored", description: "Source and destination rooms match." });
+      return;
+    }
+
+    const { actualOccupancy: destOccupancy, capacity: destCapacity, resolvedStatus: destStatus } = getRoomMetrics(destinationRoom);
+    if (destStatus === 'Full' || destOccupancy >= destCapacity) {
+      toast({ title: "Move Blocked", description: "Destination room is full.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      // Step 1: Release occupant from old room logs
+      if (sourceRoom) {
+        const sourceRemaining = Math.max(0, students.filter(s => String(s.room_id) === String(sourceRoom.id) && s.id !== student.id).length);
+        await base44.entities.Room.update(sourceRoom.id, {
+          current_occupancy: sourceRemaining,
+          status: determineStatus(sourceRoom, sourceRemaining)
+        });
+      }
+
+      // Step 2 & 3: Allocate inside destination block logs
+      const finalDestOccupancy = destOccupancy + 1;
+      await base44.entities.Student.update(student.id, {
+        room_id: destinationRoom.id,
+        room_number: destinationRoom.room_number,
+        block_name: destinationRoom.block_name
+      });
+
+      await base44.entities.Room.update(destinationRoom.id, {
+        current_occupancy: finalDestOccupancy,
+        status: determineStatus(destinationRoom, finalDestOccupancy)
+      });
+
+      toast({ title: "Room Transfer Complete", description: "Re-allocation synchronized successfully across both entities." });
+      loadDataAndHeal();
+    } catch (e) {
+      toast({ title: "Transfer transaction fault", description: e.message, variant: "destructive" });
+    }
+  }
+
+  // --- 🛑 STANDARD CRUD AND ACTION HANDLERS ---
   async function handleCreateRoom() {
     if (!permissions.canCreateRoom) return;
     try {
@@ -182,7 +355,7 @@ export default function Rooms() {
       toast({ title: 'Room registered successfully' });
       setOpenDialog(false);
       resetForm();
-      loadData();
+      loadDataAndHeal();
     } catch (err) {
       toast({ title: 'Failed to create room', description: err.message, variant: 'destructive' });
     }
@@ -191,7 +364,7 @@ export default function Rooms() {
   async function handleUpdateRoom() {
     if (!permissions.canEditRoom) return;
     if (!form.reason_for_correction.trim()) {
-      toast({ title: 'Validation Rule Error', description: 'A mandatory Correction Reason is required.', variant: 'destructive' });
+      toast({ title: 'Validation Rule Error', description: 'A Correction Reason is required.', variant: 'destructive' });
       return;
     }
 
@@ -208,7 +381,7 @@ export default function Rooms() {
       toast({ title: 'Correction Processed Successfully' });
       setOpenDialog(false);
       resetForm();
-      loadData();
+      loadDataAndHeal();
     } catch (err) {
       toast({ title: 'Failed to apply modifications', description: err.message, variant: 'destructive' });
     }
@@ -216,17 +389,17 @@ export default function Rooms() {
 
   async function handleDeleteRoom(roomId) {
     if (!permissions.canDeleteRoom) return;
-    if (!confirm('Are you certain you wish to delete this entity record permanently?')) return;
+    if (!confirm('Are you certain you wish to delete this record permanently?')) return;
     try {
       await base44.entities.Room.delete(roomId);
       toast({ title: 'Room allocation purged successfully' });
-      loadData();
+      loadDataAndHeal();
     } catch (err) {
       toast({ title: 'Failed to complete deletion', description: err.message, variant: 'destructive' });
     }
   }
 
-  // --- ⚡ INSTANT O(N) RENDERING FILTERS PIPELINE ---
+  // --- ⚡ INSTANT RENDERING FILTER PIPELINE ---
   const filteredRooms = useMemo(() => {
     return rooms.filter(room => {
       const { actualOccupancy, capacity, resolvedStatus } = getRoomMetrics(room);
@@ -238,7 +411,6 @@ export default function Rooms() {
         if (!room.room_number?.toLowerCase().includes(query) && !room.block_name?.toLowerCase().includes(query)) return false;
       }
 
-      // 🚻 Centralized structural gender restriction filtering logic
       const finalNormalizedGender = resolveRoomGender(room);
       if (genderFilter !== 'all' && finalNormalizedGender !== genderFilter.trim().toLowerCase()) return false;
       
@@ -304,6 +476,10 @@ export default function Rooms() {
     setForm({ room_number: '', block_id: '', block_name: '', capacity: 4, gender_restriction: 'female', status: 'Available', reason_for_correction: '' });
   };
 
+  const toggleExpandRoom = (roomId) => {
+    setExpandedRoomId(expandedRoomId === roomId ? null : roomId);
+  };
+
   const uniqueBlocks = useMemo(() => ['all', ...new Set(rooms.map(r => r.block_name).filter(Boolean))].sort(), [rooms]);
   const uniqueFloors = useMemo(() => {
     const floors = rooms.map(r => String(r.room_number).match(/\d/)?.[0] || '1');
@@ -335,7 +511,7 @@ export default function Rooms() {
   return (
     <div className="space-y-6">
       
-      {/* CLEARANCE SANDBOX PANEL */}
+      {/* SECURITY CONTROLS SANDBOX PANEL */}
       <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
@@ -343,19 +519,33 @@ export default function Rooms() {
             <span className="font-bold text-primary">Simulation Environment:</span> Active Profile : <span className="font-mono font-bold bg-background px-1 py-0.5 rounded">{currentUser.role}</span>
           </div>
         </div>
-        <Select value={currentUser.role} onValueChange={(r) => setCurrentUser(prev => ({ ...prev, role: r }))}>
-          <SelectTrigger className="h-8 text-xs w-[150px] bg-background"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="super_admin">⚡ Super Admin</SelectItem>
-            <SelectItem value="college_admin">🏢 College Admin</SelectItem>
-            <SelectItem value="staff">🔧 Staff Team</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          {currentUser.role === 'super_admin' && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={runManualGlobalSync} 
+              disabled={syncing}
+              className="h-8 text-xs bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800"
+            >
+              <RefreshCw className={`w-3 h-3 mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
+              Synchronize Room Occupancy
+            </Button>
+          )}
+          <Select value={currentUser.role} onValueChange={(r) => setCurrentUser(prev => ({ ...prev, role: r }))}>
+            <SelectTrigger className="h-8 text-xs w-[140px] bg-background"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="super_admin">⚡ Super Admin</SelectItem>
+              <SelectItem value="college_admin">🏢 College Admin</SelectItem>
+              <SelectItem value="staff">🔧 Staff Team</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <PageHeader
         title="Room Configuration Management"
-        description="Configure layouts and monitor occupant rosters derived from single-source truth structures live."
+        description="Configure layout restrictions and evaluate verified, single-source occupant rosters."
         actions={
           permissions.canCreateRoom && (
             <Button size="sm" onClick={openCreateMode}>
@@ -365,7 +555,7 @@ export default function Rooms() {
         }
       />
 
-      {/* FILTER TOOLBAR DASHBOARD */}
+      {/* FILTER DASHBOARD TOOLBAR */}
       <Card className="bg-card border-border shadow-sm">
         <CardContent className="p-4 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-2.5 items-end">
@@ -468,27 +658,28 @@ export default function Rooms() {
         </CardContent>
       </Card>
 
-      {/* RENDER DYNAMIC SHAPE DATA TEMPLATES */}
+      {/* RENDER GRID / LIST MAP VIEWS */}
       {loading ? (
         <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-t-primary rounded-full animate-spin" /></div>
       ) : filteredRooms.length === 0 ? (
-        <EmptyState icon={Home} title="No records found matching tracking filters." />
+        <EmptyState icon={Home} title="No room layouts found matching criteria." />
       ) : viewMode === 'grid' ? (
         
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredRooms.map((room) => {
+            // Evaluates real occupants dynamically directly from state
             const { assignedStudents, actualOccupancy, capacity, availableBeds, resolvedStatus } = getRoomMetrics(room);
             const genderTag = resolveRoomGender(room);
             const isExpanded = expandedRoomId === room.id;
             
-            // Critical verification safety check rule for dynamic warning display banner triggers
-            const dataInconsistencyTriggered = Number(room.current_occupancy) > 0 && assignedStudents.length === 0;
+            // Evaluates discrepancy warnings dynamically
+            const inconsistencyDetected = Number(room.current_occupancy) > 0 && assignedStudents.length === 0;
 
             return (
-              <Card key={room.id} className={`overflow-hidden border flex flex-col justify-between relative group shadow-2xs ${dataInconsistencyTriggered ? 'border-destructive/40 bg-destructive/5' : 'border-border'}`}>
+              <Card key={room.id} className={`overflow-hidden border flex flex-col justify-between relative group shadow-2xs ${inconsistencyDetected ? 'border-destructive/40 bg-destructive/5' : 'border-border'}`}>
                 <CardContent className="p-4 space-y-3 flex-1">
                   
-                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-xs p-0.5 rounded-md border shadow-2xs">
+                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-xs p-0.5 rounded-md border">
                     <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => openEditMode(room)}>
                       <Edit2 className="w-3 h-3" />
                     </Button>
@@ -509,8 +700,8 @@ export default function Rooms() {
                     </Badge>
                   </div>
 
-                  {/* ALARM BANNER INCONSISTENCY TRACKER TRIGGER */}
-                  {dataInconsistencyTriggered && (
+                  {/* WARNING DISPLAY BANNER IF DETECTED */}
+                  {inconsistencyDetected && (
                     <div className="p-2 border border-destructive/30 rounded-md bg-destructive/10 text-destructive flex items-start gap-1 text-[10px] leading-tight">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                       <span>Data inconsistency detected. Occupancy does not match assigned students.</span>
@@ -534,7 +725,7 @@ export default function Rooms() {
                     </Badge>
                   </div>
 
-                  {/* ACCORDION EXPANSION FOR DETAILED ROSTER DISPLAY */}
+                  {/* ACCORDION OCCUPANT ROSTER PANEL CONTAINER */}
                   <div className="pt-2 border-t mt-2">
                     <Button variant="ghost" size="sm" onClick={() => toggleExpandRoom(room.id)} className="w-full h-7 text-[11px] flex justify-between items-center px-2 bg-muted/40 hover:bg-muted">
                       <span>Occupant List ({assignedStudents.length})</span>
@@ -551,10 +742,10 @@ export default function Rooms() {
                                 <User className="w-3 h-3 text-primary shrink-0" /> {student.full_name}
                               </div>
                               <div className="text-muted-foreground flex items-center gap-1 pl-4 font-mono text-[10px]">
-                                <FileText className="w-2.5 h-2.5" /> ID: {student.matric_number || student.id || 'N/A'}
+                                <FileText className="w-2.5 h-2.5" /> Matric: {student.matric_number || student.id || 'N/A'}
                               </div>
                               <div className="text-muted-foreground flex items-center gap-1 pl-4 font-mono text-[10px]">
-                                <Phone className="w-2.5 h-2.5" /> Ph: {student.phone_number || 'N/A'}
+                                <Phone className="w-2.5 h-2.5" /> Phone: {student.phone_number || 'N/A'}
                               </div>
                             </div>
                           ))
@@ -568,7 +759,7 @@ export default function Rooms() {
           })}
         </div>
       ) : (
-        
+        /* LIST MATRIX VIEW MODE */
         <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -617,11 +808,11 @@ export default function Rooms() {
                         <tr className="bg-muted/20 border-b">
                           <td colSpan={6} className="px-6 py-3">
                             <div className="bg-card border rounded-lg p-3 max-w-2xl text-xs space-y-2 shadow-2xs">
-                              <p className="font-bold text-muted-foreground border-b pb-1">Room {room.room_number} Detailed Occupant Roster</p>
+                              <p className="font-bold text-muted-foreground border-b pb-1">Room {room.room_number} Occupant List</p>
                               {assignedStudents.map((st) => (
                                 <div key={st.id} className="font-medium text-foreground flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 border-b border-muted/40 pb-1 last:border-0 last:pb-0">
                                   <span className="font-bold uppercase flex items-center gap-1 min-w-[150px]"><User className="w-3 h-3 text-primary" /> {st.full_name}</span>
-                                  <span className="font-mono text-[11px] text-muted-foreground">ID: {st.matric_number || st.id || 'N/A'}</span>
+                                  <span className="font-mono text-[11px] text-muted-foreground">Matric: {st.matric_number || st.id || 'N/A'}</span>
                                   <span className="font-mono text-[11px] text-muted-foreground">Phone: {st.phone_number || 'N/A'}</span>
                                 </div>
                               ))}
@@ -639,7 +830,7 @@ export default function Rooms() {
         </div>
       )}
 
-      {/* DIALOG FORM MODAL FOR CREATE AND REGISTER MANIPULATION */}
+      {/* STANDARD REGISTER / EDIT MANIPULATION DIALOG */}
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
