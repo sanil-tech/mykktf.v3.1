@@ -19,107 +19,121 @@ export default function CheckInOut() {
   const [students, setStudents] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Dialog States
   const [ciDialog, setCiDialog] = useState(false);
   const [coDialog, setCoDialog] = useState(false);
-  const [pendingCheckout, setPendingCheckout] = useState(null); 
+  const [pendingCheckout, setPendingCheckout] = useState(null);
   const [showSurvey, setShowSurvey] = useState(false);
   
-  // State Carian Student / Staff ID
-  const [ciSearchQuery, setCiSearchQuery] = useState('');
-  const [coSearchQuery, setCoSearchQuery] = useState('');
+  // Live Search States
+  const [studentSearch, setStudentSearch] = useState('');
+  const [filteredStudents, setFilteredStudents] = useState([]);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   
-  const [ciForm, setCiForm] = useState({ student_id: '', room_id: '', check_in_date: '', check_in_time: '', notes: '' });
-  const [coForm, setCoForm] = useState({ student_id: '', room_id: '', check_out_date: '', check_out_time: '', room_condition: 'Good', damage_assessment: '', refund_amount: 0 });
+  // Form States
+  const [ciForm, setCiForm] = useState({ room_id: '', check_in_date: '', check_in_time: '', notes: '' });
+  const [coForm, setCoForm] = useState({ check_out_date: '', check_out_time: '', room_condition: 'Good', damage_assessment: '', refund_amount: 0 });
+  
   const [currentUser, setCurrentUser] = useState(null);
   const { toast } = useToast();
 
-  useEffect(() => { base44.auth.me().then(setCurrentUser); }, []);
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    base44.auth.me().then(setCurrentUser);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  // Handle live search filtering as user types
+  useEffect(() => {
+    if (!studentSearch.trim()) {
+      setFilteredStudents([]);
+      return;
+    }
+    const query = studentSearch.toLowerCase().trim();
+    const filtered = students.filter(s => 
+      s.student_id?.toLowerCase().includes(query) || 
+      s.full_name?.toLowerCase().includes(query)
+    );
+    setFilteredStudents(filtered);
+  }, [studentSearch, students]);
 
   async function load() {
     setLoading(true);
-    const [ci, co, s, r] = await Promise.all([
-      base44.entities.CheckIn.list('-created_date'),
-      base44.entities.CheckOut.list('-created_date'),
-      base44.entities.Student.list(),
-      base44.entities.Room.list(),
-    ]);
-    setCheckIns(ci); setCheckOuts(co); setStudents(s); setRooms(r);
-    setLoading(false);
+    try {
+      const [ci, co, s, r] = await Promise.all([
+        base44.entities.CheckIn.list('-created_date'),
+        base44.entities.CheckOut.list('-created_date'),
+        base44.entities.Student.list(),
+        base44.entities.Room.list(),
+      ]);
+      setCheckIns(ci);
+      setCheckOuts(co);
+      setStudents(s);
+      setRooms(r);
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Error loading data', description: err.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
   }
 
-  // 📥 Padanan untuk CHECK-IN: Cari mana-mana ID yang sepadan
-  const matchedCiStudent = students.find(s => {
-    if (!s.student_id || !ciSearchQuery) return false;
-    return String(s.student_id).trim().toLowerCase() === String(ciSearchQuery).trim().toLowerCase();
-  });
+  const handleSelectStudent = (student) => {
+    setSelectedStudent(student);
+    setStudentSearch(student.student_id || '');
+    setShowSuggestions(false);
+  };
 
-  // 📤 Padanan untuk CHECK-OUT: Mesti sepadan ID DAN mempunyai bilik aktif (room_id wujud)
-  const matchedCoStudent = students.find(s => {
-    if (!s.student_id || !coSearchQuery) return false;
-    const isIdMatch = String(s.student_id).trim().toLowerCase() === String(coSearchQuery).trim().toLowerCase();
-    
-    // Memastikan pelajar sedang aktif mendiami bilik asrama (bukan string kosong atau null)
-    const hasActiveRoom = s.room_id && String(s.room_id).trim() !== '';
-    
-    return isIdMatch && hasActiveRoom;
-  });
-
-  // Kesan perubahan pelajar yang dijumpai untuk set borang secara automatik
-  useEffect(() => {
-    if (matchedCiStudent) {
-      setCiForm(prev => ({ ...prev, student_id: matchedCiStudent.id }));
-    } else {
-      setCiForm(prev => ({ ...prev, student_id: '' }));
-    }
-  }, [matchedCiStudent]);
-
-  useEffect(() => {
-    if (matchedCoStudent) {
-      setCoForm(prev => ({ ...prev, student_id: matchedCoStudent.id, room_id: matchedCoStudent.room_id || '' }));
-    } else {
-      setCoForm(prev => ({ ...prev, student_id: '', room_id: '' }));
-    }
-  }, [matchedCoStudent]);
+  const resetSearchState = (dateStr, timeStr) => {
+    setStudentSearch('');
+    setSelectedStudent(null);
+    setFilteredStudents([]);
+    setShowSuggestions(false);
+  };
 
   async function handleCheckIn() {
-    if (!ciForm.student_id || !ciForm.room_id || !ciForm.check_in_date) { 
-      toast({ title: 'Sila isi ruangan mandatori dan pastikan ID dijumpai', variant: 'destructive' }); 
-      return; 
+    if (!selectedStudent || !ciForm.room_id || !ciForm.check_in_date) {
+      toast({ title: 'Please select a student, room, and check-in date', variant: 'destructive' });
+      return;
     }
-    
+
     try {
-      const student = students.find(s => s.id === ciForm.student_id);
       const room = rooms.find(r => r.id === ciForm.room_id);
 
-      await base44.entities.CheckIn.create({ 
-        ...ciForm, 
-        student_name: student?.full_name || '', 
-        room_number: room?.room_number || '', 
-        block_name: room?.block_name || '' 
+      await base44.entities.CheckIn.create({
+        student_id: selectedStudent.id,
+        room_id: ciForm.room_id,
+        check_in_date: ciForm.check_in_date,
+        check_in_time: ciForm.check_in_time,
+        notes: ciForm.notes,
+        student_name: selectedStudent.full_name || '',
+        room_number: room?.room_number || '',
+        block_name: room?.block_name || ''
       });
 
-      if (student && room) {
-        await base44.entities.Student.update(student.id, {
+      if (room) {
+        await base44.entities.Student.update(selectedStudent.id, {
           block_name: room.block_name || '',
           room_number: room.room_number || '',
           room_id: room.id
         });
 
-        if (student.user_id) {
+        if (selectedStudent.user_id) {
           if (base44.entities.User) {
-            await base44.entities.User.update(student.user_id, { role: 'student' });
+            await base44.entities.User.update(selectedStudent.user_id, { role: 'student' });
           } else if (base44.auth.updateUserRole) {
-            await base44.auth.updateUserRole(student.user_id, 'student');
+            await base44.auth.updateUserRole(selectedStudent.user_id, 'student');
           }
         }
-      }
 
-      if (room) {
         const newOcc = (room.current_occupancy || 0) + 1;
-        await base44.entities.Room.update(room.id, { 
-          current_occupancy: newOcc, 
-          status: newOcc >= room.capacity ? 'Full' : 'Occupied' 
+        await base44.entities.Room.update(room.id, {
+          current_occupancy: newOcc,
+          status: newOcc >= room.capacity ? 'Full' : 'Occupied'
         });
       }
 
@@ -127,49 +141,62 @@ export default function CheckInOut() {
       setCiDialog(false);
       load();
     } catch (err) {
-      console.error("Gagal melakukan proses check-in:", err);
+      console.error(err);
       toast({ title: 'Error recording check-in', description: err.message, variant: 'destructive' });
     }
   }
 
   async function handleCheckOut() {
-    if (!coForm.student_id || !coForm.room_id || !coForm.check_out_date) { 
-      toast({ title: 'Sila isi ruangan mandatori dan pastikan ID dijumpai', variant: 'destructive' }); 
-      return; 
+    if (!selectedStudent) {
+      toast({ title: 'Please select a student to check-out', variant: 'destructive' });
+      return;
     }
-    
+
+    if (!selectedStudent.room_id) {
+      toast({ title: 'Student has no active room assignment to check-out from', variant: 'destructive' });
+      return;
+    }
+
+    if (!coForm.check_out_date) {
+      toast({ title: 'Please fill all required fields', variant: 'destructive' });
+      return;
+    }
+
     try {
-      const student = students.find(s => s.id === coForm.student_id);
-      const room = rooms.find(r => r.id === coForm.room_id);
-      
-      const checkout = await base44.entities.CheckOut.create({ 
-        ...coForm, 
-        student_name: student?.full_name || '', 
-        room_number: room?.room_number || '', 
-        block_name: room?.block_name || '' 
+      const room = rooms.find(r => r.id === selectedStudent.room_id);
+
+      const checkout = await base44.entities.CheckOut.create({
+        student_id: selectedStudent.id,
+        room_id: selectedStudent.room_id,
+        check_out_date: coForm.check_out_date,
+        check_out_time: coForm.check_out_time,
+        room_condition: coForm.room_condition,
+        damage_assessment: coForm.damage_assessment,
+        refund_amount: coForm.refund_amount,
+        student_name: selectedStudent.full_name || '',
+        room_number: selectedStudent.room_number || room?.room_number || '',
+        block_name: selectedStudent.block_name || room?.block_name || ''
       });
 
-      if (student) {
-        await base44.entities.Student.update(student.id, {
-          block_name: '',
-          room_number: '',
-          room_id: ''
-        });
-      }
+      await base44.entities.Student.update(selectedStudent.id, {
+        block_name: '',
+        room_number: '',
+        room_id: ''
+      });
 
       if (room) {
         const newOcc = Math.max(0, (room.current_occupancy || 0) - 1);
-        await base44.entities.Room.update(room.id, { 
-          current_occupancy: newOcc, 
-          status: newOcc === 0 ? 'Available' : 'Occupied' 
+        await base44.entities.Room.update(room.id, {
+          current_occupancy: newOcc,
+          status: newOcc === 0 ? 'Available' : 'Occupied'
         });
       }
-      
+
       setCoDialog(false);
-      setPendingCheckout({ checkoutId: checkout.id, student });
+      setPendingCheckout({ checkoutId: checkout.id, student: selectedStudent });
       setShowSurvey(true);
     } catch (err) {
-      console.error("Gagal melakukan proses check-out:", err);
+      console.error(err);
       toast({ title: 'Error recording check-out', description: err.message, variant: 'destructive' });
     }
   }
@@ -181,45 +208,72 @@ export default function CheckInOut() {
     load();
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
-  const timeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+  const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
   return (
     <div>
-      <PageHeader title="Check-In / Check-Out" description="Manage resident movements" actions={
-        <div className="flex gap-2">
-          <Button size="sm" onClick={() => { setCiSearchQuery(''); setCiForm({ student_id: '', room_id: '', check_in_date: dateStr, check_in_time: timeStr, notes: '' }); setCiDialog(true); }}><LogIn className="w-4 h-4 mr-1.5" /> Check In</Button>
-          <Button size="sm" variant="outline" onClick={() => { setCoSearchQuery(''); setCoForm({ student_id: '', room_id: '', check_out_date: dateStr, check_out_time: timeStr, room_condition: 'Good', damage_assessment: '', refund_amount: 0 }); setCoDialog(true); }}><LogOut className="w-4 h-4 mr-1.5" /> Check Out</Button>
-        </div>
-      } />
+      <PageHeader
+        title="Check-In / Check-Out"
+        description="Manage resident movements"
+        actions={
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => {
+              resetSearchState();
+              setCiForm({ room_id: '', check_in_date: dateStr, check_in_time: timeStr, notes: '' });
+              setCiDialog(true);
+            }}><LogIn className="w-4 h-4 mr-1.5" /> Check In</Button>
+            <Button size="sm" variant="outline" onClick={() => {
+              resetSearchState();
+              setCoForm({ check_out_date: dateStr, check_out_time: timeStr, room_condition: 'Good', damage_assessment: '', refund_amount: 0 });
+              setCoDialog(true);
+            }}><LogOut className="w-4 h-4 mr-1.5" /> Check Out</Button>
+          </div>
+        }
+      />
 
       <Tabs defaultValue="checkins">
-        <TabsList className="mb-4"><TabsTrigger value="checkins">Check-Ins</TabsTrigger><TabsTrigger value="checkouts">Check-Outs</TabsTrigger></TabsList>
+        <TabsList className="mb-4">
+          <TabsTrigger value="checkins">Check-Ins</TabsTrigger>
+          <TabsTrigger value="checkouts">Check-Outs</TabsTrigger>
+        </TabsList>
 
         <TabsContent value="checkins">
-          {checkIns.length === 0 ? <EmptyState icon={LogIn} title="No check-ins" /> : (
+          {checkIns.length === 0 ? (
+            <EmptyState icon={LogIn} title="No check-ins recorded yet" />
+          ) : (
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="border-b bg-muted/50">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Resident</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Room</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden sm:table-cell">Block</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Date</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden md:table-cell">Time</th>
-                  </tr></thead>
-                  <tbody>{checkIns.map(ci => (
-                    <tr key={ci.id} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="px-4 py-3 font-medium">{ci.student_name}</td>
-                      <td className="px-4 py-3">{ci.room_number}</td>
-                      <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{ci.block_name}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{ci.check_in_date}</td>
-                      <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{ci.check_in_time}</td>
+                  <thead>
+                    <tr className="border-b bg-muted/50 text-muted-foreground font-medium">
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Resident</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Room</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider hidden sm:table-cell">Block</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Date</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider hidden md:table-cell">Time</th>
                     </tr>
-                  ))}</tbody>
+                  </thead>
+                  <tbody>
+                    {checkIns.map((ci) => (
+                      <tr key={ci.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 font-medium text-foreground">{ci.student_name}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{ci.room_number}</td>
+                        <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{ci.block_name}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{ci.check_in_date}</td>
+                        <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{ci.check_in_time}</td>
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             </div>
@@ -227,24 +281,30 @@ export default function CheckInOut() {
         </TabsContent>
 
         <TabsContent value="checkouts">
-          {checkOuts.length === 0 ? <EmptyState icon={LogOut} title="No check-outs" /> : (
+          {checkOuts.length === 0 ? (
+            <EmptyState icon={LogOut} title="No check-outs recorded yet" />
+          ) : (
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="border-b bg-muted/50">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Resident</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Room</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Date</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden sm:table-cell">Condition</th>
-                  </tr></thead>
-                  <tbody>{checkOuts.map(co => (
-                    <tr key={co.id} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="px-4 py-3 font-medium">{co.student_name}</td>
-                      <td className="px-4 py-3">{co.room_number}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{co.check_out_date}</td>
-                      <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{co.room_condition}</td>
+                  <thead>
+                    <tr className="border-b bg-muted/50 text-muted-foreground font-medium">
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Resident</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Room</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Date</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider hidden sm:table-cell">Condition</th>
                     </tr>
-                  ))}</tbody>
+                  </thead>
+                  <tbody>
+                    {checkOuts.map((co) => (
+                      <tr key={co.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 font-medium text-foreground">{co.student_name}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{co.room_number}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{co.check_out_date}</td>
+                        <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{co.room_condition}</td>
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             </div>
@@ -252,58 +312,99 @@ export default function CheckInOut() {
         </TabsContent>
       </Tabs>
 
-      {/* 📥 DIALOG CHECK IN */}
+      {/* 📥 RECORD CHECK IN DIALOG */}
       <Dialog open={ciDialog} onOpenChange={setCiDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Check In Resident</DialogTitle></DialogHeader>
-          <div className="space-y-4 mt-2">
+        <DialogContent className="max-w-md overflow-visible">
+          <DialogHeader>
+            <DialogTitle>Record Check In</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2 relative">
             
-            {/* Carian Student / Staff ID */}
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Carian Student / Staff ID *</Label>
-              <div className="relative">
+            {/* Live Search Input */}
+            <div className="relative">
+              <Label className="text-xs font-medium">Search Student / Staff ID *</Label>
+              <div className="relative mt-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Masukkan Student / Staff ID" 
-                  value={ciSearchQuery} 
-                  onChange={e => setCiSearchQuery(e.target.value)} 
+                  placeholder="Enter Student/Staff ID or Name..." 
+                  value={studentSearch} 
+                  onChange={(e) => {
+                    setStudentSearch(e.target.value);
+                    setShowSuggestions(true);
+                    if(selectedStudent) setSelectedStudent(null);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
                   className="pl-9 h-9 text-sm"
                 />
               </div>
+
+              {/* Autocomplete Dropdown List */}
+              {showSuggestions && filteredStudents.length > 0 && (
+                <div className="absolute z-50 w-full bg-popover text-popover-foreground border border-border rounded-md shadow-md mt-1 max-h-48 overflow-y-auto text-sm">
+                  {filteredStudents.map((s) => (
+                    <div 
+                      key={s.id} 
+                      onClick={() => handleSelectStudent(s)}
+                      className="px-3 py-2 hover:bg-muted cursor-pointer transition-colors flex justify-between items-center"
+                    >
+                      <span className="font-medium">{s.student_id}</span>
+                      <span className="text-xs text-muted-foreground truncate max-w-[200px]">{s.full_name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Kad Butiran Pelajar */}
-            {matchedCiStudent ? (
-              <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 text-sm animate-in fade-in-50 duration-200">
-                <div className="flex items-center gap-2 text-foreground font-medium">
-                  <User className="w-4 h-4 text-primary" />
-                  <span>Nama: {matchedCiStudent.full_name}</span>
+            {/* Selected Student Info Card */}
+            {selectedStudent && (
+              <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 text-xs animate-in fade-in duration-200">
+                <div className="flex items-center gap-2 font-medium text-foreground">
+                  <User className="w-3.5 h-3.5 text-primary" />
+                  <span>Name: {selectedStudent.full_name}</span>
                 </div>
-                <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                  <CreditCard className="w-4 h-4 text-muted-foreground" />
-                  <span>No. IC / Pasport: {matchedCiStudent.ic_passport || matchedCiStudent.ic_passport_number || 'Tiada rekod IC'}</span>
+                <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                  <div>ID: <span className="text-foreground font-mono">{selectedStudent.student_id}</span></div>
+                  <div>IC/Passport: <span className="text-foreground">{selectedStudent.ic_passport || 'N/A'}</span></div>
+                  <div>Gender: <span className="text-foreground capitalize">{selectedStudent.gender || 'N/A'}</span></div>
+                  <div>Status: <span className={selectedStudent.room_id ? "text-amber-600 font-medium" : "text-emerald-600 font-medium"}>
+                    {selectedStudent.room_id ? `Occupying ${selectedStudent.room_number}` : 'No Active Room'}
+                  </span></div>
                 </div>
               </div>
-            ) : ciSearchQuery.trim() !== '' && (
-              <p className="text-xs text-destructive">Pengguna tidak dijumpai. Sila pastikan Student / Staff ID tepat.</p>
             )}
 
-            <div><Label className="text-xs">Room *</Label>
-              <Select value={ciForm.room_id} onValueChange={v => setCiForm({ ...ciForm, room_id: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select room" /></SelectTrigger>
-                <SelectContent>{rooms.filter(r => r.status !== 'Full').map(r => <SelectItem key={r.id} value={r.id}>{r.room_number} ({r.block_name})</SelectItem>)}</SelectContent>
+            <div>
+              <Label className="text-xs font-medium">Room Assignment *</Label>
+              <Select value={ciForm.room_id} onValueChange={(v) => setCiForm({ ...ciForm, room_id: v })}>
+                <SelectTrigger className="h-9 text-sm mt-1">
+                  <SelectValue placeholder="Select room" />
+                </SelectTrigger>
+                <SelectContent>
+                  {rooms.filter(r => r.status !== 'Full').map((r) => (
+                    <SelectItem key={r.id} value={r.id}>{r.room_number} ({r.block_name})</SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-xs">Date *</Label><Input type="date" value={ciForm.check_in_date} onChange={e => setCiForm({ ...ciForm, check_in_date: e.target.value })} className="h-9 text-sm mt-1" /></div>
-              <div><Label className="text-xs">Time</Label><Input type="time" value={ciForm.check_in_time} onChange={e => setCiForm({ ...ciForm, check_in_time: e.target.value })} className="h-9 text-sm mt-1" /></div>
+              <div>
+                <Label className="text-xs font-medium">Date *</Label>
+                <Input type="date" value={ciForm.check_in_date} onChange={(e) => setCiForm({ ...ciForm, check_in_date: e.target.value })} className="h-9 text-sm mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Time</Label>
+                <Input type="time" value={ciForm.check_in_time} onChange={(e) => setCiForm({ ...ciForm, check_in_time: e.target.value })} className="h-9 text-sm mt-1" />
+              </div>
             </div>
-            <div><Label className="text-xs">Notes</Label><Textarea value={ciForm.notes} onChange={e => setCiForm({ ...ciForm, notes: e.target.value })} className="text-sm mt-1" rows={2} /></div>
+            <div>
+              <Label className="text-xs font-medium">Notes</Label>
+              <Textarea value={ciForm.notes} onChange={(e) => setCiForm({ ...ciForm, notes: e.target.value })} className="text-sm mt-1" rows={2} />
+            </div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" size="sm" onClick={() => setCiDialog(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleCheckIn} disabled={!ciForm.student_id}>Check In</Button>
+            <Button size="sm" onClick={handleCheckIn} disabled={!selectedStudent}>Record Check In</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -316,72 +417,119 @@ export default function CheckInOut() {
         checkoutId={pendingCheckout?.checkoutId}
       />
 
-      {/* 📤 DIALOG CHECK OUT */}
+      {/* 📤 RECORD CHECK OUT DIALOG */}
       <Dialog open={coDialog} onOpenChange={setCoDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Check Out Resident</DialogTitle></DialogHeader>
-          <div className="space-y-4 mt-2">
+        <DialogContent className="max-w-md overflow-visible">
+          <DialogHeader>
+            <DialogTitle>Record Check Out</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2 relative">
             
-            {/* Carian Student / Staff ID */}
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Carian Student / Staff ID *</Label>
-              <div className="relative">
+            {/* Live Search Input */}
+            <div className="relative">
+              <Label className="text-xs font-medium">Search Student / Staff ID *</Label>
+              <div className="relative mt-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Masukkan Student / Staff ID" 
-                  value={coSearchQuery} 
-                  onChange={e => setCoSearchQuery(e.target.value)} 
+                  placeholder="Enter Student/Staff ID or Name..." 
+                  value={studentSearch} 
+                  onChange={(e) => {
+                    setStudentSearch(e.target.value);
+                    setShowSuggestions(true);
+                    if(selectedStudent) setSelectedStudent(null);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
                   className="pl-9 h-9 text-sm"
                 />
               </div>
+
+              {/* Autocomplete Dropdown List */}
+              {showSuggestions && filteredStudents.length > 0 && (
+                <div className="absolute z-50 w-full bg-popover text-popover-foreground border border-border rounded-md shadow-md mt-1 max-h-48 overflow-y-auto text-sm">
+                  {filteredStudents.map((s) => (
+                    <div 
+                      key={s.id} 
+                      onClick={() => handleSelectStudent(s)}
+                      className="px-3 py-2 hover:bg-muted cursor-pointer transition-colors flex justify-between items-center"
+                    >
+                      <span className="font-medium">{s.student_id}</span>
+                      <span className="text-xs text-muted-foreground truncate max-w-[200px]">{s.full_name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Kad Butiran Pelajar & Maklumat Bilik Automatik */}
-            {matchedCoStudent ? (
+            {/* Selected Student Profile & Active Room Validation Card */}
+            {selectedStudent && (
               <div className="space-y-3">
-                {/* Info Peribadi */}
-                <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-2 text-sm animate-in fade-in-50 duration-200">
-                  <div className="flex items-center gap-2 text-foreground font-medium">
-                    <User className="w-4 h-4 text-amber-600" />
-                    <span>Nama: {matchedCoStudent.full_name}</span>
+                <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-2 text-xs">
+                  <div className="flex items-center gap-2 font-medium text-foreground">
+                    <User className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Name: {selectedStudent.full_name}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                    <CreditCard className="w-4 h-4" />
-                    <span>No. IC / Pasport: {matchedCoStudent.ic_passport || matchedCoStudent.ic_passport_number || 'Tiada rekod IC'}</span>
+                  <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                    <div>ID: <span className="text-foreground font-mono">{selectedStudent.student_id}</span></div>
+                    <div>IC/Passport: <span className="text-foreground">{selectedStudent.ic_passport || 'N/A'}</span></div>
                   </div>
                 </div>
 
-                {/* Paparan Bilik Semasa (Read-Only untuk Semakan Admin) */}
-                <div className="p-3 bg-muted border border-border rounded-lg space-y-1 text-sm">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Semakan Bilik Asrama</Label>
-                  <div className="flex items-center gap-2 text-foreground font-medium mt-1">
-                    <Home className="w-4 h-4 text-muted-foreground" />
-                    <span>Bilik Semasa: <strong className="text-amber-700">{matchedCoStudent.room_number || 'Tiada No. Bilik'}</strong> ({matchedCoStudent.block_name || 'Tiada Blok'})</span>
-                  </div>
+                {/* Read-Only Automatic Room Verification */}
+                <div className="p-3 bg-muted border border-border rounded-lg space-y-1 text-xs">
+                  <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Current Room Assignment</Label>
+                  {selectedStudent.room_id ? (
+                    <div className="flex items-center gap-2 text-foreground font-medium mt-1">
+                      <Home className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Room: <strong className="text-amber-700">{selectedStudent.room_number}</strong> ({selectedStudent.block_name})</span>
+                    </div>
+                  ) : (
+                    <p className="text-destructive font-medium mt-1">⚠️ Error: This student does not have any active room assignment.</p>
+                  )}
                 </div>
               </div>
-            ) : coSearchQuery.trim() !== '' && (
-              <p className="text-xs text-destructive">
-                Pengguna tidak dijumpai atau tiada rekod kediaman yang aktif (belum check-in/sudah check-out).
-              </p>
             )}
             
             <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-xs">Date *</Label><Input type="date" value={coForm.check_out_date} onChange={e => setCoForm({ ...coForm, check_out_date: e.target.value })} className="h-9 text-sm mt-1" /></div>
-              <div><Label className="text-xs">Time</Label><Input type="time" value={coForm.check_out_time} onChange={e => setCoForm({ ...coForm, check_out_time: e.target.value })} className="h-9 text-sm mt-1" /></div>
+              <div>
+                <Label className="text-xs font-medium">Date *</Label>
+                <Input type="date" value={coForm.check_out_date} onChange={(e) => setCoForm({ ...coForm, check_out_date: e.target.value })} className="h-9 text-sm mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Time</Label>
+                <Input type="time" value={coForm.check_out_time} onChange={(e) => setCoForm({ ...coForm, check_out_time: e.target.value })} className="h-9 text-sm mt-1" />
+              </div>
             </div>
-            <div><Label className="text-xs">Room Condition</Label>
-              <Select value={coForm.room_condition} onValueChange={v => setCoForm({ ...coForm, room_condition: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>{['Good','Fair','Damaged'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+            <div>
+              <Label className="text-xs font-medium">Room Condition</Label>
+              <Select value={coForm.room_condition} onValueChange={(v) => setCoForm({ ...coForm, room_condition: v })}>
+                <SelectTrigger className="h-9 text-sm mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Good">Good</SelectItem>
+                  <SelectItem value="Fair">Fair</SelectItem>
+                  <SelectItem value="Damaged">Damaged</SelectItem>
+                </SelectContent>
               </Select>
             </div>
-            <div><Label className="text-xs">Damage Assessment</Label><Textarea value={coForm.damage_assessment} onChange={e => setCoForm({ ...coForm, damage_assessment: e.target.value })} className="text-sm mt-1" rows={2} /></div>
-            <div><Label className="text-xs">Refund Amount (RM)</Label><Input type="number" min="0" value={coForm.refund_amount} onChange={e => setCoForm({ ...coForm, refund_amount: Number(e.target.value) })} className="h-9 text-sm mt-1" /></div>
+            <div>
+              <Label className="text-xs font-medium">Damage Assessment</Label>
+              <Textarea value={coForm.damage_assessment} onChange={(e) => setCoForm({ ...coForm, damage_assessment: e.target.value })} className="text-sm mt-1" rows={2} />
+            </div>
+            <div>
+              <Label className="text-xs font-medium">Refund Amount (RM)</Label>
+              <Input type="number" min="0" value={coForm.refund_amount} onChange={(e) => setCoForm({ ...coForm, refund_amount: Number(e.target.value) })} className="h-9 text-sm mt-1" />
+            </div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" size="sm" onClick={() => setCoDialog(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleCheckOut} disabled={!coForm.student_id}>Check Out</Button>
+            <Button 
+              size="sm" 
+              onClick={handleCheckOut} 
+              disabled={!selectedStudent || !selectedStudent.room_id}
+            >
+              Record Check Out
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
