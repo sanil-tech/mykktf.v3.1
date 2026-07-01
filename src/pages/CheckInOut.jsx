@@ -22,7 +22,7 @@ export default function CheckInOut() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Guard state untuk mengelakkan double-click
+  // Lapisan Keselamatan 1: Guard state UI (Mengelakkan klik spam berunsur milisaat)
   const [submitting, setSubmitting] = useState(false);
   
   // Dialog States
@@ -67,16 +67,14 @@ export default function CheckInOut() {
     }
   }, [students]);
 
-  // PENAMBAHBAIKAN UTAMA: Menyemak dengan ketat jika pelajar sudah mempunyai bilik atau berstatus 'Checked In'
+  // Fungsi menyemak jika pelajar sudah mempunyai bilik aktif
   const hasActiveRoom = (student) => {
     if (!student) return false;
     
-    // Semak string room_status
     if (student.room_status && String(student.room_status).trim().toLowerCase() === 'checked in') {
       return true;
     }
 
-    // Semak jika room_id wujud dan sah
     if (student.room_id !== undefined && student.room_id !== null) {
       const val = String(student.room_id).trim().toLowerCase();
       if (val !== '' && val !== 'none' && val !== 'null' && val !== 'undefined') {
@@ -87,7 +85,7 @@ export default function CheckInOut() {
     return false;
   };
 
-  // Enforce penapisan carian pelajar mengikut konteks dialog (Check-In vs Check-Out)
+  // Penapisan senarai carian berdasarkan konteks dialog
   useEffect(() => {
     if (!studentSearch.trim()) {
       setFilteredStudents([]);
@@ -101,17 +99,15 @@ export default function CheckInOut() {
     );
 
     if (ciDialog) {
-      // Untuk Check-In: HANYA tunjuk pelajar yang BELUM ada bilik aktif
       baseFiltered = baseFiltered.filter(s => !hasActiveRoom(s));
     } else if (coDialog) {
-      // Untuk Check-Out: HANYA tunjuk pelajar yang SUDAH ada bilik aktif
       baseFiltered = baseFiltered.filter(s => hasActiveRoom(s));
     }
 
     setFilteredStudents(baseFiltered);
   }, [studentSearch, students, ciDialog, coDialog]);
 
-  // Ekstrak nama blok unik daripada senarai bilik
+  // Ekstrak nama blok unik
   useEffect(() => {
     if (rooms.length > 0) {
       const blocks = [...new Set(rooms.map(r => r.block_name).filter(Boolean))];
@@ -119,7 +115,7 @@ export default function CheckInOut() {
     }
   }, [rooms]);
 
-  // Tapis bilik berdasarkan blok yang dipilih
+  // Tapis bilik berdasarkan blok
   useEffect(() => {
     if (!selectedBlock) {
       setFilteredRooms([]);
@@ -269,6 +265,7 @@ export default function CheckInOut() {
     setSelectedBlock('');
   };
 
+  // FUNGSI CHECK-IN DENGAN PERLINDUNGAN DOUBLE-PROCESS TERAMAT KETAT
   async function handleCheckIn() {
     if (submitting) return; 
     if (!selectedStudent || !ciForm.room_id || !ciForm.check_in_date) {
@@ -276,8 +273,16 @@ export default function CheckInOut() {
       return;
     }
 
-    if (hasActiveRoom(selectedStudent)) {
-      toast({ title: 'Pelajar ini sudah mendaftar masuk ke bilik.', variant: 'destructive' });
+    // 🛡️ LAPISAN KESELAMATAN 2 (State Validation): Semakan saat-akhir pada data state global terkini
+    const freshStudentData = students.find(s => s.id === selectedStudent.id);
+    if (hasActiveRoom(freshStudentData) || hasActiveRoom(selectedStudent)) {
+      toast({ 
+        title: 'Sekatan Keselamatan', 
+        description: 'Pelajar ini sudah dicheck-in kan sebentar tadi! Sistem menyekat percubaan duplikasi.', 
+        variant: 'destructive' 
+      });
+      setCiDialog(false);
+      resetSearchState();
       return;
     }
 
@@ -325,7 +330,7 @@ export default function CheckInOut() {
       toast({ title: 'Berjaya', description: 'Check-in direkodkan dan status senarai telah dikemaskini.' });
       setCiDialog(false);
       resetSearchState();
-      await load(); // Memuatkan semula data segar dari DB supaya penapis dikemaskini serta-merta
+      await load(); 
       dispatchGlobalRefresh();
     } catch (err) {
       console.error(err);
