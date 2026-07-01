@@ -89,7 +89,7 @@ export default function Dashboard() {
         }
       } catch (err) {
         console.error("Gagal memuatkan peranan:", err);
-      } finaly {
+      } finally {
         setLoading(false);
       }
     }
@@ -245,4 +245,21 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <Button type="
+            <Button type="submit" className="w-full h-11 mt-4" disabled={submitting}>
+              {submitting ? "Menghantar Profil Pelajar..." : "Sahkan Profil & Masuk Portal"}
+            </Button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ====================================================================
+  // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD ASAL (TERPERLIHARA)
+  // ====================================================================
+  if (currentUser?.role === 'warden') return <WardenDashboard user={currentUser} />;
+  if (currentUser?.role === 'jakmas') return <JakmasDashboard user={currentUser} />;
+  if (currentUser?.role === 'student') return <StudentDashboard user={currentUser} />;
+
+  return <AdminDashboard user={currentUser} />;
+}
