@@ -32,6 +32,11 @@ export default function CheckInOut() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   
+  // Room Assignment Filter States
+  const [selectedBlock, setSelectedBlock] = useState('');
+  const [availableBlocks, setAvailableBlocks] = useState([]);
+  const [filteredRooms, setFilteredRooms] = useState([]);
+  
   // Form States
   const [ciForm, setCiForm] = useState({ room_id: '', check_in_date: '', check_in_time: '', notes: '' });
   const [coForm, setCoForm] = useState({ check_out_date: '', check_out_time: '', room_condition: 'Good', damage_assessment: '', refund_amount: 0 });
@@ -61,6 +66,28 @@ export default function CheckInOut() {
     setFilteredStudents(filtered);
   }, [studentSearch, students]);
 
+  // Extract unique blocks from rooms list
+  useEffect(() => {
+    if (rooms.length > 0) {
+      const blocks = [...new Set(rooms.map(r => r.block_name).filter(Boolean))];
+      setAvailableBlocks(blocks.sort());
+    }
+  }, [rooms]);
+
+  // Filter rooms based on chosen Block and check availability (Not Full)
+  useEffect(() => {
+    if (!selectedBlock) {
+      setFilteredRooms([]);
+      return;
+    }
+    const roomsInBlock = rooms.filter(r => 
+      r.block_name === selectedBlock && 
+      r.status !== 'Full' && 
+      (r.current_occupancy || 0) < (r.capacity || 4)
+    );
+    setFilteredRooms(roomsInBlock.sort((a, b) => String(a.room_number).localeCompare(String(b.room_number))));
+  }, [selectedBlock, rooms]);
+
   async function load() {
     setLoading(true);
     try {
@@ -88,11 +115,12 @@ export default function CheckInOut() {
     setShowSuggestions(false);
   };
 
-  const resetSearchState = (dateStr, timeStr) => {
+  const resetSearchState = () => {
     setStudentSearch('');
     setSelectedStudent(null);
     setFilteredStudents([]);
     setShowSuggestions(false);
+    setSelectedBlock('');
   };
 
   async function handleCheckIn() {
@@ -373,18 +401,43 @@ export default function CheckInOut() {
               </div>
             )}
 
+            {/* Step 1: Select Block */}
             <div>
-              <Label className="text-xs font-medium">Room Assignment *</Label>
-              <Select value={ciForm.room_id} onValueChange={(v) => setCiForm({ ...ciForm, room_id: v })}>
+              <Label className="text-xs font-medium">Select Block *</Label>
+              <Select value={selectedBlock} onValueChange={(v) => { setSelectedBlock(v); setCiForm({ ...ciForm, room_id: '' }); }}>
                 <SelectTrigger className="h-9 text-sm mt-1">
-                  <SelectValue placeholder="Select room" />
+                  <SelectValue placeholder="Choose a block first" />
                 </SelectTrigger>
                 <SelectContent>
-                  {rooms.filter(r => r.status !== 'Full').map((r) => (
-                    <SelectItem key={r.id} value={r.id}>{r.room_number} ({r.block_name})</SelectItem>
+                  {availableBlocks.map((block) => (
+                    <SelectItem key={block} value={block}>{block}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Step 2: Select Room (Only shows available rooms for chosen block) */}
+            <div>
+              <Label className="text-xs font-medium">Room Assignment *</Label>
+              <Select 
+                value={ciForm.room_id} 
+                onValueChange={(v) => setCiForm({ ...ciForm, room_id: v })}
+                disabled={!selectedBlock}
+              >
+                <SelectTrigger className="h-9 text-sm mt-1">
+                  <SelectValue placeholder={selectedBlock ? "Select an available room" : "Please select a block first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredRooms.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.room_number} (Available: {(r.capacity || 4) - (r.current_occupancy || 0)} slots)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedBlock && filteredRooms.length === 0 && (
+                <p className="text-[11px] text-destructive mt-1">⚠️ No available or vacant rooms left in this block.</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -404,7 +457,7 @@ export default function CheckInOut() {
           </div>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" size="sm" onClick={() => setCiDialog(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleCheckIn} disabled={!selectedStudent}>Record Check In</Button>
+            <Button size="sm" onClick={handleCheckIn} disabled={!selectedStudent || !ciForm.room_id}>Record Check In</Button>
           </div>
         </DialogContent>
       </Dialog>
