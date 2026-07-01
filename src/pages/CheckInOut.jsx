@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeftRight, LogIn, LogOut, Search, User, Home, Sparkles, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { ArrowLeftRight, LogIn, LogOut, Search, User, Home, Sparkles, Bed, Users } from 'lucide-react';
 import SurveyModal from '@/components/SurveyModal';
 
 export default function CheckInOut() {
@@ -54,7 +54,7 @@ export default function CheckInOut() {
     load();
   }, []);
 
-  // Update selectedStudent state automatically when students array refreshes from API
+  // Sync selected student data when global students array updates
   useEffect(() => {
     if (selectedStudent && students.length > 0) {
       const updatedData = students.find(s => s.id === selectedStudent.id);
@@ -64,7 +64,14 @@ export default function CheckInOut() {
     }
   }, [students]);
 
-  // Handle live search filtering as user types with specific dialog contexts
+  // Helper helper to accurately evaluate active room assignments
+  const hasActiveRoom = (student) => {
+    if (!student || !student.room_id) return false;
+    const val = String(student.room_id).trim().toLowerCase();
+    return val !== '' && val !== 'none' && val !== 'null';
+  };
+
+  // FIX: Enforce accurate search list criteria matching rules 2 and 7
   useEffect(() => {
     if (!studentSearch.trim()) {
       setFilteredStudents([]);
@@ -78,15 +85,11 @@ export default function CheckInOut() {
     );
 
     if (ciDialog) {
-      baseFiltered = baseFiltered.filter(s => {
-        const roomId = s.room_id ? String(s.room_id).trim().toLowerCase() : '';
-        return roomId === '' || roomId === 'none';
-      });
+      // For check-ins: ONLY display students who do NOT have an active room assignment
+      baseFiltered = baseFiltered.filter(s => !hasActiveRoom(s));
     } else if (coDialog) {
-      baseFiltered = baseFiltered.filter(s => {
-        const roomId = s.room_id ? String(s.room_id).trim().toLowerCase() : '';
-        return roomId !== '' && roomId !== 'none';
-      });
+      // For check-outs: ONLY display students who currently hold an active room assignment
+      baseFiltered = baseFiltered.filter(s => hasActiveRoom(s));
     }
 
     setFilteredStudents(baseFiltered);
@@ -111,10 +114,11 @@ export default function CheckInOut() {
   }, [selectedBlock, rooms]);
 
   // =========================================================================
-  // 3. HELPER FUNCTIONS REQUIRED
+  // SCHEMATIC VALIDATIONS & ASSISTANCE
   // =========================================================================
 
-  const getRoomStatus = (room) => {
+  function getRoomStatus(room) {
+    if (!room) return 'Unknown';
     const current = room.current_occupancy || 0;
     const capacity = room.capacity || 4;
     
@@ -122,18 +126,16 @@ export default function CheckInOut() {
     if (current / capacity >= 0.8) return 'Near Full';
     if (current > 0) return 'Occupied';
     return 'Available';
-  };
+  }
 
-  const getAvailableRooms = (allRooms, student) => {
+  function getAvailableRooms(allRooms, student) {
     if (!student) return [];
     return allRooms.filter(room => {
       const current = room.current_occupancy || 0;
       const capacity = room.capacity || 4;
 
-      // Rule: Must not be full
       if (current >= capacity) return false;
 
-      // Rule: Gender restriction match (if rule property exists on room/block)
       const studentGender = (student.gender || '').toLowerCase().trim();
       const roomGender = (room.gender_restriction || room.gender || 'mixed').toLowerCase().trim();
       if (roomGender !== 'mixed' && studentGender && roomGender !== studentGender) {
@@ -141,69 +143,79 @@ export default function CheckInOut() {
       }
       return true;
     });
-  };
+  }
 
-  const suggestRooms = (allRooms, student) => {
+  function suggestRooms(allRooms, student) {
     const available = getAvailableRooms(allRooms, student);
-    
-    // Sort logic: Prefer empty rooms first, then lowest occupancy rooms
     return available
       .sort((a, b) => {
         const occA = a.current_occupancy || 0;
         const occB = b.current_occupancy || 0;
-        
         if (occA === 0 && occB > 0) return -1;
         if (occB === 0 && occA > 0) return 1;
         return occA - occB;
       })
-      .slice(0, 5); // Return top 3-5 rooms
-  };
+      .slice(0, 4);
+  }
 
-  const validateRoomSelection = (room, student) => {
-    if (!room) return false;
+  // FIX: Validation pipeline implementing rules 1 and 3
+  function validateRoomSelection(room, student, triggerToasts = true) {
+    if (!room || !student) return false;
+
+    // 1. Absolute Rule: Hard stop if student already contains an assigned active room
+    if (hasActiveRoom(student)) {
+      if (triggerToasts) {
+        toast({ 
+          title: 'Student already checked in to a room', 
+          description: `Resident is already allocated to Room ${student.room_number}.`, 
+          variant: 'destructive' 
+        });
+      }
+      return false;
+    }
+
+    // 2. Room Rule: Room capacity bounds check
     const current = room.current_occupancy || 0;
     const capacity = room.capacity || 4;
-
-    // Validation: Full Check
     if (current >= capacity) {
-      toast({ title: 'Room is full', variant: 'destructive' });
+      if (triggerToasts) toast({ title: 'Selected room is full', variant: 'destructive' });
       return false;
     }
 
-    // Validation: Gender Match Check
-    const studentGender = (student?.gender || '').toLowerCase().trim();
+    // 3. Gender Constraint Check
+    const studentGender = (student.gender || '').toLowerCase().trim();
     const roomGender = (room.gender_restriction || room.gender || 'mixed').toLowerCase().trim();
     if (roomGender !== 'mixed' && studentGender && roomGender !== studentGender) {
-      toast({ title: 'Gender restriction mismatch', description: `This room is reserved for ${room.gender_restriction || room.gender} occupants.`, variant: 'destructive' });
+      if (triggerToasts) {
+        toast({ 
+          title: 'Gender restriction mismatch', 
+          description: `This room is configured for ${room.gender_restriction || room.gender} allocations only.`, 
+          variant: 'destructive' 
+        });
+      }
       return false;
-    }
-
-    // Validation: Near Full Warning (>80%)
-    if ((current + 1) / capacity > 0.8) {
-      toast({ title: 'Room almost full', description: 'Selected room allocation will exceed 80% occupancy boundary.', variant: 'default' });
     }
 
     return true;
-  };
+  }
 
-  // Helper to get card styles based on status
   const getStatusCardStyles = (status) => {
     switch (status) {
-      case 'Available': return 'border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-900';
-      case 'Occupied': return 'border-blue-200 bg-blue-50/50 hover:bg-blue-50 text-blue-900';
-      case 'Near Full': return 'border-amber-200 bg-amber-50/50 hover:bg-amber-50 text-amber-900';
-      case 'Full': return 'border-red-200 bg-red-50 opacity-60 cursor-not-allowed text-red-900';
+      case 'Available': return 'border-emerald-200 bg-emerald-50/40 hover:bg-emerald-50 text-emerald-900';
+      case 'Occupied': return 'border-blue-200 bg-blue-50/40 hover:bg-blue-50 text-blue-900';
+      case 'Near Full': return 'border-amber-200 bg-amber-50/40 hover:bg-amber-50 text-amber-900';
+      case 'Full': return 'border-red-200 bg-red-50/40 opacity-60 text-red-900 cursor-not-allowed';
       default: return 'border-border bg-card';
     }
   };
 
   const getStatusBadgeVariant = (status) => {
     switch (status) {
-      case 'Available': return 'bg-emerald-500 hover:bg-emerald-600 text-white';
-      case 'Occupied': return 'bg-blue-500 hover:bg-blue-600 text-white';
-      case 'Near Full': return 'bg-amber-500 hover:bg-amber-600 text-white';
-      case 'Full': return 'bg-red-500 hover:bg-red-600 text-white';
-      default: return 'bg-slate-500';
+      case 'Available': return 'bg-emerald-600 text-white';
+      case 'Occupied': return 'bg-blue-600 text-white';
+      case 'Near Full': return 'bg-amber-600 text-white';
+      case 'Full': return 'bg-red-600 text-white';
+      default: return 'bg-slate-600 text-white';
     }
   };
 
@@ -241,26 +253,26 @@ export default function CheckInOut() {
     setSelectedBlock('');
   };
 
-  const hasActiveRoom = (student) => {
-    if (!student || !student.room_id) return false;
-    const val = String(student.room_id).trim().toLowerCase();
-    return val !== '' && val !== 'none';
-  };
-
+  // FIX: Symmetrical state mutations implementing rule 4
   async function handleCheckIn() {
     if (!selectedStudent || !ciForm.room_id || !ciForm.check_in_date) {
       toast({ title: 'Please select a student, room, and check-in date', variant: 'destructive' });
       return;
     }
 
+    // Atomic pre-flight check to prevent double assignments
+    if (hasActiveRoom(selectedStudent)) {
+      toast({ title: 'Student already checked in to a room', variant: 'destructive' });
+      return;
+    }
+
     const room = rooms.find(r => r.id === ciForm.room_id);
-    
-    // Final active system validation step prior to updating data mutations
-    if (!validateRoomSelection(room, selectedStudent)) {
+    if (!validateRoomSelection(room, selectedStudent, true)) {
       return;
     }
 
     try {
+      // 1. Post CheckIn Record Log Entry
       await base44.entities.CheckIn.create({
         student_id: selectedStudent.id,
         room_id: ciForm.room_id,
@@ -272,35 +284,19 @@ export default function CheckInOut() {
         block_name: room?.block_name || ''
       });
 
-      if (room) {
-        await base44.entities.Student.update(selectedStudent.id, {
-          block_name: room.block_name || '',
-          room_number: room.room_number || '',
-          room_id: room.id
-        });
+      // 2. Update Student Profile mapping attributes
+      await base44.entities.Student.update(selectedStudent.id, {
+        block_name: room.block_name || '',
+        room_number: room.room_number || '',
+        room_id: room.id
+      });
 
-        if (selectedStudent.user_id) {
-          if (base44.entities.User) {
-            await base44.entities.User.update(selectedStudent.user_id, { role: 'student' });
-          } else if (base44.auth.updateUserRole) {
-            await base44.auth.updateUserRole(selectedStudent.user_id, 'student');
-          }
-        }
-
-        const newOcc = (room.current_occupancy || 0) + 1;
-        await base44.entities.Room.update(room.id, {
-          current_occupancy: newOcc,
-          status: newOcc >= room.capacity ? 'Full' : 'Occupied'
-        });
-      }
-
-      setStudents(prevStudents => 
-        prevStudents.map(s => 
-          s.id === selectedStudent.id 
-            ? { ...s, room_id: ciForm.room_id, room_number: room?.room_number, block_name: room?.block_name } 
-            : s
-        )
-      );
+      // 3. Increment Room occupancy counter accurately
+      const newOcc = (room.current_occupancy || 0) + 1;
+      await base44.entities.Room.update(room.id, {
+        current_occupancy: newOcc,
+        status: newOcc >= room.capacity ? 'Full' : 'Occupied'
+      });
 
       toast({ title: 'Check-in recorded and profile updated successfully' });
       setCiDialog(false);
@@ -312,6 +308,7 @@ export default function CheckInOut() {
     }
   }
 
+  // FIX: Symmetrical state removals implementing rule 5
   async function handleCheckOut() {
     if (!selectedStudent) {
       toast({ title: 'Please select a student to check-out', variant: 'destructive' });
@@ -331,6 +328,7 @@ export default function CheckInOut() {
     try {
       const room = rooms.find(r => r.id === selectedStudent.room_id);
 
+      // 1. Post CheckOut Record Log Entry
       const checkout = await base44.entities.CheckOut.create({
         student_id: selectedStudent.id,
         room_id: selectedStudent.room_id,
@@ -344,12 +342,14 @@ export default function CheckInOut() {
         block_name: selectedStudent.block_name || room?.block_name || ''
       });
 
+      // 2. Nullify Student allocation references completely
       await base44.entities.Student.update(selectedStudent.id, {
         block_name: '',
         room_number: '',
-        room_id: 'none'
+        room_id: 'none' // Set explicit empty string flag matching your base system configurations safely
       });
 
+      // 3. Decrement Room occupancy counts cleanly
       if (room) {
         const newOcc = Math.max(0, (room.current_occupancy || 0) - 1);
         await base44.entities.Room.update(room.id, {
@@ -357,14 +357,6 @@ export default function CheckInOut() {
           status: newOcc === 0 ? 'Available' : 'Occupied'
         });
       }
-
-      setStudents(prevStudents => 
-        prevStudents.map(s => 
-          s.id === selectedStudent.id 
-            ? { ...s, room_id: 'none', room_number: '', block_name: '' } 
-            : s
-        )
-      );
 
       setCoDialog(false);
       setPendingCheckout({ checkoutId: checkout.id, student: { ...selectedStudent, room_id: 'none', room_number: '', block_name: '' } });
@@ -497,11 +489,11 @@ export default function CheckInOut() {
             
             {/* Live Search Input */}
             <div className="relative">
-              <Label className="text-xs font-medium">Search Student / Staff ID *</Label>
+              <Label className="text-xs font-medium">Search Unassigned Student / Staff ID *</Label>
               <div className="relative mt-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Enter Student/Staff ID or Name..." 
+                  placeholder="Enter unassigned Student/Staff ID or Name..." 
                   value={studentSearch} 
                   onChange={(e) => {
                     setStudentSearch(e.target.value);
@@ -532,7 +524,7 @@ export default function CheckInOut() {
 
             {/* Selected Student Info Card */}
             {selectedStudent && (
-              <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 text-xs animate-in fade-in duration-200">
+              <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 text-xs">
                 <div className="flex items-center gap-2 font-medium text-foreground">
                   <User className="w-3.5 h-3.5 text-primary" />
                   <span>Name: {selectedStudent.full_name}</span>
@@ -541,33 +533,35 @@ export default function CheckInOut() {
                   <div>ID: <span className="text-foreground font-mono">{selectedStudent.student_id}</span></div>
                   <div>IC/Passport: <span className="text-foreground">{selectedStudent.ic_passport || 'N/A'}</span></div>
                   <div>Gender: <span className="text-foreground capitalize">{selectedStudent.gender || 'N/A'}</span></div>
-                  <div>Status: <span className={hasActiveRoom(selectedStudent) ? "text-amber-600 font-medium" : "text-emerald-600 font-medium"}>
-                    {hasActiveRoom(selectedStudent) ? `Occupying ${selectedStudent.room_number}` : 'No Active Room'}
-                  </span></div>
+                  <div>Status: <span className="text-emerald-600 font-medium">Clear for Assignment</span></div>
                 </div>
               </div>
             )}
 
-            {/* 1. SMART ROOM SUGGESTION SECTION */}
+            {/* SMART ROOM SUGGESTIONS */}
             {selectedStudent && (
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Smart Room Suggestions (Selectable Cards)</span>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                  <span>Available Room Vacancies</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {suggestRooms(rooms, selectedStudent).length === 0 ? (
-                    <p className="text-[11px] text-muted-foreground col-span-2 py-1">No vacant room suggestions fit gender configurations perfectly.</p>
+                    <p className="text-[11px] text-muted-foreground col-span-2 py-1">No vacant rooms fit current criteria configurations perfectly.</p>
                   ) : (
                     suggestRooms(rooms, selectedStudent).map((room) => {
                       const status = getRoomStatus(room);
                       const isSelected = ciForm.room_id === room.id;
+                      const currentOcc = room.current_occupancy || 0;
+                      const capacity = room.capacity || 4;
+                      const bedsAvailable = capacity - currentOcc;
+
                       return (
                         <Card 
                           key={room.id}
                           onClick={() => {
                             if (status !== 'Full') {
-                              if (validateRoomSelection(room, selectedStudent)) {
+                              if (validateRoomSelection(room, selectedStudent, true)) {
                                 setCiForm({ ...ciForm, room_id: room.id });
                                 const blockObj = availableBlocks.find(b => b === room.block_name);
                                 if (blockObj) setSelectedBlock(blockObj);
@@ -582,13 +576,17 @@ export default function CheckInOut() {
                                 <p className="text-xs font-bold font-mono">Room {room.room_number}</p>
                                 <p className="text-[10px] opacity-80">{room.block_name}</p>
                               </div>
-                              <Badge className={`text-[9px] px-1.5 py-0 rounded ${getStatusBadgeVariant(status)}`}>
+                              <Badge className={`text-[9px] px-1.5 py-0 rounded font-medium ${getStatusBadgeVariant(status)}`}>
                                 {status}
                               </Badge>
                             </div>
-                            <div className="text-[11px] font-medium flex justify-between items-center pt-1 border-t border-black/5">
-                              <span>Occupancy:</span>
-                              <strong>{room.current_occupancy || 0} / {room.capacity || 4}</strong>
+                            
+                            <div className="text-[11px] font-medium flex justify-between items-center pt-1.5 border-t border-black/5">
+                              <span className="flex items-center gap-1 text-[10px]">
+                                <Bed className="w-3 h-3" />
+                                {bedsAvailable} beds free
+                              </span>
+                              <strong className="font-mono">{currentOcc}/{capacity} Full</strong>
                             </div>
                           </CardContent>
                         </Card>
@@ -599,9 +597,9 @@ export default function CheckInOut() {
               </div>
             )}
 
-            {/* Step 1: Select Block */}
+            {/* Manual Assignment Options */}
             <div className="pt-2 border-t">
-              <Label className="text-xs font-medium">Select Block (Manual Filter) *</Label>
+              <Label className="text-xs font-medium">Select Block *</Label>
               <Select value={selectedBlock} onValueChange={(v) => { setSelectedBlock(v); setCiForm({ ...ciForm, room_id: '' }); }}>
                 <SelectTrigger className="h-9 text-sm mt-1">
                   <SelectValue placeholder="Choose a block first" />
@@ -614,14 +612,13 @@ export default function CheckInOut() {
               </Select>
             </div>
 
-            {/* Step 2: Select Room */}
             <div>
-              <Label className="text-xs font-medium">Room Assignment (Manual Selection & Validation) *</Label>
+              <Label className="text-xs font-medium">Room Assignment *</Label>
               <Select 
                 value={ciForm.room_id} 
                 onValueChange={(v) => {
                   const targetRoom = rooms.find(r => r.id === v);
-                  if (targetRoom && validateRoomSelection(targetRoom, selectedStudent)) {
+                  if (targetRoom && validateRoomSelection(targetRoom, selectedStudent, true)) {
                     setCiForm({ ...ciForm, room_id: v });
                   }
                 }}
@@ -633,17 +630,16 @@ export default function CheckInOut() {
                 <SelectContent>
                   {filteredRooms.map((r) => {
                     const status = getRoomStatus(r);
+                    const currentOcc = r.current_occupancy || 0;
+                    const capacity = r.capacity || 4;
                     return (
                       <SelectItem key={r.id} value={r.id} disabled={status === 'Full'}>
-                        Room {r.room_number} ({status} - {r.current_occupancy || 0}/{r.capacity || 4} slots)
+                        Room {r.room_number} ({status} — {currentOcc}/{capacity} Beds filled)
                       </SelectItem>
                     );
                   })}
                 </SelectContent>
               </Select>
-              {selectedBlock && filteredRooms.length === 0 && (
-                <p className="text-[11px] text-destructive mt-1">⚠️ No rooms registered inside this block context.</p>
-              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -686,11 +682,11 @@ export default function CheckInOut() {
             
             {/* Live Search Input */}
             <div className="relative">
-              <Label className="text-xs font-medium">Search Student / Staff ID *</Label>
+              <Label className="text-xs font-medium">Search Active Resident ID *</Label>
               <div className="relative mt-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Enter Student/Staff ID or Name..." 
+                  placeholder="Enter assigned Student/Staff ID or Name..." 
                   value={studentSearch} 
                   onChange={(e) => {
                     setStudentSearch(e.target.value);
@@ -733,17 +729,12 @@ export default function CheckInOut() {
                   </div>
                 </div>
 
-                {/* Read-Only Automatic Room Verification */}
                 <div className="p-3 bg-muted border border-border rounded-lg space-y-1 text-xs">
                   <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Current Room Assignment</Label>
-                  {hasActiveRoom(selectedStudent) ? (
-                    <div className="flex items-center gap-2 text-foreground font-medium mt-1">
-                      <Home className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Room: <strong className="text-amber-700">{selectedStudent.room_number}</strong> ({selectedStudent.block_name})</span>
-                    </div>
-                  ) : (
-                    <p className="text-destructive font-medium mt-1">⚠️ Error: This student does not have any active room assignment.</p>
-                  )}
+                  <div className="flex items-center gap-2 text-foreground font-medium mt-1">
+                    <Home className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Room: <strong className="text-amber-700">{selectedStudent.room_number || 'Assigned'}</strong> ({selectedStudent.block_name})</span>
+                  </div>
                 </div>
               </div>
             )}
@@ -782,13 +773,7 @@ export default function CheckInOut() {
           </div>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" size="sm" onClick={() => setCoDialog(false)}>Cancel</Button>
-            <Button 
-              size="sm" 
-              onClick={handleCheckOut} 
-              disabled={!selectedStudent || !hasActiveRoom(selectedStudent)}
-            >
-              Record Check Out
-            </Button>
+            <Button size="sm" onClick={handleCheckOut} disabled={!selectedStudent || !hasActiveRoom(selectedStudent)}>Record Check Out</Button>
           </div>
         </DialogContent>
       </Dialog>
