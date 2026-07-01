@@ -52,19 +52,40 @@ export default function CheckInOut() {
     load();
   }, []);
 
-  // Handle live search filtering as user types
+  // Update selectedStudent state automatically when students array refreshes from API
+  useEffect(() => {
+    if (selectedStudent && students.length > 0) {
+      const updatedData = students.find(s => s.id === selectedStudent.id);
+      if (updatedData) {
+        setSelectedStudent(updatedData);
+      }
+    }
+  }, [students]);
+
+  // Handle live search filtering as user types with specific dialog contexts
   useEffect(() => {
     if (!studentSearch.trim()) {
       setFilteredStudents([]);
       return;
     }
     const query = studentSearch.toLowerCase().trim();
-    const filtered = students.filter(s => 
+    
+    let baseFiltered = students.filter(s => 
       s.student_id?.toLowerCase().includes(query) || 
       s.full_name?.toLowerCase().includes(query)
     );
-    setFilteredStudents(filtered);
-  }, [studentSearch, students]);
+
+    // Apply strict filters based on which dialog workflow is currently active
+    if (ciDialog) {
+      // Check-In: Only show students who DO NOT have an active room assignment
+      baseFiltered = baseFiltered.filter(s => !s.room_id || String(s.room_id).trim() === '');
+    } else if (coDialog) {
+      // Check-Out: Only show students who CURRENTLY HAVE an active room assignment
+      baseFiltered = baseFiltered.filter(s => s.room_id && String(s.room_id).trim() !== '');
+    }
+
+    setFilteredStudents(baseFiltered);
+  }, [studentSearch, students, ciDialog, coDialog]);
 
   // Extract unique blocks from rooms list
   useEffect(() => {
@@ -89,7 +110,6 @@ export default function CheckInOut() {
   }, [selectedBlock, rooms]);
 
   async function load() {
-    setLoading(true);
     try {
       const [ci, co, s, r] = await Promise.all([
         base44.entities.CheckIn.list('-created_date'),
@@ -167,7 +187,7 @@ export default function CheckInOut() {
 
       toast({ title: 'Check-in recorded and profile updated successfully' });
       setCiDialog(false);
-      load();
+      await load();
     } catch (err) {
       console.error(err);
       toast({ title: 'Error recording check-in', description: err.message, variant: 'destructive' });
@@ -233,7 +253,7 @@ export default function CheckInOut() {
     setShowSurvey(false);
     setPendingCheckout(null);
     toast({ title: 'Check-out recorded successfully' });
-    load();
+    await load();
   }
 
   if (loading) {
