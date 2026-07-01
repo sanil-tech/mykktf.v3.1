@@ -34,24 +34,23 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // States untuk pilihan Blok & Bilik
-  const [blocks, setBlocks] = useState([]);
-  const [rooms, setRooms] = useState([]);
-
-  // Form State
+  // Form State mengikut keperluan field entiti Student asal anda
   const [form, setForm] = useState({
     full_name: '',
     student_id: '',
     ic_passport: '',
     gender: 'Male',
+    date_of_birth: '',
     phone: '',
     faculty: '',
     programme: '',
     year_of_study: 1,
-    block_name: '',
-    block_id: '',
-    room_number: '',
-    room_id: '',
+    parent_name: '',
+    parent_phone: '',
+    emergency_contact: '',
+    vehicle_reg: '',
+    block_name: '', // Kekal kosong untuk tugasan Admin kemudian
+    room_number: '', // Kekal kosong untuk tugasan Admin kemudian
   });
 
   useEffect(() => {
@@ -61,14 +60,14 @@ export default function Dashboard() {
         const user = await base44.auth.me();
         setCurrentUser(user);
 
-        // Langkau sekatan jika pengguna ialah Warden, Jakmas atau Admin tegar
+        // Jika staf pengurusan kolej, lepaskan terus ke dashboard masing-masing
         if (user?.role === 'warden' || user?.role === 'jakmas' || user?.role === 'super_admin' || user?.role === 'college_admin') {
-          setHasStudentProfile(true); // Benarkan mereka lepas terus ke dashboard masing-masing
+          setHasStudentProfile(true);
           setLoading(false);
           return;
         }
 
-        // Cari profil pelajar dalam entiti Student secara agresif
+        // Semak kewujudan profile secara agresif di entiti Student
         let studs = [];
         if (user?.id) {
           studs = await base44.entities.Student.filter({ user_id: user.id });
@@ -77,19 +76,11 @@ export default function Dashboard() {
           studs = await base44.entities.Student.filter({ email: user.email });
         }
         
-        // Memastikan rekod yang dijumpai mempunyai data sah (bukan rekod kosong)
+        // Lepas ke dashboard utama pelajar jika data profil student_id sudah sedia wujud
         if (studs.length > 0 && studs[0]?.student_id) {
           setHasStudentProfile(true);
         } else {
           setHasStudentProfile(false);
-          // Ambil data blok & bilik daripada pangkalan data
-          const [b, r] = await Promise.all([
-            base44.entities.Block.list().catch(() => []),
-            base44.entities.Room.list().catch(() => []),
-          ]);
-          setBlocks(b);
-          setRooms(r);
-          
           setForm(prev => ({
             ...prev,
             full_name: user?.full_name || '',
@@ -97,8 +88,8 @@ export default function Dashboard() {
           }));
         }
       } catch (err) {
-        console.error("Gagal memuatkan sistem dashboard:", err);
-      } finally {
+        console.error("Gagal memuatkan peranan:", err);
+      } finaly {
         setLoading(false);
       }
     }
@@ -108,32 +99,29 @@ export default function Dashboard() {
   const handleCompleteProfile = async (e) => {
     e.preventDefault();
     
-    if (!form.full_name.trim() || !form.student_id.trim() || !form.phone.trim() || !form.block_id || !form.room_id) {
-      toast({ title: "Maklumat Tidak Lengkap", description: "Sila isikan Nama, No. Matrik, No. Telefon serta pilihan Blok & Bilik.", variant: "destructive" });
+    // Validasi Mandatori (Nama, No. Matrik, No. Telefon, Maklumat Waris)
+    if (!form.full_name.trim() || !form.student_id.trim() || !form.phone.trim() || !form.parent_name.trim() || !form.parent_phone.trim()) {
+      toast({ 
+        title: "Maklumat Tidak Lengkap", 
+        description: "Sila isi sekurang-kurangnya Nama Penuh, No. Matrik, No. Telefon Pelajar, serta Nama & Telefon Ibu Bapa/Penjaga.", 
+        variant: "destructive" 
+      });
       return;
     }
 
     setSubmitting(true);
     try {
-      // 1. Cipta rekod Student baru
+      // Cipta profil pelajar baru dalam pangkalan data
       await base44.entities.Student.create({ 
         ...form, 
         user_id: currentUser.id,
         email: currentUser.email
       });
 
-      // 2. Kemaskini jumlah occupancy bilik
-      const selectedRoom = rooms.find(r => r.id === form.room_id);
-      if (selectedRoom) {
-        const newOcc = (selectedRoom.current_occupancy || 0) + 1;
-        const newStatus = newOcc >= selectedRoom.capacity ? 'Full' : 'Occupied';
-        await base44.entities.Room.update(form.room_id, { current_occupancy: newOcc, status: newStatus });
-      }
-
-      toast({ title: "Pendaftaran Berjaya", description: "Profil kediaman anda telah diaktifkan!" });
+      toast({ title: "Profil Berjaya Disimpan", description: "Pendaftaran awal selesai. Pentadbir akan menugaskan blok bilik anda tidak lama lagi." });
       window.location.reload(); 
     } catch (err) {
-      toast({ title: "Gagal Mendaftar", description: err.message, variant: "destructive" });
+      toast({ title: "Gagal Mengaktifkan Profil", description: err.message, variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
@@ -144,27 +132,28 @@ export default function Dashboard() {
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Memuatkan peranan portal...</p>
+          <p className="text-sm text-muted-foreground">Mengesahkan sesi kediaman...</p>
         </div>
       </div>
     );
   }
 
   // ====================================================================
-  // 🎯 VERIFIKASI UTAMA: JIKA TIADA PROFIL STUDENT, PAKSA ISI BORANG INI
+  // 🎯 SKRIN LENGKAPKAN PROFIL BARU (TIADA BLOK & BILIK)
   // ====================================================================
   if (!hasStudentProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-background">
         <div className="max-w-xl w-full space-y-6 bg-card p-8 rounded-xl border shadow-sm my-8">
           <div className="text-center space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">Pendaftaran Kediaman (KKMS) 👋</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Profil Pelajar Baru 👋</h1>
             <p className="text-muted-foreground text-sm">
-              Akaun anda dikesan belum mempunyai rekod bilik. Sila sahkan profil pelajar anda untuk mengaktifkan dashboard utama.
+              Sila isikan maklumat peribadi, akademik, dan kecemasan anda di bawah untuk mengaktifkan akaun portal KKMS.
             </p>
           </div>
 
           <form onSubmit={handleCompleteProfile} className="space-y-4">
+            
             {/* Bahagian 1: Profil Peribadi */}
             <div className="space-y-3">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b pb-1">Maklumat Peribadi</h3>
@@ -174,7 +163,7 @@ export default function Dashboard() {
                   <Input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} className="h-9 mt-1" disabled={submitting} />
                 </div>
                 <div>
-                  <Label className="text-xs">No. Matrik / ID Pelajar *</Label>
+                  <Label className="text-xs">No. Matrik Pelajar *</Label>
                   <Input placeholder="Contoh: BI21110043" value={form.student_id} onChange={e => setForm({ ...form, student_id: e.target.value })} className="h-9 mt-1" disabled={submitting} />
                 </div>
                 <div>
@@ -194,6 +183,10 @@ export default function Dashboard() {
                       <SelectItem value="Female">Female</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Tarikh Lahir</Label>
+                  <Input type="date" value={form.date_of_birth} onChange={e => setForm({ ...form, date_of_birth: e.target.value })} className="h-9 mt-1" disabled={submitting} />
                 </div>
               </div>
             </div>
@@ -229,55 +222,27 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Bahagian 3: Pilihan Bilik */}
+            {/* Bahagian 3: Waris & Kecemasan */}
             <div className="space-y-3 pt-2">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b pb-1">Kemasukan Bilik Kolej *</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b pb-1">Maklumat Kecemasan & Kenderaan</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs">Blok Kediaman</Label>
-                  <Select value={form.block_name} onValueChange={v => {
-                    const block = blocks.find(b => b.block_name === v);
-                    setForm({ ...form, block_name: v, block_id: block?.id || '', room_number: '', room_id: '' });
-                  }} disabled={submitting}>
-                    <SelectTrigger className="h-9 mt-1"><SelectValue placeholder="Pilih Blok" /></SelectTrigger>
-                    <SelectContent>
-                      {blocks.map(b => <SelectItem key={b.id} value={b.block_name}>{b.block_name} ({b.gender_restriction})</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-xs">Nama Ibu Bapa / Penjaga *</Label>
+                  <Input value={form.parent_name} onChange={e => setForm({ ...form, parent_name: e.target.value })} className="h-9 mt-1" disabled={submitting} />
                 </div>
                 <div>
-                  <Label className="text-xs">Nombor Bilik</Label>
-                  <Select value={form.room_number} onValueChange={v => {
-                    const room = rooms.find(r => r.room_number === v && r.block_name === form.block_name);
-                    setForm({ ...form, room_number: v, room_id: room?.id || '' });
-                  }} disabled={!form.block_name || submitting}>
-                    <SelectTrigger className="h-9 mt-1"><SelectValue placeholder="Pilih Bilik" /></SelectTrigger>
-                    <SelectContent>
-                      {rooms.filter(r => r.block_name === form.block_name && r.status !== 'Maintenance').map(r => (
-                        <SelectItem key={r.id} value={r.room_number}>{r.room_number} ({r.room_type}, {r.current_occupancy}/{r.capacity})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-xs">No. Telefon Ibu Bapa / Penjaga *</Label>
+                  <Input placeholder="Contoh: 0134567890" value={form.parent_phone} onChange={e => setForm({ ...form, parent_phone: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                </div>
+                <div>
+                  <Label className="text-xs">Hubungan / Kontak Kecemasan Lain</Label>
+                  <Input placeholder="Contoh: Pakcik / Kakak" value={form.emergency_contact} onChange={e => setForm({ ...form, emergency_contact: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                </div>
+                <div>
+                  <Label className="text-xs">No. Pendaftaran Kenderaan (Jika Ada)</Label>
+                  <Input placeholder="Contoh: SAB 1234 X (Optional)" value={form.vehicle_reg} onChange={e => setForm({ ...form, vehicle_reg: e.target.value })} className="h-9 mt-1" disabled={submitting} />
                 </div>
               </div>
             </div>
 
-            <Button type="submit" className="w-full h-11 mt-4" disabled={submitting}>
-              {submitting ? "Mengaktifkan Akaun Pelajar..." : "Sahkan Profil & Ambil Bilik"}
-            </Button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  // ====================================================================
-  // 🛡️ DASHBOARD PERANAN UTAMA (Hanya jika profil Student wujud / Staff Sah)
-  // ====================================================================
-  if (currentUser?.role === 'warden') return <WardenDashboard user={currentUser} />;
-  if (currentUser?.role === 'jakmas') return <JakmasDashboard user={currentUser} />;
-  if (currentUser?.role === 'student') return <StudentDashboard user={currentUser} />;
-  
-  // Jika tiada role sepadan tetapi ia lepas sekatan profil di atas, paparkan AdminDashboard
-  return <AdminDashboard user={currentUser} />;
-}
+            <Button type="
