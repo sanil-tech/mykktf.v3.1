@@ -104,7 +104,6 @@ export default function Rooms() {
 
   // --- 🛑 SECURE CRUD OPERATIONS WITH BACKEND ROLE VALIDATION GUARDS ---
   async function handleCreateRoom() {
-    // Security Guard Check
     if (!['super_admin', 'college_admin'].includes(currentUser.role)) {
       toast({ title: 'Access Denied', description: 'Your role does not possess permissions to register new rooms.', variant: 'destructive' });
       return;
@@ -135,16 +134,9 @@ export default function Rooms() {
   }
 
   async function handleUpdateRoom() {
-    // Security Guard Check
     if (!permissions.canEditRoom) {
       toast({ title: 'Access Denied', description: 'Your current account status does not authorize room alterations.', variant: 'destructive' });
       return;
-    }
-
-    // College Admin Jurisdiction Cross-Check Guard
-    if (currentUser.role === 'college_admin' && selectedRoomForEdit?.block_name !== currentUser.college) {
-      // Example of structural context enforcement restriction
-      console.warn(`User tracking limit: Admin restricted to ${currentUser.college}`);
     }
 
     if (!form.reason_for_correction.trim()) {
@@ -177,39 +169,36 @@ export default function Rooms() {
         toast({ title: 'No changes detected', description: 'The configuration values match existing storage.' });
         setOpenDialog(false);
         return;
-    }
+      }
 
-    // Constructing exact Audit Payload specification
-    const auditLogEntry = {
-      room_number: form.room_number,
-      block: form.block_name,
-      user_name: currentUser.name,
-      user_role: currentUser.role,
-      timestamp: new Date().toLocaleString(),
-      changes: updatedFields,
-      reason: form.reason_for_correction
-    };
+      const auditLogEntry = {
+        room_number: form.room_number,
+        block: form.block_name,
+        user_name: currentUser.name,
+        user_role: currentUser.role,
+        timestamp: new Date().toLocaleString(),
+        changes: updatedFields,
+        reason: form.reason_for_correction
+      };
 
-    // 🚀 EXECUTE LIVE SERVICE UPDATES
-    await base44.entities.Room.update(selectedRoomForEdit.id, {
-      room_number: permissions.canModifyRoomNumber ? form.room_number : oldRoom.room_number,
-      block_name: permissions.canModifyBlockLocation ? form.block_name : oldRoom.block_name,
-      capacity: permissions.canModifyCapacityAndGender ? Number(form.capacity) : Number(oldRoom.capacity),
-      gender_restriction: permissions.canModifyCapacityAndGender ? form.gender_restriction : oldRoom.gender_restriction,
-      status: permissions.canModifyStatus ? form.status : oldRoom.status
-    });
+      await base44.entities.Room.update(selectedRoomForEdit.id, {
+        room_number: permissions.canModifyRoomNumber ? form.room_number : oldRoom.room_number,
+        block_name: permissions.canModifyBlockLocation ? form.block_name : oldRoom.block_name,
+        capacity: permissions.canModifyCapacityAndGender ? Number(form.capacity) : Number(oldRoom.capacity),
+        gender_restriction: permissions.canModifyCapacityAndGender ? form.gender_restriction : oldRoom.gender_restriction,
+        status: permissions.canModifyStatus ? form.status : oldRoom.status
+      });
 
-    // Write log entry downstream directly into client storage/console pipeline
-    console.log('--- 📑 SYSTEM CORRECTION AUDIT LOG ENTRY GENERATED ---', auditLogEntry);
-    
-    toast({ 
-      title: 'Correction Processed Successfully', 
-      description: `Audit Log captured for fields: ${updatedFields.map(f => f.field).join(', ')}` 
-    });
+      console.log('--- 📑 SYSTEM CORRECTION AUDIT LOG ENTRY GENERATED ---', auditLogEntry);
+      
+      toast({ 
+        title: 'Correction Processed Successfully', 
+        description: `Audit Log captured for fields: ${updatedFields.map(f => f.field).join(', ')}` 
+      });
 
-    setOpenDialog(false);
-    resetForm();
-    loadData();
+      setOpenDialog(false);
+      resetForm();
+      loadData();
     } catch (err) {
       console.error(err);
       toast({ title: 'Failed to apply modifications', description: err.message, variant: 'destructive' });
@@ -217,7 +206,6 @@ export default function Rooms() {
   }
 
   async function handleDeleteRoom(roomId) {
-    // Strict Exclusive Super Admin Guard Protection Layer
     if (!permissions.canDeleteRoom) {
       toast({ title: 'Operation Forbidden', description: 'Only a System Super Admin can delete room allocations.', variant: 'destructive' });
       return;
@@ -294,7 +282,7 @@ export default function Rooms() {
       capacity: room.capacity || 4,
       gender_restriction: room.gender_restriction || room.gender || 'female',
       status: room.status || 'Available',
-      reason_for_correction: '' // Reset the required text field
+      reason_for_correction: ''
     });
     setOpenDialog(true);
   };
@@ -311,7 +299,7 @@ export default function Rooms() {
     });
   };
 
-  // Memoized Entity Array Collectors
+  // Memoized Options Dropdowns
   const uniqueBlocks = useMemo(() => {
     return ['all', ...new Set(rooms.map(r => r.block_name).filter(Boolean))].sort();
   }, [rooms]);
@@ -325,6 +313,7 @@ export default function Rooms() {
     return ['all', ...new Set(floors)].sort((a, b) => Number(a) - Number(b));
   }, [rooms]);
 
+  // --- ⚡ O(N) HIGH PERFORMANCE MULTI-FILTER PROCESSING PIPELINE ---
   const filteredRooms = useMemo(() => {
     return rooms.filter(room => {
       const capacity = room.capacity || 4;
@@ -336,6 +325,7 @@ export default function Rooms() {
         ? String(room.floor) 
         : (String(room.room_number).match(/\d/)?.[0] || '');
 
+      // 1. Search Query Input Box
       if (searchQuery.trim() !== '') {
         const query = searchQuery.toLowerCase();
         const matchesSearch = room.room_number?.toLowerCase().includes(query) ||
@@ -343,19 +333,32 @@ export default function Rooms() {
         if (!matchesSearch) return false;
       }
 
+      // 2. Gender Restriction Filter (⚠️ FIXED: Substring Matching Integration)
       const normalizedGender = (room.gender_restriction || room.gender || 'mixed').toLowerCase().trim();
-      if (genderFilter !== 'all' && normalizedGender !== genderFilter.toLowerCase()) return false;
+      if (genderFilter !== 'all') {
+        if (!normalizedGender.includes(genderFilter.toLowerCase())) return false;
+      }
+
+      // 3. Status Filter
       if (statusFilter !== 'all' && calculatedStatus !== statusFilter) return false;
+
+      // 4. Block Filter
       if (blockFilter !== 'all' && room.block_name !== blockFilter) return false;
+
+      // 5. Floor Filter
       if (floorFilter !== 'all' && inferredFloor !== floorFilter) return false;
+
+      // 6. Room Type Filter
       if (typeFilter !== 'all' && calculatedType !== typeFilter) return false;
 
+      // 7. Occupancy State Filter
       if (occupancyFilter !== 'all') {
         if (occupancyFilter === 'Empty' && occupied !== 0) return false;
         if (occupancyFilter === 'Partially' && (occupied === 0 || occupied >= capacity)) return false;
         if (occupancyFilter === 'Fully' && occupied !== capacity) return false;
       }
 
+      // 8. Backward Route Deep-links Integration Params
       if (statusParam === 'Available' && calculatedStatus !== 'Available') return false;
       if (statusParam === 'Occupied' && occupied === 0) return false;
       if (filterParam === 'has-empty-beds' && (capacity - occupied <= 0)) return false;
@@ -375,7 +378,7 @@ export default function Rooms() {
     return counts;
   }, [filteredRooms]);
 
-  // --- ⛔ SECURITY EXCLUSION BOUNDARY FOR UNAUTHORIZED ROLE (STUDENT) ---
+  // --- ⛔ SECURITY BREAKOUT: STUDENT BOUNDARY SHIELD ---
   if (!permissions.canViewModule) {
     return (
       <div className="flex items-center justify-center min-h-[400px] p-4 text-center">
@@ -588,7 +591,7 @@ export default function Rooms() {
         </CardContent>
       </Card>
 
-      {/* RENDER MODES */}
+      {/* RENDER VIEW SCHEMES */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
@@ -597,7 +600,7 @@ export default function Rooms() {
         <EmptyState icon={Home} title="No room registrations found matching layout filters" />
       ) : viewMode === 'grid' ? (
         
-        /* 🎴 GRID DISPLAY CARD VARIANT */
+        /* 🎴 GRID DISPLAY CARD ARCHITECTURE */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredRooms.map((room) => {
             const capacity = room.capacity || 4;
@@ -612,7 +615,7 @@ export default function Rooms() {
               <Card key={room.id} className="overflow-hidden border border-border hover:shadow-sm transition-all flex flex-col justify-between relative group">
                 <CardContent className="p-4 space-y-3 flex-1">
                   
-                  {/* Action Layer for Edit/Purge Management */}
+                  {/* Action Layer Context Trigger UI */}
                   <div className="absolute top-2 right-2 flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-background/80 backdrop-blur-xs p-0.5 rounded-md border shadow-2xs">
                     {permissions.canEditRoom ? (
                       <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => openEditMode(room)}>
@@ -657,8 +660,8 @@ export default function Rooms() {
                         {currentStatus === 'Maintenance' ? 'Locked' : `${bedsAvailable} left`}
                       </span>
                     </span>
-                    <Badge className={`text-[9px] px-1.5 py-0 border-0 font-medium uppercase ${genderTag === 'male' ? 'bg-blue-600' : genderTag === 'female' ? 'bg-pink-600' : 'bg-purple-600'}`}>
-                      {genderTag === 'male' ? 'Male Only' : genderTag === 'female' ? 'Female Only' : 'Mixed Restriction'}
+                    <Badge className={`text-[9px] px-1.5 py-0 border-0 font-medium uppercase ${genderTag.includes('male') ? 'bg-blue-600' : genderTag.includes('female') ? 'bg-pink-600' : 'bg-purple-600'}`}>
+                      {genderTag.includes('male') ? 'Male Only' : genderTag.includes('female') ? 'Female Only' : 'Mixed Layout'}
                     </Badge>
                   </div>
 
@@ -694,7 +697,7 @@ export default function Rooms() {
         </div>
       ) : (
         
-        /* 📋 TABLE STRUCTURE ROW VARIANT */
+        /* 📋 COMPACT DATA-TABLE ROWS SCHEMA */
         <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -723,8 +726,8 @@ export default function Rooms() {
                         <td className="px-4 py-3 font-mono font-bold text-foreground">Room {room.room_number}</td>
                         <td className="px-4 py-3 text-muted-foreground">Block {room.block_name}</td>
                         <td className="px-4 py-3">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${genderTag === 'male' ? 'bg-blue-50 text-blue-700' : genderTag === 'female' ? 'bg-pink-50 text-pink-700' : 'bg-purple-50 text-purple-700'}`}>
-                            {genderTag === 'male' ? '👨 Male' : genderTag === 'female' ? '👩 Female' : '🚻 Mixed'}
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${genderTag.includes('male') ? 'bg-blue-50 text-blue-700' : genderTag.includes('female') ? 'bg-pink-50 text-pink-700' : 'bg-purple-50 text-purple-700'}`}>
+                            {genderTag.includes('male') ? '👨 Male' : genderTag.includes('female') ? '👩 Female' : '🚻 Mixed'}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -781,7 +784,7 @@ export default function Rooms() {
         </div>
       )}
 
-      {/* 📑 REGISTER / CORRECTION MASTER EDIT DIALOG */}
+      {/* 📑 REGISTER / CORRECTION MASTER DIALOG WINDOW */}
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -796,8 +799,6 @@ export default function Rooms() {
           </DialogHeader>
 
           <div className="space-y-3.5 py-1">
-            
-            {/* Context Warn Banner */}
             {dialogMode === 'edit' && (
               <div className="bg-blue-50 border border-blue-200 text-blue-950 p-2.5 rounded-md flex gap-2 items-start text-xs leading-normal">
                 <ShieldAlert className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
@@ -877,7 +878,7 @@ export default function Rooms() {
               </Select>
             </div>
 
-            {/* 📑 MANDATORY CORRECTION AUDIT REQUIREMENT SECTION */}
+            {/* 📑 MANDATORY AUDIT INPUT FIELD */}
             {dialogMode === 'edit' && (
               <div className="pt-2 border-t space-y-1.5">
                 <Label className="text-xs font-bold text-foreground flex items-center gap-1">
@@ -887,7 +888,7 @@ export default function Rooms() {
                   placeholder="e.g., Incorrect room capacity entered during structural registration."
                   value={form.reason_for_correction}
                   onChange={(e) => setForm({ ...form, reason_for_correction: e.target.value })}
-                  className={`h-9 border-amber-300 focus-visible:ring-amber-500 bg-amber-50/20 text-xs`}
+                  className="h-9 border-amber-300 focus-visible:ring-amber-500 bg-amber-50/20 text-xs"
                 />
               </div>
             )}
