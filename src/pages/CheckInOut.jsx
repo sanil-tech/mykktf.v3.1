@@ -24,7 +24,7 @@ export default function CheckInOut() {
   const [pendingCheckout, setPendingCheckout] = useState(null); 
   const [showSurvey, setShowSurvey] = useState(false);
   
-  // State Carian Pelajar
+  // State Carian Student / Staff ID
   const [ciSearchQuery, setCiSearchQuery] = useState('');
   const [coSearchQuery, setCoSearchQuery] = useState('');
   
@@ -48,11 +48,11 @@ export default function CheckInOut() {
     setLoading(false);
   }
 
-  // Cari butiran pelajar padan secara automatik berdasarkan input No Matrik
+  // Cari butiran pelajar padan secara automatik berdasarkan input Student / Staff ID
   const matchedCiStudent = students.find(s => s.student_id?.toLowerCase() === ciSearchQuery.trim().toLowerCase());
   const matchedCoStudent = students.find(s => s.student_id?.toLowerCase() === coSearchQuery.trim().toLowerCase());
 
-  // Kemas kini borang secara automatik jika pelajar dijumpai
+  // Kemas kini borang secara automatik jika ID dijumpai
   useEffect(() => {
     if (matchedCiStudent) {
       setCiForm(prev => ({ ...prev, student_id: matchedCiStudent.id }));
@@ -64,7 +64,6 @@ export default function CheckInOut() {
   useEffect(() => {
     if (matchedCoStudent) {
       setCoForm(prev => ({ ...prev, student_id: matchedCoStudent.id }));
-      // Cuba pra-isi bilik asal jika maklumat tersebut wujud pada profil student
       if (matchedCoStudent.room_id) {
         setCoForm(prev => ({ ...prev, room_id: matchedCoStudent.room_id }));
       }
@@ -75,7 +74,7 @@ export default function CheckInOut() {
 
   async function handleCheckIn() {
     if (!ciForm.student_id || !ciForm.room_id || !ciForm.check_in_date) { 
-      toast({ title: 'Sila isi ruangan mandatori dan pastikan pelajar dijumpai', variant: 'destructive' }); 
+      toast({ title: 'Sila isi ruangan mandatori dan pastikan ID dijumpai', variant: 'destructive' }); 
       return; 
     }
     
@@ -125,7 +124,7 @@ export default function CheckInOut() {
 
   async function handleCheckOut() {
     if (!coForm.student_id || !coForm.room_id || !coForm.check_out_date) { 
-      toast({ title: 'Sila isi ruangan mandatori dan pastikan pelajar dijumpai', variant: 'destructive' }); 
+      toast({ title: 'Sila isi ruangan mandatori dan pastikan ID dijumpai', variant: 'destructive' }); 
       return; 
     }
     
@@ -140,7 +139,6 @@ export default function CheckInOut() {
         block_name: room?.block_name || '' 
       });
 
-      // Padam maklumat asrama pada profil pelajar selepas check-out
       if (student) {
         await base44.entities.Student.update(student.id, {
           block_name: '',
@@ -197,7 +195,7 @@ export default function CheckInOut() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b bg-muted/50">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Student</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Resident</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Room</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden sm:table-cell">Block</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Date</th>
@@ -224,7 +222,7 @@ export default function CheckInOut() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b bg-muted/50">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Student</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Resident</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Room</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Date</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden sm:table-cell">Condition</th>
@@ -250,13 +248,13 @@ export default function CheckInOut() {
           <DialogHeader><DialogTitle>Check In Resident</DialogTitle></DialogHeader>
           <div className="space-y-4 mt-2">
             
-            {/* Carian No Matrik */}
+            {/* Carian Student / Staff ID */}
             <div className="space-y-1">
-              <Label className="text-xs font-medium">Carian No. Matrik Pelajar *</Label>
+              <Label className="text-xs font-medium">Carian Student / Staff ID *</Label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Masukkan No Matrik (Contoh: BI21110043)" 
+                  placeholder="Masukkan Student / Staff ID" 
                   value={ciSearchQuery} 
                   onChange={e => setCiSearchQuery(e.target.value)} 
                   className="pl-9 h-9 text-sm"
@@ -264,7 +262,7 @@ export default function CheckInOut() {
               </div>
             </div>
 
-            {/* Kad Butiran Pelajar (Akan keluar automatik jika dijumpai) */}
+            {/* Kad Butiran Pelajar */}
             {matchedCiStudent ? (
               <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 text-sm animate-in fade-in-50 duration-200">
                 <div className="flex items-center gap-2 text-foreground font-medium">
@@ -277,7 +275,7 @@ export default function CheckInOut() {
                 </div>
               </div>
             ) : ciSearchQuery.trim() !== '' && (
-              <p className="text-xs text-destructive">Pelajar tidak dijumpai. Sila pastikan No. Matrik tepat.</p>
+              <p className="text-xs text-destructive">Pengguna tidak dijumpai. Sila pastikan Student / Staff ID tepat.</p>
             )}
 
             <div><Label className="text-xs">Room *</Label>
@@ -314,13 +312,13 @@ export default function CheckInOut() {
           <DialogHeader><DialogTitle>Check Out Resident</DialogTitle></DialogHeader>
           <div className="space-y-4 mt-2">
             
-            {/* Carian No Matrik */}
+            {/* Carian Student / Staff ID */}
             <div className="space-y-1">
-              <Label className="text-xs font-medium">Carian No. Matrik Pelajar *</Label>
+              <Label className="text-xs font-medium">Carian Student / Staff ID *</Label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Masukkan No Matrik (Contoh: BI21110043)" 
+                  placeholder="Masukkan Student / Staff ID" 
                   value={coSearchQuery} 
                   onChange={e => setCoSearchQuery(e.target.value)} 
                   className="pl-9 h-9 text-sm"
@@ -328,7 +326,7 @@ export default function CheckInOut() {
               </div>
             </div>
 
-            {/* Kad Butiran Pelajar untuk Check-Out */}
+            {/* Kad Butiran Pelajar */}
             {matchedCoStudent ? (
               <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-2 text-sm">
                 <div className="flex items-center gap-2 text-foreground font-medium">
@@ -346,7 +344,7 @@ export default function CheckInOut() {
                 )}
               </div>
             ) : coSearchQuery.trim() !== '' && (
-              <p className="text-xs text-destructive">Pelajar tidak dijumpai. Sila pastikan No. Matrik tepat.</p>
+              <p className="text-xs text-destructive">Pengguna tidak dijumpai. Sila pastikan Student / Staff ID tepat.</p>
             )}
 
             <div><Label className="text-xs">Room *</Label>
