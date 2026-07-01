@@ -49,8 +49,8 @@ export default function Dashboard() {
     parent_phone: '',
     emergency_contact: '',
     vehicle_reg: '',
-    block_name: '', // Kekal kosong untuk tugasan Admin kemudian
-    room_number: '', // Kekal kosong untuk tugasan Admin kemudian
+    block_name: '', 
+    room_number: '', 
   });
 
   useEffect(() => {
@@ -61,9 +61,13 @@ export default function Dashboard() {
         setCurrentUser(user);
 
         // Jika staf pengurusan kolej, lepaskan terus ke dashboard masing-masing
-        if (user?.role === 'warden' || user?.role === 'jakmas' || user?.role === 'super_admin' || user?.role === 'college_admin') {
+        if (
+          user?.role === 'warden' || 
+          user?.role === 'jakmas' || 
+          user?.role === 'super_admin' || 
+          user?.role === 'college_admin'
+        ) {
           setHasStudentProfile(true);
-          setLoading(false);
           return;
         }
 
@@ -93,6 +97,7 @@ export default function Dashboard() {
         setLoading(false);
       }
     }
+
     initDashboard();
   }, []);
 
