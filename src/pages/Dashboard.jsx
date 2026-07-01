@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, ClipboardCheck, MapPin, Info, ArrowRight } from "lucide-react";
 
 const UMS_FACULTIES = [
   'Faculty of Business, Economics and Accountancy (FPEP)',
@@ -31,10 +31,10 @@ const UMS_FACULTIES = [
 export default function Dashboard() {
   const [currentUser, setCurrentUser] = useState(null);
   const [hasStudentProfile, setHasStudentProfile] = useState(false);
+  const [isRoomAssigned, setIsRoomAssigned] = useState(false); // State baharu untuk semak bilik
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Form State mengikut keperluan field entiti Student asal anda
   const [form, setForm] = useState({
     full_name: '',
     student_id: '',
@@ -49,8 +49,8 @@ export default function Dashboard() {
     parent_phone: '',
     emergency_contact: '',
     vehicle_reg: '',
-    block_name: '', // Kekal kosong untuk tugasan Admin kemudian
-    room_number: '', // Kekal kosong untuk tugasan Admin kemudian
+    block_name: '', 
+    room_number: '', 
   });
 
   useEffect(() => {
@@ -68,10 +68,11 @@ export default function Dashboard() {
           user?.role === 'college_admin'
         ) {
           setHasStudentProfile(true);
+          setIsRoomAssigned(true); // Lepas sekatan bilik untuk admin/warden
           return;
         }
 
-        // Semak kewujudan profile secara agresif di entiti Student
+        // Semak kewujudan profile di entiti Student
         let studs = [];
         if (user?.id) {
           studs = await base44.entities.Student.filter({ user_id: user.id });
@@ -80,9 +81,15 @@ export default function Dashboard() {
           studs = await base44.entities.Student.filter({ email: user.email });
         }
         
-        // Lepas ke dashboard utama pelajar jika data profil student_id sudah sedia wujud
         if (studs.length > 0 && studs[0]?.student_id) {
           setHasStudentProfile(true);
+          
+          // Sahkan sama ada Admin sudah assign Blok & Bilik atau belum
+          if (studs[0]?.block_name && studs[0]?.room_number) {
+            setIsRoomAssigned(true);
+          } else {
+            setIsRoomAssigned(false);
+          }
         } else {
           setHasStudentProfile(false);
           setForm(prev => ({
@@ -104,7 +111,6 @@ export default function Dashboard() {
   const handleCompleteProfile = async (e) => {
     e.preventDefault();
     
-    // Validasi Mandatori (Nama, No. Matrik, No. Telefon, Maklumat Waris)
     if (!form.full_name.trim() || !form.student_id.trim() || !form.phone.trim() || !form.parent_name.trim() || !form.parent_phone.trim()) {
       toast({ 
         title: "Maklumat Tidak Lengkap", 
@@ -116,14 +122,13 @@ export default function Dashboard() {
 
     setSubmitting(true);
     try {
-      // Cipta profil pelajar baru dalam pangkalan data
       await base44.entities.Student.create({ 
         ...form, 
         user_id: currentUser.id,
         email: currentUser.email
       });
 
-      toast({ title: "Profil Berjaya Disimpan", description: "Pendaftaran awal selesai. Pentadbir akan menugaskan blok bilik anda tidak lama lagi." });
+      toast({ title: "Profil Berjaya Disimpan", description: "Sila rujuk arahan check-in di skrin anda." });
       window.location.reload(); 
     } catch (err) {
       toast({ title: "Gagal Mengaktifkan Profil", description: err.message, variant: "destructive" });
@@ -144,7 +149,7 @@ export default function Dashboard() {
   }
 
   // ====================================================================
-  // 🎯 SKRIN LENGKAPKAN PROFIL BARU (TIADA BLOK & BILIK)
+  // 🎯 SKRIN 1: LENGKAPKAN PROFIL BARU (TIADA BLOK & BILIK)
   // ====================================================================
   if (!hasStudentProfile) {
     return (
@@ -158,7 +163,6 @@ export default function Dashboard() {
           </div>
 
           <form onSubmit={handleCompleteProfile} className="space-y-4">
-            
             {/* Bahagian 1: Profil Peribadi */}
             <div className="space-y-3">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b pb-1">Maklumat Peribadi</h3>
@@ -251,7 +255,7 @@ export default function Dashboard() {
             </div>
 
             <Button type="submit" className="w-full h-11 mt-4" disabled={submitting}>
-              {submitting ? "Menghantar Profil Pelajar..." : "Sahkan Profil & Masuk Portal"}
+              {submitting ? "Menghantar Profil Pelajar..." : "Sahkan Profil & Daftar Akaun"}
             </Button>
           </form>
         </div>
@@ -260,20 +264,81 @@ export default function Dashboard() {
   }
 
   // ====================================================================
-  // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD ASAL (DIPERBAIKI)
+  // 🎯 SKRIN 2: HALAMAN ARAHAN CHECK-IN (JIKA PROFIL WUJUD, TAPI TIADA BILIK)
   // ====================================================================
-  // 1. Staf pengurusan kolej kekal ke dashboard masing-masing
+  if (hasStudentProfile && !isRoomAssigned) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-background">
+        <div className="max-w-md w-full text-center space-y-6 bg-card p-8 rounded-xl border shadow-md">
+          
+          {/* Ikon Header */}
+          <div className="mx-auto w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+            <ClipboardCheck className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold tracking-tight">Pendaftaran Profil Berjaya! 🎉</h1>
+            <p className="text-sm text-muted-foreground">
+              Akaun anda telah diaktifkan, namun penempatan blok & bilik kolej anda masih belum ditentukan.
+            </p>
+          </div>
+
+          <hr />
+
+          {/* Kotak Panduan Langkah */}
+          <div className="text-left space-y-4 bg-muted/50 p-4 rounded-lg border">
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <Info className="w-3.5 h-3.5 text-primary" /> Langkah Seterusnya Sila:
+            </h3>
+
+            <div className="flex gap-3 items-start text-sm">
+              <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">1</div>
+              <p className="text-foreground">Sila hadir ke <strong>Pejabat Pentadbiran Kolej Kediaman (KKMS)</strong> atau kaunter meja pendaftaran utama.</p>
+            </div>
+
+            <div className="flex gap-3 items-start text-sm">
+              <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">2</div>
+              <p className="text-foreground">Maklumkan <strong>Nama Penuh</strong> atau <strong>No. Matrik</strong> anda kepada pegawai yang bertugas untuk semakan.</p>
+            </div>
+
+            <div className="flex gap-3 items-start text-sm">
+              <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">3</div>
+              <p className="text-foreground">Pegawai pentadbir akan memberikan kunci fizikal dan mengemas kini nombor blok/bilik anda ke dalam sistem ini secara langsung.</p>
+            </div>
+          </div>
+
+          {/* Lokasi Pejabat */}
+          <div className="flex items-center gap-3 bg-primary/5 border border-primary/10 p-3 rounded-lg text-left text-sm text-primary">
+            <MapPin className="w-5 h-5 shrink-0" />
+            <p><strong>Lokasi:</strong> Kaunter Utama Pentadbiran Kompleks Kolej Kediaman Mustapha Som (KKMS), UMS.</p>
+          </div>
+
+          <Button 
+            onClick={() => window.location.reload()} 
+            variant="outline" 
+            className="w-full h-10 text-xs text-muted-foreground"
+          >
+            Semak Semula Status Penempatan Bilik
+          </Button>
+
+        </div>
+      </div>
+    );
+  }
+
+  // ====================================================================
+  // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD ASAL (DIPERBAIKI & ADA BILIK)
+  // ====================================================================
   if (currentUser?.role === 'warden') return <WardenDashboard user={currentUser} />;
   if (currentUser?.role === 'jakmas') return <JakmasDashboard user={currentUser} />;
   if (currentUser?.role === 'super_admin' || currentUser?.role === 'college_admin') {
     return <AdminDashboard user={currentUser} />;
   }
   
-  // 2. Jika profil Student wujud, PAKSA paparan StudentDashboard (walaupun role auth mereka 'user')
-  if (hasStudentProfile) {
+  // Jika profil Student wujud, DAN bilik sudah di-assign oleh Admin, tunjuk StudentDashboard
+  if (hasStudentProfile && isRoomAssigned) {
     return <StudentDashboard user={currentUser} />;
   }
   
-  // 3. Fallback sekiranya tiada sebarang padanan role
   return <AdminDashboard user={currentUser} />;
 }
