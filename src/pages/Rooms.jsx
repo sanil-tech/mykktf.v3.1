@@ -10,37 +10,44 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Home, Search, Plus, Filter, LayoutGrid, List, Bed, Users } from 'lucide-react';
+import { Home, Search, Plus, LayoutGrid, List, Bed, Users, ShieldAlert, ChevronDown, ChevronUp, Phone, IdCard, User } from 'lucide-react';
 
 export default function Rooms() {
   const [rooms, setRooms] = useState([]);
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [viewMode, setViewMode] = useState('grid');
+  
+  // Track which room's resident roster dropdown is currently open
+  const [expandedRoomId, setExpandedRoomId] = useState(null);
   
   // Search and Filter States
   const [searchQuery, setSearchQuery] = useState('');
   const [blockFilter, setBlockFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [genderFilter, setGenderFilter] = useState('all');
   
   // Dialog State
   const [openDialog, setOpenDialog] = useState(false);
-  const [form, setForm] = useState({ room_number: '', block_name: '', capacity: 4, gender_restriction: 'mixed' });
+  const [form, setForm] = useState({ room_number: '', block_name: '', capacity: 4, gender_restriction: 'female' });
   
   const { toast } = useToast();
 
   useEffect(() => {
-    loadRooms();
+    loadData();
   }, []);
 
-  async function loadRooms() {
+  async function loadData() {
     try {
       setLoading(true);
-      const data = await base44.entities.Room.list();
-      setRooms(data || []);
+      const [roomsData, studentsData] = await Promise.all([
+        base44.entities.Room.list(),
+        base44.entities.Student.list()
+      ]);
+      setRooms(roomsData || []);
+      setStudents(studentsData || []);
     } catch (err) {
       console.error(err);
-      toast({ title: 'Error loading rooms', description: err.message, variant: 'destructive' });
+      toast({ title: 'Error loading structural data', description: err.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -52,6 +59,11 @@ export default function Rooms() {
       return;
     }
 
+    if (form.gender_restriction !== 'male' && form.gender_restriction !== 'female') {
+      toast({ title: 'Validation Error', description: 'Rooms must be explicitly configured as Male Only or Female Only.', variant: 'destructive' });
+      return;
+    }
+
     try {
       await base44.entities.Room.create({
         ...form,
@@ -59,47 +71,50 @@ export default function Rooms() {
         current_occupancy: 0,
         status: 'Available'
       });
-      toast({ title: 'Room added successfully' });
+      toast({ title: 'Single-gender room registered successfully' });
       setOpenDialog(false);
-      setForm({ room_number: '', block_name: '', capacity: 4, gender_restriction: 'mixed' });
-      loadRooms();
+      setForm({ room_number: '', block_name: '', capacity: 4, gender_restriction: 'female' });
+      loadData();
     } catch (err) {
       console.error(err);
       toast({ title: 'Failed to create room', description: err.message, variant: 'destructive' });
     }
   }
 
-  // Get dynamic status badge color
+  // Helper matching current room ID context to assigned student profiles safely
+  const getRoomResidents = (roomId) => {
+    if (!roomId) return [];
+    return students.filter(s => String(s.room_id).trim().toLowerCase() === String(roomId).trim().toLowerCase());
+  };
+
+  const toggleExpandRoom = (roomId) => {
+    setExpandedRoomId(expandedRoomId === roomId ? null : roomId);
+  };
+
   const getStatusBadgeStyles = (current, capacity) => {
     if (current === 0) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
     if (current >= capacity) return 'bg-red-50 text-red-700 border-red-200';
-    if (current / capacity >= 0.75) return 'bg-amber-50 text-amber-700 border-amber-200';
     return 'bg-blue-50 text-blue-700 border-blue-200';
   };
 
-  // Extract unique blocks for filter dropdown
   const uniqueBlocks = ['all', ...new Set(rooms.map(r => r.block_name).filter(Boolean))];
 
-  // Filter Logic
   const filteredRooms = rooms.filter(room => {
     const matchesSearch = room.room_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           room.block_name?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesBlock = blockFilter === 'all' || room.block_name === blockFilter;
     
-    const availableBeds = (room.capacity || 4) - (room.current_occupancy || 0);
-    let matchesStatus = true;
-    if (statusFilter === 'available') matchesStatus = availableBeds > 0;
-    if (statusFilter === 'full') matchesStatus = availableBeds === 0;
-    if (statusFilter === 'empty') matchesStatus = room.current_occupancy === 0;
+    const currentGender = (room.gender_restriction || room.gender || '').toLowerCase().trim();
+    const matchesGender = genderFilter === 'all' || currentGender === genderFilter;
 
-    return matchesSearch && matchesBlock && matchesStatus;
+    return matchesSearch && matchesBlock && matchesGender;
   });
 
   return (
     <div>
       <PageHeader
-        title="Room Management"
-        description="Monitor room configurations, overall capacity, and real-time bed availability"
+        title="Room Configuration Management"
+        description="Configure single-gender dormitory layouts, view occupancy profiles, and manage current room assignments."
         actions={
           <Button size="sm" onClick={() => setOpenDialog(true)}>
             <Plus className="w-4 h-4 mr-1.5" /> Add New Room
@@ -131,35 +146,24 @@ export default function Rooms() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          
+          <Select value={genderFilter} onValueChange={setGenderFilter}>
             <SelectTrigger className="w-full sm:w-[160px] h-9 text-sm">
-              <SelectValue placeholder="Filter by Beds" />
+              <SelectValue placeholder="Filter by Gender" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Vacancies</SelectItem>
-              <SelectItem value="available">Has Free Beds</SelectItem>
-              <SelectItem value="full">No Free Beds (Full)</SelectItem>
-              <SelectItem value="empty">Completely Empty</SelectItem>
+              <SelectItem value="all">All Genders</SelectItem>
+              <SelectItem value="male">Male Wings Only</SelectItem>
+              <SelectItem value="female">Female Wings Only</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        {/* View Toggle Buttons */}
         <div className="flex items-center gap-1 bg-muted p-1 rounded-lg self-end sm:self-auto">
-          <Button 
-            variant={viewMode === 'grid' ? 'secondary' : 'ghost'} 
-            size="icon" 
-            className="h-7 w-7" 
-            onClick={() => setViewMode('grid')}
-          >
+          <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" className="h-7 w-7" onClick={() => setViewMode('grid')}>
             <LayoutGrid className="w-4 h-4" />
           </Button>
-          <Button 
-            variant={viewMode === 'list' ? 'secondary' : 'ghost'} 
-            size="icon" 
-            className="h-7 w-7" 
-            onClick={() => setViewMode('list')}
-          >
+          <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" className="h-7 w-7" onClick={() => setViewMode('list')}>
             <List className="w-4 h-4" />
           </Button>
         </div>
@@ -170,19 +174,22 @@ export default function Rooms() {
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
       ) : filteredRooms.length === 0 ? (
-        <EmptyState icon={Home} title="No rooms found matching the criteria" />
+        <EmptyState icon={Home} title="No room registrations found matching filters" />
       ) : viewMode === 'grid' ? (
         
-        /* GRID VIEW WITH EXPLICIT BED COUNTS */
+        /* 🎴 GRID VIEW WITH INLINE RESIDENTS VIEW PANEL */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredRooms.map((room) => {
             const capacity = room.capacity || 4;
             const occupied = room.current_occupancy || 0;
             const bedsAvailable = capacity - occupied;
+            const genderTag = room.gender_restriction || room.gender || 'female';
+            const roomResidents = getRoomResidents(room.id);
+            const isExpanded = expandedRoomId === room.id;
 
             return (
-              <Card key={room.id} className="overflow-hidden border border-border hover:shadow-md transition-all">
-                <CardContent className="p-4 space-y-4">
+              <Card key={room.id} className="overflow-hidden border border-border hover:shadow-sm transition-all flex flex-col justify-between">
+                <CardContent className="p-4 space-y-3 flex-1">
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="text-sm font-bold font-mono tracking-tight text-foreground">Room {room.room_number}</h3>
@@ -193,36 +200,64 @@ export default function Rooms() {
                     </Badge>
                   </div>
 
-                  {/* Bed Allocation Visual Meter */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <div className="flex justify-between text-[11px] font-medium text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3" /> Occupancy Ratio
-                      </span>
+                      <span className="flex items-center gap-1"><Users className="w-3 h-3" /> Occupancy</span>
                       <span className="text-foreground font-mono">{occupied} / {capacity}</span>
                     </div>
-                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden flex">
-                      <div 
-                        className={`h-full transition-all ${occupied >= capacity ? 'bg-red-500' : 'bg-primary'}`}
-                        style={{ width: `${(occupied / capacity) * 100}%` }}
-                      />
+                    <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden flex">
+                      <div className={`h-full ${occupied >= capacity ? 'bg-red-500' : 'bg-primary'}`} style={{ width: `${(occupied / capacity) * 100}%` }} />
                     </div>
                   </div>
 
-                  {/* Bed Availability Readout */}
-                  <div className="pt-2 border-t flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-1.5 font-medium text-foreground">
-                      <Bed className={`w-3.5 h-3.5 ${bedsAvailable > 0 ? 'text-emerald-600' : 'text-muted-foreground'}`} />
-                      {bedsAvailable > 0 ? (
-                        <span className="text-emerald-700 font-semibold">{bedsAvailable} {bedsAvailable === 1 ? 'bed' : 'beds'} free</span>
-                      ) : (
-                        <span className="text-muted-foreground">No beds available</span>
-                      )}
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <span className="flex items-center gap-1 font-medium text-foreground">
+                      <Bed className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className={bedsAvailable > 0 ? "text-emerald-700 font-medium" : "text-muted-foreground"}>
+                        {bedsAvailable} left
+                      </span>
                     </span>
-                    <Badge variant="secondary" className="text-[10px] capitalize px-1.5 py-0 bg-secondary/60 text-secondary-foreground">
-                      {room.gender_restriction || 'Mixed'}
+                    <Badge className={`text-[9px] px-1.5 py-0 border-0 font-medium ${genderTag === 'male' ? 'bg-blue-600' : 'bg-pink-600'}`}>
+                      {genderTag === 'male' ? 'Male Only' : 'Female Only'}
                     </Badge>
                   </div>
+
+                  {/* Dynamic Accordion Dropdown Trigger for Resident Assignment details */}
+                  {roomResidents.length > 0 && (
+                    <div className="pt-2 border-t mt-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => toggleExpandRoom(room.id)}
+                        className="w-full h-7 text-[11px] font-semibold flex justify-between items-center px-2 bg-muted/40 hover:bg-muted text-muted-foreground"
+                      >
+                        <span>View Registered Residents ({roomResidents.length})</span>
+                        {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </Button>
+
+                      {/* Display limited profile parameters: Name, Matric (student_id), Phone */}
+                      {isExpanded && (
+                        <div className="mt-2 space-y-2 border border-dashed rounded-lg p-2 bg-muted/10 max-h-40 overflow-y-auto animate-in fade-in duration-200">
+                          {roomResidents.map((student) => (
+                            <div key={student.id} className="text-[11px] pb-1.5 last:pb-0 border-b last:border-0 border-muted/50 space-y-0.5">
+                              <div className="font-bold text-foreground flex items-center gap-1">
+                                <User className="w-2.5 h-2.5 text-primary" />
+                                {student.full_name}
+                              </div>
+                              <div className="text-muted-foreground font-mono flex items-center gap-1 pl-3">
+                                <IdCard className="w-2.5 h-2.5" />
+                                {student.student_id || 'N/A'}
+                              </div>
+                              <div className="text-muted-foreground flex items-center gap-1 pl-3">
+                                <Phone className="w-2.5 h-2.5" />
+                                {student.phone_number || student.phone || 'No phone record'}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -230,45 +265,77 @@ export default function Rooms() {
         </div>
       ) : (
         
-        /* TABLE VIEW WITH EXPLICIT BED COUNTS */
+        /* 📋 TABLE VIEW WITH EXPANDABLE ROW DRAWER */
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50 text-muted-foreground font-medium">
                   <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Room Number</th>
-                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Block</th>
-                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Gender Rule</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Block Location</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Designated Gender</th>
                   <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Total Capacity</th>
-                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Beds Taken</th>
-                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Beds Available</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredRooms.map((room) => {
                   const capacity = room.capacity || 4;
                   const occupied = room.current_occupancy || 0;
-                  const bedsAvailable = capacity - occupied;
+                  const genderTag = room.gender_restriction || room.gender || 'female';
+                  const roomResidents = getRoomResidents(room.id);
+                  const isExpanded = expandedRoomId === room.id;
 
                   return (
-                    <tr key={room.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-mono font-bold text-foreground">Room {room.room_number}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{room.block_name}</td>
-                      <td className="px-4 py-3 text-muted-foreground capitalize">{room.gender_restriction || 'Mixed'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{capacity} Beds</td>
-                      <td className="px-4 py-3 font-medium text-foreground">{occupied} occupied</td>
-                      <td className="px-4 py-3">
-                        {bedsAvailable > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded text-xs border border-emerald-100">
-                            {bedsAvailable} Free
+                    <React.Fragment key={room.id}>
+                      <tr className="border-b hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 font-mono font-bold text-foreground">Room {room.room_number}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{room.block_name}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${genderTag === 'male' ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'}`}>
+                            {genderTag === 'male' ? '👨 Male Wing' : '👩 Female Wing'}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-red-700 font-semibold bg-red-50 px-2 py-0.5 rounded text-xs border border-red-100">
-                            Full
-                          </span>
-                        )}
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">{occupied} / {capacity} Beds Filled</td>
+                        <td className="px-4 py-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            disabled={roomResidents.length === 0}
+                            onClick={() => toggleExpandRoom(room.id)}
+                            className="h-7 text-xs font-medium px-2.5"
+                          >
+                            Residents ({roomResidents.length})
+                            {isExpanded ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                          </Button>
+                        </td>
+                      </tr>
+                      
+                      {isExpanded && roomResidents.length > 0 && (
+                        <tr className="bg-muted/20 border-b">
+                          <td colSpan={5} className="px-6 py-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                              {roomResidents.map((student) => (
+                                <div key={student.id} className="p-2.5 bg-card border rounded-lg text-xs space-y-1 shadow-sm">
+                                  <div className="font-bold text-foreground flex items-center gap-1.5">
+                                    <User className="w-3 h-3 text-primary" />
+                                    {student.full_name}
+                                  </div>
+                                  <div className="text-muted-foreground font-mono text-[11px] flex items-center gap-1.5 pl-0.5">
+                                    <IdCard className="w-3 h-3 text-muted-foreground" />
+                                    Matric: {student.student_id || 'N/A'}
+                                  </div>
+                                  <div className="text-muted-foreground text-[11px] flex items-center gap-1.5 pl-0.5">
+                                    <Phone className="w-3 h-3 text-muted-foreground" />
+                                    Phone: {student.phone_number || student.phone || 'N/A'}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -281,13 +348,20 @@ export default function Rooms() {
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New Room</DialogTitle>
+            <DialogTitle>Add New Single-Gender Room</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded-lg flex gap-2 items-start text-xs leading-relaxed">
+              <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <strong>Superadmin Enforcement Notice:</strong> Mixed-gender dormitory room models are disabled. Assign strict binary single-gender wings only.
+              </div>
+            </div>
+
             <div>
               <Label className="text-xs font-medium">Room Number *</Label>
               <Input 
-                placeholder="e.g., 101, A-23" 
+                placeholder="e.g., N-101, H-B08" 
                 value={form.room_number} 
                 onChange={(e) => setForm({ ...form, room_number: e.target.value })} 
                 className="h-9 mt-1"
@@ -296,7 +370,7 @@ export default function Rooms() {
             <div>
               <Label className="text-xs font-medium">Block Name *</Label>
               <Input 
-                placeholder="e.g., Block A, Female Wing" 
+                placeholder="e.g., Block N, Block H" 
                 value={form.block_name} 
                 onChange={(e) => setForm({ ...form, block_name: e.target.value })} 
                 className="h-9 mt-1"
@@ -314,15 +388,14 @@ export default function Rooms() {
                 />
               </div>
               <div>
-                <Label className="text-xs font-medium">Gender Restriction</Label>
+                <Label className="text-xs font-medium">Gender Designation *</Label>
                 <Select value={form.gender_restriction} onValueChange={(v) => setForm({ ...form, gender_restriction: v })}>
                   <SelectTrigger className="h-9 mt-1">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="mixed">Mixed</SelectItem>
-                    <SelectItem value="male">Male Only</SelectItem>
-                    <SelectItem value="female">Female Only</SelectItem>
+                    <SelectItem value="female">Female Only (Wing 👩)</SelectItem>
+                    <SelectItem value="male">Male Only (Wing 👨)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -330,7 +403,7 @@ export default function Rooms() {
           </div>
           <DialogFooter className="mt-2">
             <Button variant="outline" size="sm" onClick={() => setOpenDialog(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleCreateRoom}>Save Room</Button>
+            <Button size="sm" onClick={handleCreateRoom}>Save Configuration</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
