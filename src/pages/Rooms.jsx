@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-// Corrected to use Pages Router hook
-import { useRouter } from 'next/router'; 
+import { useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
@@ -15,9 +14,10 @@ import { Badge } from '@/components/ui/badge';
 import { Home, Search, Plus, LayoutGrid, List, Bed, Users, ShieldAlert, ChevronDown, ChevronUp, User } from 'lucide-react';
 
 export default function Rooms() {
-  // Read query filters from the URL structure via Next Pages router
-  const router = useRouter();
-  const { status: statusParam, filter: filterParam } = router.query;
+  // Read query filters from the URL (react-router-dom)
+  const [searchParams] = useSearchParams();
+  const statusParam = searchParams.get('status');
+  const filterParam = searchParams.get('filter');
 
   const [rooms, setRooms] = useState([]);
   const [students, setStudents] = useState([]);
