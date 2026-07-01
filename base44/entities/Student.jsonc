@@ -2,6 +2,16 @@
   "name": "Student",
   "type": "object",
   "properties": {
+    "onboarding_step": {
+      "type": "string",
+      "default": "welcome",
+      "description": "Tracks onboarding progress step"
+    },
+    "profile_completed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indicates whether student has completed onboarding profile"
+    },
     "student_id": {
       "type": "string",
       "description": "University student ID"
@@ -74,10 +84,17 @@
     "status": {
       "type": "string",
       "enum": [
-        "Active",
+        "Registered",
+        "ProfileIncomplete",
+        "ProfileCompleted",
+        "PendingVerification",
+        "Approved",
+        "CheckedIn",
+        "ActiveResident",
+        "CheckedOut",
         "Inactive"
       ],
-      "default": "Active"
+      "default": "Registered"
     },
     "user_id": {
       "type": "string",
