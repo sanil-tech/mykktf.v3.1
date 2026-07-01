@@ -96,6 +96,9 @@
     "create": {
       "$or": [
         {
+          "data.user_id": "{{user.id}}"
+        },
+        {
           "user_condition": {
             "role": "super_admin"
           }
@@ -104,14 +107,14 @@
           "user_condition": {
             "role": "college_admin"
           }
-        },
-        {
-          "data.user_id": "{{user.id}}"
         }
       ]
     },
     "read": {
       "$or": [
+        {
+          "data.user_id": "{{user.id}}"
+        },
         {
           "user_condition": {
             "role": "super_admin"
@@ -131,14 +134,14 @@
           "user_condition": {
             "role": "staff"
           }
-        },
-        {
-          "data.user_id": "{{user.id}}"
         }
       ]
     },
     "update": {
       "$or": [
+        {
+          "data.user_id": "{{user.id}}"
+        },
         {
           "user_condition": {
             "role": "super_admin"
@@ -148,14 +151,14 @@
           "user_condition": {
             "role": "college_admin"
           }
-        },
-        {
-          "data.user_id": "{{user.id}}"
         }
       ]
     },
     "delete": {
       "$or": [
+        {
+          "data.user_id": "{{user.id}}"
+        },
         {
           "user_condition": {
             "role": "super_admin"
