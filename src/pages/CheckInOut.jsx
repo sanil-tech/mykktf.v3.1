@@ -62,16 +62,26 @@ export default function CheckInOut() {
     });
 
     // 2. KEMAS KINI PROFIL PELAJAR (Masukkan Blok, Bilik & ID Bilik)
-    // Cukup sekadar mengemas kini entiti Student ini sahaja. Autoriti Admin adalah sah di sini.
     if (student && room) {
       await base44.entities.Student.update(student.id, {
         block_name: room.block_name || '',
         room_number: room.room_number || '',
+        block_id: room.block_id || '', // Jika schema anda menggunakan block_id
         room_id: room.id
       });
+
+      // 3. KEMAS KINI ROLE USER (Tukar daripada 'user' kepada 'student')
+      if (student.user_id) {
+        // Semak cara update mengikut SDK base44 anda
+        if (base44.entities.User) {
+          await base44.entities.User.update(student.user_id, { role: 'student' });
+        } else if (base44.auth.updateUserRole) {
+          await base44.auth.updateUserRole(student.user_id, 'student');
+        }
+      }
     }
 
-    // 3. Kemas kini kapasiti bilik semasa
+    // 4. Kemas kini kapasiti bilik semasa
     if (room) {
       const newOcc = (room.current_occupancy || 0) + 1;
       await base44.entities.Room.update(room.id, { 
