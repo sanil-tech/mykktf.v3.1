@@ -310,7 +310,7 @@ export default function Dashboard() {
           {/* Lokasi Pejabat */}
           <div className="flex items-center gap-3 bg-primary/5 border border-primary/10 p-3 rounded-lg text-left text-sm text-primary">
             <MapPin className="w-5 h-5 shrink-0" />
-            <p><strong>Lokasi:</strong> Kaunter Utama Pentadbiran Kompleks Kolej Kediaman Mustapha Som (KKMS), UMS.</p>
+            <p><strong>Lokasi:</strong> Kaunter Utama Pentadbiran KKTF, UMS.</p>
           </div>
 
           <Button 
