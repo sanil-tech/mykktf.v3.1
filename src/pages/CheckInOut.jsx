@@ -75,13 +75,19 @@ export default function CheckInOut() {
       s.full_name?.toLowerCase().includes(query)
     );
 
-    // Apply strict local filters to prevent double check-in / invalid check-out
+    // Apply strict local filters considering "none" string from DB
     if (ciDialog) {
-      // Check-In: Only show students who DO NOT have an active room assignment
-      baseFiltered = baseFiltered.filter(s => !s.room_id || String(s.room_id).trim() === '');
+      // Check-In: Only show students who DO NOT have an active room (handles null, undefined, "", and "none")
+      baseFiltered = baseFiltered.filter(s => {
+        const roomId = s.room_id ? String(s.room_id).trim().toLowerCase() : '';
+        return roomId === '' || roomId === 'none';
+      });
     } else if (coDialog) {
-      // Check-Out: Only show students who CURRENTLY HAVE an active room assignment
-      baseFiltered = baseFiltered.filter(s => s.room_id && String(s.room_id).trim() !== '');
+      // Check-Out: Only show students who CURRENTLY HAVE an active room (must not be empty or "none")
+      baseFiltered = baseFiltered.filter(s => {
+        const roomId = s.room_id ? String(s.room_id).trim().toLowerCase() : '';
+        return roomId !== '' && roomId !== 'none';
+      });
     }
 
     setFilteredStudents(baseFiltered);
@@ -143,6 +149,13 @@ export default function CheckInOut() {
     setSelectedBlock('');
   };
 
+  // Helper to determine if a student has an active room
+  const hasActiveRoom = (student) => {
+    if (!student || !student.room_id) return false;
+    const val = String(student.room_id).trim().toLowerCase();
+    return val !== '' && val !== 'none';
+  };
+
   async function handleCheckIn() {
     if (!selectedStudent || !ciForm.room_id || !ciForm.check_in_date) {
       toast({ title: 'Please select a student, room, and check-in date', variant: 'destructive' });
@@ -152,7 +165,6 @@ export default function CheckInOut() {
     try {
       const room = rooms.find(r => r.id === ciForm.room_id);
 
-      // 1. Update server data
       await base44.entities.CheckIn.create({
         student_id: selectedStudent.id,
         room_id: ciForm.room_id,
@@ -186,7 +198,7 @@ export default function CheckInOut() {
         });
       }
 
-      // 🔴 OPTIMISTIC UPDATE: Update UI states immediately to prevent stale database reads
+      // Optimistic UI Update using the correct assigned ID
       setStudents(prevStudents => 
         prevStudents.map(s => 
           s.id === selectedStudent.id 
@@ -198,8 +210,6 @@ export default function CheckInOut() {
       toast({ title: 'Check-in recorded and profile updated successfully' });
       setCiDialog(false);
       resetSearchState();
-      
-      // Sync background data
       await load();
     } catch (err) {
       console.error(err);
@@ -213,7 +223,7 @@ export default function CheckInOut() {
       return;
     }
 
-    if (!selectedStudent.room_id) {
+    if (!hasActiveRoom(selectedStudent)) {
       toast({ title: 'Student has no active room assignment to check-out from', variant: 'destructive' });
       return;
     }
@@ -239,10 +249,11 @@ export default function CheckInOut() {
         block_name: selectedStudent.block_name || room?.block_name || ''
       });
 
+      // Clear on database side - setting to "none" or empty string depending on backend standard
       await base44.entities.Student.update(selectedStudent.id, {
         block_name: '',
         room_number: '',
-        room_id: ''
+        room_id: 'none'
       });
 
       if (room) {
@@ -253,17 +264,17 @@ export default function CheckInOut() {
         });
       }
 
-      // 🔴 OPTIMISTIC UPDATE: Clear student room locally to prevent lingering state
+      // Optimistic Update locally
       setStudents(prevStudents => 
         prevStudents.map(s => 
           s.id === selectedStudent.id 
-            ? { ...s, room_id: '', room_number: '', block_name: '' } 
+            ? { ...s, room_id: 'none', room_number: '', block_name: '' } 
             : s
         )
       );
 
       setCoDialog(false);
-      setPendingCheckout({ checkoutId: checkout.id, student: { ...selectedStudent, room_id: '', room_number: '', block_name: '' } });
+      setPendingCheckout({ checkoutId: checkout.id, student: { ...selectedStudent, room_id: 'none', room_number: '', block_name: '' } });
       setShowSurvey(true);
       resetSearchState();
     } catch (err) {
@@ -437,8 +448,8 @@ export default function CheckInOut() {
                   <div>ID: <span className="text-foreground font-mono">{selectedStudent.student_id}</span></div>
                   <div>IC/Passport: <span className="text-foreground">{selectedStudent.ic_passport || 'N/A'}</span></div>
                   <div>Gender: <span className="text-foreground capitalize">{selectedStudent.gender || 'N/A'}</span></div>
-                  <div>Status: <span className={selectedStudent.room_id ? "text-amber-600 font-medium" : "text-emerald-600 font-medium"}>
-                    {selectedStudent.room_id ? `Occupying ${selectedStudent.room_number}` : 'No Active Room'}
+                  <div>Status: <span className={hasActiveRoom(selectedStudent) ? "text-amber-600 font-medium" : "text-emerald-600 font-medium"}>
+                    {hasActiveRoom(selectedStudent) ? `Occupying ${selectedStudent.room_number}` : 'No Active Room'}
                   </span></div>
                 </div>
               </div>
@@ -573,7 +584,7 @@ export default function CheckInOut() {
                 {/* Read-Only Automatic Room Verification */}
                 <div className="p-3 bg-muted border border-border rounded-lg space-y-1 text-xs">
                   <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Current Room Assignment</Label>
-                  {selectedStudent.room_id ? (
+                  {hasActiveRoom(selectedStudent) ? (
                     <div className="flex items-center gap-2 text-foreground font-medium mt-1">
                       <Home className="w-3.5 h-3.5 text-amber-600" />
                       <span>Room: <strong className="text-amber-700">{selectedStudent.room_number}</strong> ({selectedStudent.block_name})</span>
@@ -622,7 +633,7 @@ export default function CheckInOut() {
             <Button 
               size="sm" 
               onClick={handleCheckOut} 
-              disabled={!selectedStudent || !selectedStudent.room_id}
+              disabled={!selectedStudent || !hasActiveRoom(selectedStudent)}
             >
               Record Check Out
             </Button>
