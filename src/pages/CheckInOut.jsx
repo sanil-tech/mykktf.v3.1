@@ -75,7 +75,7 @@ export default function CheckInOut() {
       s.full_name?.toLowerCase().includes(query)
     );
 
-    // Apply strict filters based on which dialog workflow is currently active
+    // Apply strict local filters to prevent double check-in / invalid check-out
     if (ciDialog) {
       // Check-In: Only show students who DO NOT have an active room assignment
       baseFiltered = baseFiltered.filter(s => !s.room_id || String(s.room_id).trim() === '');
@@ -152,6 +152,7 @@ export default function CheckInOut() {
     try {
       const room = rooms.find(r => r.id === ciForm.room_id);
 
+      // 1. Update server data
       await base44.entities.CheckIn.create({
         student_id: selectedStudent.id,
         room_id: ciForm.room_id,
@@ -185,8 +186,20 @@ export default function CheckInOut() {
         });
       }
 
+      // 🔴 OPTIMISTIC UPDATE: Update UI states immediately to prevent stale database reads
+      setStudents(prevStudents => 
+        prevStudents.map(s => 
+          s.id === selectedStudent.id 
+            ? { ...s, room_id: ciForm.room_id, room_number: room?.room_number, block_name: room?.block_name } 
+            : s
+        )
+      );
+
       toast({ title: 'Check-in recorded and profile updated successfully' });
       setCiDialog(false);
+      resetSearchState();
+      
+      // Sync background data
       await load();
     } catch (err) {
       console.error(err);
@@ -240,9 +253,19 @@ export default function CheckInOut() {
         });
       }
 
+      // 🔴 OPTIMISTIC UPDATE: Clear student room locally to prevent lingering state
+      setStudents(prevStudents => 
+        prevStudents.map(s => 
+          s.id === selectedStudent.id 
+            ? { ...s, room_id: '', room_number: '', block_name: '' } 
+            : s
+        )
+      );
+
       setCoDialog(false);
-      setPendingCheckout({ checkoutId: checkout.id, student: selectedStudent });
+      setPendingCheckout({ checkoutId: checkout.id, student: { ...selectedStudent, room_id: '', room_number: '', block_name: '' } });
       setShowSurvey(true);
+      resetSearchState();
     } catch (err) {
       console.error(err);
       toast({ title: 'Error recording check-out', description: err.message, variant: 'destructive' });
@@ -436,7 +459,7 @@ export default function CheckInOut() {
               </Select>
             </div>
 
-            {/* Step 2: Select Room (Only shows available rooms for chosen block) */}
+            {/* Step 2: Select Room */}
             <div>
               <Label className="text-xs font-medium">Room Assignment *</Label>
               <Select 
