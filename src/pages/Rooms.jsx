@@ -23,15 +23,15 @@ export default function Rooms() {
   const { toast } = useToast();
 
   // --- 👥 ROLE-BASED ACCESS CONTROL STATE SIMULATOR ---
-  // In production, swap this out with your global auth context provider hook: const { user } = useAuth();
   const [currentUser, setCurrentUser] = useState({
     name: 'John Doe',
-    role: 'super_admin', // Options: super_admin, college_admin, staff, warden, student
-    college: 'Block A'   // Assigned jurisdiction for college_admin context
+    role: 'super_admin', 
+    college: 'Block A'   
   });
 
   // Structural Core States
   const [rooms, setRooms] = useState([]);
+  const [blocks, setBlocks] = useState([]); // Added to store parent block definitions for gender resolution fallback
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
@@ -48,12 +48,13 @@ export default function Rooms() {
   
   // Create / Edit Dialog State
   const [openDialog, setOpenDialog] = useState(false);
-  const [dialogMode, setDialogMode] = useState('create'); // 'create' | 'edit'
+  const [dialogMode, setDialogMode] = useState('create'); 
   const [selectedRoomForEdit, setSelectedRoomForEdit] = useState(null);
   
   // Consolidated Input Form State
   const [form, setForm] = useState({ 
     room_number: '', 
+    block_id: '',
     block_name: '', 
     capacity: 4, 
     gender_restriction: 'female',
@@ -61,7 +62,7 @@ export default function Rooms() {
     reason_for_correction: ''
   });
 
-  // --- 🔐 FRONTEND PERMISSION EVALUATION UTILITIES ---
+  // --- 🔐 PERMISSION EVALUATION ---
   const permissions = useMemo(() => {
     const role = currentUser.role;
     return {
@@ -71,7 +72,6 @@ export default function Rooms() {
       canDeleteRoom: role === 'super_admin',
       canDeleteBlock: role === 'super_admin',
       
-      // Field Level Restrictions for the Correction Dialog
       canModifyCapacityAndGender: ['super_admin', 'college_admin'].includes(role),
       canModifyBlockLocation: ['super_admin', 'college_admin'].includes(role),
       canModifyRoomNumber: ['super_admin', 'college_admin', 'staff'].includes(role),
@@ -88,12 +88,14 @@ export default function Rooms() {
   async function loadData() {
     try {
       setLoading(true);
-      const [roomsData, studentsData] = await Promise.all([
+      const [roomsData, studentsData, blocksData] = await Promise.all([
         base44.entities.Room.list(),
-        base44.entities.Student.list()
+        base44.entities.Student.list(),
+        base44.entities.Block.list().catch(() => []) // Graceful fallback if Block schema isn't fully migrated
       ]);
       setRooms(roomsData || []);
       setStudents(studentsData || []);
+      setBlocks(blocksData || []);
     } catch (err) {
       console.error(err);
       toast({ title: 'Error loading structural data', description: err.message, variant: 'destructive' });
@@ -102,9 +104,9 @@ export default function Rooms() {
     }
   }
 
-  // --- 🛑 SECURE CRUD OPERATIONS WITH BACKEND ROLE VALIDATION GUARDS ---
+  // --- 🛑 SECURE CRUD OPERATIONS ---
   async function handleCreateRoom() {
-    if (!['super_admin', 'college_admin'].includes(currentUser.role)) {
+    if (!permissions.canCreateRoom) {
       toast({ title: 'Access Denied', description: 'Your role does not possess permissions to register new rooms.', variant: 'destructive' });
       return;
     }
@@ -117,6 +119,7 @@ export default function Rooms() {
     try {
       await base44.entities.Room.create({
         room_number: form.room_number,
+        block_id: form.block_id || null,
         block_name: form.block_name,
         capacity: Number(form.capacity),
         current_occupancy: 0,
@@ -148,54 +151,28 @@ export default function Rooms() {
       const updatedFields = [];
       const oldRoom = selectedRoomForEdit;
 
-      // 📑 COMPILING INTERACTIVE AUDIT DICTIONARY SNAPSHOT
-      if (oldRoom.room_number !== form.room_number) {
-        updatedFields.push({ field: 'Room Number', old: oldRoom.room_number, new: form.room_number });
-      }
-      if (oldRoom.block_name !== form.block_name) {
-        updatedFields.push({ field: 'Block Location', old: oldRoom.block_name, new: form.block_name });
-      }
-      if (Number(oldRoom.capacity) !== Number(form.capacity)) {
-        updatedFields.push({ field: 'Capacity', old: oldRoom.capacity, new: form.capacity });
-      }
-      if (oldRoom.gender_restriction !== form.gender_restriction) {
-        updatedFields.push({ field: 'Gender Designation', old: oldRoom.gender_restriction, new: form.gender_restriction });
-      }
-      if (oldRoom.status !== form.status) {
-        updatedFields.push({ field: 'Status Condition', old: oldRoom.status, new: form.status });
-      }
+      if (oldRoom.room_number !== form.room_number) updatedFields.push({ field: 'Room Number', old: oldRoom.room_number, new: form.room_number });
+      if (oldRoom.block_name !== form.block_name) updatedFields.push({ field: 'Block Location', old: oldRoom.block_name, new: form.block_name });
+      if (Number(oldRoom.capacity) !== Number(form.capacity)) updatedFields.push({ field: 'Capacity', old: oldRoom.capacity, new: form.capacity });
+      if (oldRoom.gender_restriction !== form.gender_restriction) updatedFields.push({ field: 'Gender Designation', old: oldRoom.gender_restriction, new: form.gender_restriction });
+      if (oldRoom.status !== form.status) updatedFields.push({ field: 'Status Condition', old: oldRoom.status, new: form.status });
 
       if (updatedFields.length === 0) {
-        toast({ title: 'No changes detected', description: 'The configuration values match existing storage.' });
+        toast({ title: 'No changes detected' });
         setOpenDialog(false);
         return;
       }
 
-      const auditLogEntry = {
-        room_number: form.room_number,
-        block: form.block_name,
-        user_name: currentUser.name,
-        user_role: currentUser.role,
-        timestamp: new Date().toLocaleString(),
-        changes: updatedFields,
-        reason: form.reason_for_correction
-      };
-
       await base44.entities.Room.update(selectedRoomForEdit.id, {
         room_number: permissions.canModifyRoomNumber ? form.room_number : oldRoom.room_number,
+        block_id: form.block_id,
         block_name: permissions.canModifyBlockLocation ? form.block_name : oldRoom.block_name,
         capacity: permissions.canModifyCapacityAndGender ? Number(form.capacity) : Number(oldRoom.capacity),
         gender_restriction: permissions.canModifyCapacityAndGender ? form.gender_restriction : oldRoom.gender_restriction,
         status: permissions.canModifyStatus ? form.status : oldRoom.status
       });
-
-      console.log('--- 📑 SYSTEM CORRECTION AUDIT LOG ENTRY GENERATED ---', auditLogEntry);
       
-      toast({ 
-        title: 'Correction Processed Successfully', 
-        description: `Audit Log captured for fields: ${updatedFields.map(f => f.field).join(', ')}` 
-      });
-
+      toast({ title: 'Correction Processed Successfully' });
       setOpenDialog(false);
       resetForm();
       loadData();
@@ -207,42 +184,111 @@ export default function Rooms() {
 
   async function handleDeleteRoom(roomId) {
     if (!permissions.canDeleteRoom) {
-      toast({ title: 'Operation Forbidden', description: 'Only a System Super Admin can delete room allocations.', variant: 'destructive' });
+      toast({ title: 'Operation Forbidden', variant: 'destructive' });
       return;
     }
-
-    if (!confirm('Are you absolutely certain you wish to delete this entity records permanently? This action is non-reversible.')) return;
+    if (!confirm('Are you certain you wish to delete this entity record permanently?')) return;
 
     try {
       await base44.entities.Room.delete(roomId);
-      toast({ title: 'Room allocation purged successfully from tracking matrix' });
+      toast({ title: 'Room allocation purged successfully' });
       loadData();
     } catch (err) {
       console.error(err);
-      toast({ title: 'Failed to complete deletion process', description: err.message, variant: 'destructive' });
+      toast({ title: 'Failed to complete deletion', description: err.message, variant: 'destructive' });
     }
   }
 
-  // Pure Helpers
-  const getRoomStatus = (room) => {
+  // --- ⚡ O(N) HIGH PERFORMANCE MULTI-FILTER PROCESSING PIPELINE ---
+  const filteredRooms = useMemo(() => {
+    return rooms.filter(room => {
+      const capacity = room.capacity || 4;
+      const occupied = room.current_occupancy || 0;
+      const calculatedStatus = getRoomStatus(room);
+      const calculatedType = getRoomType(capacity);
+      
+      const inferredFloor = room.floor !== undefined && room.floor !== null 
+        ? String(room.floor) 
+        : (String(room.room_number).match(/\d/)?.[0] || '');
+
+      // 1. Search Query Input Box
+      if (searchQuery.trim() !== '') {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = room.room_number?.toLowerCase().includes(query) ||
+                              room.block_name?.toLowerCase().includes(query);
+        if (!matchesSearch) return false;
+      }
+
+      // 2. 🚻 GENDER RESTRICTION FILTER ENGINE (WITH BLOCK-LEVEL RESOLUTION FALLBACK)
+      let resolvedRawGender = room.gender_restriction || room.gender;
+
+      // Fallback: If room doesn't explicit hold a rule, look up parent Block structure properties
+      if (!resolvedRawGender && room.block_id && blocks.length > 0) {
+        const matchedParentBlock = blocks.find(b => String(b.id) === String(room.block_id));
+        if (matchedParentBlock) {
+          resolvedRawGender = matchedParentBlock.gender_restriction || matchedParentBlock.gender;
+        }
+      }
+
+      // Standardize input string structures safely
+      const finalNormalizedGender = (resolvedRawGender || 'mixed').trim().toLowerCase();
+
+      if (genderFilter !== 'all') {
+        const targetedFilterValue = genderFilter.trim().toLowerCase();
+        
+        // Exact normalized structural match checks
+        if (finalNormalizedGender !== targetedFilterValue) {
+          return false;
+        }
+      }
+
+      // 3. Status Filter
+      if (statusFilter !== 'all' && calculatedStatus !== statusFilter) return false;
+
+      // 4. Block Filter
+      if (blockFilter !== 'all' && room.block_name !== blockFilter) return false;
+
+      // 5. Floor Filter
+      if (floorFilter !== 'all' && inferredFloor !== floorFilter) return false;
+
+      // 6. Room Type Filter
+      if (typeFilter !== 'all' && calculatedType !== typeFilter) return false;
+
+      // 7. Occupancy State Filter
+      if (occupancyFilter !== 'all') {
+        if (occupancyFilter === 'Empty' && occupied !== 0) return false;
+        if (occupancyFilter === 'Partially' && (occupied === 0 || occupied >= capacity)) return false;
+        if (occupancyFilter === 'Fully' && occupied !== capacity) return false;
+      }
+
+      // 8. Param Deplinks
+      if (statusParam === 'Available' && calculatedStatus !== 'Available') return false;
+      if (statusParam === 'Occupied' && occupied === 0) return false;
+      if (filterParam === 'has-empty-beds' && (capacity - occupied <= 0)) return false;
+
+      return true;
+    });
+  }, [rooms, blocks, searchQuery, genderFilter, statusFilter, blockFilter, floorFilter, typeFilter, occupancyFilter, statusParam, filterParam]);
+
+  // Pure Helper Utilities
+  function getRoomStatus(room) {
     if (room.status === 'Maintenance' || room.status === 'Under Maintenance') return 'Maintenance';
     const occupied = room.current_occupancy || 0;
     const capacity = room.capacity || 4;
     if (occupied === 0) return 'Available';
     if (occupied >= capacity) return 'Full';
     return 'Occupied';
-  };
+  }
 
-  const getRoomType = (capacity) => {
+  function getRoomType(capacity) {
     if (capacity === 1) return 'Single';
     if (capacity === 2) return 'Double';
     if (capacity === 3) return 'Triple';
     if (capacity >= 4) return 'Quad';
     return 'Other';
-  };
+  }
 
   const getRoomResidents = (roomId) => {
-    if (!roomId) return [];
     return students.filter(s => String(s.room_id).trim().toLowerCase() === String(roomId).trim().toLowerCase());
   };
 
@@ -278,6 +324,7 @@ export default function Rooms() {
     setSelectedRoomForEdit(room);
     setForm({
       room_number: room.room_number || '',
+      block_id: room.block_id || '',
       block_name: room.block_name || '',
       capacity: room.capacity || 4,
       gender_restriction: room.gender_restriction || room.gender || 'female',
@@ -291,6 +338,7 @@ export default function Rooms() {
     setSelectedRoomForEdit(null);
     setForm({
       room_number: '',
+      block_id: '',
       block_name: '',
       capacity: 4,
       gender_restriction: 'female',
@@ -299,7 +347,6 @@ export default function Rooms() {
     });
   };
 
-  // Memoized Options Dropdowns
   const uniqueBlocks = useMemo(() => {
     return ['all', ...new Set(rooms.map(r => r.block_name).filter(Boolean))].sort();
   }, [rooms]);
@@ -307,78 +354,22 @@ export default function Rooms() {
   const uniqueFloors = useMemo(() => {
     const floors = rooms.map(room => {
       if (room.floor !== undefined && room.floor !== null) return String(room.floor);
-      const firstDigitMatch = String(room.room_number).match(/\d/);
-      return firstDigitMatch ? firstDigitMatch[0] : null;
+      const match = String(room.room_number).match(/\d/);
+      return match ? match[0] : null;
     }).filter(Boolean);
     return ['all', ...new Set(floors)].sort((a, b) => Number(a) - Number(b));
   }, [rooms]);
-
-  // --- ⚡ O(N) HIGH PERFORMANCE MULTI-FILTER PROCESSING PIPELINE ---
-  const filteredRooms = useMemo(() => {
-    return rooms.filter(room => {
-      const capacity = room.capacity || 4;
-      const occupied = room.current_occupancy || 0;
-      const calculatedStatus = getRoomStatus(room);
-      const calculatedType = getRoomType(capacity);
-      
-      const inferredFloor = room.floor !== undefined && room.floor !== null 
-        ? String(room.floor) 
-        : (String(room.room_number).match(/\d/)?.[0] || '');
-
-      // 1. Search Query Input Box
-      if (searchQuery.trim() !== '') {
-        const query = searchQuery.toLowerCase();
-        const matchesSearch = room.room_number?.toLowerCase().includes(query) ||
-                              room.block_name?.toLowerCase().includes(query);
-        if (!matchesSearch) return false;
-      }
-
-      // 2. Gender Restriction Filter (⚠️ FIXED: Substring Matching Integration)
-      const normalizedGender = (room.gender_restriction || room.gender || 'mixed').toLowerCase().trim();
-      if (genderFilter !== 'all') {
-        if (!normalizedGender.includes(genderFilter.toLowerCase())) return false;
-      }
-
-      // 3. Status Filter
-      if (statusFilter !== 'all' && calculatedStatus !== statusFilter) return false;
-
-      // 4. Block Filter
-      if (blockFilter !== 'all' && room.block_name !== blockFilter) return false;
-
-      // 5. Floor Filter
-      if (floorFilter !== 'all' && inferredFloor !== floorFilter) return false;
-
-      // 6. Room Type Filter
-      if (typeFilter !== 'all' && calculatedType !== typeFilter) return false;
-
-      // 7. Occupancy State Filter
-      if (occupancyFilter !== 'all') {
-        if (occupancyFilter === 'Empty' && occupied !== 0) return false;
-        if (occupancyFilter === 'Partially' && (occupied === 0 || occupied >= capacity)) return false;
-        if (occupancyFilter === 'Fully' && occupied !== capacity) return false;
-      }
-
-      // 8. Backward Route Deep-links Integration Params
-      if (statusParam === 'Available' && calculatedStatus !== 'Available') return false;
-      if (statusParam === 'Occupied' && occupied === 0) return false;
-      if (filterParam === 'has-empty-beds' && (capacity - occupied <= 0)) return false;
-
-      return true;
-    });
-  }, [rooms, searchQuery, genderFilter, statusFilter, blockFilter, floorFilter, typeFilter, occupancyFilter, statusParam, filterParam]);
 
   const summaryMetrics = useMemo(() => {
     const counts = { Available: 0, Occupied: 0, Full: 0, Maintenance: 0 };
     filteredRooms.forEach(room => {
       const currentStatus = getRoomStatus(room);
-      if (counts[currentStatus] !== undefined) {
-        counts[currentStatus]++;
-      }
+      if (counts[currentStatus] !== undefined) counts[currentStatus]++;
     });
     return counts;
   }, [filteredRooms]);
 
-  // --- ⛔ SECURITY BREAKOUT: STUDENT BOUNDARY SHIELD ---
+  // --- ⛔ SECURITY BREAKOUT SHIELD ---
   if (!permissions.canViewModule) {
     return (
       <div className="flex items-center justify-center min-h-[400px] p-4 text-center">
@@ -387,27 +378,10 @@ export default function Rooms() {
             <div className="mx-auto bg-destructive/10 w-12 h-12 rounded-full flex items-center justify-center text-destructive">
               <ShieldAlert className="w-6 h-6" />
             </div>
-            <div className="space-y-1.5">
-              <h3 className="text-base font-bold text-foreground">Dormitory Boundary Restrictions</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Your current authorization clearance identifier level (Student) is explicitly blocked from reviewing or manipulating master configurations. Contact your college administration.
-              </p>
-            </div>
-            <div className="border-t pt-3 flex items-center justify-center gap-2">
-              <Label className="text-[10px] text-muted-foreground uppercase font-semibold">Test Simulator Engine :</Label>
-              <Select value={currentUser.role} onValueChange={(r) => setCurrentUser(prev => ({ ...prev, role: r }))}>
-                <SelectTrigger className="w-[140px] h-7 text-xs bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="super_admin">Super Admin</SelectItem>
-                  <SelectItem value="college_admin">College Admin</SelectItem>
-                  <SelectItem value="staff">Staff Personnel</SelectItem>
-                  <SelectItem value="warden">Warden Guard</SelectItem>
-                  <SelectItem value="student">Student Profile</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <h3 className="text-base font-bold text-foreground">Boundary Restrictions</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Your current profile clearance level is blocked from evaluating system rooms index definitions.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -417,12 +391,12 @@ export default function Rooms() {
   return (
     <div className="space-y-6">
       
-      {/* 🔮 INTERACTIVE ROLE SWITCH MATRIX PANEL FOR SANDBOX VALIDATION */}
+      {/* CLEARANCE SANDBOX PANEL */}
       <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
-          <div className="text-xs font-sans">
-            <span className="font-bold text-primary">Clearance Sandbox:</span> Authenticated as <span className="font-mono font-bold underline bg-background px-1 py-0.5 rounded text-foreground">{currentUser.name} ({currentUser.role})</span>
+          <div className="text-xs">
+            <span className="font-bold text-primary">Simulation Environment:</span> Active Role Profile : <span className="font-mono font-bold bg-background px-1 py-0.5 rounded text-foreground">{currentUser.role}</span>
           </div>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -435,8 +409,7 @@ export default function Rooms() {
               <SelectItem value="super_admin">⚡ Super Admin</SelectItem>
               <SelectItem value="college_admin">🏢 College Admin</SelectItem>
               <SelectItem value="staff">🔧 Staff Team</SelectItem>
-              <SelectItem value="warden">👁️ Warden (Read Only)</SelectItem>
-              <SelectItem value="student">🎓 Student (Blocked)</SelectItem>
+              <SelectItem value="warden">👁️ Warden Profile</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -444,7 +417,7 @@ export default function Rooms() {
 
       <PageHeader
         title="Room Configuration Management"
-        description="Configure single-gender layouts, track real-time occupancy changes, and preview current occupant rosters."
+        description="Configure single-gender layouts, track occupancy live changes, and verify cross-table inherited attributes."
         actions={
           permissions.canCreateRoom && (
             <Button size="sm" onClick={openCreateMode}>
@@ -454,7 +427,7 @@ export default function Rooms() {
         }
       />
 
-      {/* ADVANCED FILTER TOOLBAR */}
+      {/* FILTER CONTROLS TOOLBAR */}
       <Card className="bg-card border-border shadow-sm">
         <CardContent className="p-4 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-2.5 items-end">
@@ -478,9 +451,9 @@ export default function Rooms() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Genders</SelectItem>
-                  <SelectItem value="male">Male</SelectItem>
-                  <SelectItem value="female">Female</SelectItem>
-                  <SelectItem value="mixed">Mixed</SelectItem>
+                  <SelectItem value="male">Male Only</SelectItem>
+                  <SelectItem value="female">Female Only</SelectItem>
+                  <SelectItem value="mixed">Mixed Layouts</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -503,7 +476,7 @@ export default function Rooms() {
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Block Location</Label>
               <Select value={blockFilter} onValueChange={setBlockFilter}>
                 <SelectTrigger className="h-9 text-sm capitalize">
-                  <SelectValue placeholder="Block" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {uniqueBlocks.map(block => (
@@ -518,7 +491,7 @@ export default function Rooms() {
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Floor Level</Label>
               <Select value={floorFilter} onValueChange={setFloorFilter}>
                 <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Floor" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {uniqueFloors.map(floor => (
@@ -533,7 +506,7 @@ export default function Rooms() {
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Layout Type</Label>
               <Select value={typeFilter} onValueChange={setTypeFilter}>
                 <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Type" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
@@ -548,7 +521,7 @@ export default function Rooms() {
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Occupancy</Label>
               <Select value={occupancyFilter} onValueChange={setOccupancyFilter}>
                 <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Occupancy" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Levels</SelectItem>
@@ -565,24 +538,19 @@ export default function Rooms() {
               <span className="font-semibold text-foreground">Showing {filteredRooms.length} of {rooms.length} rooms</span>
               <span className="text-muted-foreground/40">|</span>
               <span>Available: <span className="font-mono font-bold text-emerald-600">{summaryMetrics.Available}</span></span>
-              <span className="text-muted-foreground/30">•</span>
-              <span>Occupied: <span className="font-mono font-bold text-blue-600">{summaryMetrics.Occupied}</span></span>
-              <span className="text-muted-foreground/30">•</span>
               <span>Full: <span className="font-mono font-bold text-red-600">{summaryMetrics.Full}</span></span>
-              <span className="text-muted-foreground/30">•</span>
               <span>Maintenance: <span className="font-mono font-bold text-amber-600">{summaryMetrics.Maintenance}</span></span>
             </div>
 
-            <div className="flex items-center gap-2 self-end sm:self-auto w-full sm:w-auto justify-end">
-              <Button variant="outline" size="sm" onClick={handleResetFilters} className="h-8 text-xs font-medium">
+            <div className="flex items-center gap-2 justify-end w-full sm:w-auto">
+              <Button variant="outline" size="sm" onClick={handleResetFilters} className="h-8 text-xs">
                 <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reset Filters
               </Button>
-              <div className="h-8 w-[1px] bg-muted hidden sm:block" />
               <div className="flex items-center gap-0.5 bg-muted p-1 rounded-lg">
-                <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" className="h-6 w-6 rounded-md" onClick={() => setViewMode('grid')}>
+                <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" className="h-6 w-6" onClick={() => setViewMode('grid')}>
                   <LayoutGrid className="w-3.5 h-3.5" />
                 </Button>
-                <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" className="h-6 w-6 rounded-md" onClick={() => setViewMode('list')}>
+                <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" className="h-6 w-6" onClick={() => setViewMode('list')}>
                   <List className="w-3.5 h-3.5" />
                 </Button>
               </div>
@@ -591,38 +559,43 @@ export default function Rooms() {
         </CardContent>
       </Card>
 
-      {/* RENDER VIEW SCHEMES */}
+      {/* RENDER DATA STRUCTURE SHAPES */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
       ) : filteredRooms.length === 0 ? (
-        <EmptyState icon={Home} title="No room registrations found matching layout filters" />
+        <EmptyState icon={Home} title="No records found matching tracking filters." />
       ) : viewMode === 'grid' ? (
         
-        /* 🎴 GRID DISPLAY CARD ARCHITECTURE */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredRooms.map((room) => {
             const capacity = room.capacity || 4;
             const occupied = room.current_occupancy || 0;
             const bedsAvailable = capacity - occupied;
             const currentStatus = getRoomStatus(room);
-            const genderTag = room.gender_restriction || room.gender || 'female';
+            
+            // Gender parsing check sequence inside loop layout
+            let loopRawGender = room.gender_restriction || room.gender;
+            if (!loopRawGender && room.block_id && blocks.length > 0) {
+              const blk = blocks.find(b => String(b.id) === String(room.block_id));
+              if (blk) loopRawGender = blk.gender_restriction || blk.gender;
+            }
+            const genderTag = (loopRawGender || 'mixed').trim().toLowerCase();
             const roomResidents = getRoomResidents(room.id);
             const isExpanded = expandedRoomId === room.id;
 
             return (
-              <Card key={room.id} className="overflow-hidden border border-border hover:shadow-sm transition-all flex flex-col justify-between relative group">
+              <Card key={room.id} className="overflow-hidden border border-border hover:shadow-sm transition-all relative group flex flex-col justify-between">
                 <CardContent className="p-4 space-y-3 flex-1">
                   
-                  {/* Action Layer Context Trigger UI */}
-                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-background/80 backdrop-blur-xs p-0.5 rounded-md border shadow-2xs">
+                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-xs p-0.5 rounded-md border shadow-2xs">
                     {permissions.canEditRoom ? (
                       <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => openEditMode(room)}>
                         <Edit2 className="w-3 h-3" />
                       </Button>
                     ) : (
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground/30 cursor-not-allowed" disabled title="You do not have permission to edit rooms.">
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground/30 cursor-not-allowed" disabled>
                         <Lock className="w-3 h-3" />
                       </Button>
                     )}
@@ -633,12 +606,12 @@ export default function Rooms() {
                     )}
                   </div>
 
-                  <div className="flex justify-between items-start pr-12 sm:pr-8">
+                  <div className="flex justify-between items-start pr-8">
                     <div>
                       <h3 className="text-sm font-bold font-mono text-foreground">Room {room.room_number}</h3>
                       <p className="text-xs text-muted-foreground">Block {room.block_name}</p>
                     </div>
-                    <Badge variant="outline" className={`text-[10px] px-2 py-0.5 font-medium uppercase ${getStatusBadgeStyles(currentStatus)}`}>
+                    <Badge variant="outline" className={`text-[10px] uppercase ${getStatusBadgeStyles(currentStatus)}`}>
                       {currentStatus}
                     </Badge>
                   </div>
@@ -648,7 +621,7 @@ export default function Rooms() {
                       <span className="flex items-center gap-1"><Users className="w-3 h-3" /> Occupancy</span>
                       <span className="text-foreground font-mono">{occupied} / {capacity}</span>
                     </div>
-                    <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden flex">
+                    <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
                       <div className={`h-full ${currentStatus === 'Full' ? 'bg-red-500' : currentStatus === 'Maintenance' ? 'bg-amber-500' : 'bg-primary'}`} style={{ width: `${(occupied / capacity) * 100}%` }} />
                     </div>
                   </div>
@@ -660,8 +633,8 @@ export default function Rooms() {
                         {currentStatus === 'Maintenance' ? 'Locked' : `${bedsAvailable} left`}
                       </span>
                     </span>
-                    <Badge className={`text-[9px] px-1.5 py-0 border-0 font-medium uppercase ${genderTag.includes('male') ? 'bg-blue-600' : genderTag.includes('female') ? 'bg-pink-600' : 'bg-purple-600'}`}>
-                      {genderTag.includes('male') ? 'Male Only' : genderTag.includes('female') ? 'Female Only' : 'Mixed Layout'}
+                    <Badge className={`text-[9px] border-0 font-medium uppercase ${genderTag.includes('male') ? 'bg-blue-600' : genderTag.includes('female') ? 'bg-pink-600' : 'bg-purple-600'}`}>
+                      {genderTag.includes('male') ? 'Male Only' : genderTag.includes('female') ? 'Female Only' : 'Mixed Design'}
                     </Badge>
                   </div>
 
@@ -669,21 +642,19 @@ export default function Rooms() {
                     <Button 
                       variant="ghost" size="sm" 
                       onClick={() => toggleExpandRoom(room.id)}
-                      className="w-full h-7 text-[11px] font-semibold flex justify-between items-center px-2 bg-muted/40 hover:bg-muted text-muted-foreground"
+                      className="w-full h-7 text-[11px] flex justify-between items-center px-2 bg-muted/40 hover:bg-muted"
                     >
                       <span>Occupants ({roomResidents.length}/{capacity})</span>
                       {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                     </Button>
                     {isExpanded && (
-                      <div className="mt-2 border border-dashed rounded-lg p-2 bg-muted/10 max-h-48 overflow-y-auto text-xs space-y-2 animate-in fade-in duration-150">
+                      <div className="mt-2 border border-dashed rounded-lg p-2 bg-muted/10 max-h-48 overflow-y-auto text-xs space-y-2">
                         {roomResidents.length === 0 ? (
-                          <p className="text-[11px] text-muted-foreground text-center py-2">No students assigned here.</p>
+                          <p className="text-[11px] text-muted-foreground text-center py-2">No students assigned.</p>
                         ) : (
                           roomResidents.map((student) => (
-                            <div key={student.id} className="pb-1 last:pb-0 border-b last:border-0 border-muted/40 text-[11px]">
-                              <div className="font-bold text-foreground flex items-center gap-1 uppercase">
-                                <User className="w-2.5 h-2.5 text-primary" /> {student.full_name}
-                              </div>
+                            <div key={student.id} className="pb-1 last:pb-0 border-b last:border-0 border-muted/40 text-[11px] font-bold text-foreground flex items-center gap-1 uppercase">
+                              <User className="w-2.5 h-2.5 text-primary" /> {student.full_name}
                             </div>
                           ))
                         )}
@@ -697,7 +668,6 @@ export default function Rooms() {
         </div>
       ) : (
         
-        /* 📋 COMPACT DATA-TABLE ROWS SCHEMA */
         <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -716,7 +686,13 @@ export default function Rooms() {
                   const capacity = room.capacity || 4;
                   const occupied = room.current_occupancy || 0;
                   const currentStatus = getRoomStatus(room);
-                  const genderTag = room.gender_restriction || room.gender || 'female';
+                  
+                  let tableRawGender = room.gender_restriction || room.gender;
+                  if (!tableRawGender && room.block_id && blocks.length > 0) {
+                    const blk = blocks.find(b => String(b.id) === String(room.block_id));
+                    if (blk) tableRawGender = blk.gender_restriction || blk.gender;
+                  }
+                  const genderTag = (tableRawGender || 'mixed').trim().toLowerCase();
                   const roomResidents = getRoomResidents(room.id);
                   const isExpanded = expandedRoomId === room.id;
 
@@ -738,20 +714,18 @@ export default function Rooms() {
                         <td className="px-4 py-3 text-muted-foreground font-mono">{occupied} / {capacity} Beds</td>
                         <td className="px-4 py-2 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            <Button variant="outline" size="sm" onClick={() => toggleExpandRoom(room.id)} className="h-7 text-xs font-medium px-2">
+                            <Button variant="outline" size="sm" onClick={() => toggleExpandRoom(room.id)} className="h-7 text-xs px-2">
                               Roster ({roomResidents.length})
                             </Button>
-                            
                             {permissions.canEditRoom ? (
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => openEditMode(room)}>
                                 <Edit2 className="w-3.5 h-3.5" />
                               </Button>
                             ) : (
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/30 cursor-not-allowed" disabled title="You do not have permission to edit rooms.">
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/30 cursor-not-allowed" disabled>
                                 <Lock className="w-3.5 h-3.5" />
                               </Button>
                             )}
-                            
                             {permissions.canDeleteRoom && (
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteRoom(room.id)}>
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -764,13 +738,13 @@ export default function Rooms() {
                         <tr className="bg-muted/20 border-b">
                           <td colSpan={6} className="px-6 py-3">
                             <div className="bg-card border rounded-lg p-3 max-w-xl text-xs space-y-2">
-                              <p className="font-bold text-muted-foreground border-b pb-1">Room {room.room_number} Occupant Rosters</p>
+                              <p className="font-bold text-muted-foreground border-b pb-1">Room {room.room_number} Roster</p>
                               {roomResidents.map((st) => (
                                 <div key={st.id} className="font-bold text-foreground uppercase flex items-center gap-2">
-                                  <User className="w-3 h-3 text-primary" /> {st.full_name} <span className="font-mono text-[10px] font-normal normal-case text-muted-foreground">({st.student_id || 'No Matric'})</span>
+                                  <User className="w-3 h-3 text-primary" /> {st.full_name}
                                 </div>
                               ))}
-                              {roomResidents.length === 0 && <p className="text-muted-foreground py-1">No residents currently locked in matrix indexes.</p>}
+                              {roomResidents.length === 0 && <p className="text-muted-foreground py-1">No residents assigned here.</p>}
                             </div>
                           </td>
                         </tr>
@@ -784,30 +758,19 @@ export default function Rooms() {
         </div>
       )}
 
-      {/* 📑 REGISTER / CORRECTION MASTER DIALOG WINDOW */}
+      {/* 📑 DIALOG WINDOW MODAL */}
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {dialogMode === 'create' ? 'Register New Dormitory Room' : 'Execute Structural Correction (Pembetulan)'}
+              {dialogMode === 'create' ? 'Register New Dormitory Room' : 'Execute Structural Correction'}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              {dialogMode === 'create' 
-                ? 'Populate master indexes for general configuration setup.' 
-                : 'Alter dynamic parameters. All operational records undergo strict audit tracing.'}
+              All room modifications are monitored and recorded into system event structures.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3.5 py-1">
-            {dialogMode === 'edit' && (
-              <div className="bg-blue-50 border border-blue-200 text-blue-950 p-2.5 rounded-md flex gap-2 items-start text-xs leading-normal">
-                <ShieldAlert className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <div>
-                  <strong>RBAC Audit Tracking Enforcement:</strong> Altering fields requires a valid correction reason. Current signature role: <span className="font-bold capitalize">{currentUser.role}</span>.
-                </div>
-              </div>
-            )}
-
             <div>
               <Label className="text-xs font-medium">Room Number *</Label>
               <Input 
@@ -822,7 +785,7 @@ export default function Rooms() {
             <div>
               <Label className="text-xs font-medium">Block Name *</Label>
               <Input 
-                placeholder="e.g., Block A, Block B" 
+                placeholder="e.g., Block A" 
                 value={form.block_name} 
                 onChange={(e) => setForm({ ...form, block_name: e.target.value })} 
                 className="h-9 mt-1"
@@ -853,16 +816,16 @@ export default function Rooms() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="female">Female Only (Wing 👩)</SelectItem>
-                    <SelectItem value="male">Male Only (Wing 👨)</SelectItem>
-                    <SelectItem value="mixed">Mixed Designation (General 🚻)</SelectItem>
+                    <SelectItem value="female">female</SelectItem>
+                    <SelectItem value="male">male</SelectItem>
+                    <SelectItem value="mixed">mixed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div>
-              <Label className="text-xs font-medium">Dynamic Facility Status</Label>
+              <Label className="text-xs font-medium">Facility Status</Label>
               <Select 
                 value={form.status} 
                 onValueChange={(v) => setForm({ ...form, status: v })}
@@ -872,23 +835,22 @@ export default function Rooms() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Available">Available / Online</SelectItem>
-                  <SelectItem value="Maintenance">Under Maintenance / Lockout</SelectItem>
+                  <SelectItem value="Available">Available</SelectItem>
+                  <SelectItem value="Maintenance">Maintenance</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* 📑 MANDATORY AUDIT INPUT FIELD */}
             {dialogMode === 'edit' && (
               <div className="pt-2 border-t space-y-1.5">
-                <Label className="text-xs font-bold text-foreground flex items-center gap-1">
-                  Reason for Correction * <span className="text-[10px] text-destructive font-mono">(Audit Required)</span>
+                <Label className="text-xs font-bold flex items-center gap-1">
+                  Reason for Correction * <span className="text-[10px] text-destructive font-mono">(Required)</span>
                 </Label>
                 <Input 
-                  placeholder="e.g., Incorrect room capacity entered during structural registration."
+                  placeholder="Provide audit rationale..."
                   value={form.reason_for_correction}
                   onChange={(e) => setForm({ ...form, reason_for_correction: e.target.value })}
-                  className="h-9 border-amber-300 focus-visible:ring-amber-500 bg-amber-50/20 text-xs"
+                  className="h-9 text-xs"
                 />
               </div>
             )}
