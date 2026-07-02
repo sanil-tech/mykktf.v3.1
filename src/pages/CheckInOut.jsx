@@ -1,272 +1,156 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { verifyAndSyncOccupancy } from './hostelSyncService';
+import React, { useState, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
+import PageHeader from '@/components/shared/PageHeader';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Users, CalendarCheck, CalendarOff, Building2 } from 'lucide-react';
+import moment from 'moment';
 
-// Sila hubungkan ke laluan fail konfigurasi Base44/API asal anda
-import { api } from '../services/api'; 
-
-export default function CheckInCheckOutPage() {
+export default function LeaveMonitor() {
+  const [user, setUser] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(moment().format('YYYY-MM-DD'));
+  const [blocks, setBlocks] = useState([]);
   const [students, setStudents] = useState([]);
-  const [rooms, setRooms] = useState([]);
-  const [selectedRoomId, setSelectedRoomId] = useState('');
-  const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
+  const [leaves, setLeaves] = useState([]);
+  const [filterBlock, setFilterBlock] = useState('all');
+  const [wardenBlocks, setWardenBlocks] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Requirement 5: Segarkan semua senarai entiti secara serentak
-  const refreshAllData = async () => {
-    try {
-      setLoading(true);
-      const [studentsData, roomsData] = await Promise.all([
-        api.getStudents(), // Student.list()
-        api.getRooms()     // Room.list()
-      ]);
-      setStudents(studentsData || []);
-      setRooms(roomsData || []);
-    } catch (error) {
-      handleNotification('error', 'Gagal menyegarkan data sistem.');
-    } finally {
-      setLoading(false);
+  useEffect(() => { init(); }, []);
+
+  async function init() {
+    const u = await base44.auth.me();
+    setUser(u);
+    const [b, s, l] = await Promise.all([
+      base44.entities.Block.list(),
+      base44.entities.Student.filter({ status: 'Active' }),
+      base44.entities.LeaveApplication.filter({ status: 'Approved' }),
+    ]);
+    setBlocks(b);
+    setStudents(s);
+    setLeaves(l);
+    if (u.role === 'warden') {
+      const wb = await base44.entities.WardenBlock.filter({ warden_user_id: u.id });
+      setWardenBlocks(wb.map(w => w.block_name));
     }
-  };
+    setLoading(false);
+  }
 
-  useEffect(() => {
-    refreshAllData();
-  }, []);
+  const date = moment(selectedDate);
+  const onLeaveSet = new Set(
+    leaves.filter(l => moment(l.departure_date).isSameOrBefore(date, 'day') && moment(l.return_date).isSameOrAfter(date, 'day')).map(l => l.student_id)
+  );
 
-  const handleNotification = (type, text) => {
-    setMessage({ type, text });
-    setTimeout(() => setMessage({ type: '', text: '' }), 5000);
-  };
+  const accessibleBlocks = user?.role === 'warden' && wardenBlocks.length > 0 ? blocks.filter(b => wardenBlocks.includes(b.block_name)) : blocks;
+  const displayBlocks = filterBlock === 'all' ? accessibleBlocks : accessibleBlocks.filter(b => b.block_name === filterBlock);
+  const scopedStudents = user?.role === 'warden' && wardenBlocks.length > 0 ? students.filter(s => wardenBlocks.includes(s.block_name)) : students;
 
-  // Requirement 4: Tapisan list berasaskan Source of Truth
-  const checkInList = useMemo(() => students.filter(s => !s.room_id || s.room_id === 'none' || s.room_id === ''), [students]);
-  const checkOutList = useMemo(() => students.filter(s => s.room_id && s.room_id !== 'none' && s.room_id !== ''), [students]);
+  const blockStats = displayBlocks.map(block => {
+    const bs = scopedStudents.filter(s => s.block_name === block.block_name);
+    const onLeave = bs.filter(s => onLeaveSet.has(s.student_id)).length;
+    const present = bs.length - onLeave;
+    const occupancy = bs.length > 0 ? Math.round((present / bs.length) * 100) : 0;
+    return { ...block, total: bs.length, present, onLeave, occupancy };
+  });
 
-  // Requirement 6: Paparan Occupant List mengikut pilihan bilik secara tepat
-  const liveOccupants = useMemo(() => {
-    if (!selectedRoomId) return [];
-    return students.filter(s => s.room_id?.toString() === selectedRoomId.toString());
-  }, [selectedRoomId, students]);
+  const totalPresent = blockStats.reduce((a, b) => a + b.present, 0);
+  const totalOnLeave = blockStats.reduce((a, b) => a + b.onLeave, 0);
+  const totalStudents = blockStats.reduce((a, b) => a + b.total, 0);
 
-  // Fungsi pembantu untuk mengira status berdasarkan bilangan penghuni terkini
-  const computeStatus = (occupancy, capacity) => {
-    if (occupancy >= capacity) return 'Full';
-    if (occupancy > 0) return 'Occupied';
-    return 'Available';
-  };
-
-  // ============================================================================
-  // ALIRAN KERJA PROSES CHECK-IN (Requirement 1, 3, 4, 5)
-  // ============================================================================
-  const executeCheckIn = async (e) => {
-    e.preventDefault();
-    if (!selectedStudentId || !selectedRoomId) return handleNotification('error', 'Sila lengkapkan pilihan borang.');
-
-    try {
-      setLoading(true);
-
-      // ⚠️ Requirement 3: Ambil rekod Room paling terkini dari DB untuk elak desync
-      const latestRoomSnapshot = await api.getRoomById(selectedRoomId); 
-      const targetStudent = students.find(s => s.id.toString() === selectedStudentId.toString());
-
-      if (!latestRoomSnapshot || !targetStudent) throw new Error('Maklumat entiti tidak sahih.');
-      if (latestRoomSnapshot.is_maintenance) throw new Error('Bilik sedang diselenggara.');
-
-      // ⚠️ Requirement 4: Validasi Kapasiti Ketat sebelum proses diteruskan
-      if (latestRoomSnapshot.current_occupancy >= latestRoomSnapshot.capacity) {
-        throw new Error(`Pendaftaran Ditolak: Bilik ${latestRoomSnapshot.room_number} sudah penuh!`);
-      }
-
-      // Hitung nilai baru berdasarkan rekod terkini database snapshot
-      const updatedOccupancy = latestRoomSnapshot.current_occupancy + 1;
-      const updatedStatus = computeStatus(updatedOccupancy, latestRoomSnapshot.capacity);
-
-      // 📦 Requirement 1: Kemas kini TIGA entiti secara berturutan / atomik
-      await Promise.all([
-        // A. Cipta Log Check-In
-        api.createCheckIn({
-          student_id: targetStudent.id,
-          room_id: latestRoomSnapshot.id,
-          check_in_date: new Date().toISOString()
-        }),
-        // B. Kemas kini data Student
-        api.updateStudent(targetStudent.id, {
-          room_id: latestRoomSnapshot.id,
-          room_number: latestRoomSnapshot.room_number,
-          block_name: latestRoomSnapshot.block_name
-        }),
-        // C. Kemas kini data Room
-        api.updateRoom(latestRoomSnapshot.id, {
-          current_occupancy: updatedOccupancy,
-          status: updatedStatus
-        })
-      ]);
-
-      handleNotification('success', `Check-In Berjaya bagi pelajar ${targetStudent.full_name}.`);
-      setSelectedStudentId('');
-      
-      // 🔄 Requirement 5 & 7: Refresh Data + Jalankan Auto-Verification
-      await refreshAllData();
-      await verifyAndSyncOccupancy(api);
-
-    } catch (err) {
-      handleNotification('error', err.message || 'Ralat berlaku semasa transaksi data.');
-    } finally {
-      setLoading(false);
+  const leavingStudents = leaves.filter(l => {
+    const inRange = moment(l.departure_date).isSameOrBefore(date, 'day') && moment(l.return_date).isSameOrAfter(date, 'day');
+    if (!inRange) return false;
+    if (user?.role === 'warden' && wardenBlocks.length > 0) {
+      const stu = scopedStudents.find(s => s.student_id === l.student_id);
+      return !!stu;
     }
-  };
+    return true;
+  });
 
-  // ============================================================================
-  // ALIRAN KERJA PROSES CHECK-OUT (Requirement 2, 3, 5)
-  // ============================================================================
-  const executeCheckOut = async (student) => {
-    if (!student.room_id) return;
-    
-    if (!window.confirm(`Sahkan tindakan Check-Out untuk ${student.full_name}?`)) return;
-
-    try {
-      setLoading(true);
-
-      // ⚠️ Requirement 3: Ambil snapshot bilik yang paling baru dari DB
-      const latestRoomSnapshot = await api.getRoomById(student.room_id);
-      if (!latestRoomSnapshot) throw new Error('Bilik tidak dijumpai dalam pangkalan data.');
-
-      const updatedOccupancy = Math.max(0, latestRoomSnapshot.current_occupancy - 1);
-      const updatedStatus = computeStatus(updatedOccupancy, latestRoomSnapshot.capacity);
-
-      // 📦 Requirement 2: Kosongkan Student & Tolak Kuantiti Room
-      await Promise.all([
-        // A. Kosongkan nilai bilik pada Student
-        api.updateStudent(student.id, {
-          room_id: "",
-          room_number: "",
-          block_name: ""
-        }),
-        // B. Kemas kini data Room
-        api.updateRoom(latestRoomSnapshot.id, {
-          current_occupancy: updatedOccupancy,
-          status: updatedStatus
-        })
-      ]);
-
-      handleNotification('success', `Pelajar ${student.full_name} berjaya didaftar keluar.`);
-      
-      // 🔄 Requirement 5 & 7: Refresh & Verifikasi
-      await refreshAllData();
-      await verifyAndSyncOccupancy(api);
-
-    } catch (err) {
-      handleNotification('error', err.message || 'Gagal memproses data Check-Out.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (loading) return <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="border-b pb-4">
-        <h1 className="text-2xl font-bold text-gray-800">Urusan Check-In / Check-Out</h1>
-        <p className="text-xs text-gray-500">Penyelarasan Data Berpusat Kategori Segera</p>
+    <div>
+      <PageHeader title="Leave Occupancy Monitor" description="View resident presence for any date" />
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium whitespace-nowrap">Date:</label>
+          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="border border-input rounded-md px-3 py-1.5 text-sm" />
+        </div>
+        <Select value={filterBlock} onValueChange={setFilterBlock}>
+          <SelectTrigger className="w-48"><SelectValue placeholder="All Blocks" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Blocks</SelectItem>
+            {accessibleBlocks.map(b => <SelectItem key={b.id} value={b.block_name}>{b.block_name}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
-      {message.text && (
-        <div className={`p-4 rounded-md font-bold ${message.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-          {message.text}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><Users className="w-5 h-5 text-primary" /></div>
+          <div><p className="text-2xl font-bold">{totalStudents}</p><p className="text-xs text-muted-foreground">Total Residents</p></div>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center"><CalendarCheck className="w-5 h-5 text-green-600" /></div>
+          <div><p className="text-2xl font-bold text-green-600">{totalPresent}</p><p className="text-xs text-muted-foreground">Present</p></div>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center"><CalendarOff className="w-5 h-5 text-orange-600" /></div>
+          <div><p className="text-2xl font-bold text-orange-600">{totalOnLeave}</p><p className="text-xs text-muted-foreground">On Leave</p></div>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center"><Building2 className="w-5 h-5 text-blue-600" /></div>
+          <div><p className="text-2xl font-bold text-blue-600">{totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0}%</p><p className="text-xs text-muted-foreground">Occupancy</p></div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        {blockStats.map(block => (
+          <div key={block.id} className="bg-card border border-border rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-sm">{block.block_name}</h3>
+              <span className="text-xs text-muted-foreground">{block.gender_restriction}</span>
+            </div>
+            <div className="space-y-1.5 mb-3">
+              <div className="flex justify-between text-xs"><span className="text-muted-foreground">Total</span><span className="font-medium">{block.total}</span></div>
+              <div className="flex justify-between text-xs"><span className="text-green-600">Present</span><span className="font-medium text-green-600">{block.present}</span></div>
+              <div className="flex justify-between text-xs"><span className="text-orange-600">On Leave</span><span className="font-medium text-orange-600">{block.onLeave}</span></div>
+            </div>
+            <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+              <div className="absolute left-0 top-0 h-full bg-primary rounded-full transition-all" style={{ width: `${block.occupancy}%` }} />
+            </div>
+            <p className="text-xs text-right text-muted-foreground mt-1">{block.occupancy}% present</p>
+          </div>
+        ))}
+      </div>
+
+      {leavingStudents.length > 0 && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <h3 className="text-sm font-semibold">Students on Leave – {moment(selectedDate).format('D MMM YYYY')}</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50"><tr className="text-xs text-muted-foreground">
+                <th className="text-left px-4 py-2">Name</th>
+                <th className="text-left px-4 py-2">Leave Type</th>
+                <th className="text-left px-4 py-2">Departure</th>
+                <th className="text-left px-4 py-2">Return</th>
+              </tr></thead>
+              <tbody className="divide-y divide-border">
+                {leavingStudents.map(l => (
+                  <tr key={l.id} className="hover:bg-muted/30">
+                    <td className="px-4 py-2">{l.student_name}</td>
+                    <td className="px-4 py-2">{l.leave_type}</td>
+                    <td className="px-4 py-2">{l.departure_date}</td>
+                    <td className="px-4 py-2">{l.return_date}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* BORANG DAFTAR MASUK */}
-        <div className="bg-white p-5 rounded-lg shadow border">
-          <h2 className="text-lg font-bold text-green-700 mb-4">📥 Pendaftaran Masuk (Check-In)</h2>
-          <form onSubmit={executeCheckIn} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Pelajar ({checkInList.length})</label>
-              <select className="w-full p-2 border rounded" value={selectedStudentId} onChange={e => setSelectedStudentId(e.target.value)} disabled={loading}>
-                <option value="">-- Sila Pilih Pelajar --</option>
-                {checkInList.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Bilik Sasaran</label>
-              <select className="w-full p-2 border rounded" value={selectedRoomId} onChange={e => setSelectedRoomId(e.target.value)} disabled={loading}>
-                <option value="">-- Sila Pilih Bilik --</option>
-                {rooms.map(r => (
-                  <option key={r.id} value={r.id} disabled={r.is_maintenance || r.current_occupancy >= r.capacity}>
-                    Bilik {r.room_number} ({r.status}) — [{r.current_occupancy}/{r.capacity}]
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white p-2.5 rounded font-bold transition" disabled={loading}>
-              {loading ? 'Memproses...' : 'Sahkan Tugasan Bilik'}
-            </button>
-          </form>
-        </div>
-
-        {/* REKOD SENARAI PENGHUNI BERSANDARKAN PILIHAN (Requirement 6) */}
-        <div className="bg-white p-5 rounded-lg shadow border">
-          <h2 className="text-lg font-bold text-blue-700 mb-4">👁️ Senarai Penghuni Bilik Terpilih ({liveOccupants.length})</h2>
-          {selectedRoomId ? (
-            liveOccupants.length === 0 ? (
-              <p className="text-sm text-gray-400 italic">Bilik ini tiada penghuni aktif (Kosong).</p>
-            ) : (
-              <ul className="divide-y border rounded bg-gray-50 max-h-56 overflow-y-auto">
-                {liveOccupants.map(student => (
-                  <li key={student.id} className="p-3 flex justify-between items-center text-sm">
-                    <div>
-                      <p className="font-bold text-gray-800">{student.full_name}</p>
-                      <p className="text-xs text-gray-500">ID: {student.student_id}</p>
-                    </div>
-                    <span className="text-xs font-mono bg-white border px-2 py-1 rounded text-gray-600">{student.phone_number || 'Tiada No. Tel'}</span>
-                  </li>
-                ))}
-              </ul>
-            )
-          ) : (
-            <p className="text-sm text-gray-400 italic">Sila klik atau pilih salah satu bilik sasaran untuk melihat ahli penghuni.</p>
-          )}
-        </div>
-      </div>
-
-      {/* BAHAGIAN SENARAI DAFTAR KELUAR */}
-      <div className="bg-white p-5 rounded-lg shadow border">
-        <h2 className="text-lg font-bold text-red-700 mb-4">📤 Senarai Pendaftaran Keluar ({checkOutList.length} Pelajar Aktif)</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse">
-            <thead>
-              <tr className="bg-gray-100 border-b">
-                <th className="p-3">Nama Penuh</th>
-                <th className="p-3">Nombor Bilik</th>
-                <th className="p-3">Blok</th>
-                <th className="p-3 text-center">Tindakan</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {checkOutList.length === 0 ? (
-                <tr>
-                  <td colSpan="4" className="p-4 text-center text-gray-400 italic">Tiada data penghuni di hostel ketika ini.</td>
-                </tr>
-              ) : (
-                checkOutList.map(student => (
-                  <tr key={student.id} className="hover:bg-gray-50">
-                    <td className="p-3 font-bold text-gray-800">{student.full_name}</td>
-                    <td className="p-3 text-blue-600 font-semibold">Bilik {student.room_number || 'N/A'}</td>
-                    <td className="p-3 text-gray-600">{student.block_name || 'N/A'}</td>
-                    <td className="p-3 text-center">
-                      <button onClick={() => executeCheckOut(student)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded font-bold text-xs transition" disabled={loading}>
-                        Check Out
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 }
