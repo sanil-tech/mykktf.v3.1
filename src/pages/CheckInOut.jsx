@@ -866,16 +866,6 @@ export default function CheckInOut() {
               />
             </div>
 
-            <div>
-              <Label className="text-xs font-medium">Jumlah Pemulangan Deposit (RM)</Label>
-              <Input 
-                type="number" 
-                disabled={submitting} 
-                value={coForm.refund_amount} 
-                onChange={(e) => setCoForm({ ...coForm, refund_amount: parseFloat(e.target.value) || 0 })} 
-                className="h-9 text-sm mt-1" 
-              />
-            </div>
 
           </div>
           <div className="flex justify-end gap-2 mt-4">
