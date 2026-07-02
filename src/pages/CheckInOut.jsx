@@ -127,7 +127,7 @@ export default function CheckInOut() {
 
   function getRoomStatus(room) {
     if (!room) return 'Unknown';
-    if (room.status === 'Maintenance' || room.room_status === 'Maintenance') return 'Maintenance';
+    if (room.status === 'Maintenance' ) return 'Maintenance';
     
     const current = room.current_occupancy || 0;
     const capacity = room.capacity || 4;
@@ -140,7 +140,7 @@ export default function CheckInOut() {
   function getAvailableRooms(allRooms, student) {
     if (!student) return [];
     return allRooms.filter(room => {
-      if (room.status === 'Maintenance' || room.room_status === 'Maintenance') return false;
+      if (room.status === 'Maintenance' ) return false;
       
       const current = room.current_occupancy || 0;
       const capacity = room.capacity || 4;
@@ -176,7 +176,7 @@ export default function CheckInOut() {
       return false;
     }
 
-    if (room.status === 'Maintenance' || room.room_status === 'Maintenance') {
+    if (room.status === 'Maintenance') {
       if (triggerToasts) {
         toast({ title: 'Ralat Pilihan', description: 'Bilik ini sedang dalam penyelenggaraan.', variant: 'destructive' });
       }
@@ -250,6 +250,49 @@ export default function CheckInOut() {
   function dispatchGlobalRefresh() {
     window.dispatchEvent(new CustomEvent('KRMS_MODULES_REFRESH'));
   }
+  async function verifyRoomConsistency() {
+
+  const [allRooms, allStudents] =
+    await Promise.all([
+      base44.entities.Room.list(),
+      base44.entities.Student.list()
+    ]);
+
+  for (const room of allRooms) {
+
+    const count =
+      allStudents.filter(
+        s =>
+          String(s.room_id) ===
+          String(room.id)
+      ).length;
+
+    const capacity =
+      Number(room.capacity || 4);
+
+    let status = 'Available';
+
+    if (count >= capacity) {
+      status = 'Full';
+    } else if (count > 0) {
+      status = 'Occupied';
+    }
+
+    if (
+      Number(room.current_occupancy || 0) !== count ||
+      room.status !== status
+    ) {
+
+      await base44.entities.Room.update(
+        room.id,
+        {
+          current_occupancy: count,
+          status
+        }
+      );
+    }
+  }
+}
 
   const handleSelectStudent = (student) => {
     setSelectedStudent(student);
@@ -308,8 +351,7 @@ export default function CheckInOut() {
         room_number: room.room_number || '',
         room_id: room.id,
         check_in_date: ciForm.check_in_date,
-        room_status: 'Checked In',
-        status: 'Student' 
+        room_status: 'Checked In', 
       });
 
       // 3. Kemaskini kapasiti bilik semasa
@@ -317,14 +359,13 @@ export default function CheckInOut() {
       const newOccupancy = currentCachedOccupancy + 1;
       const capacity = room.capacity || 4;
       
-      const nextStatus = room.status === 'Maintenance' || room.room_status === 'Maintenance'
+      const nextStatus = room.status === 'Maintenance'
         ? 'Maintenance' 
         : (newOccupancy >= capacity ? 'Full' : 'Occupied');
 
       await base44.entities.Room.update(room.id, {
         current_occupancy: newOccupancy,
         status: nextStatus,
-        room_status: nextStatus
       });
 
       toast({ title: 'Berjaya', description: 'Check-in direkodkan dan status senarai telah dikemaskini.' });
@@ -388,14 +429,13 @@ export default function CheckInOut() {
         const currentCachedOccupancy = room.current_occupancy || 0;
         const newOccupancy = Math.max(0, currentCachedOccupancy - 1);
         
-        const nextStatus = room.status === 'Maintenance' || room.room_status === 'Maintenance'
+        const nextStatus = room.status === 'Maintenance'
           ? 'Maintenance' 
           : (newOccupancy === 0 ? 'Available' : 'Occupied');
 
         await base44.entities.Room.update(room.id, {
           current_occupancy: newOccupancy,
           status: nextStatus,
-          room_status: nextStatus
         });
       }
 
