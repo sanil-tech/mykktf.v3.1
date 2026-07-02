@@ -83,6 +83,69 @@ export default function Rooms() {
       loadDataAndHeal();
     }
   }, [permissions.canViewModule]);
+// Di dalam page Rooms anda
+useEffect(() => {
+  // 1. Ambil data buat kali pertama apabila page dibuka
+  fetchRoomsAndStudents();
+
+  // 2. Fungsi penangkap isyarat refresh dari page CheckInOut
+  const handleGlobalRefresh = () => {
+    console.log("Menerima isyarat refresh! Memuatkan semula data bilik...");
+    fetchRoomsAndStudents(); 
+  };
+
+  // 3. Pasang 'telinga' pada window
+  window.addEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
+
+  // 4. Bersihkan listener apabila komponen ditutup (unmount) bagi mengelakkan memory leak
+  return () => {
+    window.removeEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
+  };
+}, []);
+async function fetchRoomsAndStudents() {
+  try {
+    setLoading(true);
+    // Ambil data bilik dan pelajar yang terkini dari database
+    const [roomsData, studentsData] = await Promise.all([
+      base44.entities.Room.list(),
+      base44.entities.Student.list() 
+    ]);
+    
+    setRooms(roomsData);
+    setStudents(studentsData); // Simpan state students di page Rooms
+  } catch (err) {
+    console.error("Ralat muat data:", err);
+  } finally {
+    setLoading(false);
+  }
+}{rooms.map((room) => {
+  // Tapis pelajar yang berada di dalam bilik ini sahaja
+  const occupants = students.filter(student => String(student.room_id) === String(room.id));
+
+  return (
+    <Card key={room.id}>
+      <CardContent>
+        <h3>Bilik {room.room_number}</h3>
+        {/* Paparkan occupancy terkini yang di-update dari DB */}
+        <p>Penghuni: {room.current_occupancy} / {room.capacity}</p> 
+        
+        {/* Senarai Nama Pelajar Dalam Bilik Ini */}
+        <div className="mt-2">
+          <h4>Senarai Penghuni:</h4>
+          {occupants.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Tiada penghuni</p>
+          ) : (
+            <ul className="text-xs list-disc pl-4">
+              {occupants.map(st => (
+                <li key={st.id}>{st.full_name} ({st.student_id})</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+})}
 
   // --- 🔄 SELF-HEALING SYSTEM DATA CONVERGENCE LOOP ---
   async function loadDataAndHeal() {
