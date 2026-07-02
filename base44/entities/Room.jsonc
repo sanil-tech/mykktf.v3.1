@@ -16,7 +16,8 @@
       "type": "number"
     },
     "capacity": {
-      "type": "number"
+      "type": "number",
+      "default": 4
     },
     "current_occupancy": {
       "type": "number",
@@ -30,6 +31,15 @@
         "Triple",
         "Quad"
       ]
+    },
+    "gender_restriction": {
+      "type": "string",
+      "enum": [
+        "Male",
+        "Female",
+        "Mixed"
+      ],
+      "default": "Mixed"
     },
     "status": {
       "type": "string",
@@ -76,6 +86,11 @@
         {
           "user_condition": {
             "role": "college_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
           }
         }
       ]
