@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,9 @@ import {
   Search, 
   Loader2, 
   RefreshCw,
-  Building
+  Building,
+  DoorOpen,
+  Contact2
 } from "lucide-react";
 
 export default function AdminDashboard({ user }) {
@@ -21,7 +23,6 @@ export default function AdminDashboard({ user }) {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Fungsi untuk menarik data dari API sebenar
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
@@ -46,25 +47,33 @@ export default function AdminDashboard({ user }) {
   // 📊 LOGIK PENAPISAN KAD (Punca Kebenaran Tunggal / Single Source of Truth)
   const stats = useMemo(() => {
     const total = students.length;
-    
-    // Aktif = Ada nama blok DAN ada nombor bilik
     const checkedIn = students.filter(s => s.block_name && s.room_number).length;
-    
-    // Menunggu = Tiada nama blok ATAU tiada nombor bilik
     const pending = students.filter(s => !s.block_name || !s.room_number).length;
-    
-    // Jumlah kenderaan berdaftar (tidak kosong)
     const vehicles = students.filter(s => s.vehicle_reg && s.vehicle_reg.trim() !== '').length;
 
-    return { total, checkedIn, pending, vehicles };
+    // 🌟 1. Pecahan Jantina (Berdasarkan Jumlah Keseluruhan Residen Berdaftar)
+    const maleCount = students.filter(s => s.gender?.toLowerCase() === 'male').length;
+    const femaleCount = students.filter(s => s.gender?.toLowerCase() === 'female').length;
+
+    // 🌟 2. Pengiraan Bilik yang Mempunyai Penghuni (Unique Rooms)
+    const occupiedRoomsSet = new Set();
+    students.forEach(s => {
+      if (s.block_name && s.room_number) {
+        // Gabungkan nama blok dan nombor bilik sebagai ID unik bilik tersebut
+        occupiedRoomsSet.add(`${s.block_name}_${s.room_number}`);
+      }
+    });
+    const occupiedRoomsCount = occupiedRoomsSet.size;
+
+    return { total, checkedIn, pending, vehicles, maleCount, femaleCount, occupiedRoomsCount };
   }, [students]);
 
-  // Logik Carian Senarai Pelajar
   const filteredStudents = useMemo(() => {
     return students.filter(student => 
       student.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.student_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.block_name?.toLowerCase().includes(searchTerm.toLowerCase())
+      student.block_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.room_number?.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [students, searchTerm]);
 
@@ -82,7 +91,7 @@ export default function AdminDashboard({ user }) {
   return (
     <div className="space-y-6 p-6 max-w-7xl mx-auto">
       
-      {/* 🌟 HEADER DASHBOARD */}
+      {/* HEADER DASHBOARD */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-6 rounded-xl border shadow-sm">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -100,10 +109,8 @@ export default function AdminDashboard({ user }) {
         </button>
       </div>
 
-      {/* 📊 SEKSYEN KAD METRIK (100% Selari Dengan Data Sebenar) */}
+      {/* 📊 SEKSYEN KAD METRIK UTAMA */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        {/* KAD 1: Jumlah Residen Berdaftar */}
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Jumlah Residen</CardTitle>
@@ -115,7 +122,6 @@ export default function AdminDashboard({ user }) {
           </CardContent>
         </Card>
 
-        {/* KAD 2: Residen Aktif (Sudah Check-In) */}
         <Card className="shadow-sm border-l-4 border-l-green-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Aktif (Check-In)</CardTitle>
@@ -127,7 +133,6 @@ export default function AdminDashboard({ user }) {
           </CardContent>
         </Card>
 
-        {/* KAD 3: Menunggu Penempatan Bilik */}
         <Card className="shadow-sm border-l-4 border-l-amber-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Menunggu Penempatan</CardTitle>
@@ -139,7 +144,6 @@ export default function AdminDashboard({ user }) {
           </CardContent>
         </Card>
 
-        {/* KAD 4: Kenderaan Berdaftar */}
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Kenderaan Residen</CardTitle>
@@ -150,19 +154,58 @@ export default function AdminDashboard({ user }) {
             <p className="text-xs text-muted-foreground mt-1">Kereta/motosikal aktif</p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* 📊 🌟 SEKSYEN KAD BAHARU: DEMOGRAFI & BILIK */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        
+        {/* Kad Residen Lelaki */}
+        <Card className="shadow-sm bg-gradient-to-br from-blue-50/40 to-transparent">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Residen Lelaki</CardTitle>
+            <Contact2 className="w-4 h-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-700">{stats.maleCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">Jumlah pelajar lelaki</p>
+          </CardContent>
+        </Card>
+
+        {/* Kad Residen Perempuan */}
+        <Card className="shadow-sm bg-gradient-to-br from-pink-50/40 to-transparent">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Residen Perempuan</CardTitle>
+            <Contact2 className="w-4 h-4 text-pink-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-pink-700">{stats.femaleCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">Jumlah pelajar perempuan</p>
+          </CardContent>
+        </Card>
+
+        {/* Kad Bilik Berpenghuni */}
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Bilik Berpenghuni</CardTitle>
+            <DoorOpen className="w-4 h-4 text-emerald-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-700">{stats.occupiedRoomsCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">Jumlah unit bilik aktif digunakan</p>
+          </CardContent>
+        </Card>
 
       </div>
 
-      {/* 🔍 JADUAL DATA & CARIAN */}
+      {/* JADUAL DATA & CARIAN */}
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg font-semibold">Senarai Rekod Residen KKTF</CardTitle>
-          <CardDescription>Senarai keseluruhan profil pelajar dan status penempatan semasa.</CardDescription>
           <div className="pt-2">
             <div className="relative max-w-sm">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Cari Nama, No. Matrik atau Blok..." 
+                placeholder="Cari Nama, No. Matrik, Blok atau Bilik..." 
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="pl-9 h-9"
@@ -177,7 +220,7 @@ export default function AdminDashboard({ user }) {
                 <TableRow>
                   <TableHead>Nama Residen</TableHead>
                   <TableHead>No. Matrik</TableHead>
-                  <TableHead>Fakulti</TableHead>
+                  <TableHead>Jantina</TableHead>
                   <TableHead>Penempatan (Blok/Bilik)</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
@@ -196,8 +239,10 @@ export default function AdminDashboard({ user }) {
                       <TableRow key={student.id || student.student_id}>
                         <TableCell className="font-medium">{student.full_name}</TableCell>
                         <TableCell className="text-xs font-mono">{student.student_id}</TableCell>
-                        <TableCell className="text-xs max-w-[200px] truncate" title={student.faculty}>
-                          {student.faculty || '—'}
+                        <TableCell className="text-xs">
+                          <Badge variant="outline" className={student.gender?.toLowerCase() === 'male' ? 'text-blue-600 border-blue-200 bg-blue-50/50' : 'text-pink-600 border-pink-200 bg-pink-50/50'}>
+                            {student.gender || '—'}
+                          </Badge>
                         </TableCell>
                         <TableCell className="text-sm">
                           {isAssigned ? (
@@ -208,11 +253,11 @@ export default function AdminDashboard({ user }) {
                         </TableCell>
                         <TableCell>
                           {isAssigned ? (
-                            <Badge variant="success" className="bg-green-100 text-green-700 hover:bg-green-100 border-none">
+                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none shadow-none">
                               Sudah Check-In
                             </Badge>
                           ) : (
-                            <Badge variant="warning" className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none">
+                            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none shadow-none">
                               Menunggu Bilik
                             </Badge>
                           )}
