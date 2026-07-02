@@ -22,12 +22,31 @@ export default function Fees() {
   const { toast } = useToast();
 
   useEffect(() => { load(); }, []);
+  // Retry helper for transient rate-limit (429) errors with exponential backoff
+  async function withRetry(fn, retries = 3) {
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        const isRateLimit = err?.message?.toLowerCase().includes('rate limit') || err?.status === 429;
+        if (!isRateLimit || attempt === retries - 1) throw err;
+        await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+      }
+    }
+  }
   async function load() {
     setLoading(true);
-    const [f, s] = await Promise.all([base44.entities.Fee.list('-created_date'), base44.entities.Student.list()]);
-    setFees(f);
-    setStudents(s);
-    setLoading(false);
+    try {
+      // Stagger the two calls slightly to reduce burst-load on the API
+      const f = await withRetry(() => base44.entities.Fee.list('-created_date'));
+      const s = await withRetry(() => base44.entities.Student.list());
+      setFees(f || []);
+      setStudents(s || []);
+    } catch (err) {
+      toast({ title: 'Failed to load fees', description: err.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleSubmit() {
