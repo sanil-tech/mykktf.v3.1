@@ -51,9 +51,25 @@
       "type": "string",
       "description": "Assigned residential block"
     },
+    "room_id": {
+      "type": "string",
+      "description": "Reference to Room entity ID"
+    },
     "room_number": {
       "type": "string",
       "description": "Assigned room number"
+    },
+    "room_status": {
+      "type": "string",
+      "enum": [
+        "Checked In",
+        "Checked Out"
+      ],
+      "default": "Checked Out"
+    },
+    "check_in_date": {
+      "type": "string",
+      "format": "date"
     },
     "parent_name": {
       "type": "string"
