@@ -330,65 +330,92 @@ export default function CheckInOut() {
     }
   }
 
-  async function handleCheckOut() {
+  async function handleCheckIn() {
     if (submitting) return; 
-    if (!selectedStudent) {
-      toast({ title: 'Sila pilih pelajar untuk check-out', variant: 'destructive' });
+    if (!selectedStudent || !ciForm.room_id || !ciForm.check_in_date) {
+      toast({ title: 'Sila pilih pelajar, bilik, dan tarikh check-in', variant: 'destructive' });
       return;
     }
-    if (!hasActiveRoom(selectedStudent)) {
-      toast({ title: 'Pelajar tidak mempunyai rekod bilik aktif', variant: 'destructive' });
+
+    const freshStudentData = students.find(s => s.id === selectedStudent.id);
+    if (hasActiveRoom(freshStudentData) || hasActiveRoom(selectedStudent)) {
+      toast({ title: 'Sekatan Keselamatan', description: 'Pelajar ini sudah mendaftar masuk sebentar tadi!', variant: 'destructive' });
+      setCiDialog(false);
+      resetSearchState();
       return;
     }
-    if (!coForm.check_out_date) {
-      toast({ title: 'Sila isi ruangan wajib', variant: 'destructive' });
-      return;
-    }
+
+    const room = rooms.find(r => r.id === ciForm.room_id);
+    if (!validateRoomSelection(room, selectedStudent, true)) return;
 
     setSubmitting(true); 
     try {
-      const room = rooms.find(r => String(r.id) === String(selectedStudent.room_id));
-
-      const checkout = await base44.entities.CheckOut.create({
-        student_id: selectedStudent.id,
-        room_id: selectedStudent.room_id,
-        check_out_date: coForm.check_out_date,
-        check_out_time: coForm.check_out_time,
-        room_condition: coForm.room_condition,
-        semester: coForm.semester, 
-        damage_assessment: coForm.damage_assessment,
-        student_name: selectedStudent.full_name || '',
-        room_number: selectedStudent.room_number || room?.room_number || '',
-        block_name: selectedStudent.block_name || room?.block_name || ''
-      });
-
-      await base44.entities.Student.update(selectedStudent.id, {
-        block_name: null,
-        room_number: null,
-        room_id: null,
-        room_status: 'Checked Out'
-      });
-
-      if (room) {
-        const currentCachedOccupancy = room.current_occupancy || 0;
-        const newOccupancy = Math.max(0, currentCachedOccupancy - 1);
-        const nextStatus = room.status === 'Maintenance' ? 'Maintenance' : (newOccupancy === 0 ? 'Available' : 'Occupied');
-
-        await base44.entities.Room.update(room.id, {
-          current_occupancy: newOccupancy,
-          status: nextStatus,
+      // 🚨 LANGKAH 1 (FAIL-FAST): Cuba kemaskini role pengguna terlebih dahulu.
+      // Jika Admin tiada hak akses (Not Authorized), ia akan melompat terus ke blok 'catch'
+      // dan tiada rekod check-in atau perubahan bilik akan disimpan.
+      if (selectedStudent.user_id) {
+        await base44.entities.User.update(selectedStudent.user_id, {
+          role: 'student'
+        });
+      } else {
+        await base44.entities.Student.update(selectedStudent.id, {
+          role: 'student'
         });
       }
 
-      setCoDialog(false);
-      setPendingCheckout({ checkoutId: checkout.id, student: { ...selectedStudent, room_id: null, room_number: null, block_name: null } });
-      setShowSurvey(true);
+      // 📥 LANGKAH 2: Rekod kemasukan ke log CheckIn (Hanya jalan jika Langkah 1 sukses)
+      await base44.entities.CheckIn.create({
+        student_id: selectedStudent.id,
+        room_id: ciForm.room_id,
+        check_in_date: ciForm.check_in_date,
+        check_in_time: ciForm.check_in_time,
+        semester: ciForm.semester, 
+        notes: ciForm.notes,
+        student_name: selectedStudent.full_name || '',
+        room_number: room?.room_number || '',
+        block_name: room?.block_name || ''
+      });
+
+      // 📥 LANGKAH 3: Kemaskini maklumat bilik pada entiti Student
+      await base44.entities.Student.update(selectedStudent.id, {
+        block_name: room.block_name || '',
+        room_number: room.room_number || '',
+        room_id: room.id,
+        check_in_date: ciForm.check_in_date,
+        room_status: 'Checked In', 
+        resident_status: 'Active' 
+      });
+
+      // 📥 LANGKAH 4: Kemaskini kapasiti bilik (Occupancy)
+      const currentCachedOccupancy = room.current_occupancy || 0;
+      const newOccupancy = currentCachedOccupancy + 1;
+      const capacity = room.capacity || 4;
+      const nextStatus = room.status === 'Maintenance' ? 'Maintenance' : (newOccupancy >= capacity ? 'Full' : 'Occupied');
+
+      await base44.entities.Room.update(room.id, {
+        current_occupancy: newOccupancy,
+        status: nextStatus,
+      });
+
+      toast({ title: 'Berjaya', description: 'Check-in direkodkan dan peranan pengguna ditukar kepada Student.' });
+      setCiDialog(false);
       resetSearchState();
-      await load();
+      await load(); 
       dispatchGlobalRefresh();
     } catch (err) {
       console.error(err);
-      toast({ title: 'Ralat rekod check-out', description: err.message, variant: 'destructive' });
+      
+      // Mengendalikan ralat spesifik sekiranya disekat oleh API (contoh: 403 Forbidden / Not Authorized)
+      const errorMessage = err.message || '';
+      if (errorMessage.toLowerCase().includes('authorized') || errorMessage.toLowerCase().includes('permission')) {
+        toast({ 
+          title: 'Check-In Disekat (Ralat Autoriti)', 
+          description: 'Sistem membatalkan check-in kerana anda tidak mempunyai kebenaran (permission) untuk menukar role pengguna ini.', 
+          variant: 'destructive' 
+        });
+      } else {
+        toast({ title: 'Ralat rekod check-in', description: err.message, variant: 'destructive' });
+      }
     } finally {
       setSubmitting(false); 
     }
