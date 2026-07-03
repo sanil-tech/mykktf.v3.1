@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Archive, LogIn, LogOut, Search, User, Loader2, Calendar, ChevronDown } from 'lucide-react';
+import { Archive, LogIn, LogOut, Search, User, Loader2, Calendar } from 'lucide-react';
 import SurveyModal from '@/components/SurveyModal';
 
 export default function CheckInOut() {
@@ -23,9 +24,8 @@ export default function CheckInOut() {
   const [submitting, setSubmitting] = useState(false);
   const [archiving, setArchiving] = useState(false);
   
-  // Filter Global Sesi
+  // Filter Global Sesi (Kekal Dropdown < 3 pilihan)
   const [selectedSemesterFilter, setSelectedSemesterFilter] = useState('Sem1_2526');
-  const [showGlobalSemList, setShowGlobalSemList] = useState(false);
   
   // Dialog States
   const [ciDialog, setCiDialog] = useState(false);
@@ -34,24 +34,18 @@ export default function CheckInOut() {
   const [pendingCheckout, setPendingCheckout] = useState(null);
   const [showSurvey, setShowSurvey] = useState(false);
   
-  // Live Search Pelajar
+  // Live Search Pelajar (Taip & Tapis)
   const [studentSearch, setStudentSearch] = useState('');
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   
-  // Searchable Filter States untuk Form
+  // Form Searchable States (Taip & Tapis untuk Data Dinamik/Banyak)
   const [blockSearch, setBlockSearch] = useState('');
   const [showBlockList, setShowBlockList] = useState(false);
   
   const [roomSearch, setRoomSearch] = useState('');
   const [showRoomList, setShowRoomList] = useState(false);
-
-  const [semSearch, setSemSearch] = useState('Semester 1 Sesi 2025/2026');
-  const [showSemList, setShowSemList] = useState(false);
-
-  const [conditionSearch, setConditionSearch] = useState('Sangat Baik / Bersih');
-  const [showConditionList, setShowConditionList] = useState(false);
   
   // Form States
   const [ciForm, setCiForm] = useState({ room_id: '', check_in_date: '', check_in_time: '', semester: 'Sem1_2526', notes: '' });
@@ -59,18 +53,6 @@ export default function CheckInOut() {
   
   const [currentUser, setCurrentUser] = useState(null);
   const { toast } = useToast();
-
-  // Senarai Tetap untuk Rujukan Penapisan
-  const semesterOptions = [
-    { value: 'Sem1_2526', label: 'Semester 1 Sesi 2025/2026' },
-    { value: 'Sem2_2526', label: 'Semester 2 Sesi 2025/2026' }
-  ];
-
-  const conditionOptions = [
-    { value: 'Good', label: 'Sangat Baik / Bersih' },
-    { value: 'Fair', label: 'Sederhana / Perlu Pembersihan Kecil' },
-    { value: 'Damaged', label: 'Mempunyai Kerosakan Fizikal' }
-  ];
 
   useEffect(() => {
     base44.auth.me().then(setCurrentUser);
@@ -130,7 +112,7 @@ export default function CheckInOut() {
     setFilteredStudents(baseFiltered);
   }, [studentSearch, students, ciDialog, coDialog]);
 
-  // Ekstrak nama blok unik (Telah ditapis mengikut jantina jika mod Check In)
+  // Ekstrak nama blok unik berdasarkan jantina
   const allAvailableBlocks = useMemo(() => {
     if (rooms.length === 0) return [];
     let targetRooms = rooms;
@@ -228,8 +210,6 @@ export default function CheckInOut() {
     setShowSuggestions(false);
     setBlockSearch('');
     setRoomSearch('');
-    setSemSearch('Semester 1 Sesi 2025/2026');
-    setConditionSearch('Sangat Baik / Bersih');
   }
 
   function handleSelectStudent(student) {
@@ -376,7 +356,7 @@ export default function CheckInOut() {
     <div>
       <PageHeader
         title="Check-In / Check-Out"
-        description="Urus pergerakan residen dengan borang carian taip & tapis"
+        description="Urus pergerakan residen dengan validasi hibrid"
         actions={
           <div className="flex gap-2 flex-wrap">
             <Button size="sm" variant="secondary" onClick={() => setArchiveDialog(true)}>
@@ -396,32 +376,20 @@ export default function CheckInOut() {
         }
       />
 
-      {/* FILTER SESI UTAMA (TULIS & TAPIS) */}
-      <div className="relative mb-4 w-full max-w-sm">
-        <Label className="text-xs font-medium mb-1 block">Tapis Paparan Semester Log</Label>
-        <div className="relative">
-          <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input 
-            value={formatSemesterName(selectedSemesterFilter)}
-            readOnly
-            onClick={() => setShowGlobalSemList(!showGlobalSemList)}
-            className="pl-9 cursor-pointer h-9 text-sm"
-          />
-          <ChevronDown className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+      {/* FILTER SESI UTAMA: < 3 Pilihan (Kekal Dropdown Biasa) */}
+      <div className="flex items-center gap-2 mb-4 p-3 bg-muted/40 rounded-xl border border-border w-full max-w-sm">
+        <Calendar className="w-4 h-4 text-muted-foreground" />
+        <div className="flex-1">
+          <Select value={selectedSemesterFilter} onValueChange={setSelectedSemesterFilter}>
+            <SelectTrigger className="h-9 bg-card border-border">
+              <SelectValue placeholder="Pilih Semester Log" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Sem1_2526">Semester 1 Sesi 2025/2026</SelectItem>
+              <SelectItem value="Sem2_2526">Semester 2 Sesi 2025/2026</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        {showGlobalSemList && (
-          <div className="absolute z-50 w-full bg-popover border rounded-md shadow-md mt-1 text-sm">
-            {semesterOptions.map((opt) => (
-              <div 
-                key={opt.value}
-                onClick={() => { setSelectedSemesterFilter(opt.value); setShowGlobalSemList(false); }}
-                className="px-3 py-2 hover:bg-muted cursor-pointer"
-              >
-                {opt.label}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       <Tabs defaultValue="checkins">
@@ -501,33 +469,21 @@ export default function CheckInOut() {
           </DialogHeader>
           <div className="space-y-4 mt-2 relative">
             
-            {/* SEMESTER (TAIP & TAPIS) */}
-            <div className="relative">
+            {/* SEMESTER: < 3 Pilihan (Kekal Dropdown Biasa) */}
+            <div>
               <Label className="text-xs font-medium">Semester / Sesi Kemasukan *</Label>
-              <Input 
-                value={semSearch}
-                onChange={(e) => { setSemSearch(e.target.value); setShowSemList(true); }}
-                onFocus={() => setShowSemList(true)}
-                placeholder="Taip untuk cari semester..."
-                className="h-9 text-sm mt-1"
-                disabled={submitting}
-              />
-              {showSemList && (
-                <div className="absolute z-50 w-full bg-popover border rounded-md shadow-md mt-1 max-h-32 overflow-y-auto text-sm">
-                  {semesterOptions.filter(o => o.label.toLowerCase().includes(semSearch.toLowerCase())).map((opt) => (
-                    <div 
-                      key={opt.value}
-                      onClick={() => { setSemSearch(opt.label); setCiForm({...ciForm, semester: opt.value}); setShowSemList(false); }}
-                      className="px-3 py-2 hover:bg-muted cursor-pointer"
-                    >
-                      {opt.label}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <Select disabled={submitting} value={ciForm.semester} onValueChange={(v) => setCiForm({ ...ciForm, semester: v })}>
+                <SelectTrigger className="h-9 text-sm mt-1">
+                  <SelectValue placeholder="Pilih semester" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Sem1_2526">Semester 1 Sesi 2025/2026</SelectItem>
+                  <SelectItem value="Sem2_2526">Semester 2 Sesi 2025/2026</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* CARI PELAJAR */}
+            {/* CARI PELAJAR: Data Dinamik/Banyak (Guna Carian Taip & Tapis) */}
             <div className="relative">
               <Label className="text-xs font-medium">Cari ID Pelajar / Nama *</Label>
               <div className="relative mt-1">
@@ -553,7 +509,7 @@ export default function CheckInOut() {
               )}
             </div>
 
-            {/* KAD MAKLUMAT PELAJAR */}
+            {/* KAD MAKLUMAT PELAJAR DENGAN NO IC */}
             {selectedStudent && (
               <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 text-xs">
                 <div className="flex items-center justify-between font-medium">
@@ -576,7 +532,7 @@ export default function CheckInOut() {
               </div>
             )}
 
-            {/* PILIH BLOK (TAIP & TAPIS) */}
+            {/* PILIH BLOK: Data Dinamik (Guna Carian Taip & Tapis) */}
             <div className="relative">
               <Label className="text-xs font-medium">Pilih Blok (Taip untuk Tapis) *</Label>
               <Input 
@@ -602,7 +558,7 @@ export default function CheckInOut() {
               )}
             </div>
 
-            {/* PILIH BILIK (TAIP & TAPIS) */}
+            {/* PILIH BILIK: Data Dinamik (Guna Carian Taip & Tapis) */}
             <div className="relative">
               <Label className="text-xs font-medium">Tugasan Bilik (Taip No Bilik) *</Label>
               <Input 
@@ -721,30 +677,19 @@ export default function CheckInOut() {
               </div>
             </div>
 
-            {/* KEADAAN BILIK (TAIP & TAPIS) */}
-            <div className="relative">
+            {/* KEADAAN BILIK: Exactly 3 Pilihan (Kekal Dropdown Biasa) */}
+            <div>
               <Label className="text-xs font-medium">Keadaan Bilik Semasa Keluar *</Label>
-              <Input 
-                value={conditionSearch}
-                onChange={(e) => { setConditionSearch(e.target.value); setShowConditionList(true); }}
-                onFocus={() => setShowConditionList(true)}
-                placeholder="Taip keadaan bilik..."
-                className="h-9 text-sm mt-1"
-                disabled={submitting}
-              />
-              {showConditionList && (
-                <div className="absolute z-50 w-full bg-popover border rounded-md shadow-md mt-1 text-sm">
-                  {conditionOptions.filter(o => o.label.toLowerCase().includes(conditionSearch.toLowerCase())).map((opt) => (
-                    <div 
-                      key={opt.value}
-                      onClick={() => { setConditionSearch(opt.label); setCoForm({...coForm, room_condition: opt.value}); setShowConditionList(false); }}
-                      className="px-3 py-2 hover:bg-muted cursor-pointer"
-                    >
-                      {opt.label}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <Select disabled={submitting} value={coForm.room_condition} onValueChange={(v) => setCoForm({ ...coForm, room_condition: v })}>
+                <SelectTrigger className="h-9 text-sm mt-1">
+                  <SelectValue placeholder="Pilih keadaan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Good">Sangat Baik / Bersih</SelectItem>
+                  <SelectItem value="Fair">Sederhana / Perlu Pembersihan Kecil</SelectItem>
+                  <SelectItem value="Damaged">Mempunyai Kerosakan Fizikal</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
