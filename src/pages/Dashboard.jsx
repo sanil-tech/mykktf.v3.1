@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ClipboardCheck, MapPin, Info, ArrowRight } from "lucide-react";
+import { Loader2, ClipboardCheck, MapPin, Info, Users, BedDouble } from "lucide-react";
 
 const UMS_FACULTIES = [
   'Faculty of Business, Economics and Accountancy (FPEP)',
@@ -31,9 +31,13 @@ const UMS_FACULTIES = [
 export default function Dashboard() {
   const [currentUser, setCurrentUser] = useState(null);
   const [hasStudentProfile, setHasStudentProfile] = useState(false);
-  const [isRoomAssigned, setIsRoomAssigned] = useState(false); // State baharu untuk semak bilik
+  const [isRoomAssigned, setIsRoomAssigned] = useState(false); 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  // State baharu untuk angka bilangan masa nyata (Real-time counts)
+  const [checkedInCount, setCheckedInCount] = useState(0);
+  const [pendingRoomCount, setPendingRoomCount] = useState(0);
 
   const [form, setForm] = useState({
     full_name: '',
@@ -60,6 +64,23 @@ export default function Dashboard() {
         const user = await base44.auth.me();
         setCurrentUser(user);
 
+        // --- PENGAMBILAN DATA MASA NYATA (REAL-TIME COUNTS) ---
+        try {
+          const allStudents = await base44.entities.Student.filter({});
+          
+          // 1. Sudah Check-In: Mempunyai nama blok DAN nombor bilik
+          const checkedIn = allStudents.filter(s => s.block_name && s.room_number).length;
+          
+          // 2. Belum Ditetapkan Penempatan: Tiada nama blok ATAU tiada nombor bilik
+          const pendingRoom = allStudents.filter(s => !s.block_name || !s.room_number).length;
+
+          setCheckedInCount(checkedIn);
+          setPendingRoomCount(pendingRoom);
+        } catch (countErr) {
+          console.error("Gagal mengira statistik residen:", countErr);
+        }
+        // -----------------------------------------------------
+
         // Jika staf pengurusan kolej, lepaskan terus ke dashboard masing-masing
         if (
           user?.role === 'warden' || 
@@ -68,7 +89,7 @@ export default function Dashboard() {
           user?.role === 'college_admin'
         ) {
           setHasStudentProfile(true);
-          setIsRoomAssigned(true); // Lepas sekatan bilik untuk admin/warden
+          setIsRoomAssigned(true); 
           return;
         }
 
@@ -108,6 +129,11 @@ export default function Dashboard() {
     initDashboard();
   }, []);
 
+  // Fungsi pembantu untuk mengemas kini state form dengan selamat (mengelakkan pepijat asynchronous)
+  const updateFormKey = (key, value) => {
+    setForm(prev => ({ ...prev, [key]: value }));
+  };
+
   const handleCompleteProfile = async (e) => {
     e.preventDefault();
     
@@ -129,7 +155,13 @@ export default function Dashboard() {
       });
 
       toast({ title: "Profil Berjaya Disimpan", description: "Sila rujuk arahan check-in di skrin anda." });
-      window.location.reload(); 
+      
+      // Mengubah state secara dinamik tanpa mematikan aplikasi dengan hard-reload (window.location.reload)
+      setHasStudentProfile(true);
+      setIsRoomAssigned(false);
+      
+      // Meningkatkan pengiraan belum ditetapkan bilik secara lokal (optimizasi UX)
+      setPendingRoomCount(prev => prev + 1);
     } catch (err) {
       toast({ title: "Gagal Mengaktifkan Profil", description: err.message, variant: "destructive" });
     } finally {
@@ -169,23 +201,23 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs">Nama Penuh *</Label>
-                  <Input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                  <Input value={form.full_name} onChange={e => updateFormKey('full_name', e.target.value)} className="h-9 mt-1" disabled={submitting} />
                 </div>
                 <div>
                   <Label className="text-xs">No. Matrik Pelajar *</Label>
-                  <Input placeholder="Contoh: BI21110043" value={form.student_id} onChange={e => setForm({ ...form, student_id: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                  <Input placeholder="Contoh: BI21110043" value={form.student_id} onChange={e => updateFormKey('student_id', e.target.value)} className="h-9 mt-1" disabled={submitting} />
                 </div>
                 <div>
                   <Label className="text-xs">No. IC / Pasport</Label>
-                  <Input value={form.ic_passport} onChange={e => setForm({ ...form, ic_passport: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                  <Input value={form.ic_passport} onChange={e => updateFormKey('ic_passport', e.target.value)} className="h-9 mt-1" disabled={submitting} />
                 </div>
                 <div>
                   <Label className="text-xs">No. Telefon Bimbit *</Label>
-                  <Input placeholder="Contoh: 0123456789" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                  <Input placeholder="Contoh: 0123456789" value={form.phone} onChange={e => updateFormKey('phone', e.target.value)} className="h-9 mt-1" disabled={submitting} />
                 </div>
                 <div>
                   <Label className="text-xs">Jantina</Label>
-                  <Select value={form.gender} onValueChange={v => setForm({ ...form, gender: v })} disabled={submitting}>
+                  <Select value={form.gender} onValueChange={v => updateFormKey('gender', v)} disabled={submitting}>
                     <SelectTrigger className="h-9 mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Male">Male</SelectItem>
@@ -195,7 +227,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Tarikh Lahir</Label>
-                  <Input type="date" value={form.date_of_birth} onChange={e => setForm({ ...form, date_of_birth: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                  <Input type="date" value={form.date_of_birth} onChange={e => updateFormKey('date_of_birth', e.target.value)} className="h-9 mt-1" disabled={submitting} />
                 </div>
               </div>
             </div>
@@ -206,7 +238,7 @@ export default function Dashboard() {
               <div className="space-y-3">
                 <div>
                   <Label className="text-xs">Fakulti</Label>
-                  <Select value={form.faculty} onValueChange={v => setForm({ ...form, faculty: v })} disabled={submitting}>
+                  <Select value={form.faculty} onValueChange={v => updateFormKey('faculty', v)} disabled={submitting}>
                     <SelectTrigger className="h-9 mt-1"><SelectValue placeholder="Pilih Fakulti" /></SelectTrigger>
                     <SelectContent>
                       {UMS_FACULTIES.map(fc => <SelectItem key={fc} value={fc}>{fc}</SelectItem>)}
@@ -216,11 +248,11 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Program Pengajian</Label>
-                    <Input placeholder="Contoh: Sains Komputer" value={form.programme} onChange={e => setForm({ ...form, programme: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                    <Input placeholder="Contoh: Sains Komputer" value={form.programme} onChange={e => updateFormKey('programme', e.target.value)} className="h-9 mt-1" disabled={submitting} />
                   </div>
                   <div>
                     <Label className="text-xs">Tahun Pengajian</Label>
-                    <Select value={String(form.year_of_study)} onValueChange={v => setForm({ ...form, year_of_study: Number(v) })} disabled={submitting}>
+                    <Select value={String(form.year_of_study)} onValueChange={v => updateFormKey('year_of_study', Number(v))} disabled={submitting}>
                       <SelectTrigger className="h-9 mt-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {[1,2,3,4,5].map(y => <SelectItem key={y} value={String(y)}>Year {y}</SelectItem>)}
@@ -237,19 +269,19 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs">Nama Ibu Bapa / Penjaga *</Label>
-                  <Input value={form.parent_name} onChange={e => setForm({ ...form, parent_name: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                  <Input value={form.parent_name} onChange={e => updateFormKey('parent_name', e.target.value)} className="h-9 mt-1" disabled={submitting} />
                 </div>
                 <div>
                   <Label className="text-xs">No. Telefon Ibu Bapa / Penjaga *</Label>
-                  <Input placeholder="Contoh: 0134567890" value={form.parent_phone} onChange={e => setForm({ ...form, parent_phone: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                  <Input placeholder="Contoh: 0134567890" value={form.parent_phone} onChange={e => updateFormKey('parent_phone', e.target.value)} className="h-9 mt-1" disabled={submitting} />
                 </div>
                 <div>
                   <Label className="text-xs">Hubungan / Kontak Kecemasan Lain</Label>
-                  <Input placeholder="Contoh: Pakcik / Kakak" value={form.emergency_contact} onChange={e => setForm({ ...form, emergency_contact: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                  <Input placeholder="Contoh: Pakcik / Kakak" value={form.emergency_contact} onChange={e => updateFormKey('emergency_contact', e.target.value)} className="h-9 mt-1" disabled={submitting} />
                 </div>
                 <div>
                   <Label className="text-xs">No. Pendaftaran Kenderaan (Jika Ada)</Label>
-                  <Input placeholder="Contoh: SAB 1234 X (Optional)" value={form.vehicle_reg} onChange={e => setForm({ ...form, vehicle_reg: e.target.value })} className="h-9 mt-1" disabled={submitting} />
+                  <Input placeholder="Contoh: SAB 1234 X (Optional)" value={form.vehicle_reg} onChange={e => updateFormKey('vehicle_reg', e.target.value)} className="h-9 mt-1" disabled={submitting} />
                 </div>
               </div>
             </div>
@@ -271,7 +303,6 @@ export default function Dashboard() {
       <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-background">
         <div className="max-w-md w-full text-center space-y-6 bg-card p-8 rounded-xl border shadow-md">
           
-          {/* Ikon Header */}
           <div className="mx-auto w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
             <ClipboardCheck className="w-8 h-8" />
           </div>
@@ -285,7 +316,6 @@ export default function Dashboard() {
 
           <hr />
 
-          {/* Kotak Panduan Langkah */}
           <div className="text-left space-y-4 bg-muted/50 p-4 rounded-lg border">
             <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
               <Info className="w-3.5 h-3.5 text-primary" /> Langkah Seterusnya Sila:
@@ -307,7 +337,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Lokasi Pejabat */}
           <div className="flex items-center gap-3 bg-primary/5 border border-primary/10 p-3 rounded-lg text-left text-sm text-primary">
             <MapPin className="w-5 h-5 shrink-0" />
             <p><strong>Lokasi:</strong> Kaunter Utama Pentadbiran KKTF, UMS.</p>
@@ -329,16 +358,17 @@ export default function Dashboard() {
   // ====================================================================
   // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD ASAL (DIPERBAIKI & ADA BILIK)
   // ====================================================================
-  if (currentUser?.role === 'warden') return <WardenDashboard user={currentUser} />;
-  if (currentUser?.role === 'jakmas') return <JakmasDashboard user={currentUser} />;
+  
+  // Suntikan data statistik masa nyata ke dalam dashboard pentadbir melalui prop komponen jika diperlukan
+  if (currentUser?.role === 'warden') return <WardenDashboard user={currentUser} checkedInCount={checkedInCount} pendingRoomCount={pendingRoomCount} />;
+  if (currentUser?.role === 'jakmas') return <JakmasDashboard user={currentUser} checkedInCount={checkedInCount} pendingRoomCount={pendingRoomCount} />;
   if (currentUser?.role === 'super_admin' || currentUser?.role === 'college_admin') {
-    return <AdminDashboard user={currentUser} />;
+    return <AdminDashboard user={currentUser} checkedInCount={checkedInCount} pendingRoomCount={pendingRoomCount} />;
   }
   
-  // Jika profil Student wujud, DAN bilik sudah di-assign oleh Admin, tunjuk StudentDashboard
   if (hasStudentProfile && isRoomAssigned) {
     return <StudentDashboard user={currentUser} />;
   }
   
-  return <AdminDashboard user={currentUser} />;
+  return <AdminDashboard user={currentUser} checkedInCount={checkedInCount} pendingRoomCount={pendingRoomCount} />;
 }
