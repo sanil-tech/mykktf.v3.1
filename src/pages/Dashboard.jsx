@@ -175,44 +175,89 @@ export default function Dashboard() {
     );
   }
 
-  // --- RENDERING KAD METRIK UTAMA ---
+  // --- RENDERING KAD METRIK UTAMA (TULISAN & SUSUNAN DIPERTINGKATKAN) ---
   const renderStatsCards = () => (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-5xl mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl mb-8">
+      
       {/* Kad 1: Sudah Check-In */}
-      <div className="bg-white/90 backdrop-blur-sm p-6 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Sudah Check-In</p>
-          <p className="text-3xl font-bold text-[#002147]">{checkedInCount}</p>
-          <p className="text-[11px] text-emerald-600 font-medium">Residen Aktif di Blok</p>
+      <div className="bg-white/95 backdrop-blur-sm p-6 rounded-2xl border border-slate-200/60 shadow-sm flex items-start justify-between transition-all hover:shadow-md hover:-translate-y-0.5 duration-200">
+        <div className="flex flex-col space-y-1.5">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+            Status Semasa
+          </span>
+          <h3 className="text-lg font-bold text-slate-800 leading-tight">
+            Sudah Check-In
+          </h3>
+          <div className="flex items-baseline space-x-1.5 pt-1">
+            <span className="text-4xl font-extrabold tracking-tight text-[#002147]">
+              {checkedInCount}
+            </span>
+            <span className="text-xs font-semibold text-slate-400">
+              residen
+            </span>
+          </div>
+          <p className="text-xs font-medium text-emerald-600 flex items-center gap-1 pt-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            Aktif mendiami blok
+          </p>
         </div>
-        <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center text-[#002147]">
-          <Users className="w-6 h-6" />
+        <div className="w-12 h-12 rounded-xl bg-blue-50/80 border border-blue-100/50 flex items-center justify-center text-[#002147] shrink-0">
+          <Users className="w-5 h-5" />
         </div>
       </div>
 
       {/* Kad 2: Belum Tetap Bilik */}
-      <div className="bg-white/90 backdrop-blur-sm p-6 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Belum Tetap Bilik</p>
-          <p className="text-3xl font-bold text-[#990000]">{pendingRoomCount}</p>
-          <p className="text-[11px] text-amber-600 font-medium">Perlu Tindakan Pentadbir</p>
+      <div className="bg-white/95 backdrop-blur-sm p-6 rounded-2xl border border-slate-200/60 shadow-sm flex items-start justify-between transition-all hover:shadow-md hover:-translate-y-0.5 duration-200">
+        <div className="flex flex-col space-y-1.5">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+            Tindakan Segera
+          </span>
+          <h3 className="text-lg font-bold text-slate-800 leading-tight">
+            Belum Tetap Bilik
+          </h3>
+          <div className="flex items-baseline space-x-1.5 pt-1">
+            <span className="text-4xl font-extrabold tracking-tight text-[#990000]">
+              {pendingRoomCount}
+            </span>
+            <span className="text-xs font-semibold text-slate-400">
+              pelajar
+            </span>
+          </div>
+          <p className="text-xs font-medium text-amber-600 flex items-center gap-1 pt-1">
+            ⚠️ Perlu penempatan bilik
+          </p>
         </div>
-        <div className="w-12 h-12 rounded-lg bg-red-50 flex items-center justify-center text-[#990000]">
-          <AlertCircle className="w-6 h-6" />
+        <div className="w-12 h-12 rounded-xl bg-red-50/80 border border-red-100/50 flex items-center justify-center text-[#990000] shrink-0">
+          <AlertCircle className="w-5 h-5" />
         </div>
       </div>
 
-      {/* Kad 3: Katil/Bilik Kosong Available */}
-      <div className="bg-white/90 backdrop-blur-sm p-6 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Kekosongan Katil</p>
-          <p className="text-3xl font-bold text-emerald-700">{availableRoomCount}</p>
-          <p className="text-[11px] text-slate-500 font-medium">Bilik Sedia Diinap</p>
+      {/* Kad 3: Kekosongan Katil */}
+      <div className="bg-white/95 backdrop-blur-sm p-6 rounded-2xl border border-slate-200/60 shadow-sm flex items-start justify-between transition-all hover:shadow-md hover:-translate-y-0.5 duration-200">
+        <div className="flex flex-col space-y-1.5">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+            Inventori Bilik
+          </span>
+          <h3 className="text-lg font-bold text-slate-800 leading-tight">
+            Kekosongan Katil
+          </h3>
+          <div className="flex items-baseline space-x-1.5 pt-1">
+            <span className="text-4xl font-extrabold tracking-tight text-emerald-700">
+              {availableRoomCount}
+            </span>
+            <span className="text-xs font-semibold text-slate-400">
+              slot katil
+            </span>
+          </div>
+          <p className="text-xs font-medium text-slate-500 flex items-center gap-1 pt-1">
+            🛏️ Sedia untuk diinap
+          </p>
         </div>
-        <div className="w-12 h-12 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
-          <BedDouble className="w-6 h-6" />
+        <div className="w-12 h-12 rounded-xl bg-emerald-50/80 border border-emerald-100/50 flex items-center justify-center text-emerald-600 shrink-0">
+          <BedDouble className="w-5 h-5" />
         </div>
       </div>
+
     </div>
   );
 
