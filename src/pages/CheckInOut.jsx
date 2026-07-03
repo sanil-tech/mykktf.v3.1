@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeftRight, LogIn, LogOut, Search, User, Home, Sparkles, Bed, Users } from 'lucide-react';
+import { Archive, LogIn, LogOut, Search, User, Home, Sparkles, Bed, Loader2, Calendar } from 'lucide-react';
 import SurveyModal from '@/components/SurveyModal';
 
 export default function CheckInOut() {
@@ -24,10 +24,15 @@ export default function CheckInOut() {
   
   // Guard state UI anti-spam click
   const [submitting, setSubmitting] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  
+  // State Filter Semester Utama untuk Global View
+  const [selectedSemesterFilter, setSelectedSemesterFilter] = useState('Sem1_2526');
   
   // Dialog States
   const [ciDialog, setCiDialog] = useState(false);
   const [coDialog, setCoDialog] = useState(false);
+  const [archiveDialog, setArchiveDialog] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState(null);
   const [showSurvey, setShowSurvey] = useState(false);
   
@@ -42,9 +47,9 @@ export default function CheckInOut() {
   const [availableBlocks, setAvailableBlocks] = useState([]);
   const [filteredRooms, setFilteredRooms] = useState([]);
   
-  // Form States
-  const [ciForm, setCiForm] = useState({ room_id: '', check_in_date: '', check_in_time: '', notes: '' });
-  const [coForm, setCoForm] = useState({ check_out_date: '', check_out_time: '', room_condition: 'Good', damage_assessment: '' });
+  // Form States (Ditambah semester)
+  const [ciForm, setCiForm] = useState({ room_id: '', check_in_date: '', check_in_time: '', semester: 'Sem1_2526', notes: '' });
+  const [coForm, setCoForm] = useState({ check_out_date: '', check_out_time: '', room_condition: 'Good', semester: 'Sem1_2526', damage_assessment: '' });
   
   const [currentUser, setCurrentUser] = useState(null);
   const { toast } = useToast();
@@ -70,18 +75,15 @@ export default function CheckInOut() {
   // Fungsi menyemak bilik aktif
   const hasActiveRoom = (student) => {
     if (!student) return false;
-    
     if (student.room_status && String(student.room_status).trim().toLowerCase() === 'checked in') {
       return true;
     }
-
     if (student.room_id !== undefined && student.room_id !== null) {
       const val = String(student.room_id).trim().toLowerCase();
       if (val !== '' && val !== 'none' && val !== 'null' && val !== 'undefined') {
         return true;
       }
     }
-    
     return false;
   };
 
@@ -93,10 +95,11 @@ export default function CheckInOut() {
     }
     const query = studentSearch.toLowerCase().trim();
     
-    let baseFiltered = students.filter(s => 
-      s.student_id?.toLowerCase().includes(query) || 
-      s.full_name?.toLowerCase().includes(query)
-    );
+    let baseFiltered = students.filter(s => {
+      const isActiveResident = !s.resident_status || String(s.resident_status).toLowerCase() === 'active';
+      const matchesSearch = s.student_id?.toLowerCase().includes(query) || s.full_name?.toLowerCase().includes(query);
+      return isActiveResident && matchesSearch;
+    });
 
     if (ciDialog) {
       baseFiltered = baseFiltered.filter(s => !hasActiveRoom(s));
@@ -128,10 +131,8 @@ export default function CheckInOut() {
   function getRoomStatus(room) {
     if (!room) return 'Unknown';
     if (room.status === 'Maintenance' ) return 'Maintenance';
-    
     const current = room.current_occupancy || 0;
     const capacity = room.capacity || 4;
-    
     if (current === 0) return 'Available';
     if (current >= capacity) return 'Full';
     return 'Occupied';
@@ -141,7 +142,6 @@ export default function CheckInOut() {
     if (!student) return [];
     return allRooms.filter(room => {
       if (room.status === 'Maintenance' ) return false;
-      
       const current = room.current_occupancy || 0;
       const capacity = room.capacity || 4;
       if (current >= capacity) return false;
@@ -164,25 +164,18 @@ export default function CheckInOut() {
 
   function validateRoomSelection(room, student, triggerToasts = true) {
     if (!room || !student) return false;
-
     if (hasActiveRoom(student)) {
       if (triggerToasts) {
-        toast({ 
-          title: 'Ralat Validasi', 
-          description: 'Pelajar ini sudah pun mendaftar masuk (Check-In) ke bilik lain.', 
-          variant: 'destructive' 
-        });
+        toast({ title: 'Ralat Validasi', description: 'Pelajar ini sudah pun mendaftar masuk (Check-In) ke bilik lain.', variant: 'destructive' });
       }
       return false;
     }
-
     if (room.status === 'Maintenance') {
       if (triggerToasts) {
         toast({ title: 'Ralat Pilihan', description: 'Bilik ini sedang dalam penyelenggaraan.', variant: 'destructive' });
       }
       return false;
     }
-
     const current = room.current_occupancy || 0;
     const capacity = room.capacity || 4;
     if (current >= capacity) {
@@ -191,20 +184,14 @@ export default function CheckInOut() {
       }
       return false;
     }
-
     const studentGender = (student.gender || '').toLowerCase().trim();
     const roomGender = (room.gender_restriction || room.gender || 'mixed').toLowerCase().trim();
     if (roomGender !== 'mixed' && studentGender && roomGender !== studentGender) {
       if (triggerToasts) {
-        toast({ 
-          title: 'Sekatan Jantina', 
-          description: `Bilik ini dikhaskan untuk pelajar ${room.gender_restriction || room.gender} sahaja.`, 
-          variant: 'destructive' 
-        });
+        toast({ title: 'Sekatan Jantina', description: `Bilik ini dikhaskan untuk pelajar ${room.gender_restriction || room.gender} sahaja.`, variant: 'destructive' });
       }
       return false;
     }
-
     return true;
   }
 
@@ -226,6 +213,13 @@ export default function CheckInOut() {
       default: return 'bg-slate-600 text-white';
     }
   };
+
+  // Fungsi utiliti format nama paparan semester
+  function formatSemesterName(semCode) {
+    if (semCode === 'Sem1_2526') return 'Semester 1 Sesi 2025/2026';
+    if (semCode === 'Sem2_2526') return 'Semester 2 Sesi 2025/2026';
+    return semCode || 'N/A';
+  }
 
   async function load() {
     try {
@@ -263,7 +257,6 @@ export default function CheckInOut() {
     setSelectedStudent(student);
     setStudentSearch(`${student.student_id} - ${student.full_name}`);
     setShowSuggestions(false);
-    
     if (coDialog && student.block_name) {
       setSelectedBlock(student.block_name);
     }
@@ -278,11 +271,7 @@ export default function CheckInOut() {
 
     const freshStudentData = students.find(s => s.id === selectedStudent.id);
     if (hasActiveRoom(freshStudentData) || hasActiveRoom(selectedStudent)) {
-      toast({ 
-        title: 'Sekatan Keselamatan', 
-        description: 'Pelajar ini sudah mendaftar masuk sebentar tadi!', 
-        variant: 'destructive' 
-      });
+      toast({ title: 'Sekatan Keselamatan', description: 'Pelajar ini sudah mendaftar masuk sebentar tadi!', variant: 'destructive' });
       setCiDialog(false);
       resetSearchState();
       return;
@@ -298,6 +287,7 @@ export default function CheckInOut() {
         room_id: ciForm.room_id,
         check_in_date: ciForm.check_in_date,
         check_in_time: ciForm.check_in_time,
+        semester: ciForm.semester, // Disimpan ke DB
         notes: ciForm.notes,
         student_name: selectedStudent.full_name || '',
         room_number: room?.room_number || '',
@@ -310,22 +300,20 @@ export default function CheckInOut() {
         room_id: room.id,
         check_in_date: ciForm.check_in_date,
         room_status: 'Checked In', 
+        resident_status: 'Active' 
       });
 
       const currentCachedOccupancy = room.current_occupancy || 0;
       const newOccupancy = currentCachedOccupancy + 1;
       const capacity = room.capacity || 4;
-      
-      const nextStatus = room.status === 'Maintenance'
-        ? 'Maintenance' 
-        : (newOccupancy >= capacity ? 'Full' : 'Occupied');
+      const nextStatus = room.status === 'Maintenance' ? 'Maintenance' : (newOccupancy >= capacity ? 'Full' : 'Occupied');
 
       await base44.entities.Room.update(room.id, {
         current_occupancy: newOccupancy,
         status: nextStatus,
       });
 
-      toast({ title: 'Berjaya', description: 'Check-in direkodkan dan status senarai telah dikemaskini.' });
+      toast({ title: 'Berjaya', description: 'Check-in direkodkan.' });
       setCiDialog(false);
       resetSearchState();
       await load(); 
@@ -344,12 +332,10 @@ export default function CheckInOut() {
       toast({ title: 'Sila pilih pelajar untuk check-out', variant: 'destructive' });
       return;
     }
-
     if (!hasActiveRoom(selectedStudent)) {
-      toast({ title: 'Pelajar tidak mempunyai rekod bilik aktif untuk didaftar keluar', variant: 'destructive' });
+      toast({ title: 'Pelajar tidak mempunyai rekod bilik aktif', variant: 'destructive' });
       return;
     }
-
     if (!coForm.check_out_date) {
       toast({ title: 'Sila isi ruangan wajib', variant: 'destructive' });
       return;
@@ -359,20 +345,19 @@ export default function CheckInOut() {
     try {
       const room = rooms.find(r => String(r.id) === String(selectedStudent.room_id));
 
-      // 1. Create check-out transaction record
       const checkout = await base44.entities.CheckOut.create({
         student_id: selectedStudent.id,
         room_id: selectedStudent.room_id,
         check_out_date: coForm.check_out_date,
         check_out_time: coForm.check_out_time,
         room_condition: coForm.room_condition,
+        semester: coForm.semester, // Disimpan ke DB
         damage_assessment: coForm.damage_assessment,
         student_name: selectedStudent.full_name || '',
         room_number: selectedStudent.room_number || room?.room_number || '',
         block_name: selectedStudent.block_name || room?.block_name || ''
       });
 
-      // 2. Clear out room associations from the Student profile
       await base44.entities.Student.update(selectedStudent.id, {
         block_name: null,
         room_number: null,
@@ -380,14 +365,10 @@ export default function CheckInOut() {
         room_status: 'Checked Out'
       });
 
-      // 3. Decrement room occupancy & dynamically sync room statuses
       if (room) {
         const currentCachedOccupancy = room.current_occupancy || 0;
         const newOccupancy = Math.max(0, currentCachedOccupancy - 1);
-        
-        const nextStatus = room.status === 'Maintenance'
-          ? 'Maintenance' 
-          : (newOccupancy === 0 ? 'Available' : 'Occupied');
+        const nextStatus = room.status === 'Maintenance' ? 'Maintenance' : (newOccupancy === 0 ? 'Available' : 'Occupied');
 
         await base44.entities.Room.update(room.id, {
           current_occupancy: newOccupancy,
@@ -406,6 +387,38 @@ export default function CheckInOut() {
       toast({ title: 'Ralat rekod check-out', description: err.message, variant: 'destructive' });
     } finally {
       setSubmitting(false); 
+    }
+  }
+
+  async function handleMassArchive() {
+    setArchiving(true);
+    try {
+      const candidates = students.filter(s => 
+        s.room_status === 'Checked Out' && 
+        (!s.resident_status || String(s.resident_status).toLowerCase() === 'active')
+      );
+
+      if (candidates.length === 0) {
+        toast({ title: 'Tiada Pelajar', description: 'Tiada residen berstatus "Checked Out" sedia di-archive.' });
+        setArchiveDialog(false);
+        return;
+      }
+
+      await Promise.all(
+        candidates.map(student => 
+          base44.entities.Student.update(student.id, { resident_status: 'Archived' })
+        )
+      );
+
+      toast({ title: 'Sesi Akademik Ditutup', description: `Berjaya mengarkibkan ${candidates.length} orang residen.` });
+      setArchiveDialog(false);
+      await load();
+      dispatchGlobalRefresh();
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Ralat proses arkib', description: err.message, variant: 'destructive' });
+    } finally {
+      setArchiving(false);
     }
   }
 
@@ -428,26 +441,49 @@ export default function CheckInOut() {
   const dateStr = now.toISOString().split('T')[0];
   const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
+  // 🚨 PENAPISAN INTERFAS JADUAL UTAMA (Menapis data berdasarkan semester pilihan & memastikan list tidak double)
+  const displayCheckIns = checkIns.filter(ci => (ci.semester || 'Sem1_2526') === selectedSemesterFilter);
+  const displayCheckOuts = checkOuts.filter(co => (co.semester || 'Sem1_2526') === selectedSemesterFilter);
+
   return (
     <div>
       <PageHeader
         title="Check-In / Check-Out"
         description="Urus pergerakan residen dengan validasi pintar"
         actions={
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button size="sm" variant="secondary" onClick={() => setArchiveDialog(true)}>
+              <Archive className="w-4 h-4 mr-1.5" /> Tutup Sesi (Archive)
+            </Button>
             <Button size="sm" onClick={() => {
               resetSearchState();
-              setCiForm({ room_id: '', check_in_date: dateStr, check_in_time: timeStr, notes: '' });
+              setCiForm({ room_id: '', check_in_date: dateStr, check_in_time: timeStr, semester: selectedSemesterFilter, notes: '' });
               setCiDialog(true);
             }}><LogIn className="w-4 h-4 mr-1.5" /> Check In</Button>
             <Button size="sm" variant="outline" onClick={() => {
               resetSearchState();
-              setCoForm({ check_out_date: dateStr, check_out_time: timeStr, room_condition: 'Good', damage_assessment: '' });
+              setCoForm({ check_out_date: dateStr, check_out_time: timeStr, room_condition: 'Good', semester: selectedSemesterFilter, damage_assessment: '' });
               setCoDialog(true);
             }}><LogOut className="w-4 h-4 mr-1.5" /> Check Out</Button>
           </div>
         }
       />
+
+      {/* 🚨 TUKAR PILIHAN SEMESTER UNTUK VIEW JADUAL */}
+      <div className="flex items-center gap-2 mb-4 p-3 bg-muted/40 rounded-xl border border-border w-full max-w-sm">
+        <Calendar className="w-4 h-4 text-muted-foreground" />
+        <div className="flex-1">
+          <Select value={selectedSemesterFilter} onValueChange={setSelectedSemesterFilter}>
+            <SelectTrigger className="h-9 bg-card border-border">
+              <SelectValue placeholder="Pilih Semester Log" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Sem1_2526">Semester 1 Sesi 2025/2026</SelectItem>
+              <SelectItem value="Sem2_2526">Semester 2 Sesi 2025/2026</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       <Tabs defaultValue="checkins">
         <TabsList className="mb-4">
@@ -456,8 +492,8 @@ export default function CheckInOut() {
         </TabsList>
 
         <TabsContent value="checkins">
-          {checkIns.length === 0 ? (
-            <EmptyState icon={LogIn} title="Tiada rekod check-in baru" />
+          {displayCheckIns.length === 0 ? (
+            <EmptyState icon={LogIn} title={`Tiada rekod check-in bagi ${formatSemesterName(selectedSemesterFilter)}`} />
           ) : (
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
@@ -472,7 +508,7 @@ export default function CheckInOut() {
                     </tr>
                   </thead>
                   <tbody>
-                    {checkIns.map((ci) => (
+                    {displayCheckIns.map((ci) => (
                       <tr key={ci.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3 font-medium text-foreground">{ci.student_name}</td>
                         <td className="px-4 py-3 text-muted-foreground">{ci.room_number}</td>
@@ -489,8 +525,8 @@ export default function CheckInOut() {
         </TabsContent>
 
         <TabsContent value="checkouts">
-          {checkOuts.length === 0 ? (
-            <EmptyState icon={LogOut} title="Tiada rekod check-out baru" />
+          {displayCheckOuts.length === 0 ? (
+            <EmptyState icon={LogOut} title={`Tiada rekod check-out bagi ${formatSemesterName(selectedSemesterFilter)}`} />
           ) : (
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
@@ -504,7 +540,7 @@ export default function CheckInOut() {
                     </tr>
                   </thead>
                   <tbody>
-                    {checkOuts.map((co) => (
+                    {displayCheckOuts.map((co) => (
                       <tr key={co.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3 font-medium text-foreground">{co.student_name}</td>
                         <td className="px-4 py-3 text-muted-foreground">{co.room_number}</td>
@@ -527,8 +563,22 @@ export default function CheckInOut() {
             <DialogTitle>Rekod Check In</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2 relative">
+            {/* Pilihan Semester Form */}
+            <div>
+              <Label className="text-xs font-medium">Semester / Sesi Kemasukan *</Label>
+              <Select disabled={submitting} value={ciForm.semester} onValueChange={(v) => setCiForm({ ...ciForm, semester: v })}>
+                <SelectTrigger className="h-9 text-sm mt-1">
+                  <SelectValue placeholder="Pilih semester" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Sem1_2526">Semester 1 Sesi 2025/2026</SelectItem>
+                  <SelectItem value="Sem2_2526">Semester 2 Sesi 2025/2026</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="relative">
-              <Label className="text-xs font-medium">Cari ID Pelajar / Staf Belum Diundi *</Label>
+              <Label className="text-xs font-medium">Cari ID Pelajar / Staf *</Label>
               <div className="relative mt-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
@@ -571,7 +621,6 @@ export default function CheckInOut() {
                   <div>ID: <span className="text-foreground font-mono">{selectedStudent.student_id}</span></div>
                   <div>IC/Pasport: <span className="text-foreground">{selectedStudent.ic_passport || 'N/A'}</span></div>
                   <div>Jantina: <span className="text-foreground capitalize">{selectedStudent.gender || 'N/A'}</span></div>
-                  <div>Status: <span className="text-emerald-600 font-medium">Sedia Ditugaskan</span></div>
                 </div>
               </div>
             )}
@@ -717,6 +766,20 @@ export default function CheckInOut() {
             <DialogTitle>Rekod Check Out</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2 relative">
+            {/* Pilihan Semester Form */}
+            <div>
+              <Label className="text-xs font-medium">Semester / Sesi Daftar Keluar *</Label>
+              <Select disabled={submitting} value={coForm.semester} onValueChange={(v) => setCoForm({ ...coForm, semester: v })}>
+                <SelectTrigger className="h-9 text-sm mt-1">
+                  <SelectValue placeholder="Pilih semester" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Sem1_2526">Semester 1 Sesi 2025/2026</SelectItem>
+                  <SelectItem value="Sem2_2526">Semester 2 Sesi 2025/2026</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="relative">
               <Label className="text-xs font-medium">Cari Residen Aktif *</Label>
               <div className="relative mt-1">
@@ -796,6 +859,34 @@ export default function CheckInOut() {
             <Button variant="outline" size="sm" disabled={submitting} onClick={() => setCoDialog(false)}>Batal</Button>
             <Button size="sm" variant="destructive" onClick={handleCheckOut} disabled={!selectedStudent || submitting}>
               {submitting ? 'Memproses Keluar...' : 'Sahkan Check Out'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 🚨 DIALOG PENGESAHAN ARCHIVE */}
+      <Dialog open={archiveDialog} onOpenChange={(val) => !archiving && setArchiveDialog(val)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Archive className="w-5 h-5 text-amber-600" />
+              Tutup Sesi Akademik & Arkib Residen
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2 text-sm text-muted-foreground">
+            <p>Tindakan ini akan menukar status semua residen yang telah <strong>Checked Out</strong> bagi sesi ini kepada status <strong>Archived</strong>.</p>
+            <p className="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-3 text-xs">
+              <strong>Nota Penting:</strong> Pelajar yang telah di-archive tidak akan lagi muncul dalam carian Check-In/Check-Out sesi baru. Lakukan tindakan ini <strong>hanya selepas Semester 2 tamat sepenuhnya</strong>.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" size="sm" disabled={archiving} onClick={() => setArchiveDialog(false)}>Batal</Button>
+            <Button size="sm" variant="secondary" onClick={handleMassArchive} disabled={archiving}>
+              {archiving ? (
+                <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Mengarkibkan...</>
+              ) : (
+                'Ya, Arkibkan Semua'
+              )}
             </Button>
           </div>
         </DialogContent>
