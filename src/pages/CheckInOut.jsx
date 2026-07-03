@@ -169,14 +169,19 @@ export default function CheckInOut() {
     return 'Occupied';
   }
 
-  function getAvailableRooms(allRooms, student) {
+ function getAvailableRooms(allRooms, student) {
     if (!student) return [];
+    
     return allRooms.filter(room => {
-      if (room.status === 'Maintenance' ) return false;
+      // 1. Abaikan bilik dalam selenggaraan
+      if (room.status === 'Maintenance') return false;
+      
+      // 2. Abaikan bilik yang sudah penuh
       const current = room.current_occupancy || 0;
       const capacity = room.capacity || 4;
       if (current >= capacity) return false;
 
+      // 3. Tapis mengikut jantina pelajar vs jantina sekatan bilik secara ketat
       const roomGender = room.gender_restriction || room.gender || 'mixed';
       return isGenderMatching(student.gender, roomGender);
     });
