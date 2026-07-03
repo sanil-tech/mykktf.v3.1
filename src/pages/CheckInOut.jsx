@@ -10,9 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Archive, LogIn, LogOut, Search, User, Home, Sparkles, Bed, Loader2, Calendar } from 'lucide-react';
+import { Archive, LogIn, LogOut, Search, User, Loader2, Calendar } from 'lucide-react';
 import SurveyModal from '@/components/SurveyModal';
 
 export default function CheckInOut() {
@@ -169,32 +168,6 @@ export default function CheckInOut() {
     return 'Occupied';
   }
 
- function getAvailableRooms(allRooms, student) {
-    if (!student) return [];
-    
-    return allRooms.filter(room => {
-      // 1. Abaikan bilik dalam selenggaraan
-      if (room.status === 'Maintenance') return false;
-      
-      // 2. Abaikan bilik yang sudah penuh
-      const current = room.current_occupancy || 0;
-      const capacity = room.capacity || 4;
-      if (current >= capacity) return false;
-
-      // 3. Tapis mengikut jantina pelajar vs jantina sekatan bilik secara ketat
-      const roomGender = room.gender_restriction || room.gender || 'mixed';
-      return isGenderMatching(student.gender, roomGender);
-    });
-  }
-
-  // Menggunakan useMemo untuk senarai cadangan bilik pintar
-  const suggestedRoomsList = useMemo(() => {
-    const available = getAvailableRooms(rooms, selectedStudent);
-    return available
-      .sort((a, b) => (a.current_occupancy || 0) - (b.current_occupancy || 0))
-      .slice(0, 4);
-  }, [rooms, selectedStudent]);
-
   function validateRoomSelection(room, student, triggerToasts = true) {
     if (!room || !student) return false;
     if (hasActiveRoom(student)) {
@@ -227,25 +200,6 @@ export default function CheckInOut() {
     }
     return true;
   }
-
-  const getStatusCardStyles = (status) => {
-    switch (status) {
-      case 'Available': return 'border-emerald-200 bg-emerald-50/40 hover:bg-emerald-50 text-emerald-900';
-      case 'Occupied': return 'border-blue-200 bg-blue-50/40 hover:bg-blue-50 text-blue-900';
-      case 'Full': return 'border-red-200 bg-red-50/40 opacity-60 text-red-900 cursor-not-allowed';
-      case 'Maintenance': return 'border-slate-200 bg-slate-100 opacity-60 text-slate-700 cursor-not-allowed';
-      default: return 'border-border bg-card';
-    }
-  };
-
-  const getStatusBadgeVariant = (status) => {
-    switch (status) {
-      case 'Available': return 'bg-emerald-600 text-white';
-      case 'Occupied': return 'bg-blue-600 text-white';
-      case 'Full': return 'bg-red-600 text-white';
-      default: return 'bg-slate-600 text-white';
-    }
-  };
 
   function formatSemesterName(semCode) {
     if (semCode === 'Sem1_2526') return 'Semester 1 Sesi 2025/2026';
@@ -672,74 +626,32 @@ export default function CheckInOut() {
               )}
             </div>
 
+            {/* KAD MAKLUMAT PELAJAR DENGAN FAKULTI & BADGE KES KHAS */}
             {selectedStudent && (
               <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 text-xs">
-                <div className="flex items-center gap-2 font-medium text-foreground">
-                  <User className="w-3.5 h-3.5 text-primary" />
-                  <span>Nama: {selectedStudent.full_name}</span>
+                <div className="flex items-center justify-between font-medium text-foreground">
+                  <div className="flex items-center gap-2">
+                    <User className="w-3.5 h-3.5 text-primary" />
+                    <span>Nama: {selectedStudent.full_name}</span>
+                  </div>
+                  {/* Tanda khas sekiranya pelajar dari fakulti Perubatan/Nursing */}
+                  {(((selectedStudent.faculty || '').toLowerCase().includes('perubatan') || 
+                     (selectedStudent.faculty || '').toLowerCase().includes('medic') ||
+                     (selectedStudent.faculty || '').toLowerCase().includes('nursing') ||
+                     (selectedStudent.faculty || '').toLowerCase().includes('kejururawatan'))) && (
+                    <Badge className="bg-amber-600 text-white text-[10px] px-2 py-0 rounded">
+                      Kes Khas: Blok A, B, C
+                    </Badge>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-muted-foreground">
                   <div>ID: <span className="text-foreground font-mono">{selectedStudent.student_id}</span></div>
                   <div>IC/Pasport: <span className="text-foreground">{selectedStudent.ic_passport || 'N/A'}</span></div>
                   <div>Jantina: <span className="text-foreground capitalize">{selectedStudent.gender || 'N/A'}</span></div>
-                </div>
-              </div>
-            )}
-
-            {selectedStudent && (
-              <div className="space-y-2 pt-2 border-t">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  <span>Cadangan Kekosongan Bilik ({selectedStudent.gender})</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {suggestedRoomsList.length === 0 ? (
-                    <p className="text-[11px] text-muted-foreground col-span-2 py-1">Tiada bilik kosong bersesuaian buat masa ini.</p>
-                  ) : (
-                    suggestedRoomsList.map((room) => {
-                      const status = getRoomStatus(room);
-                      const isSelected = ciForm.room_id === room.id;
-                      const currentOcc = room.current_occupancy || 0;
-                      const capacity = room.capacity || 4;
-                      const bedsAvailable = capacity - currentOcc;
-
-                      return (
-                        <Card 
-                          key={room.id}
-                          onClick={() => {
-                            if (submitting) return;
-                            if (status !== 'Full' && status !== 'Maintenance') {
-                              if (validateRoomSelection(room, selectedStudent, true)) {
-                                setCiForm({ ...ciForm, room_id: room.id });
-                                const blockObj = availableBlocks.find(b => b === room.block_name);
-                                if (blockObj) setSelectedBlock(blockObj);
-                              }
-                            }
-                          }}
-                          className={`cursor-pointer border transition-all text-left ${getStatusCardStyles(status)} ${isSelected ? 'ring-2 ring-primary border-transparent' : ''}`}
-                        >
-                          <CardContent className="p-3 flex flex-col justify-between h-full space-y-2">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <p className="text-xs font-bold font-mono">Bilik {room.room_number}</p>
-                                <p className="text-[10px] opacity-80">{room.block_name}</p>
-                              </div>
-                              <Badge className={`text-[9px] px-1.5 py-0 rounded font-medium ${getStatusBadgeVariant(status)}`}>
-                                {status}
-                              </Badge>
-                            </div>
-                            <div className="text-[11px] font-medium flex justify-between items-center pt-1.5 border-t border-black/5">
-                              <span className="flex items-center gap-1 text-[10px]">
-                                <Bed className="w-3 h-3" />
-                                {bedsAvailable} katil kosong
-                              </span>
-                              <strong className="font-mono">{currentOcc}/{capacity} Penuh</strong>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })
-                  )}
+                  
+                  <div className="col-span-2 border-t pt-1.5 mt-0.5">
+                    Fakulti: <span className="text-foreground font-semibold">{selectedStudent.faculty || 'Tiada Maklumat Fakulti'}</span>
+                  </div>
                 </div>
               </div>
             )}
