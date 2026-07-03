@@ -44,7 +44,7 @@ export default function CheckInOut() {
   
   // Form States
   const [ciForm, setCiForm] = useState({ room_id: '', check_in_date: '', check_in_time: '', notes: '' });
-  const [coForm, setCoForm] = useState({ check_out_date: '', check_out_time: '', room_condition: 'Good', damage_assessment: '', refund_amount: 0 });
+  const [coForm, setCoForm] = useState({ check_out_date: '', check_out_time: '', room_condition: 'Good', damage_assessment: '' });
   
   const [currentUser, setCurrentUser] = useState(null);
   const { toast } = useToast();
@@ -250,63 +250,24 @@ export default function CheckInOut() {
   function dispatchGlobalRefresh() {
     window.dispatchEvent(new CustomEvent('KRMS_MODULES_REFRESH'));
   }
-  async function verifyRoomConsistency() {
 
-  const [allRooms, allStudents] =
-    await Promise.all([
-      base44.entities.Room.list(),
-      base44.entities.Student.list()
-    ]);
-
-  for (const room of allRooms) {
-
-    const count =
-      allStudents.filter(
-        s =>
-          String(s.room_id) ===
-          String(room.id)
-      ).length;
-
-    const capacity =
-      Number(room.capacity || 4);
-
-    let status = 'Available';
-
-    if (count >= capacity) {
-      status = 'Full';
-    } else if (count > 0) {
-      status = 'Occupied';
-    }
-
-    if (
-      Number(room.current_occupancy || 0) !== count ||
-      room.status !== status
-    ) {
-
-      await base44.entities.Room.update(
-        room.id,
-        {
-          current_occupancy: count,
-          status
-        }
-      );
-    }
-  }
-}
-
-  const handleSelectStudent = (student) => {
-    setSelectedStudent(student);
-    setStudentSearch(student.student_id || '');
-    setShowSuggestions(false);
-  };
-
-  const resetSearchState = () => {
+  function resetSearchState() {
     setStudentSearch('');
-    setSelectedStudent(null);
     setFilteredStudents([]);
+    setSelectedStudent(null);
     setShowSuggestions(false);
     setSelectedBlock('');
-  };
+  }
+
+  function handleSelectStudent(student) {
+    setSelectedStudent(student);
+    setStudentSearch(`${student.student_id} - ${student.full_name}`);
+    setShowSuggestions(false);
+    
+    if (coDialog && student.block_name) {
+      setSelectedBlock(student.block_name);
+    }
+  }
 
   async function handleCheckIn() {
     if (submitting) return; 
@@ -315,7 +276,6 @@ export default function CheckInOut() {
       return;
     }
 
-    // Semakan keselamatan saat akhir pada state terkini
     const freshStudentData = students.find(s => s.id === selectedStudent.id);
     if (hasActiveRoom(freshStudentData) || hasActiveRoom(selectedStudent)) {
       toast({ 
@@ -333,7 +293,6 @@ export default function CheckInOut() {
 
     setSubmitting(true); 
     try {
-      // 1. Cipta rekod sejarah check-in
       await base44.entities.CheckIn.create({
         student_id: selectedStudent.id,
         room_id: ciForm.room_id,
@@ -345,7 +304,6 @@ export default function CheckInOut() {
         block_name: room?.block_name || ''
       });
 
-      // 2. DI SINI: Kemaskini status bilik pelajar SERTA menukar status jenis pengguna kepada 'Student'
       await base44.entities.Student.update(selectedStudent.id, {
         block_name: room.block_name || '',
         room_number: room.room_number || '',
@@ -354,7 +312,6 @@ export default function CheckInOut() {
         room_status: 'Checked In', 
       });
 
-      // 3. Kemaskini kapasiti bilik semasa
       const currentCachedOccupancy = room.current_occupancy || 0;
       const newOccupancy = currentCachedOccupancy + 1;
       const capacity = room.capacity || 4;
@@ -402,7 +359,7 @@ export default function CheckInOut() {
     try {
       const room = rooms.find(r => String(r.id) === String(selectedStudent.room_id));
 
-      // 1. Cipta rekod check-out
+      // 1. Create check-out transaction record
       const checkout = await base44.entities.CheckOut.create({
         student_id: selectedStudent.id,
         room_id: selectedStudent.room_id,
@@ -410,13 +367,12 @@ export default function CheckInOut() {
         check_out_time: coForm.check_out_time,
         room_condition: coForm.room_condition,
         damage_assessment: coForm.damage_assessment,
-        refund_amount: coForm.refund_amount,
         student_name: selectedStudent.full_name || '',
         room_number: selectedStudent.room_number || room?.room_number || '',
         block_name: selectedStudent.block_name || room?.block_name || ''
       });
 
-      // 2. Kosongkan perkaitan bilik pada pelajar
+      // 2. Clear out room associations from the Student profile
       await base44.entities.Student.update(selectedStudent.id, {
         block_name: null,
         room_number: null,
@@ -424,7 +380,7 @@ export default function CheckInOut() {
         room_status: 'Checked Out'
       });
 
-      // 3. Kurangkan bilangan penghuni bilik
+      // 3. Decrement room occupancy & dynamically sync room statuses
       if (room) {
         const currentCachedOccupancy = room.current_occupancy || 0;
         const newOccupancy = Math.max(0, currentCachedOccupancy - 1);
@@ -486,7 +442,7 @@ export default function CheckInOut() {
             }}><LogIn className="w-4 h-4 mr-1.5" /> Check In</Button>
             <Button size="sm" variant="outline" onClick={() => {
               resetSearchState();
-              setCoForm({ check_out_date: dateStr, check_out_time: timeStr, room_condition: 'Good', damage_assessment: '', refund_amount: 0 });
+              setCoForm({ check_out_date: dateStr, check_out_time: timeStr, room_condition: 'Good', damage_assessment: '' });
               setCoDialog(true);
             }}><LogOut className="w-4 h-4 mr-1.5" /> Check Out</Button>
           </div>
@@ -571,7 +527,6 @@ export default function CheckInOut() {
             <DialogTitle>Rekod Check In</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2 relative">
-            
             <div className="relative">
               <Label className="text-xs font-medium">Cari ID Pelajar / Staf Belum Diundi *</Label>
               <div className="relative mt-1">
@@ -663,7 +618,6 @@ export default function CheckInOut() {
                                 {status}
                               </Badge>
                             </div>
-                            
                             <div className="text-[11px] font-medium flex justify-between items-center pt-1.5 border-t border-black/5">
                               <span className="flex items-center gap-1 text-[10px]">
                                 <Bed className="w-3 h-3" />
@@ -758,12 +712,11 @@ export default function CheckInOut() {
 
       {/* 📤 RECORD CHECK OUT DIALOG */}
       <Dialog open={coDialog} onOpenChange={(val) => !submitting && setCoDialog(val)}>
-        <DialogContent className="max-w-md overflow-visible">
+        <DialogContent className="max-w-md overflow-y-auto max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Rekod Check Out</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2 relative">
-            
             <div className="relative">
               <Label className="text-xs font-medium">Cari Residen Aktif *</Label>
               <div className="relative mt-1">
@@ -799,79 +752,50 @@ export default function CheckInOut() {
             </div>
 
             {selectedStudent && (
-              <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 text-xs">
-                <div className="flex items-center gap-2 font-medium text-foreground">
-                  <User className="w-3.5 h-3.5 text-primary" />
-                  <span>Nama: {selectedStudent.full_name}</span>
+              <div className="p-3 bg-red-50/50 border border-red-200 rounded-lg space-y-1.5 text-xs">
+                <div className="font-medium text-foreground flex items-center gap-1.5">
+                  <Home className="w-3.5 h-3.5 text-red-500" />
+                  <span>Bilik Semasa: {selectedStudent.room_number || 'N/A'} (Blok {selectedStudent.block_name || 'N/A'})</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-muted-foreground">
-                  <div>ID: <span className="text-foreground font-mono">{selectedStudent.student_id}</span></div>
-                  <div>Blok: <span className="text-foreground">{selectedStudent.block_name || 'N/A'}</span></div>
-                  <div>Bilik: <span className="text-foreground">Bilik {selectedStudent.room_number || 'N/A'}</span></div>
-                  <div>Tarikh Masuk: <span className="text-foreground">{selectedStudent.check_in_date || 'N/A'}</span></div>
-                </div>
+                <p className="text-muted-foreground">Residen: <span className="text-foreground font-medium">{selectedStudent.full_name}</span> ({selectedStudent.student_id})</p>
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs font-medium">Tarikh Check Out *</Label>
-                <Input 
-                  type="date" 
-                  disabled={submitting} 
-                  value={coForm.check_out_date} 
-                  onChange={(e) => setCoForm({ ...coForm, check_out_date: e.target.value })} 
-                  className="h-9 text-sm mt-1" 
-                />
+                <Input type="date" disabled={submitting} value={coForm.check_out_date} onChange={(e) => setCoForm({ ...coForm, check_out_date: e.target.value })} className="h-9 text-sm mt-1" />
               </div>
               <div>
                 <Label className="text-xs font-medium">Masa Check Out</Label>
-                <Input 
-                  type="time" 
-                  disabled={submitting} 
-                  value={coForm.check_out_time} 
-                  onChange={(e) => setCoForm({ ...coForm, check_out_time: e.target.value })} 
-                  className="h-9 text-sm mt-1" 
-                />
+                <Input type="time" disabled={submitting} value={coForm.check_out_time} onChange={(e) => setCoForm({ ...coForm, check_out_time: e.target.value })} className="h-9 text-sm mt-1" />
               </div>
             </div>
 
             <div>
-              <Label className="text-xs font-medium">Keadaan Bilik *</Label>
-              <Select 
-                disabled={submitting} 
-                value={coForm.room_condition} 
-                onValueChange={(v) => setCoForm({ ...coForm, room_condition: v })}
-              >
+              <Label className="text-xs font-medium">Keadaan Bilik</Label>
+              <Select disabled={submitting} value={coForm.room_condition} onValueChange={(v) => setCoForm({ ...coForm, room_condition: v })}>
                 <SelectTrigger className="h-9 text-sm mt-1">
-                  <SelectValue placeholder="Pilih keadaan bilik" />
+                  <SelectValue placeholder="Pilih keadaan" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Good">Baik (Good)</SelectItem>
-                  <SelectItem value="Fair">Sederhana (Fair)</SelectItem>
-                  <SelectItem value="Damaged">Rosak (Damaged)</SelectItem>
+                  <SelectItem value="Good">Baik / Bersih</SelectItem>
+                  <SelectItem value="Fair">Sederhana</SelectItem>
+                  <SelectItem value="Damaged">Ada Kerosakan</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div>
-              <Label className="text-xs font-medium">Penilaian Kerosakan (Jika ada)</Label>
-              <Textarea 
-                disabled={submitting} 
-                value={coForm.damage_assessment} 
-                onChange={(e) => setCoForm({ ...coForm, damage_assessment: e.target.value })} 
-                className="text-sm mt-1" 
-                rows={2} 
-                placeholder="Sila nyatakan kerosakan jika ada..."
-              />
+              <Label className="text-xs font-medium">Penilaian Kerosakan (Jika Ada)</Label>
+              <Textarea disabled={submitting} value={coForm.damage_assessment} onChange={(e) => setCoForm({ ...coForm, damage_assessment: e.target.value })} placeholder="Nyatakan kerosakan jika ada..." className="text-sm mt-1" rows={2} />
             </div>
-
-
           </div>
+
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" size="sm" disabled={submitting} onClick={() => setCoDialog(false)}>Batal</Button>
             <Button size="sm" variant="destructive" onClick={handleCheckOut} disabled={!selectedStudent || submitting}>
-              {submitting ? 'Merekodkan...' : 'Sahkan Check Out'}
+              {submitting ? 'Memproses Keluar...' : 'Sahkan Check Out'}
             </Button>
           </div>
         </DialogContent>
