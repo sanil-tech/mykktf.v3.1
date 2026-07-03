@@ -47,7 +47,7 @@ export default function CheckInOut() {
   const [availableBlocks, setAvailableBlocks] = useState([]);
   const [filteredRooms, setFilteredRooms] = useState([]);
   
-  // Form States (Ditambah semester)
+  // Form States
   const [ciForm, setCiForm] = useState({ room_id: '', check_in_date: '', check_in_time: '', semester: 'Sem1_2526', notes: '' });
   const [coForm, setCoForm] = useState({ check_out_date: '', check_out_time: '', room_condition: 'Good', semester: 'Sem1_2526', damage_assessment: '' });
   
@@ -214,7 +214,6 @@ export default function CheckInOut() {
     }
   };
 
-  // Fungsi utiliti format nama paparan semester
   function formatSemesterName(semCode) {
     if (semCode === 'Sem1_2526') return 'Semester 1 Sesi 2025/2026';
     if (semCode === 'Sem2_2526') return 'Semester 2 Sesi 2025/2026';
@@ -287,7 +286,7 @@ export default function CheckInOut() {
         room_id: ciForm.room_id,
         check_in_date: ciForm.check_in_date,
         check_in_time: ciForm.check_in_time,
-        semester: ciForm.semester, // Disimpan ke DB
+        semester: ciForm.semester, 
         notes: ciForm.notes,
         student_name: selectedStudent.full_name || '',
         room_number: room?.room_number || '',
@@ -351,7 +350,7 @@ export default function CheckInOut() {
         check_out_date: coForm.check_out_date,
         check_out_time: coForm.check_out_time,
         room_condition: coForm.room_condition,
-        semester: coForm.semester, // Disimpan ke DB
+        semester: coForm.semester, 
         damage_assessment: coForm.damage_assessment,
         student_name: selectedStudent.full_name || '',
         room_number: selectedStudent.room_number || room?.room_number || '',
@@ -441,9 +440,32 @@ export default function CheckInOut() {
   const dateStr = now.toISOString().split('T')[0];
   const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
-  // 🚨 PENAPISAN INTERFAS JADUAL UTAMA (Menapis data berdasarkan semester pilihan & memastikan list tidak double)
-  const displayCheckIns = checkIns.filter(ci => (ci.semester || 'Sem1_2526') === selectedSemesterFilter);
-  const displayCheckOuts = checkOuts.filter(co => (co.semester || 'Sem1_2526') === selectedSemesterFilter);
+  // 🚨 PENAPISAN PINTAR DUA-HALA: Mengelakkan rekod lama Semester 1 keluar semula jika sudah check-in Semester 2
+  const displayCheckIns = checkIns.filter(ci => {
+    const logSemester = ci.semester || 'Sem1_2526';
+    
+    // Jika user sedang melihat log Semester 1
+    if (selectedSemesterFilter === 'Sem1_2526') {
+      if (logSemester !== 'Sem1_2526') return false;
+      
+      // Saring keluar log Sem 1 sekiranya pelajar ini sudah ada log kemasukan baru di Sem 2
+      const hasSem2Record = checkIns.some(otherCi => otherCi.student_id === ci.student_id && otherCi.semester === 'Sem2_2526');
+      return !hasSem2Record;
+    }
+    
+    // Jika melihat log Semester 2, tapis biasa
+    return logSemester === selectedSemesterFilter;
+  });
+
+  const displayCheckOuts = checkOuts.filter(co => {
+    const logSemester = co.semester || 'Sem1_2526';
+    if (selectedSemesterFilter === 'Sem1_2526') {
+      if (logSemester !== 'Sem1_2526') return false;
+      const hasSem2Record = checkOuts.some(otherCo => otherCo.student_id === co.student_id && otherCo.semester === 'Sem2_2526');
+      return !hasSem2Record;
+    }
+    return logSemester === selectedSemesterFilter;
+  });
 
   return (
     <div>
@@ -469,7 +491,6 @@ export default function CheckInOut() {
         }
       />
 
-      {/* 🚨 TUKAR PILIHAN SEMESTER UNTUK VIEW JADUAL */}
       <div className="flex items-center gap-2 mb-4 p-3 bg-muted/40 rounded-xl border border-border w-full max-w-sm">
         <Calendar className="w-4 h-4 text-muted-foreground" />
         <div className="flex-1">
@@ -493,7 +514,7 @@ export default function CheckInOut() {
 
         <TabsContent value="checkins">
           {displayCheckIns.length === 0 ? (
-            <EmptyState icon={LogIn} title={`Tiada rekod check-in bagi ${formatSemesterName(selectedSemesterFilter)}`} />
+            <EmptyState icon={LogIn} title={`Tiada rekod aktif bagi ${formatSemesterName(selectedSemesterFilter)}`} />
           ) : (
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
@@ -526,7 +547,7 @@ export default function CheckInOut() {
 
         <TabsContent value="checkouts">
           {displayCheckOuts.length === 0 ? (
-            <EmptyState icon={LogOut} title={`Tiada rekod check-out bagi ${formatSemesterName(selectedSemesterFilter)}`} />
+            <EmptyState icon={LogOut} title={`Tiada rekod aktif bagi ${formatSemesterName(selectedSemesterFilter)}`} />
           ) : (
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
@@ -563,7 +584,6 @@ export default function CheckInOut() {
             <DialogTitle>Rekod Check In</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2 relative">
-            {/* Pilihan Semester Form */}
             <div>
               <Label className="text-xs font-medium">Semester / Sesi Kemasukan *</Label>
               <Select disabled={submitting} value={ciForm.semester} onValueChange={(v) => setCiForm({ ...ciForm, semester: v })}>
@@ -766,7 +786,6 @@ export default function CheckInOut() {
             <DialogTitle>Rekod Check Out</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2 relative">
-            {/* Pilihan Semester Form */}
             <div>
               <Label className="text-xs font-medium">Semester / Sesi Daftar Keluar *</Label>
               <Select disabled={submitting} value={coForm.semester} onValueChange={(v) => setCoForm({ ...coForm, semester: v })}>
