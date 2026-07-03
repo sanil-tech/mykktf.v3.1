@@ -130,20 +130,27 @@ export default function StudentDashboard({ user }) {
       )}
 
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-[hsl(222,47%,21%)] to-[hsl(199,89%,48%)] rounded-2xl p-6 text-white">
-        <p className="text-sm opacity-80 mb-1">Welcome back,</p>
-        <h1 className="text-2xl font-heading font-bold">{user.full_name || 'Resident'}</h1>
-        {student && (
-          <div className="mt-3 flex flex-wrap gap-4 text-sm opacity-90">
-            <span>🎓 {student.student_id}</span>
-            <span>🏢 {student.faculty}</span>
-            <span>📅 Year {student.year_of_study}</span>
-          </div>
-        )}
-        {!student && (
-          <p className="text-sm opacity-75 mt-2">Your student profile has not been linked yet. Please contact the college admin.</p>
-        )}
-      </div>
+<div className="bg-gradient-to-r from-[hsl(222,47%,21%)] to-[hsl(199,89%,48%)] rounded-2xl p-6 text-white">
+  <p className="text-sm opacity-80 mb-1">
+    {(() => {
+      const hour = new Date().getHours();
+      if (hour < 12) return '🌅 Good morning';
+      if (hour < 18) return '☀️ Good afternoon';
+      return '🌙 Good evening';
+    })()},
+  </p>
+  <h1 className="text-2xl font-heading font-bold">{user.full_name || 'Resident'}</h1>
+  {student && (
+    <div className="mt-3 flex flex-wrap gap-4 text-sm opacity-90">
+      <span>🎓 {student.student_id}</span>
+      <span>🏢 {student.faculty}</span>
+      <span>📅 Year {student.year_of_study}</span>
+    </div>
+  )}
+  {!student && (
+    <p className="text-sm opacity-75 mt-2">Your student profile has not been linked yet. Please contact the college admin.</p>
+  )}
+</div>
 
       {/* Alert Badges */}
       {(pendingParcels > 0 || activeMaint > 0 || pendingLeave > 0) && (
