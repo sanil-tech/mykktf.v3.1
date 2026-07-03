@@ -175,11 +175,11 @@ export default function Dashboard() {
     );
   }
 
-  // --- RENDERING KAD METRIK UTAMA (Khas untuk Kegunaan Pengurusan/Admin) ---
+  // --- RENDERING KAD METRIK UTAMA ---
   const renderStatsCards = () => (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-5xl mb-8">
       {/* Kad 1: Sudah Check-In */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+      <div className="bg-white/90 backdrop-blur-sm p-6 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
         <div className="space-y-1">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Sudah Check-In</p>
           <p className="text-3xl font-bold text-[#002147]">{checkedInCount}</p>
@@ -191,7 +191,7 @@ export default function Dashboard() {
       </div>
 
       {/* Kad 2: Belum Tetap Bilik */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+      <div className="bg-white/90 backdrop-blur-sm p-6 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
         <div className="space-y-1">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Belum Tetap Bilik</p>
           <p className="text-3xl font-bold text-[#990000]">{pendingRoomCount}</p>
@@ -203,7 +203,7 @@ export default function Dashboard() {
       </div>
 
       {/* Kad 3: Katil/Bilik Kosong Available */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+      <div className="bg-white/90 backdrop-blur-sm p-6 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
         <div className="space-y-1">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Kekosongan Katil</p>
           <p className="text-3xl font-bold text-emerald-700">{availableRoomCount}</p>
@@ -217,12 +217,16 @@ export default function Dashboard() {
   );
 
   // ====================================================================
-  // 🎯 SKRIN 1: LENGKAPKAN PROFIL BARU
+  // 🎯 UI DENGAN IMPLEMENTASI LATAR BELAKANG GAMBAR KAMPUS UMS (OPACITY 30%)
   // ====================================================================
+  
+  // Taktik: Menggunakan kelas pseudo Tailwind 'before:' bersama relative untuk imej pudar yang tidak mengganggu teks.
+  const umsBackgroundImageStyle = "relative before:content-[''] before:absolute before:inset-0 before:block before:bg-[url('https://images.unsplash.com/photo-1605538032432-a9f0c8d9baac?q=80&w=1200')] before:bg-cover before:bg-center before:opacity-30 before:z-0";
+
   if (!hasStudentProfile) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50/50">
-        <div className="max-w-xl w-full space-y-6 bg-white p-8 rounded-xl border border-slate-200 shadow-sm my-8">
+      <div className={`flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50 ${umsBackgroundImageStyle}`}>
+        <div className="max-w-xl w-full space-y-6 bg-white/95 backdrop-blur-md p-8 rounded-xl border border-slate-200 shadow-xl my-8 z-10">
           <div className="text-center space-y-2">
             <div className="inline-flex p-2 bg-blue-50 rounded-full text-[#002147] mb-1">
               <ClipboardCheck className="w-6 h-6" />
@@ -234,7 +238,7 @@ export default function Dashboard() {
           </div>
 
           <form onSubmit={handleCompleteProfile} className="space-y-5">
-            {/* Bahagian 1 */}
+            {/* Maklumat Peribadi */}
             <div className="space-y-3">
               <h3 className="text-xs font-bold text-[#002147] uppercase tracking-wider border-b border-slate-100 pb-1.5">Maklumat Peribadi</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -271,7 +275,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Bahagian 2 */}
+            {/* Maklumat Akademik */}
             <div className="space-y-3 pt-2">
               <h3 className="text-xs font-bold text-[#002147] uppercase tracking-wider border-b border-slate-100 pb-1.5">Maklumat Akademik</h3>
               <div className="space-y-3">
@@ -302,7 +306,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Bahagian 3 */}
+            {/* Maklumat Waris & Kecemasan */}
             <div className="space-y-3 pt-2">
               <h3 className="text-xs font-bold text-[#002147] uppercase tracking-wider border-b border-slate-100 pb-1.5">Maklumat Kecemasan & Kenderaan</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -325,7 +329,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full h-11 bg-[#002147] hover:bg-[#001833] text-white font-medium rounded-lg mt-2 transition-colors" disabled={submitting}>
+            <Button type="submit" className="w-full h-11 bg-[#002147] hover:bg-[#001833] text-white font-medium rounded-lg mt-2 transition-colors shadow-sm" disabled={submitting}>
               {submitting ? "Menghantar Profil Pelajar..." : "Sahkan Profil & Daftar Akaun"}
             </Button>
           </form>
@@ -334,13 +338,10 @@ export default function Dashboard() {
     );
   }
 
-  // ====================================================================
-  // 🎯 SKRIN 2: HALAMAN ARAHAN CHECK-IN Pelajar (Tiada Bilik)
-  // ====================================================================
   if (hasStudentProfile && !isRoomAssigned) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50/50">
-        <div className="max-w-md w-full bg-white p-8 rounded-xl border border-slate-200 text-center shadow-sm space-y-6">
+      <div className={`flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50 ${umsBackgroundImageStyle}`}>
+        <div className="max-w-md w-full bg-white/95 backdrop-blur-md p-8 rounded-xl border border-slate-200 text-center shadow-xl space-y-6 z-10">
           <div className="mx-auto w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100">
             <ClipboardCheck className="w-7 h-7" />
           </div>
@@ -352,7 +353,7 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <div className="text-left space-y-3.5 bg-slate-50 p-5 rounded-xl border border-slate-100">
+          <div className="text-left space-y-3.5 bg-slate-50/80 p-5 rounded-xl border border-slate-100">
             <h3 className="text-xs font-bold text-[#002147] uppercase tracking-wider flex items-center gap-1.5">
               <Info className="w-4 h-4 text-blue-600" /> Langkah Seterusnya:
             </h3>
@@ -373,7 +374,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-blue-50/50 border border-blue-100 p-3.5 rounded-lg text-left text-sm text-[#002147]">
+          <div className="flex items-center gap-3 bg-blue-50/80 border border-blue-100 p-3.5 rounded-lg text-left text-sm text-[#002147]">
             <MapPin className="w-5 h-5 shrink-0 text-[#990000]" />
             <p className="text-xs leading-normal"><strong>Lokasi:</strong> Kaunter Utama Pentadbiran KKTF, Kompleks Kediaman UMS.</p>
           </div>
@@ -394,7 +395,7 @@ export default function Dashboard() {
     checkedInCount,
     pendingRoomCount,
     availableRoomCount,
-    statsComponent: renderStatsCards() // Menyalakan komponen kad statistik terus ke sub-dashboard
+    statsComponent: renderStatsCards() 
   };
 
   if (currentUser?.role === 'warden') return <WardenDashboard {...dashboardProps} />;
