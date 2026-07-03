@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
@@ -6,12 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Archive, LogIn, LogOut, Search, User, Loader2, Calendar } from 'lucide-react';
+import { Archive, LogIn, LogOut, Search, User, Loader2, Calendar, ChevronDown } from 'lucide-react';
 import SurveyModal from '@/components/SurveyModal';
 
 export default function CheckInOut() {
@@ -21,12 +20,12 @@ export default function CheckInOut() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Guard state UI anti-spam click
   const [submitting, setSubmitting] = useState(false);
   const [archiving, setArchiving] = useState(false);
   
-  // State Filter Semester Utama untuk Global View
+  // Filter Global Sesi
   const [selectedSemesterFilter, setSelectedSemesterFilter] = useState('Sem1_2526');
+  const [showGlobalSemList, setShowGlobalSemList] = useState(false);
   
   // Dialog States
   const [ciDialog, setCiDialog] = useState(false);
@@ -35,14 +34,24 @@ export default function CheckInOut() {
   const [pendingCheckout, setPendingCheckout] = useState(null);
   const [showSurvey, setShowSurvey] = useState(false);
   
-  // Live Search States
+  // Live Search Pelajar
   const [studentSearch, setStudentSearch] = useState('');
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   
-  // Room Assignment Filter States
-  const [selectedBlock, setSelectedBlock] = useState('');
+  // Searchable Filter States untuk Form
+  const [blockSearch, setBlockSearch] = useState('');
+  const [showBlockList, setShowBlockList] = useState(false);
+  
+  const [roomSearch, setRoomSearch] = useState('');
+  const [showRoomList, setShowRoomList] = useState(false);
+
+  const [semSearch, setSemSearch] = useState('Semester 1 Sesi 2025/2026');
+  const [showSemList, setShowSemList] = useState(false);
+
+  const [conditionSearch, setConditionSearch] = useState('Sangat Baik / Bersih');
+  const [showConditionList, setShowConditionList] = useState(false);
   
   // Form States
   const [ciForm, setCiForm] = useState({ room_id: '', check_in_date: '', check_in_time: '', semester: 'Sem1_2526', notes: '' });
@@ -50,6 +59,18 @@ export default function CheckInOut() {
   
   const [currentUser, setCurrentUser] = useState(null);
   const { toast } = useToast();
+
+  // Senarai Tetap untuk Rujukan Penapisan
+  const semesterOptions = [
+    { value: 'Sem1_2526', label: 'Semester 1 Sesi 2025/2026' },
+    { value: 'Sem2_2526', label: 'Semester 2 Sesi 2025/2026' }
+  ];
+
+  const conditionOptions = [
+    { value: 'Good', label: 'Sangat Baik / Bersih' },
+    { value: 'Fair', label: 'Sederhana / Perlu Pembersihan Kecil' },
+    { value: 'Damaged', label: 'Mempunyai Kerosakan Fizikal' }
+  ];
 
   useEffect(() => {
     base44.auth.me().then(setCurrentUser);
@@ -59,7 +80,6 @@ export default function CheckInOut() {
     load();
   }, []);
 
-  // Sinkronasi data apabila state global berubah
   useEffect(() => {
     if (selectedStudent && students.length > 0) {
       const updatedData = students.find(s => s.id === selectedStudent.id);
@@ -69,40 +89,26 @@ export default function CheckInOut() {
     }
   }, [students]);
 
-  // Fungsi menyemak bilik aktif
   const hasActiveRoom = (student) => {
     if (!student) return false;
-    if (student.room_status && String(student.room_status).trim().toLowerCase() === 'checked in') {
-      return true;
-    }
+    if (student.room_status && String(student.room_status).trim().toLowerCase() === 'checked in') return true;
     if (student.room_id !== undefined && student.room_id !== null) {
       const val = String(student.room_id).trim().toLowerCase();
-      if (val !== '' && val !== 'none' && val !== 'null' && val !== 'undefined') {
-        return true;
-      }
+      if (val !== '' && val !== 'none' && val !== 'null' && val !== 'undefined') return true;
     }
     return false;
   };
 
-  // Helper untuk menyemak padanan jantina (menyokong dwibahasa)
   const isGenderMatching = (studentGen, roomGen) => {
     const sGender = (studentGen || '').toLowerCase().trim();
     const rGender = (roomGen || 'mixed').toLowerCase().trim();
-
     if (rGender === 'mixed' || !sGender) return true;
-
-    if (sGender === 'lelaki' || sGender === 'male') {
-      return rGender === 'lelaki' || rGender === 'male';
-    }
-
-    if (sGender === 'perempuan' || sGender === 'female' || sGender === 'wanita') {
-      return rGender === 'perempuan' || rGender === 'female' || rGender === 'wanita';
-    }
-
+    if (sGender === 'lelaki' || sGender === 'male') return rGender === 'lelaki' || rGender === 'male';
+    if (sGender === 'perempuan' || sGender === 'female' || sGender === 'wanita') return rGender === 'perempuan' || rGender === 'female' || rGender === 'wanita';
     return rGender === sGender;
   };
 
-  // Penapisan senarai carian pelajar
+  // Live Search Student
   useEffect(() => {
     if (!studentSearch.trim()) {
       setFilteredStudents([]);
@@ -121,46 +127,42 @@ export default function CheckInOut() {
     } else if (coDialog) {
       baseFiltered = baseFiltered.filter(s => hasActiveRoom(s));
     }
-
     setFilteredStudents(baseFiltered);
   }, [studentSearch, students, ciDialog, coDialog]);
 
-  // JANTINA FILTER: Ekstrak nama blok unik berdasarkan jantina pelajar yang dipilih (Lelaki / Perempuan)
-  const availableBlocks = useMemo(() => {
+  // Ekstrak nama blok unik (Telah ditapis mengikut jantina jika mod Check In)
+  const allAvailableBlocks = useMemo(() => {
     if (rooms.length === 0) return [];
-    
     let targetRooms = rooms;
-
     if (ciDialog && selectedStudent) {
-      targetRooms = rooms.filter(room => {
-        const roomGender = room.gender_restriction || room.gender || 'mixed';
-        return isGenderMatching(selectedStudent.gender, roomGender);
-      });
+      targetRooms = rooms.filter(room => isGenderMatching(selectedStudent.gender, room.gender_restriction || room.gender || 'mixed'));
     }
-
-    const blocks = [...new Set(targetRooms.map(r => r.block_name).filter(Boolean))];
-    return blocks.sort();
+    return [...new Set(targetRooms.map(r => r.block_name).filter(Boolean))].sort();
   }, [rooms, selectedStudent, ciDialog]);
 
-  // JANTINA FILTER: Tapis bilik berdasarkan blok DAN sekatan jantina pelajar secara ketat
-  const filteredRooms = useMemo(() => {
-    if (!selectedBlock) return [];
-    
-    let roomsInBlock = rooms.filter(r => r.block_name === selectedBlock);
+  // Tapis senarai blok mengikut input admin
+  const filteredBlocksList = useMemo(() => {
+    return allAvailableBlocks.filter(b => b.toLowerCase().includes(blockSearch.toLowerCase().trim()));
+  }, [blockSearch, allAvailableBlocks]);
 
+  // Ambil senarai bilik mentah mengikut blok yang dipilih
+  const rawRoomsInBlock = useMemo(() => {
+    if (!blockSearch) return [];
+    let roomsInBlock = rooms.filter(r => String(r.block_name).toLowerCase() === blockSearch.toLowerCase().trim());
     if (ciDialog && selectedStudent) {
-      roomsInBlock = roomsInBlock.filter(room => {
-        const roomGender = room.gender_restriction || room.gender || 'mixed';
-        return isGenderMatching(selectedStudent.gender, roomGender);
-      });
+      roomsInBlock = roomsInBlock.filter(room => isGenderMatching(selectedStudent.gender, room.gender_restriction || room.gender || 'mixed'));
     }
-
     return roomsInBlock.sort((a, b) => String(a.room_number).localeCompare(String(b.room_number)));
-  }, [selectedBlock, rooms, selectedStudent, ciDialog]);
+  }, [blockSearch, rooms, selectedStudent, ciDialog]);
+
+  // Tapis senarai bilik mengikut input taipan admin
+  const filteredRoomsList = useMemo(() => {
+    return rawRoomsInBlock.filter(r => String(r.room_number).toLowerCase().includes(roomSearch.toLowerCase().trim()));
+  }, [roomSearch, rawRoomsInBlock]);
 
   function getRoomStatus(room) {
     if (!room) return 'Unknown';
-    if (room.status === 'Maintenance' ) return 'Maintenance';
+    if (room.status === 'Maintenance') return 'Maintenance';
     const current = room.current_occupancy || 0;
     const capacity = room.capacity || 4;
     if (current === 0) return 'Available';
@@ -171,31 +173,19 @@ export default function CheckInOut() {
   function validateRoomSelection(room, student, triggerToasts = true) {
     if (!room || !student) return false;
     if (hasActiveRoom(student)) {
-      if (triggerToasts) {
-        toast({ title: 'Ralat Validasi', description: 'Pelajar ini sudah pun mendaftar masuk (Check-In) ke bilik lain.', variant: 'destructive' });
-      }
+      if (triggerToasts) toast({ title: 'Ralat Validasi', description: 'Pelajar ini sudah mendaftar masuk ke bilik lain.', variant: 'destructive' });
       return false;
     }
     if (room.status === 'Maintenance') {
-      if (triggerToasts) {
-        toast({ title: 'Ralat Pilihan', description: 'Bilik ini sedang dalam penyelenggaraan.', variant: 'destructive' });
-      }
+      if (triggerToasts) toast({ title: 'Ralat Pilihan', description: 'Bilik ini sedang dalam penyelenggaraan.', variant: 'destructive' });
       return false;
     }
-    const current = room.current_occupancy || 0;
-    const capacity = room.capacity || 4;
-    if (current >= capacity) {
-      if (triggerToasts) {
-        toast({ title: 'Bilik Penuh', description: 'Bilik ini telah mencapai kapasiti maksimum.', variant: 'destructive' });
-      }
+    if ((room.current_occupancy || 0) >= (room.capacity || 4)) {
+      if (triggerToasts) toast({ title: 'Bilik Penuh', description: 'Bilik ini telah mencapai kapasiti maksimum.', variant: 'destructive' });
       return false;
     }
-    
-    const roomGender = room.gender_restriction || room.gender || 'mixed';
-    if (!isGenderMatching(student.gender, roomGender)) {
-      if (triggerToasts) {
-        toast({ title: 'Sekatan Jantina', description: `Bilik ini dikhaskan untuk pelajar ${room.gender_restriction || room.gender} sahaja.`, variant: 'destructive' });
-      }
+    if (!isGenderMatching(student.gender, room.gender_restriction || room.gender || 'mixed')) {
+      if (triggerToasts) toast({ title: 'Sekatan Jantina', description: `Bilik dikhaskan untuk pelajar ${room.gender_restriction || room.gender} sahaja.`, variant: 'destructive' });
       return false;
     }
     return true;
@@ -236,7 +226,10 @@ export default function CheckInOut() {
     setFilteredStudents([]);
     setSelectedStudent(null);
     setShowSuggestions(false);
-    setSelectedBlock('');
+    setBlockSearch('');
+    setRoomSearch('');
+    setSemSearch('Semester 1 Sesi 2025/2026');
+    setConditionSearch('Sangat Baik / Bersih');
   }
 
   function handleSelectStudent(student) {
@@ -244,34 +237,23 @@ export default function CheckInOut() {
     setStudentSearch(`${student.student_id} - ${student.full_name}`);
     setShowSuggestions(false);
     if (coDialog && student.block_name) {
-      setSelectedBlock(student.block_name);
+      setBlockSearch(student.block_name);
+      setRoomSearch(student.room_number || '');
     }
   }
 
   async function handleCheckIn() {
     if (submitting) return; 
     if (!selectedStudent || !ciForm.room_id || !ciForm.check_in_date) {
-      toast({ title: 'Sila pilih pelajar, bilik, dan tarikh check-in', variant: 'destructive' });
+      toast({ title: 'Sila lengkapkan profil pelajar, blok, bilik, dan tarikh', variant: 'destructive' });
       return;
     }
-
-    const freshStudentData = students.find(s => s.id === selectedStudent.id);
-    if (hasActiveRoom(freshStudentData) || hasActiveRoom(selectedStudent)) {
-      toast({ title: 'Sekatan Keselamatan', description: 'Pelajar ini sudah mendaftar masuk sebentar tadi!', variant: 'destructive' });
-      setCiDialog(false);
-      resetSearchState();
-      return;
-    }
-
-    const room = rooms.find(r => r.id === ciForm.room_id);
-    if (!validateRoomSelection(room, selectedStudent, true)) return;
 
     setSubmitting(true); 
     try {
+      const room = rooms.find(r => r.id === ciForm.room_id);
       if (selectedStudent.user_id) {
         await base44.entities.User.update(selectedStudent.user_id, { role: 'student' });
-      } else {
-        await base44.entities.Student.update(selectedStudent.id, { role: 'student' });
       }
 
       await base44.entities.CheckIn.create({
@@ -295,33 +277,19 @@ export default function CheckInOut() {
         resident_status: 'Active' 
       });
 
-      const currentCachedOccupancy = room.current_occupancy || 0;
-      const newOccupancy = currentCachedOccupancy + 1;
-      const capacity = room.capacity || 4;
-      const nextStatus = room.status === 'Maintenance' ? 'Maintenance' : (newOccupancy >= capacity ? 'Full' : 'Occupied');
-
+      const nextOcc = (room.current_occupancy || 0) + 1;
       await base44.entities.Room.update(room.id, {
-        current_occupancy: newOccupancy,
-        status: nextStatus,
+        current_occupancy: nextOcc,
+        status: nextOcc >= (room.capacity || 4) ? 'Full' : 'Occupied',
       });
 
-      toast({ title: 'Berjaya', description: 'Check-in direkodkan dan peranan pengguna ditukar kepada Student.' });
+      toast({ title: 'Berjaya', description: 'Check-in direkodkan dengan jayanya.' });
       setCiDialog(false);
       resetSearchState();
       await load(); 
       dispatchGlobalRefresh();
     } catch (err) {
-      console.error(err);
-      const errorMessage = err.message || '';
-      if (errorMessage.toLowerCase().includes('authorized') || errorMessage.toLowerCase().includes('permission')) {
-        toast({ 
-          title: 'Check-In Disekat (Ralat Autoriti)', 
-          description: 'Sistem membatalkan check-in kerana akaun anda tidak mempunyai kebenaran (permission) untuk menukar role pengguna ini.', 
-          variant: 'destructive' 
-        });
-      } else {
-        toast({ title: 'Ralat rekod check-in', description: err.message, variant: 'destructive' });
-      }
+      toast({ title: 'Ralat rekod check-in', description: err.message, variant: 'destructive' });
     } finally {
       setSubmitting(false); 
     }
@@ -329,16 +297,8 @@ export default function CheckInOut() {
 
   async function handleCheckOut() {
     if (submitting) return; 
-    if (!selectedStudent) {
-      toast({ title: 'Sila pilih pelajar untuk check-out', variant: 'destructive' });
-      return;
-    }
-    if (!hasActiveRoom(selectedStudent)) {
-      toast({ title: 'Pelajar tidak mempunyai rekod bilik aktif', variant: 'destructive' });
-      return;
-    }
-    if (!coForm.check_out_date) {
-      toast({ title: 'Sila isi ruangan wajib', variant: 'destructive' });
+    if (!selectedStudent || !coForm.check_out_date) {
+      toast({ title: 'Sila pilih pelajar dan isi tarikh keluar', variant: 'destructive' });
       return;
     }
 
@@ -360,20 +320,14 @@ export default function CheckInOut() {
       });
 
       await base44.entities.Student.update(selectedStudent.id, {
-        block_name: null,
-        room_number: null,
-        room_id: null,
-        room_status: 'Checked Out'
+        block_name: null, room_number: null, room_id: null, room_status: 'Checked Out'
       });
 
       if (room) {
-        const currentCachedOccupancy = room.current_occupancy || 0;
-        const newOccupancy = Math.max(0, currentCachedOccupancy - 1);
-        const nextStatus = room.status === 'Maintenance' ? 'Maintenance' : (newOccupancy === 0 ? 'Available' : 'Occupied');
-
+        const nextOcc = Math.max(0, (room.current_occupancy || 0) - 1);
         await base44.entities.Room.update(room.id, {
-          current_occupancy: newOccupancy,
-          status: nextStatus,
+          current_occupancy: nextOcc,
+          status: nextOcc === 0 ? 'Available' : 'Occupied',
         });
       }
 
@@ -384,7 +338,6 @@ export default function CheckInOut() {
       await load();
       dispatchGlobalRefresh();
     } catch (err) {
-      console.error(err);
       toast({ title: 'Ralat rekod check-out', description: err.message, variant: 'destructive' });
     } finally {
       setSubmitting(false); 
@@ -394,83 +347,40 @@ export default function CheckInOut() {
   async function handleMassArchive() {
     setArchiving(true);
     try {
-      const candidates = students.filter(s => 
-        s.room_status === 'Checked Out' && 
-        (!s.resident_status || String(s.resident_status).toLowerCase() === 'active')
-      );
-
+      const candidates = students.filter(s => s.room_status === 'Checked Out' && (!s.resident_status || String(s.resident_status).toLowerCase() === 'active'));
       if (candidates.length === 0) {
-        toast({ title: 'Tiada Pelajar', description: 'Tiada residen berstatus "Checked Out" sedia di-archive.' });
+        toast({ title: 'Tiada Pelajar', description: 'Tiada residen berstatus "Checked Out" untuk diarkib.' });
         setArchiveDialog(false);
         return;
       }
-
-      await Promise.all(
-        candidates.map(student => 
-          base44.entities.Student.update(student.id, { resident_status: 'Archived' })
-        )
-      );
-
-      toast({ title: 'Sesi Akademik Ditutup', description: `Berjaya mengarkibkan ${candidates.length} orang residen.` });
+      await Promise.all(candidates.map(st => base44.entities.Student.update(st.id, { resident_status: 'Archived' })));
+      toast({ title: 'Sesi Ditutup', description: 'Berjaya mengarkibkan data.' });
       setArchiveDialog(false);
       await load();
       dispatchGlobalRefresh();
     } catch (err) {
-      console.error(err);
-      toast({ title: 'Ralat proses arkib', description: err.message, variant: 'destructive' });
+      toast({ title: 'Ralat proses', description: err.message, variant: 'destructive' });
     } finally {
       setArchiving(false);
     }
-  }
-
-  async function onSurveyComplete() {
-    setShowSurvey(false);
-    setPendingCheckout(null);
-    toast({ title: 'Check-out selesai sepenuhnya.' });
-    await load();
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
-      </div>
-    );
   }
 
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
   const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
-  const displayCheckIns = checkIns.filter(ci => {
-    const logSemester = ci.semester || 'Sem1_2526';
-    if (selectedSemesterFilter === 'Sem1_2526') {
-      if (logSemester !== 'Sem1_2526') return false;
-      const hasSem2Record = checkIns.some(otherCi => otherCi.student_id === ci.student_id && otherCi.semester === 'Sem2_2526');
-      return !hasSem2Record;
-    }
-    return logSemester === selectedSemesterFilter;
-  });
-
-  const displayCheckOuts = checkOuts.filter(co => {
-    const logSemester = co.semester || 'Sem1_2526';
-    if (selectedSemesterFilter === 'Sem1_2526') {
-      if (logSemester !== 'Sem1_2526') return false;
-      const hasSem2Record = checkOuts.some(otherCo => otherCo.student_id === co.student_id && otherCo.semester === 'Sem2_2526');
-      return !hasSem2Record;
-    }
-    return logSemester === selectedSemesterFilter;
-  });
+  const displayCheckIns = checkIns.filter(ci => (ci.semester || 'Sem1_2526') === selectedSemesterFilter);
+  const displayCheckOuts = checkOuts.filter(co => (co.semester || 'Sem1_2526') === selectedSemesterFilter);
 
   return (
     <div>
       <PageHeader
         title="Check-In / Check-Out"
-        description="Urus pergerakan residen dengan validasi pintar"
+        description="Urus pergerakan residen dengan borang carian taip & tapis"
         actions={
           <div className="flex gap-2 flex-wrap">
             <Button size="sm" variant="secondary" onClick={() => setArchiveDialog(true)}>
-              <Archive className="w-4 h-4 mr-1.5" /> Tutup Sesi (Archive)
+              <Archive className="w-4 h-4 mr-1.5" /> Tutup Sesi
             </Button>
             <Button size="sm" onClick={() => {
               resetSearchState();
@@ -486,19 +396,32 @@ export default function CheckInOut() {
         }
       />
 
-      <div className="flex items-center gap-2 mb-4 p-3 bg-muted/40 rounded-xl border border-border w-full max-w-sm">
-        <Calendar className="w-4 h-4 text-muted-foreground" />
-        <div className="flex-1">
-          <Select value={selectedSemesterFilter} onValueChange={setSelectedSemesterFilter}>
-            <SelectTrigger className="h-9 bg-card border-border">
-              <SelectValue placeholder="Pilih Semester Log" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Sem1_2526">Semester 1 Sesi 2025/2026</SelectItem>
-              <SelectItem value="Sem2_2526">Semester 2 Sesi 2025/2026</SelectItem>
-            </SelectContent>
-          </Select>
+      {/* FILTER SESI UTAMA (TULIS & TAPIS) */}
+      <div className="relative mb-4 w-full max-w-sm">
+        <Label className="text-xs font-medium mb-1 block">Tapis Paparan Semester Log</Label>
+        <div className="relative">
+          <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input 
+            value={formatSemesterName(selectedSemesterFilter)}
+            readOnly
+            onClick={() => setShowGlobalSemList(!showGlobalSemList)}
+            className="pl-9 cursor-pointer h-9 text-sm"
+          />
+          <ChevronDown className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         </div>
+        {showGlobalSemList && (
+          <div className="absolute z-50 w-full bg-popover border rounded-md shadow-md mt-1 text-sm">
+            {semesterOptions.map((opt) => (
+              <div 
+                key={opt.value}
+                onClick={() => { setSelectedSemesterFilter(opt.value); setShowGlobalSemList(false); }}
+                className="px-3 py-2 hover:bg-muted cursor-pointer"
+              >
+                {opt.label}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="checkins">
@@ -511,26 +434,24 @@ export default function CheckInOut() {
           {displayCheckIns.length === 0 ? (
             <EmptyState icon={LogIn} title={`Tiada rekod aktif bagi ${formatSemesterName(selectedSemesterFilter)}`} />
           ) : (
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="bg-card border rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b bg-muted/50 text-muted-foreground font-medium">
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Residen</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Bilik</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider hidden sm:table-cell">Blok</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Tarikh</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider hidden md:table-cell">Masa</th>
+                    <tr className="border-b bg-muted/50 text-muted-foreground font-medium text-xs">
+                      <th className="text-left px-4 py-3 uppercase">Residen</th>
+                      <th className="text-left px-4 py-3 uppercase">Bilik</th>
+                      <th className="text-left px-4 py-3 uppercase">Blok</th>
+                      <th className="text-left px-4 py-3 uppercase">Tarikh</th>
                     </tr>
                   </thead>
                   <tbody>
                     {displayCheckIns.map((ci) => (
-                      <tr key={ci.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 font-medium text-foreground">{ci.student_name}</td>
+                      <tr key={ci.id} className="border-b last:border-0 hover:bg-muted/30">
+                        <td className="px-4 py-3 font-medium">{ci.student_name}</td>
                         <td className="px-4 py-3 text-muted-foreground">{ci.room_number}</td>
-                        <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{ci.block_name}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{ci.block_name}</td>
                         <td className="px-4 py-3 text-muted-foreground">{ci.check_in_date}</td>
-                        <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{ci.check_in_time}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -544,24 +465,24 @@ export default function CheckInOut() {
           {displayCheckOuts.length === 0 ? (
             <EmptyState icon={LogOut} title={`Tiada rekod aktif bagi ${formatSemesterName(selectedSemesterFilter)}`} />
           ) : (
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="bg-card border rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b bg-muted/50 text-muted-foreground font-medium">
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Residen</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Bilik</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider">Tarikh</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-wider hidden sm:table-cell">Keadaan Bilik</th>
+                    <tr className="border-b bg-muted/50 text-muted-foreground font-medium text-xs">
+                      <th className="text-left px-4 py-3 uppercase">Residen</th>
+                      <th className="text-left px-4 py-3 uppercase">Bilik</th>
+                      <th className="text-left px-4 py-3 uppercase">Tarikh</th>
+                      <th className="text-left px-4 py-3 uppercase">Keadaan</th>
                     </tr>
                   </thead>
                   <tbody>
                     {displayCheckOuts.map((co) => (
-                      <tr key={co.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 font-medium text-foreground">{co.student_name}</td>
+                      <tr key={co.id} className="border-b last:border-0 hover:bg-muted/30">
+                        <td className="px-4 py-3 font-medium">{co.student_name}</td>
                         <td className="px-4 py-3 text-muted-foreground">{co.room_number}</td>
                         <td className="px-4 py-3 text-muted-foreground">{co.check_out_date}</td>
-                        <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{co.room_condition}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{co.room_condition}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -579,45 +500,51 @@ export default function CheckInOut() {
             <DialogTitle>Rekod Check In</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2 relative">
-            <div>
+            
+            {/* SEMESTER (TAIP & TAPIS) */}
+            <div className="relative">
               <Label className="text-xs font-medium">Semester / Sesi Kemasukan *</Label>
-              <Select disabled={submitting} value={ciForm.semester} onValueChange={(v) => setCiForm({ ...ciForm, semester: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1">
-                  <SelectValue placeholder="Pilih semester" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Sem1_2526">Semester 1 Sesi 2025/2026</SelectItem>
-                  <SelectItem value="Sem2_2526">Semester 2 Sesi 2025/2026</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input 
+                value={semSearch}
+                onChange={(e) => { setSemSearch(e.target.value); setShowSemList(true); }}
+                onFocus={() => setShowSemList(true)}
+                placeholder="Taip untuk cari semester..."
+                className="h-9 text-sm mt-1"
+                disabled={submitting}
+              />
+              {showSemList && (
+                <div className="absolute z-50 w-full bg-popover border rounded-md shadow-md mt-1 max-h-32 overflow-y-auto text-sm">
+                  {semesterOptions.filter(o => o.label.toLowerCase().includes(semSearch.toLowerCase())).map((opt) => (
+                    <div 
+                      key={opt.value}
+                      onClick={() => { setSemSearch(opt.label); setCiForm({...ciForm, semester: opt.value}); setShowSemList(false); }}
+                      className="px-3 py-2 hover:bg-muted cursor-pointer"
+                    >
+                      {opt.label}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
+            {/* CARI PELAJAR */}
             <div className="relative">
-              <Label className="text-xs font-medium">Cari ID Pelajar / Staf *</Label>
+              <Label className="text-xs font-medium">Cari ID Pelajar / Nama *</Label>
               <div className="relative mt-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Masukkan Matrik ID atau Nama..." 
+                  placeholder="Taip No Matrik atau Nama..." 
                   value={studentSearch} 
                   disabled={submitting}
-                  onChange={(e) => {
-                    setStudentSearch(e.target.value);
-                    setShowSuggestions(true);
-                    if(selectedStudent) setSelectedStudent(null);
-                  }}
+                  onChange={(e) => { setStudentSearch(e.target.value); setShowSuggestions(true); if(selectedStudent) setSelectedStudent(null); }}
                   onFocus={() => setShowSuggestions(true)}
                   className="pl-9 h-9 text-sm"
                 />
               </div>
-
               {showSuggestions && filteredStudents.length > 0 && (
-                <div className="absolute z-50 w-full bg-popover text-popover-foreground border border-border rounded-md shadow-md mt-1 max-h-48 overflow-y-auto text-sm">
+                <div className="absolute z-50 w-full bg-popover border rounded-md shadow-md mt-1 max-h-48 overflow-y-auto text-sm">
                   {filteredStudents.map((s) => (
-                    <div 
-                      key={s.id} 
-                      onClick={() => !submitting && handleSelectStudent(s)}
-                      className="px-3 py-2 hover:bg-muted cursor-pointer transition-colors flex justify-between items-center"
-                    >
+                    <div key={s.id} onClick={() => !submitting && handleSelectStudent(s)} className="px-3 py-2 hover:bg-muted cursor-pointer flex justify-between items-center">
                       <span className="font-medium">{s.student_id}</span>
                       <span className="text-xs text-muted-foreground truncate max-w-[200px]">{s.full_name}</span>
                     </div>
@@ -626,77 +553,90 @@ export default function CheckInOut() {
               )}
             </div>
 
-            {/* KAD MAKLUMAT PELAJAR DENGAN NO IC, FAKULTI & BADGE KES KHAS */}
-{selectedStudent && (
-  <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 text-xs">
-    <div className="flex items-center justify-between font-medium text-foreground">
-      <div className="flex items-center gap-2">
-        <User className="w-3.5 h-3.5 text-primary" />
-        <span>Nama: {selectedStudent.full_name}</span>
-      </div>
-      {/* Tanda khas sekiranya pelajar dari fakulti Perubatan/Nursing */}
-      {(((selectedStudent.faculty || '').toLowerCase().includes('perubatan') || 
-         (selectedStudent.faculty || '').toLowerCase().includes('medic') ||
-         (selectedStudent.faculty || '').toLowerCase().includes('nursing') ||
-         (selectedStudent.faculty || '').toLowerCase().includes('kejururawatan'))) && (
-        <Badge className="bg-amber-600 text-white text-[10px] px-2 py-0 rounded">
-          Kes Khas: Blok A, B, C
-        </Badge>
-      )}
-    </div>
-    <div className="grid grid-cols-2 gap-2 text-muted-foreground">
-      <div>ID Pelajar: <span className="text-foreground font-mono font-semibold">{selectedStudent.student_id}</span></div>
-      <div>No. IC / Pasport: <span className="text-foreground font-mono font-semibold">{selectedStudent.ic_passport || selectedStudent.ic_no || 'Tiada Maklumat'}</span></div>
-      <div>Jantina: <span className="text-foreground capitalize">{selectedStudent.gender || 'Tiada Maklumat'}</span></div>
-      
-      {/* Ruangan Fakulti */}
-      <div className="col-span-2 border-t pt-1.5 mt-0.5">
-        Fakulti: <span className="text-foreground font-semibold">{selectedStudent.faculty || 'Tiada Maklumat Fakulti'}</span>
-      </div>
-    </div>
-  </div>
-)}
-            <div className="pt-2 border-t">
-              <Label className="text-xs font-medium">Pilih Blok *</Label>
-              <Select 
-                disabled={submitting || !selectedStudent} 
-                value={selectedBlock} 
-                onValueChange={(v) => { setSelectedBlock(v); setCiForm({ ...ciForm, room_id: '' }); }}
-              >
-                <SelectTrigger className="h-9 text-sm mt-1">
-                  <SelectValue placeholder={selectedStudent ? "Pilih blok" : "Sila pilih pelajar dahulu"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableBlocks.map((block) => (
-                    <SelectItem key={block} value={block}>{block}</SelectItem>
+            {/* KAD MAKLUMAT PELAJAR */}
+            {selectedStudent && (
+              <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 text-xs">
+                <div className="flex items-center justify-between font-medium">
+                  <div className="flex items-center gap-2">
+                    <User className="w-3.5 h-3.5 text-primary" />
+                    <span>Nama: {selectedStudent.full_name}</span>
+                  </div>
+                  {(((selectedStudent.faculty || '').toLowerCase().includes('perubatan') || (selectedStudent.faculty || '').toLowerCase().includes('medic') || (selectedStudent.faculty || '').toLowerCase().includes('nursing') || (selectedStudent.faculty || '').toLowerCase().includes('kejururawatan'))) && (
+                    <Badge className="bg-amber-600 text-white text-[10px] px-2 py-0">Kes Khas: Blok A, B, C</Badge>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                  <div>ID Pelajar: <span className="text-foreground font-mono font-semibold">{selectedStudent.student_id}</span></div>
+                  <div>No. IC / Pasport: <span className="text-foreground font-mono font-semibold">{selectedStudent.ic_passport || selectedStudent.ic_no || 'Tiada Maklumat'}</span></div>
+                  <div>Jantina: <span className="text-foreground capitalize">{selectedStudent.gender || 'Tiada'}</span></div>
+                  <div className="col-span-2 border-t pt-1.5 mt-0.5">
+                    Fakulti: <span className="text-foreground font-semibold">{selectedStudent.faculty || 'Tiada Maklumat Fakulti'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PILIH BLOK (TAIP & TAPIS) */}
+            <div className="relative">
+              <Label className="text-xs font-medium">Pilih Blok (Taip untuk Tapis) *</Label>
+              <Input 
+                value={blockSearch}
+                onChange={(e) => { setBlockSearch(e.target.value); setShowBlockList(true); setCiForm({ ...ciForm, room_id: '' }); setRoomSearch(''); }}
+                onFocus={() => setShowBlockList(true)}
+                placeholder={selectedStudent ? "Taip nama blok..." : "Sila pilih pelajar dahulu"}
+                disabled={submitting || !selectedStudent}
+                className="h-9 text-sm mt-1"
+              />
+              {showBlockList && filteredBlocksList.length > 0 && (
+                <div className="absolute z-50 w-full bg-popover border rounded-md shadow-md mt-1 max-h-32 overflow-y-auto text-sm">
+                  {filteredBlocksList.map((block) => (
+                    <div 
+                      key={block}
+                      onClick={() => { setBlockSearch(block); setShowBlockList(false); }}
+                      className="px-3 py-2 hover:bg-muted cursor-pointer"
+                    >
+                      {block}
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
+                </div>
+              )}
             </div>
 
-            <div>
-              <Label className="text-xs font-medium">Tugasan Bilik *</Label>
-              <Select 
-                disabled={submitting || !selectedBlock} 
-                value={ciForm.room_id} 
-                onValueChange={(v) => {
-                  const targetRoom = rooms.find(r => r.id === v);
-                  if (validateRoomSelection(targetRoom, selectedStudent, true)) {
-                    setCiForm({ ...ciForm, room_id: v });
-                  }
-                }}
-              >
-                <SelectTrigger className="h-9 text-sm mt-1">
-                  <SelectValue placeholder={selectedBlock ? "Pilih Bilik" : "Sila pilih blok dahulu"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredRooms.map((room) => (
-                    <SelectItem key={room.id} value={room.id} disabled={getRoomStatus(room) === 'Full' || getRoomStatus(room) === 'Maintenance'}>
-                      Bilik {room.room_number} ({room.current_occupancy || 0}/{room.capacity || 4} Penghuni)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* PILIH BILIK (TAIP & TAPIS) */}
+            <div className="relative">
+              <Label className="text-xs font-medium">Tugasan Bilik (Taip No Bilik) *</Label>
+              <Input 
+                value={roomSearch}
+                onChange={(e) => { setRoomSearch(e.target.value); setShowRoomList(true); }}
+                onFocus={() => setShowRoomList(true)}
+                placeholder={blockSearch ? "Taip nombor bilik..." : "Sila pilih/taip blok dahulu"}
+                disabled={submitting || !blockSearch}
+                className="h-9 text-sm mt-1"
+              />
+              {showRoomList && filteredRoomsList.length > 0 && (
+                <div className="absolute z-50 w-full bg-popover border rounded-md shadow-md mt-1 max-h-48 overflow-y-auto text-sm">
+                  {filteredRoomsList.map((room) => {
+                    const isDisabled = getRoomStatus(room) === 'Full' || getRoomStatus(room) === 'Maintenance';
+                    return (
+                      <div 
+                        key={room.id}
+                        onClick={() => {
+                          if (isDisabled) return;
+                          if (validateRoomSelection(room, selectedStudent, true)) {
+                            setRoomSearch(`Bilik ${room.room_number}`);
+                            setCiForm({ ...ciForm, room_id: room.id });
+                            setShowRoomList(false);
+                          }
+                        }}
+                        className={`px-3 py-2 hover:bg-muted cursor-pointer flex justify-between items-center ${isDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                      >
+                        <span>Bilik {room.room_number}</span>
+                        <span className="text-xs text-muted-foreground">({room.current_occupancy || 0}/{room.capacity || 4} Penghuni)</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -712,7 +652,7 @@ export default function CheckInOut() {
 
             <div>
               <Label className="text-xs font-medium">Nota Tambahan</Label>
-              <Textarea disabled={submitting} value={ciForm.notes} onChange={(e) => setCiForm({ ...ciForm, notes: e.target.value })} placeholder="Catatan fizikal bilik atau kunci..." className="text-sm mt-1" rows={2} />
+              <Textarea disabled={submitting} value={ciForm.notes} onChange={(e) => setCiForm({ ...ciForm, notes: e.target.value })} placeholder="Catatan fizikal bilik..." className="text-sm mt-1" rows={2} />
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t">
@@ -732,34 +672,26 @@ export default function CheckInOut() {
             <DialogTitle>Rekod Check Out</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
-            <div>
+            
+            <div className="relative">
               <Label className="text-xs font-medium">Cari Residen Aktif *</Label>
               <div className="relative mt-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Masukkan Matrik ID atau Nama..." 
+                  placeholder="Taip ID Matrik atau Nama..." 
                   value={studentSearch} 
                   disabled={submitting}
-                  onChange={(e) => {
-                    setStudentSearch(e.target.value);
-                    setShowSuggestions(true);
-                    if(selectedStudent) setSelectedStudent(null);
-                  }}
+                  onChange={(e) => { setStudentSearch(e.target.value); setShowSuggestions(true); if(selectedStudent) setSelectedStudent(null); }}
                   onFocus={() => setShowSuggestions(true)}
                   className="pl-9 h-9 text-sm"
                 />
               </div>
-
               {showSuggestions && filteredStudents.length > 0 && (
-                <div className="absolute z-50 w-full bg-popover text-popover-foreground border border-border rounded-md shadow-md mt-1 max-h-48 overflow-y-auto text-sm">
+                <div className="absolute z-50 w-full bg-popover border rounded-md shadow-md mt-1 max-h-48 overflow-y-auto text-sm">
                   {filteredStudents.map((s) => (
-                    <div 
-                      key={s.id} 
-                      onClick={() => !submitting && handleSelectStudent(s)}
-                      className="px-3 py-2 hover:bg-muted cursor-pointer transition-colors flex justify-between items-center"
-                    >
+                    <div key={s.id} onClick={() => !submitting && handleSelectStudent(s)} className="px-3 py-2 hover:bg-muted cursor-pointer flex justify-between items-center">
                       <span className="font-medium">{s.student_id}</span>
-                      <span className="text-xs text-muted-foreground truncate max-w-[200px]">{s.full_name}</span>
+                      <span className="text-xs text-muted-foreground">{s.full_name}</span>
                     </div>
                   ))}
                 </div>
@@ -789,23 +721,35 @@ export default function CheckInOut() {
               </div>
             </div>
 
-            <div>
+            {/* KEADAAN BILIK (TAIP & TAPIS) */}
+            <div className="relative">
               <Label className="text-xs font-medium">Keadaan Bilik Semasa Keluar *</Label>
-              <Select disabled={submitting} value={coForm.room_condition} onValueChange={(v) => setCoForm({ ...coForm, room_condition: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1">
-                  <SelectValue placeholder="Pilih keadaan" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Good">Sangat Baik / Bersih</SelectItem>
-                  <SelectItem value="Fair">Sederhana / Perlu Pembersihan Kecil</SelectItem>
-                  <SelectItem value="Damaged">Mempunyai Kerosakan Fizikal</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input 
+                value={conditionSearch}
+                onChange={(e) => { setConditionSearch(e.target.value); setShowConditionList(true); }}
+                onFocus={() => setShowConditionList(true)}
+                placeholder="Taip keadaan bilik..."
+                className="h-9 text-sm mt-1"
+                disabled={submitting}
+              />
+              {showConditionList && (
+                <div className="absolute z-50 w-full bg-popover border rounded-md shadow-md mt-1 text-sm">
+                  {conditionOptions.filter(o => o.label.toLowerCase().includes(conditionSearch.toLowerCase())).map((opt) => (
+                    <div 
+                      key={opt.value}
+                      onClick={() => { setConditionSearch(opt.label); setCoForm({...coForm, room_condition: opt.value}); setShowConditionList(false); }}
+                      className="px-3 py-2 hover:bg-muted cursor-pointer"
+                    >
+                      {opt.label}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>
               <Label className="text-xs font-medium">Penilaian Kerosakan (Jika Ada)</Label>
-              <Textarea disabled={submitting} value={coForm.damage_assessment} onChange={(e) => setCoForm({ ...coForm, damage_assessment: e.target.value })} placeholder="Nyatakan kerosakan aset seperti lampu, almari atau katil..." className="text-sm mt-1" rows={2} />
+              <Textarea disabled={submitting} value={coForm.damage_assessment} onChange={(e) => setCoForm({ ...coForm, damage_assessment: e.target.value })} placeholder="Nyatakan kerosakan aset jika ada..." className="text-sm mt-1" rows={2} />
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t">
@@ -818,19 +762,14 @@ export default function CheckInOut() {
         </DialogContent>
       </Dialog>
 
-      {/* CLOSING SESSION / ARCHIVE DIALOG */}
+      {/* CLOSING SESSION DIALOG */}
       <Dialog open={archiveDialog} onOpenChange={(val) => !archiving && setArchiveDialog(val)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Tutup Sesi Akademik</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 mt-2 text-sm">
-            <p className="text-muted-foreground leading-relaxed">
-              Tindakan ini akan menukarkan status residen yang telah mendaftar keluar (<strong className="text-foreground">Checked Out</strong>) kepada status <strong className="text-foreground">Archived</strong>.
-            </p>
-            <blockquote className="p-3 bg-amber-50 border-l-4 border-amber-500 rounded text-xs text-amber-900 leading-relaxed">
-              Pelajar yang diarkibkan tidak akan muncul lagi di dalam senarai carian kaunter pendaftaran (Check-In) melainkan status mereka ditukar kembali kepada Aktif.
-            </blockquote>
+            <p className="text-muted-foreground">Tindakan ini akan menukarkan status residen yang telah mendaftar keluar kepada status <strong className="text-foreground">Archived</strong>.</p>
             <div className="flex justify-end gap-2 pt-4 border-t">
               <Button type="button" variant="outline" size="sm" disabled={archiving} onClick={() => setArchiveDialog(false)}>Batal</Button>
               <Button type="button" size="sm" disabled={archiving} onClick={handleMassArchive}>
@@ -841,15 +780,8 @@ export default function CheckInOut() {
         </DialogContent>
       </Dialog>
 
-      {/* MODAL RESPONSIVE SURVEY MODAL */}
       {showSurvey && pendingCheckout && (
-        <SurveyModal
-          isOpen={showSurvey}
-          onClose={() => { setShowSurvey(false); setPendingCheckout(null); }}
-          checkoutId={pendingCheckout.checkoutId}
-          student={pendingCheckout.student}
-          onComplete={onSurveyComplete}
-        />
+        <SurveyModal isOpen={showSurvey} onClose={() => { setShowSurvey(false); setPendingCheckout(null); }} checkoutId={pendingCheckout.checkoutId} student={pendingCheckout.student} onComplete={onSurveyComplete} />
       )}
     </div>
   );
