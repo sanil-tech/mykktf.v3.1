@@ -85,6 +85,24 @@ export default function CheckInOut() {
     return false;
   };
 
+  // Helper untuk menyemak padanan jantina (menyokong dwibahasa)
+  const isGenderMatching = (studentGen, roomGen) => {
+    const sGender = (studentGen || '').toLowerCase().trim();
+    const rGender = (roomGen || 'mixed').toLowerCase().trim();
+
+    if (rGender === 'mixed' || !sGender) return true;
+
+    if (sGender === 'lelaki' || sGender === 'male') {
+      return rGender === 'lelaki' || rGender === 'male';
+    }
+
+    if (sGender === 'perempuan' || sGender === 'female' || sGender === 'wanita') {
+      return rGender === 'perempuan' || rGender === 'female' || rGender === 'wanita';
+    }
+
+    return rGender === sGender;
+  };
+
   // Penapisan senarai carian pelajar
   useEffect(() => {
     if (!studentSearch.trim()) {
@@ -108,18 +126,16 @@ export default function CheckInOut() {
     setFilteredStudents(baseFiltered);
   }, [studentSearch, students, ciDialog, coDialog]);
 
-  // JANTINA FILTER: Ekstrak nama blok unik berdasarkan jantina pelajar yang dipilih
+  // JANTINA FILTER: Ekstrak nama blok unik berdasarkan jantina pelajar yang dipilih (Lelaki / Perempuan)
   const availableBlocks = useMemo(() => {
     if (rooms.length === 0) return [];
     
     let targetRooms = rooms;
 
-    // Jika ada pelajar dipilih semasa Check-In, tapis blok mengikut jantina bilik yang sepadan
     if (ciDialog && selectedStudent) {
-      const studentGender = (selectedStudent.gender || '').toLowerCase().trim();
       targetRooms = rooms.filter(room => {
-        const roomGender = (room.gender_restriction || room.gender || 'mixed').toLowerCase().trim();
-        return roomGender === 'mixed' || !studentGender || roomGender === studentGender;
+        const roomGender = room.gender_restriction || room.gender || 'mixed';
+        return isGenderMatching(selectedStudent.gender, roomGender);
       });
     }
 
@@ -127,17 +143,16 @@ export default function CheckInOut() {
     return blocks.sort();
   }, [rooms, selectedStudent, ciDialog]);
 
-  // JANTINA FILTER: Tapis bilik berdasarkan blok DAN jantina pelajar
+  // JANTINA FILTER: Tapis bilik berdasarkan blok DAN sekatan jantina pelajar secara ketat
   const filteredRooms = useMemo(() => {
     if (!selectedBlock) return [];
     
     let roomsInBlock = rooms.filter(r => r.block_name === selectedBlock);
 
     if (ciDialog && selectedStudent) {
-      const studentGender = (selectedStudent.gender || '').toLowerCase().trim();
       roomsInBlock = roomsInBlock.filter(room => {
-        const roomGender = (room.gender_restriction || room.gender || 'mixed').toLowerCase().trim();
-        return roomGender === 'mixed' || !studentGender || roomGender === studentGender;
+        const roomGender = room.gender_restriction || room.gender || 'mixed';
+        return isGenderMatching(selectedStudent.gender, roomGender);
       });
     }
 
@@ -162,16 +177,12 @@ export default function CheckInOut() {
       const capacity = room.capacity || 4;
       if (current >= capacity) return false;
 
-      const studentGender = (student.gender || '').toLowerCase().trim();
-      const roomGender = (room.gender_restriction || room.gender || 'mixed').toLowerCase().trim();
-      if (roomGender !== 'mixed' && studentGender && roomGender !== studentGender) {
-        return false;
-      }
-      return true;
+      const roomGender = room.gender_restriction || room.gender || 'mixed';
+      return isGenderMatching(student.gender, roomGender);
     });
   }
 
-  // Menggunakan useMemo untuk mengelakkan Render Loop berturut-turut
+  // Menggunakan useMemo untuk senarai cadangan bilik pintar
   const suggestedRoomsList = useMemo(() => {
     const available = getAvailableRooms(rooms, selectedStudent);
     return available
@@ -201,9 +212,9 @@ export default function CheckInOut() {
       }
       return false;
     }
-    const studentGender = (student.gender || '').toLowerCase().trim();
-    const roomGender = (room.gender_restriction || room.gender || 'mixed').toLowerCase().trim();
-    if (roomGender !== 'mixed' && studentGender && roomGender !== studentGender) {
+    
+    const roomGender = room.gender_restriction || room.gender || 'mixed';
+    if (!isGenderMatching(student.gender, roomGender)) {
       if (triggerToasts) {
         toast({ title: 'Sekatan Jantina', description: `Bilik ini dikhaskan untuk pelajar ${room.gender_restriction || room.gender} sahaja.`, variant: 'destructive' });
       }
