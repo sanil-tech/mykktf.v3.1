@@ -626,36 +626,36 @@ export default function CheckInOut() {
               )}
             </div>
 
-            {/* KAD MAKLUMAT PELAJAR DENGAN FAKULTI & BADGE KES KHAS */}
-            {selectedStudent && (
-              <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 text-xs">
-                <div className="flex items-center justify-between font-medium text-foreground">
-                  <div className="flex items-center gap-2">
-                    <User className="w-3.5 h-3.5 text-primary" />
-                    <span>Nama: {selectedStudent.full_name}</span>
-                  </div>
-                  {/* Tanda khas sekiranya pelajar dari fakulti Perubatan/Nursing */}
-                  {(((selectedStudent.faculty || '').toLowerCase().includes('perubatan') || 
-                     (selectedStudent.faculty || '').toLowerCase().includes('medic') ||
-                     (selectedStudent.faculty || '').toLowerCase().includes('nursing') ||
-                     (selectedStudent.faculty || '').toLowerCase().includes('kejururawatan'))) && (
-                    <Badge className="bg-amber-600 text-white text-[10px] px-2 py-0 rounded">
-                      Kes Khas: Blok A, B, C
-                    </Badge>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-muted-foreground">
-                  <div>ID: <span className="text-foreground font-mono">{selectedStudent.student_id}</span></div>
-                  <div>IC/Pasport: <span className="text-foreground">{selectedStudent.ic_passport || 'N/A'}</span></div>
-                  <div>Jantina: <span className="text-foreground capitalize">{selectedStudent.gender || 'N/A'}</span></div>
-                  
-                  <div className="col-span-2 border-t pt-1.5 mt-0.5">
-                    Fakulti: <span className="text-foreground font-semibold">{selectedStudent.faculty || 'Tiada Maklumat Fakulti'}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
+            {/* KAD MAKLUMAT PELAJAR DENGAN NO IC, FAKULTI & BADGE KES KHAS */}
+{selectedStudent && (
+  <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 text-xs">
+    <div className="flex items-center justify-between font-medium text-foreground">
+      <div className="flex items-center gap-2">
+        <User className="w-3.5 h-3.5 text-primary" />
+        <span>Nama: {selectedStudent.full_name}</span>
+      </div>
+      {/* Tanda khas sekiranya pelajar dari fakulti Perubatan/Nursing */}
+      {(((selectedStudent.faculty || '').toLowerCase().includes('perubatan') || 
+         (selectedStudent.faculty || '').toLowerCase().includes('medic') ||
+         (selectedStudent.faculty || '').toLowerCase().includes('nursing') ||
+         (selectedStudent.faculty || '').toLowerCase().includes('kejururawatan'))) && (
+        <Badge className="bg-amber-600 text-white text-[10px] px-2 py-0 rounded">
+          Kes Khas: Blok A, B, C
+        </Badge>
+      )}
+    </div>
+    <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+      <div>ID Pelajar: <span className="text-foreground font-mono font-semibold">{selectedStudent.student_id}</span></div>
+      <div>No. IC / Pasport: <span className="text-foreground font-mono font-semibold">{selectedStudent.ic_passport || selectedStudent.ic_no || 'Tiada Maklumat'}</span></div>
+      <div>Jantina: <span className="text-foreground capitalize">{selectedStudent.gender || 'Tiada Maklumat'}</span></div>
+      
+      {/* Ruangan Fakulti */}
+      <div className="col-span-2 border-t pt-1.5 mt-0.5">
+        Fakulti: <span className="text-foreground font-semibold">{selectedStudent.faculty || 'Tiada Maklumat Fakulti'}</span>
+      </div>
+    </div>
+  </div>
+)}
             <div className="pt-2 border-t">
               <Label className="text-xs font-medium">Pilih Blok *</Label>
               <Select 
