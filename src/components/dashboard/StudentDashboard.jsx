@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { Wrench, CalendarOff, Package, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, Send, MessageSquare } from 'lucide-react';
+import { Wrench, CalendarOff, Package, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const PRIORITY_BORDER = { 
@@ -54,15 +54,6 @@ export default function StudentDashboard({ user }) {
   const [loading, setLoading] = useState(true);
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
 
-  // Community Chat State
-  const [chatMessages, setChatMessages] = useState([
-    { id: 1, sender: 'Ahmad Faiz (KK Mas)', text: 'Anyone heading to the library? Is it crowded right now?', time: '11:15 PM', isMe: false },
-    { id: 2, sender: 'Sarah Tan (FKI)', text: 'Just left, plenty of seats available on level 2!', time: '11:20 PM', isMe: false },
-    { id: 3, sender: 'Resident Admin', text: 'Reminder: Water disruption notice for Block C has been resolved.', time: '11:28 PM', isMe: false, isAdmin: true }
-  ]);
-  const [newMessage, setNewMessage] = useState('');
-  const chatEndRef = useRef(null);
-
   useEffect(() => {
     async function load() {
       try {
@@ -100,11 +91,6 @@ export default function StudentDashboard({ user }) {
     load();
   }, [user]);
 
-  // Auto scroll chat to bottom when a new message arrives
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages]);
-
   async function markRead(ann) {
     if (readMap[ann.id]) return;
     try {
@@ -121,22 +107,6 @@ export default function StudentDashboard({ user }) {
       console.error("Error updating notice map:", error);
     }
   }
-
-  const handleSendMessage = (e) => {
-    e.preventDefault();
-    if (!newMessage.trim()) return;
-
-    const msg = {
-      id: Date.now(),
-      sender: user.full_name || 'Me',
-      text: newMessage,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isMe: true
-    };
-
-    setChatMessages([...chatMessages, msg]);
-    setNewMessage('');
-  };
 
   if (loading) {
     return (
@@ -271,12 +241,13 @@ export default function StudentDashboard({ user }) {
         </div>
       </div>
 
-      {/* Main Grid: Split layout for monitoring logs & Community Chat */}
+      {/* Main Grid: Split layout for monitoring logs & Community Gateway Card */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Left/Middle Column Stack (2/3 width on wide screens) */}
+        {/* Left Column Stack (2/3 width on wide screens) - 2x2 Log Grid */}
         <div className="lg:col-span-2 space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            
             {/* Leave Requests */}
             <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
               <div className="flex items-center justify-between mb-4">
@@ -346,7 +317,7 @@ export default function StudentDashboard({ user }) {
               )}
             </div>
 
-            {/* Announcement History board */}
+            {/* Announcement History Board */}
             <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-bold text-slate-800 tracking-tight">Lembaga Notis Am</h3>
@@ -376,68 +347,51 @@ export default function StudentDashboard({ user }) {
                 </div>
               )}
             </div>
+
           </div>
         </div>
 
-        {/* 3. Community Chat Column (1/3 width on wide screens) */}
+        {/* 3. Right Column Stack (1/3 width) - Mini Side Menu Router Gateway */}
         <div className="lg:col-span-1">
-          <div className="bg-white border border-slate-100 rounded-2xl shadow-xs flex flex-col h-[460px] overflow-hidden sticky top-6">
-            {/* Chat Header */}
-            <div className="bg-gradient-to-r from-[#0B1E36] to-[#132A4A] px-4 py-3.5 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-amber-400" />
-                <div>
-                  <h3 className="text-xs font-bold tracking-wide uppercase">Sembang Komuniti</h3>
-                  <p className="text-[10px] text-slate-300 font-medium">Kampus Kota Kinabalu</p>
-                </div>
-              </div>
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-            </div>
-
-            {/* Chat Message Window Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30">
-              {chatMessages.map((msg) => (
-                <div key={msg.id} className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}>
-                  <span className={`text-[10px] font-bold mb-0.5 px-1 text-slate-400 ${msg.isAdmin ? 'text-red-600' : ''}`}>
-                    {msg.sender}
-                  </span>
-                  <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs shadow-3xs leading-relaxed ${
-                    msg.isMe 
-                      ? 'bg-[#0B1E36] text-white rounded-tr-none' 
-                      : msg.isAdmin 
-                        ? 'bg-red-50 border border-red-100 text-red-900 rounded-tl-none' 
-                        : 'bg-white border border-slate-100 text-slate-700 rounded-tl-none'
-                  }`}>
-                    <p className="break-words">{msg.text}</p>
-                    <span className={`block text-[9px] text-right mt-1 opacity-60 ${msg.isMe ? 'text-slate-300' : 'text-slate-400'}`}>
-                      {msg.time}
-                    </span>
+          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex flex-col justify-between h-full min-h-[320px] sticky top-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-[#0B1E36]/5 text-[#0B1E36] rounded-xl">
+                    <MessageSquare className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Sembang Komuniti</h3>
+                    <h4 className="text-sm font-bold text-slate-800">Kampus Semasa</h4>
                   </div>
                 </div>
-              ))}
-              <div ref={chatEndRef} />
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              </div>
+              
+              <div className="border border-slate-100 bg-slate-50/50 rounded-xl p-4 space-y-3">
+                <div className="space-y-1">
+                  <p className="text-[11px] font-bold text-sky-700">Ahmad Faiz (KK Mas)</p>
+                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">Anyone heading to the library? Is it crowded right now?</p>
+                  <span className="block text-[10px] text-slate-400">11:15 PM</span>
+                </div>
+                <div className="border-t border-slate-100 pt-3 space-y-1">
+                  <p className="text-[11px] font-bold text-red-600">Resident Admin</p>
+                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">Reminder: Water disruption notice for Block C has been resolved.</p>
+                  <span className="block text-[10px] text-slate-400">11:28 PM</span>
+                </div>
+              </div>
             </div>
 
-            {/* Chat Interactive Submit Form */}
-            <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-slate-100 flex items-center gap-2">
-              <input 
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Tulis mesej di sini..."
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-sky-300 transition-colors placeholder:text-slate-400 text-slate-800"
-              />
-              <Button 
-                type="submit" 
-                size="icon" 
-                className="h-8 w-8 rounded-xl shrink-0 bg-amber-500 hover:bg-amber-600 text-white transition-colors"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </Button>
-            </form>
+            <div className="pt-4">
+              <Link to="/chat">
+                <Button className="w-full text-xs font-bold rounded-xl h-10 bg-[#0B1E36] hover:bg-[#132A4A] text-white gap-1.5 shadow-sm">
+                  Buka Ruang Sembang <ChevronRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
 
