@@ -78,74 +78,22 @@ export default function Rooms() {
     };
   }, [currentUser.role]);
 
+  // Kesan perubahan kebenaran modul & pasang global listener untuk inter-module refresh
   useEffect(() => {
     if (permissions.canViewModule) {
-      loadDataAndHeal();
+      loadDataAndHeal(); 
     }
+
+    const handleGlobalRefresh = () => {
+      console.log("Menerima isyarat refresh! Memuatkan semula data bilik...");
+      loadDataAndHeal(); 
+    };
+
+    window.addEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
+    return () => {
+      window.removeEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
+    };
   }, [permissions.canViewModule]);
-// Di dalam page Rooms anda
-useEffect(() => {
-  // 1. Ambil data buat kali pertama apabila page dibuka
-  fetchRoomsAndStudents();
-
-  // 2. Fungsi penangkap isyarat refresh dari page CheckInOut
-  const handleGlobalRefresh = () => {
-    console.log("Menerima isyarat refresh! Memuatkan semula data bilik...");
-    fetchRoomsAndStudents(); 
-  };
-
-  // 3. Pasang 'telinga' pada window
-  window.addEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
-
-  // 4. Bersihkan listener apabila komponen ditutup (unmount) bagi mengelakkan memory leak
-  return () => {
-    window.removeEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
-  };
-}, []);
-async function fetchRoomsAndStudents() {
-  try {
-    setLoading(true);
-    // Ambil data bilik dan pelajar yang terkini dari database
-    const [roomsData, studentsData] = await Promise.all([
-      base44.entities.Room.list(),
-      base44.entities.Student.list() 
-    ]);
-    
-    setRooms(roomsData);
-    setStudents(studentsData); // Simpan state students di page Rooms
-  } catch (err) {
-    console.error("Ralat muat data:", err);
-  } finally {
-    setLoading(false);
-  }
-}{rooms.map((room) => {
-  // Tapis pelajar yang berada di dalam bilik ini sahaja
-  const occupants = students.filter(student => String(student.room_id) === String(room.id));
-
-  return (
-    <Card key={room.id}>
-      <CardContent>
-        <h3>Bilik {room.room_number}</h3>
-        {/* Paparkan occupancy terkini yang di-update dari DB */}
-        <p>Penghuni: {room.current_occupancy} / {room.capacity}</p> 
-        
-        {/* Senarai Nama Pelajar Dalam Bilik Ini */}
-        <div className="mt-2">
-          <h4>Senarai Penghuni:</h4>
-          {occupants.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Tiada penghuni</p>
-          ) : (
-            <ul className="text-xs list-disc pl-4">
-              {occupants.map(st => (
-                <li key={st.id}>{st.full_name} ({st.student_id})</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-})}
 
   // --- 🔄 SELF-HEALING SYSTEM DATA CONVERGENCE LOOP ---
   async function loadDataAndHeal() {
@@ -162,13 +110,12 @@ async function fetchRoomsAndStudents() {
       setStudents(freshStudents);
       setBlocks(blocksData || []);
 
-      // AUTOMATIC DATA CONSISTENCY CHECK ON LOAD
+      // INTEGRITI DATA CHECK AUTOMATIK
       let repairCount = 0;
       const autoRepairPromises = freshRooms.map(async (room) => {
         const actualOccupancy = freshStudents.filter(s => String(s.room_id) === String(room.id)).length;
         const currentDerivedStatus = determineStatus(room, actualOccupancy);
 
-        // If stored properties drift from the Student source of truth, heal them
         if (Number(room.current_occupancy) !== actualOccupancy || room.status !== currentDerivedStatus) {
           repairCount++;
           try {
@@ -185,7 +132,6 @@ async function fetchRoomsAndStudents() {
 
       await Promise.all(autoRepairPromises);
       
-      // If records were modified during healing, pull down fresh state variables
       if (repairCount > 0) {
         const sanitizedRooms = await base44.entities.Room.list();
         setRooms(sanitizedRooms || freshRooms);
@@ -237,7 +183,10 @@ async function fetchRoomsAndStudents() {
 
   // --- 📊 CORE RESOLUTION LOGIC MECHANICS ---
   function determineStatus(room, actualOccupancy) {
-    if (room.status === 'Maintenance' || room.status === 'Under Maintenance') return 'Maintenance';
+    // Mengekalkan status khas jika dipilih secara manual oleh admin
+    if (['Maintenance', 'Under Maintenance', 'Reserved', 'Not Available'].includes(room.status)) {
+      return room.status;
+    }
     const capacity = Number(room.capacity || 4);
     if (actualOccupancy === 0) return 'Available';
     if (actualOccupancy >= capacity) return 'Full';
@@ -255,11 +204,14 @@ async function fetchRoomsAndStudents() {
   };
 
   const getRoomMetrics = (room) => {
-    // ALWAYS QUERY LIVE STUDENT RECORDS FOR DATA PANEL & MAP VIEWS
     const assignedStudents = students.filter(s => String(s.room_id) === String(room.id));
     const actualOccupancy = assignedStudents.length;
     const capacity = Number(room.capacity || 4);
-    const availableBeds = Math.max(0, capacity - actualOccupancy);
+    
+    // Katil hanya dikira available jika status bilik adalah 'Available' atau 'Occupied'
+    const isOperational = ['Available', 'Occupied'].includes(room.status);
+    const availableBeds = isOperational ? Math.max(0, capacity - actualOccupancy) : 0;
+    
     const resolvedStatus = determineStatus(room, actualOccupancy);
 
     return { assignedStudents, actualOccupancy, capacity, availableBeds, resolvedStatus };
@@ -273,135 +225,6 @@ async function fetchRoomsAndStudents() {
     return 'Other';
   }
 
-  // --- 🔄 ATOMIC STATE WORKFLOW ENGINES ---
-  
-  // CHECK-IN PIPELINE
-  async function executeCheckInWorkflow(student, targetRoom) {
-    const { actualOccupancy, capacity, resolvedStatus } = getRoomMetrics(targetRoom);
-    const roomGender = resolveRoomGender(targetRoom);
-    const studentGender = (student.gender || '').trim().toLowerCase();
-
-    if (student.room_id) {
-      toast({ title: "Check-in Blocked", description: "Student is already assigned to a room.", variant: "destructive" });
-      return;
-    }
-    if (resolvedStatus === 'Full' || actualOccupancy >= capacity) {
-      toast({ title: "Check-in Blocked", description: "Room is already full.", variant: "destructive" });
-      return;
-    }
-    if (roomGender !== 'mixed' && roomGender !== studentGender) {
-      toast({ title: "Check-in Blocked", description: "Gender restriction mismatch.", variant: "destructive" });
-      return;
-    }
-
-    try {
-      const nextOccupancy = actualOccupancy + 1;
-      const targetStatus = determineStatus({ ...targetRoom, status: targetRoom.status }, nextOccupancy);
-
-      await base44.entities.Student.update(student.id, {
-        room_id: targetRoom.id,
-        room_number: targetRoom.room_number,
-        block_name: targetRoom.block_name,
-        check_in_date: new Date().toISOString().split('T')[0],
-        room_status: "Checked In"
-      });
-
-      await base44.entities.Room.update(targetRoom.id, {
-        current_occupancy: nextOccupancy,
-        status: targetStatus
-      });
-
-      toast({ title: "Check-in Complete", description: `${student.full_name} moved to Room ${targetRoom.room_number}.` });
-      loadDataAndHeal();
-    } catch (e) {
-      toast({ title: "Check-in transaction fault", description: e.message, variant: "destructive" });
-    }
-  }
-
-  // CHECK-OUT PIPELINE
-  async function executeCheckOutWorkflow(student) {
-    if (!student.room_id) {
-      toast({ title: "Checkout Blocked", description: "Student has no active room assignment.", variant: "destructive" });
-      return;
-    }
-
-    try {
-      const activeRoom = rooms.find(r => String(r.id) === String(student.room_id));
-      
-      await base44.entities.Student.update(student.id, {
-        room_id: null,
-        room_number: null,
-        block_name: null,
-        check_in_date: null,
-        room_status: "Checked Out"
-      });
-
-      if (activeRoom) {
-        const remainingOccupancy = Math.max(0, students.filter(s => String(s.room_id) === String(activeRoom.id) && s.id !== student.id).length);
-        const nextStatus = determineStatus(activeRoom, remainingOccupancy);
-
-        await base44.entities.Room.update(activeRoom.id, {
-          current_occupancy: remainingOccupancy,
-          status: nextStatus
-        });
-      }
-
-      toast({ title: "Checkout Complete", description: "Allocation logs released." });
-      loadDataAndHeal();
-    } catch (e) {
-      toast({ title: "Checkout transaction fault", description: e.message, variant: "destructive" });
-    }
-  }
-
-  // MOVE ROOM PIPELINE
-  async function executeMoveRoomWorkflow(student, destinationRoom) {
-    if (!student.room_id) {
-      await executeCheckInWorkflow(student, destinationRoom);
-      return;
-    }
-
-    const sourceRoom = rooms.find(r => String(r.id) === String(student.room_id));
-    if (sourceRoom?.id === destinationRoom.id) {
-      toast({ title: "Move Ignored", description: "Source and destination rooms match." });
-      return;
-    }
-
-    const { actualOccupancy: destOccupancy, capacity: destCapacity, resolvedStatus: destStatus } = getRoomMetrics(destinationRoom);
-    if (destStatus === 'Full' || destOccupancy >= destCapacity) {
-      toast({ title: "Move Blocked", description: "Destination room is full.", variant: "destructive" });
-      return;
-    }
-
-    try {
-      // Step 1: Release occupant from old room logs
-      if (sourceRoom) {
-        const sourceRemaining = Math.max(0, students.filter(s => String(s.room_id) === String(sourceRoom.id) && s.id !== student.id).length);
-        await base44.entities.Room.update(sourceRoom.id, {
-          current_occupancy: sourceRemaining,
-          status: determineStatus(sourceRoom, sourceRemaining)
-        });
-      }
-
-      // Step 2 & 3: Allocate inside destination block logs
-      const finalDestOccupancy = destOccupancy + 1;
-      await base44.entities.Student.update(student.id, {
-        room_id: destinationRoom.id,
-        room_number: destinationRoom.room_number,
-        block_name: destinationRoom.block_name
-      });
-
-      await base44.entities.Room.update(destinationRoom.id, {
-        current_occupancy: finalDestOccupancy,
-        status: determineStatus(destinationRoom, finalDestOccupancy)
-      });
-
-      toast({ title: "Room Transfer Complete", description: "Re-allocation synchronized successfully across both entities." });
-      loadDataAndHeal();
-    } catch (e) {
-      toast({ title: "Transfer transaction fault", description: e.message, variant: "destructive" });
-    }
-  }
-
   // --- 🛑 STANDARD CRUD AND ACTION HANDLERS ---
   async function handleCreateRoom() {
     if (!permissions.canCreateRoom) return;
@@ -412,7 +235,7 @@ async function fetchRoomsAndStudents() {
         block_name: form.block_name,
         capacity: Number(form.capacity),
         current_occupancy: 0,
-        status: form.status,
+        status: form.status, // Terus menyimpan status pilihan (Reserved, dll.)
         gender_restriction: form.gender_restriction
       });
       toast({ title: 'Room registered successfully' });
@@ -432,13 +255,23 @@ async function fetchRoomsAndStudents() {
     }
 
     try {
+      // Dapatkan corak ketersediaan berdasarkan data penghuni semasa
+      const currentOccupants = students.filter(s => String(s.room_id) === String(selectedRoomForEdit.id)).length;
+      
+      // Jika status ditukar ke Available/Occupied, sistem akan menentukan status automatik semula
+      let targetStatus = permissions.canModifyStatus ? form.status : selectedRoomForEdit.status;
+      if (targetStatus === 'Available') {
+        targetStatus = currentOccupants >= Number(form.capacity) ? 'Full' : (currentOccupants > 0 ? 'Occupied' : 'Available');
+      }
+
       await base44.entities.Room.update(selectedRoomForEdit.id, {
         room_number: permissions.canModifyRoomNumber ? form.room_number : selectedRoomForEdit.room_number,
         block_id: form.block_id,
         block_name: permissions.canModifyBlockLocation ? form.block_name : selectedRoomForEdit.block_name,
         capacity: permissions.canModifyCapacityAndGender ? Number(form.capacity) : Number(selectedRoomForEdit.capacity),
         gender_restriction: permissions.canModifyCapacityAndGender ? form.gender_restriction : selectedRoomForEdit.gender_restriction,
-        status: permissions.canModifyStatus ? form.status : selectedRoomForEdit.status
+        status: targetStatus,
+        current_occupancy: currentOccupants
       });
       
       toast({ title: 'Correction Processed Successfully' });
@@ -500,6 +333,8 @@ async function fetchRoomsAndStudents() {
     if (status === 'Available') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
     if (status === 'Full') return 'bg-red-50 text-red-700 border-red-200';
     if (status === 'Maintenance') return 'bg-amber-50 text-amber-700 border-amber-200';
+    if (status === 'Reserved') return 'bg-purple-50 text-purple-700 border-purple-200';
+    if (status === 'Not Available') return 'bg-slate-100 text-slate-700 border-slate-300';
     return 'bg-blue-50 text-blue-700 border-blue-200';
   };
 
@@ -549,11 +384,19 @@ async function fetchRoomsAndStudents() {
     return ['all', ...new Set(floors)].sort((a, b) => Number(a) - Number(b));
   }, [rooms]);
 
+  // Mengira metrik dashboard termasuk jumlah katil yang masih available
   const summaryMetrics = useMemo(() => {
-    const counts = { Available: 0, Occupied: 0, Full: 0, Maintenance: 0 };
+    const counts = { Available: 0, Occupied: 0, Full: 0, Maintenance: 0, Reserved: 0, NotAvailable: 0, totalAvailableBeds: 0 };
     filteredRooms.forEach(room => {
-      const { resolvedStatus } = getRoomMetrics(room);
-      if (counts[resolvedStatus] !== undefined) counts[resolvedStatus]++;
+      const { resolvedStatus, availableBeds } = getRoomMetrics(room);
+      if (resolvedStatus === 'Available') counts.Available++;
+      else if (resolvedStatus === 'Occupied') counts.Occupied++;
+      else if (resolvedStatus === 'Full') counts.Full++;
+      else if (resolvedStatus === 'Maintenance') counts.Maintenance++;
+      else if (resolvedStatus === 'Reserved') counts.Reserved++;
+      else if (resolvedStatus === 'Not Available') counts.NotAvailable++;
+
+      counts.totalAvailableBeds += availableBeds;
     });
     return counts;
   }, [filteredRooms]);
@@ -571,6 +414,7 @@ async function fetchRoomsAndStudents() {
     );
   }
 
+  // --- 🖼️ JSX RENDERING PANEL ---
   return (
     <div className="space-y-6">
       
@@ -651,6 +495,8 @@ async function fetchRoomsAndStudents() {
                   <SelectItem value="Occupied">Occupied</SelectItem>
                   <SelectItem value="Full">Full</SelectItem>
                   <SelectItem value="Maintenance">Maintenance</SelectItem>
+                  <SelectItem value="Reserved">Reserved</SelectItem>
+                  <SelectItem value="Not Available">Not Available</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -704,8 +550,13 @@ async function fetchRoomsAndStudents() {
               <span className="font-semibold text-foreground">Showing {filteredRooms.length} of {rooms.length} rooms</span>
               <span className="text-muted-foreground/40">|</span>
               <span>Available: <span className="text-emerald-600 font-bold">{summaryMetrics.Available}</span></span>
-              <span>Full: <span className="text-red-600 font-bold">{summaryMetrics.Full}</span></span>
+              <span>Reserved: <span className="text-purple-600 font-bold">{summaryMetrics.Reserved}</span></span>
               <span>Maintenance: <span className="text-amber-600 font-bold">{summaryMetrics.Maintenance}</span></span>
+              <span className="text-muted-foreground/40">|</span>
+              {/* KAD MAKLUMAT BAKI KATIL YANG AVAILABLE */}
+              <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 font-medium">
+                <Bed className="w-3 h-3" /> Baki Katil Kosong: <span className="font-bold">{summaryMetrics.totalAvailableBeds}</span>
+              </span>
             </div>
 
             <div className="flex items-center gap-2 justify-end w-full sm:w-auto">
@@ -721,236 +572,179 @@ async function fetchRoomsAndStudents() {
         </CardContent>
       </Card>
 
-      {/* RENDER GRID / LIST MAP VIEWS */}
+      {/* VIEW MODES PANELS */}
       {loading ? (
         <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-t-primary rounded-full animate-spin" /></div>
       ) : filteredRooms.length === 0 ? (
         <EmptyState icon={Home} title="No room layouts found matching criteria." />
-      ) : viewMode === 'grid' ? (
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      ) : (
+        <div className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" : "space-y-2"}>
           {filteredRooms.map((room) => {
-            // Evaluates real occupants dynamically directly from state
             const { assignedStudents, actualOccupancy, capacity, availableBeds, resolvedStatus } = getRoomMetrics(room);
-            const genderTag = resolveRoomGender(room);
             const isExpanded = expandedRoomId === room.id;
-            
-            // Evaluates discrepancy warnings dynamically
-            const inconsistencyDetected = Number(room.current_occupancy) > 0 && assignedStudents.length === 0;
 
             return (
-              <Card key={room.id} className={`overflow-hidden border flex flex-col justify-between relative group shadow-2xs ${inconsistencyDetected ? 'border-destructive/40 bg-destructive/5' : 'border-border'}`}>
-                <CardContent className="p-4 space-y-3 flex-1">
-                  
-                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-xs p-0.5 rounded-md border">
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => openEditMode(room)}>
-                      <Edit2 className="w-3 h-3" />
-                    </Button>
-                    {permissions.canDeleteRoom && (
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteRoom(room.id)}>
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="flex justify-between items-start pr-8">
+              <Card key={room.id} className={viewMode === 'list' ? "w-full" : ""}>
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="text-sm font-bold font-mono">Room {room.room_number}</h3>
-                      <p className="text-xs text-muted-foreground">Block {room.block_name}</p>
+                      <h3 className="font-bold text-base">Bilik {room.room_number}</h3>
+                      <p className="text-xs text-muted-foreground">{room.block_name || 'No Block'}</p>
                     </div>
-                    <Badge variant="outline" className={`text-[10px] uppercase font-bold ${getStatusBadgeStyles(resolvedStatus)}`}>
-                      {resolvedStatus}
-                    </Badge>
-                  </div>
-
-                  {/* WARNING DISPLAY BANNER IF DETECTED */}
-                  {inconsistencyDetected && (
-                    <div className="p-2 border border-destructive/30 rounded-md bg-destructive/10 text-destructive flex items-start gap-1 text-[10px] leading-tight">
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                      <span>Data inconsistency detected. Occupancy does not match assigned students.</span>
-                    </div>
-                  )}
-
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[11px] font-medium text-muted-foreground">
-                      <span>Occupancy</span>
-                      <span className="text-foreground font-mono">{actualOccupancy} / {capacity}</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div className={`h-full ${resolvedStatus === 'Full' ? 'bg-red-500' : 'bg-primary'}`} style={{ width: `${(actualOccupancy / capacity) * 100}%` }} />
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="outline" className={getStatusBadgeStyles(resolvedStatus)}>
+                        {resolvedStatus}
+                      </Badge>
+                      {/* Lencana paparan baki katil pada setiap kad bilik */}
+                      {availableBeds > 0 && (
+                        <Badge variant="secondary" className="text-[10px] bg-emerald-50 text-emerald-800 border-emerald-100">
+                          {availableBeds} Bed{availableBeds > 1 ? 's' : ''} Left
+                        </Badge>
+                      )}
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between text-xs pt-1">
-                    <span className="text-muted-foreground">Available Beds: <span className="font-bold text-foreground font-mono">{availableBeds}</span></span>
-                    <Badge className={`text-[9px] border-0 uppercase ${genderTag === 'male' ? 'bg-blue-600' : genderTag === 'female' ? 'bg-pink-600' : 'bg-purple-600'}`}>
-                      {genderTag === 'male' ? 'Male Only' : genderTag === 'female' ? 'Female Only' : 'Mixed Layout'}
-                    </Badge>
+                  
+                  <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+                    <p>Penghuni: <span className="font-semibold text-foreground">{actualOccupancy} / {capacity}</span></p> 
+                    <p className="text-xs capitalize">Kategori: {resolveRoomGender(room)}</p>
                   </div>
-
-                  {/* ACCORDION OCCUPANT ROSTER PANEL CONTAINER */}
-                  <div className="pt-2 border-t mt-2">
-                    <Button variant="ghost" size="sm" onClick={() => toggleExpandRoom(room.id)} className="w-full h-7 text-[11px] flex justify-between items-center px-2 bg-muted/40 hover:bg-muted">
-                      <span>Occupant List ({assignedStudents.length})</span>
-                      {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  
+                  {/* Senarai Nama Pelajar Dynamic */}
+                  <div className="mt-4 pt-3 border-t border-muted">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => toggleExpandRoom(room.id)}
+                      className="w-full h-7 justify-between p-0 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <span>Senarai Penghuni ({actualOccupancy})</span>
+                      {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                     </Button>
+
                     {isExpanded && (
-                      <div className="mt-2 border border-dashed rounded-lg p-2 bg-background max-h-48 overflow-y-auto text-[11px] space-y-2">
+                      <div className="mt-2 space-y-1.5 pl-1 transition-all">
                         {assignedStudents.length === 0 ? (
-                          <p className="text-muted-foreground text-center py-2">No students assigned to this room.</p>
+                          <p className="text-xs text-muted-foreground italic bg-muted/40 p-2 rounded">Tiada penghuni berdaftar dalam bilik ini.</p>
                         ) : (
-                          assignedStudents.map((student) => (
-                            <div key={student.id} className="pb-1.5 last:pb-0 border-b last:border-0 border-muted font-medium text-foreground space-y-0.5">
-                              <div className="font-bold uppercase text-foreground flex items-center gap-1">
-                                <User className="w-3 h-3 text-primary shrink-0" /> {student.full_name}
-                              </div>
-                              <div className="text-muted-foreground flex items-center gap-1 pl-4 font-mono text-[10px]">
-                                <FileText className="w-2.5 h-2.5" /> Matric: {student.matric_number || student.id || 'N/A'}
-                              </div>
-                              <div className="text-muted-foreground flex items-center gap-1 pl-4 font-mono text-[10px]">
-                                <Phone className="w-2.5 h-2.5" /> Phone: {student.phone_number || 'N/A'}
-                              </div>
-                            </div>
-                          ))
+                          <ul className="space-y-1">
+                            {assignedStudents.map(st => (
+                              <li key={st.id} className="text-xs flex items-center gap-1.5 bg-muted/50 p-1.5 rounded border border-border/40">
+                                <User className="w-3 h-3 text-muted-foreground" />
+                                <span className="font-medium text-foreground">{st.full_name}</span>
+                                <span className="text-muted-foreground">({st.student_id})</span>
+                              </li>
+                            ))}
+                          </ul>
                         )}
                       </div>
                     )}
                   </div>
+
+                  {/* Admin Actions */}
+                  {permissions.canEditRoom && (
+                    <div className="flex gap-1.5 mt-3 pt-2 justify-end">
+                      <Button size="icon" variant="outline" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditMode(room)}>
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </Button>
+                      {permissions.canDeleteRoom && (
+                        <Button size="icon" variant="outline" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteRoom(room.id)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
           })}
         </div>
-      ) : (
-        /* LIST MATRIX VIEW MODE */
-        <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50 text-muted-foreground font-medium text-xs uppercase">
-                  <th className="text-left px-4 py-3">Room</th>
-                  <th className="text-left px-4 py-3">Block</th>
-                  <th className="text-left px-4 py-3">Restriction</th>
-                  <th className="text-left px-4 py-3">Status</th>
-                  <th className="text-left px-4 py-3">Capacity State</th>
-                  <th className="text-right px-4 py-3">Actions Matrix</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRooms.map((room) => {
-                  const { assignedStudents, actualOccupancy, capacity, resolvedStatus } = getRoomMetrics(room);
-                  const genderTag = resolveRoomGender(room);
-                  const isExpanded = expandedRoomId === room.id;
-
-                  return (
-                    <React.Fragment key={room.id}>
-                      <tr className="border-b hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 font-mono font-bold">Room {room.room_number}</td>
-                        <td className="px-4 py-3 text-muted-foreground">Block {room.block_name}</td>
-                        <td className="px-4 py-3">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${genderTag === 'male' ? 'bg-blue-50 text-blue-700' : genderTag === 'female' ? 'bg-pink-50 text-pink-700' : 'bg-purple-50 text-purple-700'}`}>
-                            {genderTag === 'male' ? '👨 Male' : genderTag === 'female' ? '👩 Female' : '🚻 Mixed'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="outline" className={`text-[10px] font-medium uppercase ${getStatusBadgeStyles(resolvedStatus)}`}>
-                            {resolvedStatus}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground font-mono">{actualOccupancy} / {capacity} Beds</td>
-                        <td className="px-4 py-2 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Button variant="outline" size="sm" onClick={() => toggleExpandRoom(room.id)} className="h-7 text-xs px-2">
-                              Roster ({assignedStudents.length})
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => openEditMode(room)}><Edit2 className="w-3.5 h-3.5" /></Button>
-                          </div>
-                        </td>
-                      </tr>
-                      {isExpanded && (
-                        <tr className="bg-muted/20 border-b">
-                          <td colSpan={6} className="px-6 py-3">
-                            <div className="bg-card border rounded-lg p-3 max-w-2xl text-xs space-y-2 shadow-2xs">
-                              <p className="font-bold text-muted-foreground border-b pb-1">Room {room.room_number} Occupant List</p>
-                              {assignedStudents.map((st) => (
-                                <div key={st.id} className="font-medium text-foreground flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 border-b border-muted/40 pb-1 last:border-0 last:pb-0">
-                                  <span className="font-bold uppercase flex items-center gap-1 min-w-[150px]"><User className="w-3 h-3 text-primary" /> {st.full_name}</span>
-                                  <span className="font-mono text-[11px] text-muted-foreground">Matric: {st.matric_number || st.id || 'N/A'}</span>
-                                  <span className="font-mono text-[11px] text-muted-foreground">Phone: {st.phone_number || 'N/A'}</span>
-                                </div>
-                              ))}
-                              {assignedStudents.length === 0 && <p className="text-muted-foreground py-1">No students assigned to this room.</p>}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
       )}
 
-      {/* STANDARD REGISTER / EDIT MANIPULATION DIALOG */}
+      {/* DIALOG UTK CREATE/EDIT BILIK */}
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{dialogMode === 'create' ? 'Register New Dormitory Room' : 'Execute Structural Correction'}</DialogTitle>
+            <DialogTitle>{dialogMode === 'create' ? 'Add New Room Assignment' : 'Modify Room Configuration'}</DialogTitle>
           </DialogHeader>
-
-          <div className="space-y-3.5 py-1">
-            <div>
-              <Label className="text-xs font-medium">Room Number *</Label>
-              <Input value={form.room_number} onChange={(e) => setForm({ ...form, room_number: e.target.value })} className="h-9 mt-1" disabled={dialogMode === 'edit' && !permissions.canModifyRoomNumber} />
+          <div className="grid gap-4 py-4 text-sm">
+            <div className="space-y-1">
+              <Label>Room Number</Label>
+              <Input 
+                value={form.room_number} 
+                onChange={(e) => setForm(p => ({ ...p, room_number: e.target.value }))}
+                disabled={dialogMode === 'edit' && !permissions.canModifyRoomNumber}
+              />
             </div>
-            <div>
-              <Label className="text-xs font-medium">Block Name *</Label>
-              <Input value={form.block_name} onChange={(e) => setForm({ ...form, block_name: e.target.value })} className="h-9 mt-1" disabled={dialogMode === 'edit' && !permissions.canModifyBlockLocation} />
+            <div className="space-y-1">
+              <Label>Block Name</Label>
+              <Input 
+                value={form.block_name} 
+                onChange={(e) => setForm(p => ({ ...p, block_name: e.target.value }))}
+                disabled={dialogMode === 'edit' && !permissions.canModifyBlockLocation}
+              />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-medium">Capacity</Label>
-                <Input type="number" min="1" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} className="h-9 mt-1" disabled={dialogMode === 'edit' && !permissions.canModifyCapacityAndGender} />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label>Max Capacity</Label>
+                <Input 
+                  type="number" 
+                  value={form.capacity} 
+                  onChange={(e) => setForm(p => ({ ...p, capacity: e.target.value }))}
+                  disabled={dialogMode === 'edit' && !permissions.canModifyCapacityAndGender}
+                />
               </div>
-              <div>
-                <Label className="text-xs font-medium">Gender Designation *</Label>
-                <Select value={form.gender_restriction} onValueChange={(v) => setForm({ ...form, gender_restriction: v })} disabled={dialogMode === 'edit' && !permissions.canModifyCapacityAndGender}>
-                  <SelectTrigger className="h-9 mt-1"><SelectValue /></SelectTrigger>
+              <div className="space-y-1">
+                <Label>Gender Restriction</Label>
+                <Select 
+                  value={form.gender_restriction} 
+                  onValueChange={(v) => setForm(p => ({ ...p, gender_restriction: v }))}
+                  disabled={dialogMode === 'edit' && !permissions.canModifyCapacityAndGender}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="female">female</SelectItem>
-                    <SelectItem value="male">male</SelectItem>
-                    <SelectItem value="mixed">mixed</SelectItem>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="mixed">Mixed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            <div>
-              <Label className="text-xs font-medium">Status</Label>
-              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })} disabled={dialogMode === 'edit' && !permissions.canModifyStatus}>
-                <SelectTrigger className="h-9 mt-1"><SelectValue /></SelectTrigger>
+            
+            <div className="space-y-1">
+              <Label>Operational Status</Label>
+              <Select 
+                value={form.status} 
+                onValueChange={(v) => setForm(p => ({ ...p, status: v }))}
+                disabled={dialogMode === 'edit' && !permissions.canModifyStatus}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Available">Available</SelectItem>
                   <SelectItem value="Maintenance">Maintenance</SelectItem>
+                  {/* Status baharu mengikut keperluan anda */}
+                  <SelectItem value="Reserved">Reserved</SelectItem>
+                  <SelectItem value="Not Available">Not Available</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
             {dialogMode === 'edit' && (
-              <div className="pt-2 border-t space-y-1.5">
-                <Label className="text-xs font-bold">Reason for Correction *</Label>
-                <Input placeholder="Provide rationale..." value={form.reason_for_correction} onChange={(e) => setForm({ ...form, reason_for_correction: e.target.value })} className="h-9 text-xs" />
+              <div className="space-y-1 bg-amber-50/50 border border-amber-200 p-2.5 rounded-md">
+                <Label className="text-amber-900 font-semibold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Correction Audit Reason *</Label>
+                <Input 
+                  placeholder="State reason for overriding configuration..." 
+                  value={form.reason_for_correction} 
+                  onChange={(e) => setForm(p => ({ ...p, reason_for_correction: e.target.value }))}
+                  className="bg-background border-amber-300 focus-visible:ring-amber-500 h-8 text-xs"
+                />
               </div>
             )}
           </div>
-
-          <DialogFooter className="mt-3">
+          <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setOpenDialog(false)}>Cancel</Button>
-            {dialogMode === 'create' ? (
-              <Button size="sm" onClick={handleCreateRoom}>Save Configuration</Button>
-            ) : (
-              <Button size="sm" onClick={handleUpdateRoom} disabled={!form.reason_for_correction.trim()} className="bg-amber-600 hover:bg-amber-700 text-white">Authorize Modification</Button>
-            )}
+            <Button size="sm" onClick={dialogMode === 'create' ? handleCreateRoom : handleUpdateRoom}>
+              {dialogMode === 'create' ? 'Save Record' : 'Apply Overrides'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
