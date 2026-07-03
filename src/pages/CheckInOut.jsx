@@ -22,32 +22,25 @@ export default function CheckInOut() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Guard state UI anti-spam click
   const [submitting, setSubmitting] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  
-  // State Filter Semester Utama untuk Global View
   const [selectedSemesterFilter, setSelectedSemesterFilter] = useState('Sem1_2526');
   
-  // Dialog States
   const [ciDialog, setCiDialog] = useState(false);
   const [coDialog, setCoDialog] = useState(false);
   const [archiveDialog, setArchiveDialog] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState(null);
   const [showSurvey, setShowSurvey] = useState(false);
   
-  // Live Search States
   const [studentSearch, setStudentSearch] = useState('');
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   
-  // Room Assignment Filter States
   const [selectedBlock, setSelectedBlock] = useState('');
   const [availableBlocks, setAvailableBlocks] = useState([]);
   const [filteredRooms, setFilteredRooms] = useState([]);
   
-  // Form States
   const [ciForm, setCiForm] = useState({ room_id: '', check_in_date: '', check_in_time: '', semester: 'Sem1_2526', notes: '' });
   const [coForm, setCoForm] = useState({ check_out_date: '', check_out_time: '', room_condition: 'Good', semester: 'Sem1_2526', damage_assessment: '' });
   
@@ -62,7 +55,6 @@ export default function CheckInOut() {
     load();
   }, []);
 
-  // Sinkronasi data apabila state global berubah
   useEffect(() => {
     if (selectedStudent && students.length > 0) {
       const updatedData = students.find(s => s.id === selectedStudent.id);
@@ -72,7 +64,6 @@ export default function CheckInOut() {
     }
   }, [students]);
 
-  // Fungsi menyemak bilik aktif
   const hasActiveRoom = (student) => {
     if (!student) return false;
     if (student.room_status && String(student.room_status).trim().toLowerCase() === 'checked in') {
@@ -87,7 +78,6 @@ export default function CheckInOut() {
     return false;
   };
 
-  // Penapisan senarai carian pelajar
   useEffect(() => {
     if (!studentSearch.trim()) {
       setFilteredStudents([]);
@@ -110,7 +100,6 @@ export default function CheckInOut() {
     setFilteredStudents(baseFiltered);
   }, [studentSearch, students, ciDialog, coDialog]);
 
-  // Ekstrak nama blok unik
   useEffect(() => {
     if (rooms.length > 0) {
       const blocks = [...new Set(rooms.map(r => r.block_name).filter(Boolean))];
@@ -118,7 +107,6 @@ export default function CheckInOut() {
     }
   }, [rooms]);
 
-  // Tapis bilik berdasarkan blok
   useEffect(() => {
     if (!selectedBlock) {
       setFilteredRooms([]);
@@ -281,6 +269,7 @@ export default function CheckInOut() {
 
     setSubmitting(true); 
     try {
+      // 1. Rekod kemasukan ke log CheckIn
       await base44.entities.CheckIn.create({
         student_id: selectedStudent.id,
         room_id: ciForm.room_id,
@@ -293,6 +282,7 @@ export default function CheckInOut() {
         block_name: room?.block_name || ''
       });
 
+      // 2. Kemaskini maklumat bilik pada entiti Student
       await base44.entities.Student.update(selectedStudent.id, {
         block_name: room.block_name || '',
         room_number: room.room_number || '',
@@ -302,6 +292,7 @@ export default function CheckInOut() {
         resident_status: 'Active' 
       });
 
+      // 3. Kemaskini kapasiti bilik (Occupancy)
       const currentCachedOccupancy = room.current_occupancy || 0;
       const newOccupancy = currentCachedOccupancy + 1;
       const capacity = room.capacity || 4;
@@ -312,7 +303,21 @@ export default function CheckInOut() {
         status: nextStatus,
       });
 
-      toast({ title: 'Berjaya', description: 'Check-in direkodkan.' });
+      // 🚨 4. UPDATE USER ROLE KEPADA 'STUDENT'
+      // Jika model anda mempunyai field 'role' terus pada entiti Student atau entiti User utama:
+      if (selectedStudent.user_id) {
+        // Jika bertindak ke atas entiti User global base44
+        await base44.entities.User.update(selectedStudent.user_id, {
+          role: 'student'
+        });
+      } else {
+        // Jika field 'role' atau 'user_role' disimpan di dalam jadual Student sendiri
+        await base44.entities.Student.update(selectedStudent.id, {
+          role: 'student'
+        });
+      }
+
+      toast({ title: 'Berjaya', description: 'Check-in direkodkan dan peranan pengguna ditukar kepada Student.' });
       setCiDialog(false);
       resetSearchState();
       await load(); 
@@ -440,20 +445,13 @@ export default function CheckInOut() {
   const dateStr = now.toISOString().split('T')[0];
   const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
-  // 🚨 PENAPISAN PINTAR DUA-HALA: Mengelakkan rekod lama Semester 1 keluar semula jika sudah check-in Semester 2
   const displayCheckIns = checkIns.filter(ci => {
     const logSemester = ci.semester || 'Sem1_2526';
-    
-    // Jika user sedang melihat log Semester 1
     if (selectedSemesterFilter === 'Sem1_2526') {
       if (logSemester !== 'Sem1_2526') return false;
-      
-      // Saring keluar log Sem 1 sekiranya pelajar ini sudah ada log kemasukan baru di Sem 2
       const hasSem2Record = checkIns.some(otherCi => otherCi.student_id === ci.student_id && otherCi.semester === 'Sem2_2526');
       return !hasSem2Record;
     }
-    
-    // Jika melihat log Semester 2, tapis biasa
     return logSemester === selectedSemesterFilter;
   });
 
