@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ClipboardCheck, MapPin, Info, Users, BedDouble } from "lucide-react";
+import { Loader2, ClipboardCheck, MapPin, Info, Users, BedDouble, AlertCircle } from "lucide-react";
 
 const UMS_FACULTIES = [
   'Faculty of Business, Economics and Accountancy (FPEP)',
@@ -35,9 +35,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // State baharu untuk angka bilangan masa nyata (Real-time counts)
+  // --- Real-Time Statistik State ---
   const [checkedInCount, setCheckedInCount] = useState(0);
   const [pendingRoomCount, setPendingRoomCount] = useState(0);
+  const [availableRoomCount, setAvailableRoomCount] = useState(0); 
 
   const [form, setForm] = useState({
     full_name: '',
@@ -64,24 +65,32 @@ export default function Dashboard() {
         const user = await base44.auth.me();
         setCurrentUser(user);
 
-        // --- PENGAMBILAN DATA MASA NYATA (REAL-TIME COUNTS) ---
+        // --- PENGAMBILAN DATA REAL-TIME ---
         try {
           const allStudents = await base44.entities.Student.filter({});
-          
-          // 1. Sudah Check-In: Mempunyai nama blok DAN nombor bilik
           const checkedIn = allStudents.filter(s => s.block_name && s.room_number).length;
-          
-          // 2. Belum Ditetapkan Penempatan: Tiada nama blok ATAU tiada nombor bilik
           const pendingRoom = allStudents.filter(s => !s.block_name || !s.room_number).length;
+
+          const allRooms = await base44.entities.Room.filter({});
+          let availableRooms = 0;
+
+          allRooms.forEach(room => {
+            const currentOccupants = allStudents.filter(s => 
+              s.block_name === room.block_name && s.room_number === room.room_number
+            ).length;
+            const roomCapacity = room.capacity || room.max_beds || 2;
+            if (currentOccupants < roomCapacity) {
+              availableRooms++;
+            }
+          });
 
           setCheckedInCount(checkedIn);
           setPendingRoomCount(pendingRoom);
+          setAvailableRoomCount(availableRooms);
         } catch (countErr) {
-          console.error("Gagal mengira statistik residen:", countErr);
+          console.error("Gagal mengira statistik:", countErr);
         }
-        // -----------------------------------------------------
 
-        // Jika staf pengurusan kolej, lepaskan terus ke dashboard masing-masing
         if (
           user?.role === 'warden' || 
           user?.role === 'jakmas' || 
@@ -93,7 +102,6 @@ export default function Dashboard() {
           return;
         }
 
-        // Semak kewujudan profile di entiti Student
         let studs = [];
         if (user?.id) {
           studs = await base44.entities.Student.filter({ user_id: user.id });
@@ -104,8 +112,6 @@ export default function Dashboard() {
         
         if (studs.length > 0 && studs[0]?.student_id) {
           setHasStudentProfile(true);
-          
-          // Sahkan sama ada Admin sudah assign Blok & Bilik atau belum
           if (studs[0]?.block_name && studs[0]?.room_number) {
             setIsRoomAssigned(true);
           } else {
@@ -129,20 +135,14 @@ export default function Dashboard() {
     initDashboard();
   }, []);
 
-  // Fungsi pembantu untuk mengemas kini state form dengan selamat (mengelakkan pepijat asynchronous)
   const updateFormKey = (key, value) => {
     setForm(prev => ({ ...prev, [key]: value }));
   };
 
   const handleCompleteProfile = async (e) => {
     e.preventDefault();
-    
     if (!form.full_name.trim() || !form.student_id.trim() || !form.phone.trim() || !form.parent_name.trim() || !form.parent_phone.trim()) {
-      toast({ 
-        title: "Maklumat Tidak Lengkap", 
-        description: "Sila isi sekurang-kurangnya Nama Penuh, No. Matrik, No. Telefon Pelajar, serta Nama & Telefon Ibu Bapa/Penjaga.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Maklumat Tidak Lengkap", description: "Sila isi maklumat wajib (*).", variant: "destructive" });
       return;
     }
 
@@ -153,17 +153,12 @@ export default function Dashboard() {
         user_id: currentUser.id,
         email: currentUser.email
       });
-
-      toast({ title: "Profil Berjaya Disimpan", description: "Sila rujuk arahan check-in di skrin anda." });
-      
-      // Mengubah state secara dinamik tanpa mematikan aplikasi dengan hard-reload (window.location.reload)
+      toast({ title: "Profil Berjaya Disimpan" });
       setHasStudentProfile(true);
       setIsRoomAssigned(false);
-      
-      // Meningkatkan pengiraan belum ditetapkan bilik secara lokal (optimizasi UX)
       setPendingRoomCount(prev => prev + 1);
     } catch (err) {
-      toast({ title: "Gagal Mengaktifkan Profil", description: err.message, variant: "destructive" });
+      toast({ title: "Gagal", description: err.message, variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
@@ -171,54 +166,98 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Mengesahkan sesi kediaman...</p>
+      <div className="flex items-center justify-center h-screen bg-slate-50">
+        <div className="text-center space-y-3">
+          <Loader2 className="w-10 h-10 animate-spin text-[#002147] mx-auto" />
+          <p className="text-sm font-medium text-slate-600">Menghubungkan ke Sistem Kediaman UMS...</p>
         </div>
       </div>
     );
   }
 
+  // --- RENDERING KAD METRIK UTAMA (Khas untuk Kegunaan Pengurusan/Admin) ---
+  const renderStatsCards = () => (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-5xl mb-8">
+      {/* Kad 1: Sudah Check-In */}
+      <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+        <div className="space-y-1">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Sudah Check-In</p>
+          <p className="text-3xl font-bold text-[#002147]">{checkedInCount}</p>
+          <p className="text-[11px] text-emerald-600 font-medium">Residen Aktif di Blok</p>
+        </div>
+        <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center text-[#002147]">
+          <Users className="w-6 h-6" />
+        </div>
+      </div>
+
+      {/* Kad 2: Belum Tetap Bilik */}
+      <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+        <div className="space-y-1">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Belum Tetap Bilik</p>
+          <p className="text-3xl font-bold text-[#990000]">{pendingRoomCount}</p>
+          <p className="text-[11px] text-amber-600 font-medium">Perlu Tindakan Pentadbir</p>
+        </div>
+        <div className="w-12 h-12 rounded-lg bg-red-50 flex items-center justify-center text-[#990000]">
+          <AlertCircle className="w-6 h-6" />
+        </div>
+      </div>
+
+      {/* Kad 3: Katil/Bilik Kosong Available */}
+      <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+        <div className="space-y-1">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Kekosongan Katil</p>
+          <p className="text-3xl font-bold text-emerald-700">{availableRoomCount}</p>
+          <p className="text-[11px] text-slate-500 font-medium">Bilik Sedia Diinap</p>
+        </div>
+        <div className="w-12 h-12 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+          <BedDouble className="w-6 h-6" />
+        </div>
+      </div>
+    </div>
+  );
+
   // ====================================================================
-  // 🎯 SKRIN 1: LENGKAPKAN PROFIL BARU (TIADA BLOK & BILIK)
+  // 🎯 SKRIN 1: LENGKAPKAN PROFIL BARU
   // ====================================================================
   if (!hasStudentProfile) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-background">
-        <div className="max-w-xl w-full space-y-6 bg-card p-8 rounded-xl border shadow-sm my-8">
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50/50">
+        <div className="max-w-xl w-full space-y-6 bg-white p-8 rounded-xl border border-slate-200 shadow-sm my-8">
           <div className="text-center space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">Profil Pelajar Baru 👋</h1>
-            <p className="text-muted-foreground text-sm">
-              Sila isikan maklumat peribadi, akademik, dan kecemasan anda di bawah untuk mengaktifkan akaun portal KKMS.
+            <div className="inline-flex p-2 bg-blue-50 rounded-full text-[#002147] mb-1">
+              <ClipboardCheck className="w-6 h-6" />
+            </div>
+            <h1 className="text-2xl font-bold text-[#002147] tracking-tight">Profil Pelajar Baru 👋</h1>
+            <p className="text-slate-500 text-sm">
+              Sila isikan maklumat lengkap di bawah untuk mengaktifkan portal kediaman KKTF UMS.
             </p>
           </div>
 
-          <form onSubmit={handleCompleteProfile} className="space-y-4">
-            {/* Bahagian 1: Profil Peribadi */}
+          <form onSubmit={handleCompleteProfile} className="space-y-5">
+            {/* Bahagian 1 */}
             <div className="space-y-3">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b pb-1">Maklumat Peribadi</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <h3 className="text-xs font-bold text-[#002147] uppercase tracking-wider border-b border-slate-100 pb-1.5">Maklumat Peribadi</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <Label className="text-xs">Nama Penuh *</Label>
-                  <Input value={form.full_name} onChange={e => updateFormKey('full_name', e.target.value)} className="h-9 mt-1" disabled={submitting} />
+                  <Label className="text-xs text-slate-600">Nama Penuh *</Label>
+                  <Input value={form.full_name} onChange={e => updateFormKey('full_name', e.target.value)} className="h-10 mt-1" disabled={submitting} />
                 </div>
                 <div>
-                  <Label className="text-xs">No. Matrik Pelajar *</Label>
-                  <Input placeholder="Contoh: BI21110043" value={form.student_id} onChange={e => updateFormKey('student_id', e.target.value)} className="h-9 mt-1" disabled={submitting} />
+                  <Label className="text-xs text-slate-600">No. Matrik Pelajar *</Label>
+                  <Input placeholder="Contoh: BI21110043" value={form.student_id} onChange={e => updateFormKey('student_id', e.target.value)} className="h-10 mt-1" disabled={submitting} />
                 </div>
                 <div>
-                  <Label className="text-xs">No. IC / Pasport</Label>
-                  <Input value={form.ic_passport} onChange={e => updateFormKey('ic_passport', e.target.value)} className="h-9 mt-1" disabled={submitting} />
+                  <Label className="text-xs text-slate-600">No. IC / Pasport</Label>
+                  <Input value={form.ic_passport} onChange={e => updateFormKey('ic_passport', e.target.value)} className="h-10 mt-1" disabled={submitting} />
                 </div>
                 <div>
-                  <Label className="text-xs">No. Telefon Bimbit *</Label>
-                  <Input placeholder="Contoh: 0123456789" value={form.phone} onChange={e => updateFormKey('phone', e.target.value)} className="h-9 mt-1" disabled={submitting} />
+                  <Label className="text-xs text-slate-600">No. Telefon Bimbit *</Label>
+                  <Input placeholder="Contoh: 0123456789" value={form.phone} onChange={e => updateFormKey('phone', e.target.value)} className="h-10 mt-1" disabled={submitting} />
                 </div>
                 <div>
-                  <Label className="text-xs">Jantina</Label>
+                  <Label className="text-xs text-slate-600">Jantina</Label>
                   <Select value={form.gender} onValueChange={v => updateFormKey('gender', v)} disabled={submitting}>
-                    <SelectTrigger className="h-9 mt-1"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-10 mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Male">Male</SelectItem>
                       <SelectItem value="Female">Female</SelectItem>
@@ -226,36 +265,36 @@ export default function Dashboard() {
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs">Tarikh Lahir</Label>
-                  <Input type="date" value={form.date_of_birth} onChange={e => updateFormKey('date_of_birth', e.target.value)} className="h-9 mt-1" disabled={submitting} />
+                  <Label className="text-xs text-slate-600">Tarikh Lahir</Label>
+                  <Input type="date" value={form.date_of_birth} onChange={e => updateFormKey('date_of_birth', e.target.value)} className="h-10 mt-1" disabled={submitting} />
                 </div>
               </div>
             </div>
 
-            {/* Bahagian 2: Akademik */}
+            {/* Bahagian 2 */}
             <div className="space-y-3 pt-2">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b pb-1">Maklumat Akademik</h3>
+              <h3 className="text-xs font-bold text-[#002147] uppercase tracking-wider border-b border-slate-100 pb-1.5">Maklumat Akademik</h3>
               <div className="space-y-3">
                 <div>
-                  <Label className="text-xs">Fakulti</Label>
+                  <Label className="text-xs text-slate-600">Fakulti</Label>
                   <Select value={form.faculty} onValueChange={v => updateFormKey('faculty', v)} disabled={submitting}>
-                    <SelectTrigger className="h-9 mt-1"><SelectValue placeholder="Pilih Fakulti" /></SelectTrigger>
+                    <SelectTrigger className="h-10 mt-1"><SelectValue placeholder="Pilih Fakulti" /></SelectTrigger>
                     <SelectContent>
                       {UMS_FACULTIES.map(fc => <SelectItem key={fc} value={fc}>{fc}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
-                    <Label className="text-xs">Program Pengajian</Label>
-                    <Input placeholder="Contoh: Sains Komputer" value={form.programme} onChange={e => updateFormKey('programme', e.target.value)} className="h-9 mt-1" disabled={submitting} />
+                    <Label className="text-xs text-slate-600">Program Pengajian</Label>
+                    <Input placeholder="Contoh: Sains Komputer" value={form.programme} onChange={e => updateFormKey('programme', e.target.value)} className="h-10 mt-1" disabled={submitting} />
                   </div>
                   <div>
-                    <Label className="text-xs">Tahun Pengajian</Label>
+                    <Label className="text-xs text-slate-600">Tahun Pengajian</Label>
                     <Select value={String(form.year_of_study)} onValueChange={v => updateFormKey('year_of_study', Number(v))} disabled={submitting}>
-                      <SelectTrigger className="h-9 mt-1"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-10 mt-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {[1,2,3,4,5].map(y => <SelectItem key={y} value={String(y)}>Year {y}</SelectItem>)}
+                        {[1,2,3,4,5].map(y => <SelectItem key={y} value={String(y)}>Tahun {y}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -263,30 +302,30 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Bahagian 3: Waris & Kecemasan */}
+            {/* Bahagian 3 */}
             <div className="space-y-3 pt-2">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b pb-1">Maklumat Kecemasan & Kenderaan</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <h3 className="text-xs font-bold text-[#002147] uppercase tracking-wider border-b border-slate-100 pb-1.5">Maklumat Kecemasan & Kenderaan</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <Label className="text-xs">Nama Ibu Bapa / Penjaga *</Label>
-                  <Input value={form.parent_name} onChange={e => updateFormKey('parent_name', e.target.value)} className="h-9 mt-1" disabled={submitting} />
+                  <Label className="text-xs text-slate-600">Nama Ibu Bapa / Penjaga *</Label>
+                  <Input value={form.parent_name} onChange={e => updateFormKey('parent_name', e.target.value)} className="h-10 mt-1" disabled={submitting} />
                 </div>
                 <div>
-                  <Label className="text-xs">No. Telefon Ibu Bapa / Penjaga *</Label>
-                  <Input placeholder="Contoh: 0134567890" value={form.parent_phone} onChange={e => updateFormKey('parent_phone', e.target.value)} className="h-9 mt-1" disabled={submitting} />
+                  <Label className="text-xs text-slate-600">No. Telefon Ibu Bapa / Penjaga *</Label>
+                  <Input placeholder="Contoh: 0134567890" value={form.parent_phone} onChange={e => updateFormKey('parent_phone', e.target.value)} className="h-10 mt-1" disabled={submitting} />
                 </div>
                 <div>
-                  <Label className="text-xs">Hubungan / Kontak Kecemasan Lain</Label>
-                  <Input placeholder="Contoh: Pakcik / Kakak" value={form.emergency_contact} onChange={e => updateFormKey('emergency_contact', e.target.value)} className="h-9 mt-1" disabled={submitting} />
+                  <Label className="text-xs text-slate-600">Hubungan Kontak Kecemasan Lain</Label>
+                  <Input placeholder="Contoh: Pakcik / Kakak" value={form.emergency_contact} onChange={e => updateFormKey('emergency_contact', e.target.value)} className="h-10 mt-1" disabled={submitting} />
                 </div>
                 <div>
-                  <Label className="text-xs">No. Pendaftaran Kenderaan (Jika Ada)</Label>
-                  <Input placeholder="Contoh: SAB 1234 X (Optional)" value={form.vehicle_reg} onChange={e => updateFormKey('vehicle_reg', e.target.value)} className="h-9 mt-1" disabled={submitting} />
+                  <Label className="text-xs text-slate-600">No. Pendaftaran Kenderaan</Label>
+                  <Input placeholder="Contoh: SAB 1234 X" value={form.vehicle_reg} onChange={e => updateFormKey('vehicle_reg', e.target.value)} className="h-10 mt-1" disabled={submitting} />
                 </div>
               </div>
             </div>
 
-            <Button type="submit" className="w-full h-11 mt-4" disabled={submitting}>
+            <Button type="submit" className="w-full h-11 bg-[#002147] hover:bg-[#001833] text-white font-medium rounded-lg mt-2 transition-colors" disabled={submitting}>
               {submitting ? "Menghantar Profil Pelajar..." : "Sahkan Profil & Daftar Akaun"}
             </Button>
           </form>
@@ -296,79 +335,77 @@ export default function Dashboard() {
   }
 
   // ====================================================================
-  // 🎯 SKRIN 2: HALAMAN ARAHAN CHECK-IN (JIKA PROFIL WUJUD, TAPI TIADA BILIK)
+  // 🎯 SKRIN 2: HALAMAN ARAHAN CHECK-IN Pelajar (Tiada Bilik)
   // ====================================================================
   if (hasStudentProfile && !isRoomAssigned) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-background">
-        <div className="max-w-md w-full text-center space-y-6 bg-card p-8 rounded-xl border shadow-md">
-          
-          <div className="mx-auto w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
-            <ClipboardCheck className="w-8 h-8" />
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50/50">
+        <div className="max-w-md w-full bg-white p-8 rounded-xl border border-slate-200 text-center shadow-sm space-y-6">
+          <div className="mx-auto w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100">
+            <ClipboardCheck className="w-7 h-7" />
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight">Pendaftaran Profil Berjaya! 🎉</h1>
-            <p className="text-sm text-muted-foreground">
-              Akaun anda telah diaktifkan, namun penempatan blok & bilik kolej anda masih belum ditentukan.
+            <h1 className="text-xl font-bold text-[#002147] tracking-tight">Pendaftaran Profil Berjaya! 🎉</h1>
+            <p className="text-sm text-slate-500 leading-relaxed">
+              Akaun anda aktif, namun penempatan blok & bilik kolej anda masih belum dikemas kini oleh pentadbir.
             </p>
           </div>
 
-          <hr />
-
-          <div className="text-left space-y-4 bg-muted/50 p-4 rounded-lg border">
-            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-              <Info className="w-3.5 h-3.5 text-primary" /> Langkah Seterusnya Sila:
+          <div className="text-left space-y-3.5 bg-slate-50 p-5 rounded-xl border border-slate-100">
+            <h3 className="text-xs font-bold text-[#002147] uppercase tracking-wider flex items-center gap-1.5">
+              <Info className="w-4 h-4 text-blue-600" /> Langkah Seterusnya:
             </h3>
 
-            <div className="flex gap-3 items-start text-sm">
-              <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">1</div>
-              <p className="text-foreground">Sila hadir ke <strong>Pejabat Pentadbiran Kolej Kediaman (KKMS)</strong> atau kaunter meja pendaftaran utama.</p>
-            </div>
-
-            <div className="flex gap-3 items-start text-sm">
-              <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">2</div>
-              <p className="text-foreground">Maklumkan <strong>Nama Penuh</strong> atau <strong>No. Matrik</strong> anda kepada pegawai yang bertugas untuk semakan.</p>
-            </div>
-
-            <div className="flex gap-3 items-start text-sm">
-              <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">3</div>
-              <p className="text-foreground">Pegawai pentadbir akan memberikan kunci fizikal dan mengemas kini nombor blok/bilik anda ke dalam sistem ini secara langsung.</p>
+            <div className="space-y-3 text-sm text-slate-600">
+              <div className="flex gap-3 items-start">
+                <span className="w-5 h-5 rounded-full bg-[#002147] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+                <p>Hadir ke <strong>Pejabat Pentadbiran Kolej Kediaman Tun Mustapha (KKTF)</strong>.</p>
+              </div>
+              <div className="flex gap-3 items-start">
+                <span className="w-5 h-5 rounded-full bg-[#002147] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+                <p>Kemukakan <strong>No. Matrik</strong> anda kepada pegawai bertugas untuk semakan.</p>
+              </div>
+              <div className="flex gap-3 items-start">
+                <span className="w-5 h-5 rounded-full bg-[#002147] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+                <p>Pegawai akan menyerahkan kunci fizikal dan mengemas kini bilik anda secara langsung ke dalam portal.</p>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-primary/5 border border-primary/10 p-3 rounded-lg text-left text-sm text-primary">
-            <MapPin className="w-5 h-5 shrink-0" />
-            <p><strong>Lokasi:</strong> Kaunter Utama Pentadbiran KKTF, UMS.</p>
+          <div className="flex items-center gap-3 bg-blue-50/50 border border-blue-100 p-3.5 rounded-lg text-left text-sm text-[#002147]">
+            <MapPin className="w-5 h-5 shrink-0 text-[#990000]" />
+            <p className="text-xs leading-normal"><strong>Lokasi:</strong> Kaunter Utama Pentadbiran KKTF, Kompleks Kediaman UMS.</p>
           </div>
 
-          <Button 
-            onClick={() => window.location.reload()} 
-            variant="outline" 
-            className="w-full h-10 text-xs text-muted-foreground"
-          >
-            Semak Semula Status Penempatan Bilik
+          <Button onClick={() => window.location.reload()} variant="outline" className="w-full h-10 text-xs text-slate-500 font-medium hover:bg-slate-50 border-slate-200">
+            Semak Semula Status Bilik
           </Button>
-
         </div>
       </div>
     );
   }
 
   // ====================================================================
-  // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD ASAL (DIPERBAIKI & ADA BILIK)
+  // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD (STAFF/ADMIN)
   // ====================================================================
-  
-  // Suntikan data statistik masa nyata ke dalam dashboard pentadbir melalui prop komponen jika diperlukan
-  if (currentUser?.role === 'warden') return <WardenDashboard user={currentUser} checkedInCount={checkedInCount} pendingRoomCount={pendingRoomCount} />;
-  if (currentUser?.role === 'jakmas') return <JakmasDashboard user={currentUser} checkedInCount={checkedInCount} pendingRoomCount={pendingRoomCount} />;
+  const dashboardProps = {
+    user: currentUser,
+    checkedInCount,
+    pendingRoomCount,
+    availableRoomCount,
+    statsComponent: renderStatsCards() // Menyalakan komponen kad statistik terus ke sub-dashboard
+  };
+
+  if (currentUser?.role === 'warden') return <WardenDashboard {...dashboardProps} />;
+  if (currentUser?.role === 'jakmas') return <JakmasDashboard {...dashboardProps} />;
   if (currentUser?.role === 'super_admin' || currentUser?.role === 'college_admin') {
-    return <AdminDashboard user={currentUser} checkedInCount={checkedInCount} pendingRoomCount={pendingRoomCount} />;
+    return <AdminDashboard {...dashboardProps} />;
   }
   
   if (hasStudentProfile && isRoomAssigned) {
     return <StudentDashboard user={currentUser} />;
   }
   
-  return <AdminDashboard user={currentUser} checkedInCount={checkedInCount} pendingRoomCount={pendingRoomCount} />;
+  return <AdminDashboard {...dashboardProps} />;
 }
