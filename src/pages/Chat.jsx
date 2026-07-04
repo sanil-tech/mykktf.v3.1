@@ -109,6 +109,22 @@ export default function Chat() {
     finally { setLoading(false); }
   }
 
+  // Fungsi pembantu khas untuk mendapatkan Full Name rasmi daripada entiti Student
+  async function resolveSenderName(currentUser) {
+    if (!currentUser) return 'Unknown';
+    try {
+      let profiles = await base44.entities.Student.filter({ user_id: currentUser.id });
+      if (!profiles.length) profiles = await base44.entities.Student.filter({ email: currentUser.email });
+      
+      if (profiles.length > 0 && profiles[0].full_name) {
+        return profiles[0].full_name;
+      }
+    } catch (e) {
+      console.error("Gagal mendapatkan nama penuh dari profil:", e);
+    }
+    return currentUser.full_name || currentUser.email;
+  }
+
   async function loadChannelsAndInbox(currentUser) {
     if (!currentUser) return;
     const publicChannels = [COMMUNITY_CHANNEL];
@@ -187,7 +203,18 @@ export default function Chat() {
     try {
       const allMsgs = await base44.entities.ChatMessage.filter({}, 'created_date', 150);
       const filtered = allMsgs.filter(msg => msg.channel_key === activeChannelRef.current.channelKey && !msg.is_deleted);
-      setMessages(filtered);
+      
+      // Mengemas kini nama pengirim secara dinamik pada perbualan awam berdasarkan data profil terkini
+      const allStudents = await base44.entities.Student.filter({});
+      const enhancedFiltered = filtered.map(msg => {
+        const profile = allStudents.find(s => s.user_id === msg.sender_user_id);
+        if (profile && profile.full_name) {
+          return { ...msg, sender_name: profile.full_name };
+        }
+        return msg;
+      });
+
+      setMessages(enhancedFiltered);
     } catch (err) { console.error(err); }
   }
 
@@ -197,7 +224,17 @@ export default function Chat() {
       const targetKey = getDMChannelKey(currentUser.id, target.id);
       const allMsgs = await base44.entities.ChatMessage.filter({});
       const filtered = allMsgs.filter(msg => msg.channel_key === targetKey && !msg.is_deleted);
-      setDmMessages(filtered);
+      
+      const allStudents = await base44.entities.Student.filter({});
+      const enhancedFiltered = filtered.map(msg => {
+        const profile = allStudents.find(s => s.user_id === msg.sender_user_id);
+        if (profile && profile.full_name) {
+          return { ...msg, sender_name: profile.full_name };
+        }
+        return msg;
+      });
+
+      setDmMessages(enhancedFiltered);
     } catch (err) { console.error(err); }
   }
 
@@ -248,10 +285,11 @@ export default function Chat() {
     if (!file || !user || !activeChannel) return;
     setUploading(true);
     try {
+      const resolvedName = await resolveSenderName(user);
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       await base44.entities.ChatMessage.create({
         channel: 'public', channel_key: activeChannel.channelKey, sender_user_id: user.id,
-        sender_name: user.full_name || user.email, sender_role: user.role, message: '', image_url: file_url, is_deleted: false
+        sender_name: resolvedName, sender_role: user.role, message: '', image_url: file_url, is_deleted: false
       });
       await loadMessages();
     } catch (err) { console.error(err); } 
@@ -263,11 +301,12 @@ export default function Chat() {
     if (!file || !user || !dmTarget) return;
     setUploading(true);
     try {
+      const resolvedName = await resolveSenderName(user);
       const targetKey = getDMChannelKey(user.id, dmTarget.id);
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       await base44.entities.ChatMessage.create({
         channel: 'direct_message', channel_key: targetKey, sender_user_id: user.id,
-        sender_name: user.full_name || user.email, sender_role: user.role, message: '', image_url: file_url, is_deleted: false
+        sender_name: resolvedName, sender_role: user.role, message: '', image_url: file_url, is_deleted: false
       });
       await loadDmMessages(user, dmTarget);
       await loadChannelsAndInbox(user);
@@ -278,9 +317,10 @@ export default function Chat() {
   async function send() {
     if (!text.trim() || !user || !activeChannel) return;
     try {
+      const resolvedName = await resolveSenderName(user);
       await base44.entities.ChatMessage.create({
         channel: 'public', channel_key: activeChannel.channelKey, sender_user_id: user.id,
-        sender_name: user.full_name || user.email, sender_role: user.role, message: text.trim(), is_deleted: false
+        sender_name: resolvedName, sender_role: user.role, message: text.trim(), is_deleted: false
       });
       setText(''); await loadMessages(); 
     } catch (err) { console.error(err); }
@@ -289,10 +329,11 @@ export default function Chat() {
   async function sendDm() {
     if (!dmText.trim() || !user || !dmTarget) return;
     try {
+      const resolvedName = await resolveSenderName(user);
       const targetKey = getDMChannelKey(user.id, dmTarget.id);
       await base44.entities.ChatMessage.create({
         channel: 'direct_message', channel_key: targetKey, sender_user_id: user.id,
-        sender_name: user.full_name || user.email, sender_role: user.role, message: dmText.trim(), is_deleted: false
+        sender_name: resolvedName, sender_role: user.role, message: dmText.trim(), is_deleted: false
       });
       setDmText(''); await loadDmMessages(user, dmTarget); await loadChannelsAndInbox(user);
     } catch (err) { console.error(err); }
@@ -305,7 +346,7 @@ export default function Chat() {
 
   return (
     <div className="relative">
-      <PageHeader title="Community Chat" description="Sembang komuniti awam serta sistem pengurusan mesej Pin, Edit & Delete." />
+      <PageHeader title="Community Chat" description="Sembang komuniti awam serta sistem pengurusan mesej Menggunakan Full Name Profil." />
       
       <div className="flex gap-4 h-[calc(100vh-220px)] min-h-[400px]">
         {/* SIDEBAR */}
@@ -368,10 +409,8 @@ export default function Chat() {
                   <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
                     <p className="text-xs text-muted-foreground mb-0.5">{msg.sender_name}</p>
                     
-                    {/* BUBBLE CHAT UTAMA */}
                     <div className={`rounded-xl px-3 py-2 text-sm ${isOwn ? 'bg-primary text-primary-foreground' : 'bg-muted text-slate-900'}`}>
                       {editingMessageId === msg.id ? (
-                        /* FIXED: Penambahbaikan Kontras UI Kotak Edit Utama */
                         <div className="flex gap-1.5 items-center min-w-[240px] p-0.5">
                           <Input 
                             className="h-8 text-xs bg-white text-slate-900 border border-slate-300 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-primary shadow-inner" 
@@ -436,10 +475,8 @@ export default function Chat() {
               const isOwnDm = m.sender_user_id === user?.id;
               return (
                 <div key={m.id} className={`flex flex-col group ${isOwnDm ? 'items-end' : 'items-start'}`}>
-                  {/* BUBBLE CHAT MINI DM */}
                   <div className={`rounded-lg px-2.5 py-1.5 text-xs max-w-[85%] break-words shadow-2xs ${isOwnDm ? 'bg-sky-600 text-white rounded-br-none' : 'bg-white border text-slate-800 rounded-bl-none'}`}>
                     {editingMessageId === m.id ? (
-                      /* FIXED: Penambahbaikan Kontras UI Kotak Edit Mini DM */
                       <div className="flex gap-1 items-center min-w-[170px] p-0.5">
                         <input 
                           className="h-7 text-xs bg-white text-slate-900 border border-slate-300 rounded px-1.5 flex-1 min-w-0 shadow-inner focus:outline-none focus:ring-1 focus:ring-sky-500" 
