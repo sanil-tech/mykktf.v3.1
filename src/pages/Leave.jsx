@@ -198,7 +198,7 @@ export default function Leave() {
         description={isReviewer ? "Portal Kelulusan dan Log Keluar Pelajar Kolej Kediaman Tun Fuad" : "Sistem Permohonan Kebenaran Bermalam Di Luar Kolej"}
         actions={!isReviewer && (
           <Button size="sm" onClick={() => setDialogOpen(true)} className="bg-[#132644] hover:bg-[#1e385f] text-white shadow-sm font-medium tracking-wide">
-            <Plus className="w-4 h-4 mr-2" /> Mohon E-Cuti KKTF
+            <Plus className="w-4 h-4 mr-2" /> MOHON SEKARANG
           </Button>
         )}
       />
