@@ -9,6 +9,12 @@ import { toast } from '@/components/ui/use-toast';
 const COMMUNITY_CHANNEL = { key: 'community', label: 'KKTF Community', channelKey: 'kktf', description: 'All residents', type: 'public' };
 const ADMIN_ROLES = ['super_admin', 'college_admin', 'warden', 'staff'];
 
+// FUNGSI UTITI: Menjamin channel_key DM sentiasa sama untuk kedua-dua pihak (Pelajar & Warden)
+function getDMChannelKey(userId1, userId2) {
+  const sortedIds = [userId1, userId2].sort();
+  return `dm_${sortedIds[0]}_${sortedIds[1]}`;
+}
+
 export default function Chat() {
   const [user, setUser] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -20,7 +26,6 @@ export default function Chat() {
   const bottomRef = useRef(null);
   const fileRef = useRef(null);
 
-  // Menggunakan ref untuk mengelakkan isu closure stale state pada fungsi realtime subscribe
   const activeChannelRef = useRef(null);
   useEffect(() => {
     activeChannelRef.current = activeChannel;
@@ -56,21 +61,22 @@ export default function Chat() {
         publicChannels.unshift({ 
           key: `block_${w.block_name}`, 
           label: `Block ${w.block_name}`, 
-          channelKey: `block_${w.block_name}`.toLowerCase(), // Standardized channel key
+          channelKey: `block_${w.block_name}`.toLowerCase(),
           description: `Residents of Block ${w.block_name}`,
           type: 'public'
         });
       });
 
-      // Ambil mesej DM yang melibatkan warden ini
+      // Ambil semua mesej DM untuk mengesan perbualan aktif dengan pelajar
       const allDmMessages = await base44.entities.ChatMessage.filter({ channel: 'direct_message' });
       const activeStudentIds = new Set();
       const studentNamesMap = {};
 
       allDmMessages.forEach(msg => {
-        if (msg.channel_key && msg.channel_key.includes(currentUser.id)) {
+        if (msg.channel_key && msg.channel_key.startsWith('dm_') && msg.channel_key.includes(currentUser.id)) {
           const parts = msg.channel_key.split('_');
-          const studentId = parts[1]; // Format standard: dm_studentId_wardenId
+          // parts[1] & parts[2] mengandungi dua ID pengguna yang terlibat dalam DM
+          const studentId = parts[1] === currentUser.id ? parts[2] : parts[1];
           
           if (studentId && studentId !== currentUser.id) {
             activeStudentIds.add(studentId);
@@ -85,7 +91,7 @@ export default function Chat() {
         dmChannels.push({
           key: `dm_${studentId}`,
           label: `💬 DM: ${studentNamesMap[studentId] || 'Pelajar Portal'}`,
-          channelKey: `dm_${studentId}_${currentUser.id}`, 
+          channelKey: getDMChannelKey(studentId, currentUser.id), 
           description: 'Sembang peribadi (Klik untuk balas)',
           type: 'dm'
         });
@@ -98,28 +104,26 @@ export default function Chat() {
       const s = sp[0] || null;
 
       if (s?.block_name) {
-        // Masukkan saluran Blok
         publicChannels.unshift({ 
           key: `block_${s.block_name}`, 
           label: `Block ${s.block_name}`, 
-          channelKey: `block_${s.block_name}`.toLowerCase(), // Memastikan key sama dengan apa yang dibaca warden
+          channelKey: `block_${s.block_name}`.toLowerCase(),
           description: `Block ${s.block_name} residents`,
           type: 'public' 
         });
 
-        // Cari warden blok untuk mulakan saluran DM
+        // Cari maklumat warden yang menguruskan blok pelajar ini
         const blockWardens = await base44.entities.WardenBlock.filter({ block_name: s.block_name });
         if (blockWardens.length > 0) {
           const wardenInfo = blockWardens[0];
           dmChannels.push({
             key: `dm_warden`,
             label: `💬 DM: Warden ${wardenInfo.block_name}`,
-            channelKey: `dm_${currentUser.id}_${wardenInfo.warden_user_id}`,
+            channelKey: getDMChannelKey(currentUser.id, wardenInfo.warden_user_id), // Guna fungsi utiliti pembetulan key
             description: 'Hubungi warden secara peribadi (Sulit)',
             type: 'dm'
           });
         } else {
-          // Fallback jika maklumat warden blok tiada di DB
           dmChannels.push({
             key: `dm_general_warden`,
             label: `💬 DM: Hubungi Warden Blok`,
@@ -130,7 +134,6 @@ export default function Chat() {
         }
       }
 
-      // Masukkan saluran Bilik
       if (s?.room_number && s?.block_name) {
         publicChannels.unshift({ 
           key: `room_${s.room_number}`, 
@@ -145,13 +148,11 @@ export default function Chat() {
     const allChannels = [...publicChannels, ...dmChannels];
     setChannels(allChannels);
 
-    // Tetapkan saluran aktif jika belum dipilih
     if (!activeChannelRef.current && allChannels.length > 0) {
       setActiveChannel(allChannels[0]);
     }
   }
 
-  // Hook untuk menguruskan pemuatan mesej & realtime sync
   useEffect(() => {
     if (!user) return;
 
@@ -159,7 +160,6 @@ export default function Chat() {
       loadMessages();
     }
 
-    // Melanggan kemas kini secara global daripada pangkalan data
     const unsub = base44.entities.ChatMessage.subscribe(() => {
       loadChannels(user);
       if (activeChannelRef.current) {
@@ -192,15 +192,15 @@ export default function Chat() {
     if (!text.trim() || !user || !activeChannel) return;
     try {
       await base44.entities.ChatMessage.create({
-        channel: activeChannel.type === 'dm' ? 'direct_message' : activeChannel.key,
-        channel_key: activeChannel.channelKey, // Menggunakan nilai channelKey yang diselaraskan
+        channel: activeChannel.type === 'dm' ? 'direct_message' : 'public', // Diselaraskan kepada 'public' untuk kekonsistenan Blok/Bilik
+        channel_key: activeChannel.channelKey, 
         sender_user_id: user.id,
         sender_name: user.full_name || user.email,
         sender_role: user.role,
         message: text.trim(),
       });
       setText('');
-      loadMessages(); // Muat semula mesej serta-merta selepas menghantar
+      loadMessages(); 
     } catch (err) {
       console.error("Gagal menghantar mesej:", err);
     }
@@ -213,7 +213,7 @@ export default function Chat() {
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       await base44.entities.ChatMessage.create({
-        channel: activeChannel.type === 'dm' ? 'direct_message' : activeChannel.key,
+        channel: activeChannel.type === 'dm' ? 'direct_message' : 'public',
         channel_key: activeChannel.channelKey,
         sender_user_id: user.id,
         sender_name: user.full_name || user.email,
