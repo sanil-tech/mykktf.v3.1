@@ -20,7 +20,7 @@ export default function Chat() {
   const bottomRef = useRef(null);
   const fileRef = useRef(null);
 
-  // Guna ref untuk sentiasa dapatkan activeChannel terkini di dalam fungsi subscribe
+  // Menggunakan ref untuk mengelakkan isu closure stale state pada fungsi realtime subscribe
   const activeChannelRef = useRef(null);
   useEffect(() => {
     activeChannelRef.current = activeChannel;
@@ -34,37 +34,35 @@ export default function Chat() {
     try {
       const u = await base44.auth.me();
       setUser(u);
-      
-      // Muat senarai saluran buat kali pertama
       await loadChannels(u);
     } catch (error) {
-      console.error("Ralat permulaan sembang:", error);
+      console.error("Ralat memulakan sistem sembang:", error);
     } finally {
       setLoading(false);
     }
   }
 
-  // Dipisahkan supaya boleh dipanggil semula secara dinamik apabila ada mesej masuk
   async function loadChannels(currentUser) {
     if (!currentUser) return;
-    
+
     const publicChannels = [COMMUNITY_CHANNEL];
     const dmChannels = [];
 
     if (currentUser.role === 'warden') {
-      // --- WARDEN SIDEBAR ---
+      // --- ALIRAN PENGGUNA: WARDEN ---
       const wb = await base44.entities.WardenBlock.filter({ warden_user_id: currentUser.id });
+      
       wb.forEach(w => {
         publicChannels.unshift({ 
           key: `block_${w.block_name}`, 
           label: `Block ${w.block_name}`, 
-          channelKey: w.block_name, 
+          channelKey: `block_${w.block_name}`.toLowerCase(), // Standardized channel key
           description: `Residents of Block ${w.block_name}`,
           type: 'public'
         });
       });
 
-      // Ambil SEMUA mesej direct_message untuk bina senarai pelajar aktif dinamik
+      // Ambil mesej DM yang melibatkan warden ini
       const allDmMessages = await base44.entities.ChatMessage.filter({ channel: 'direct_message' });
       const activeStudentIds = new Set();
       const studentNamesMap = {};
@@ -72,7 +70,7 @@ export default function Chat() {
       allDmMessages.forEach(msg => {
         if (msg.channel_key && msg.channel_key.includes(currentUser.id)) {
           const parts = msg.channel_key.split('_');
-          const studentId = parts[1]; // Format: dm_studentId_wardenId
+          const studentId = parts[1]; // Format standard: dm_studentId_wardenId
           
           if (studentId && studentId !== currentUser.id) {
             activeStudentIds.add(studentId);
@@ -86,28 +84,30 @@ export default function Chat() {
       activeStudentIds.forEach(studentId => {
         dmChannels.push({
           key: `dm_${studentId}`,
-          label: `💬 DM: ${studentNamesMap[studentId] || 'Pelajar (' + studentId.substring(0, 4) + ')'}`,
+          label: `💬 DM: ${studentNamesMap[studentId] || 'Pelajar Portal'}`,
           channelKey: `dm_${studentId}_${currentUser.id}`, 
-          description: 'Sembang peribadi peranti',
+          description: 'Sembang peribadi (Klik untuk balas)',
           type: 'dm'
         });
       });
 
     } else {
-      // --- STUDENT SIDEBAR ---
+      // --- ALIRAN PENGGUNA: PELAJAR ---
       let sp = await base44.entities.Student.filter({ user_id: currentUser.id });
       if (!sp.length) sp = await base44.entities.Student.filter({ email: currentUser.email });
       const s = sp[0] || null;
 
       if (s?.block_name) {
+        // Masukkan saluran Blok
         publicChannels.unshift({ 
-          key: 'block', 
+          key: `block_${s.block_name}`, 
           label: `Block ${s.block_name}`, 
-          channelKey: s.block_name, 
+          channelKey: `block_${s.block_name}`.toLowerCase(), // Memastikan key sama dengan apa yang dibaca warden
           description: `Block ${s.block_name} residents`,
           type: 'public' 
         });
 
+        // Cari warden blok untuk mulakan saluran DM
         const blockWardens = await base44.entities.WardenBlock.filter({ block_name: s.block_name });
         if (blockWardens.length > 0) {
           const wardenInfo = blockWardens[0];
@@ -119,30 +119,24 @@ export default function Chat() {
             type: 'dm'
           });
         } else {
+          // Fallback jika maklumat warden blok tiada di DB
           dmChannels.push({
             key: `dm_general_warden`,
             label: `💬 DM: Hubungi Warden Blok`,
             channelKey: `dm_${currentUser.id}_general_warden`,
-            description: 'Klik untuk mulakan sembang bantuan kediaman',
+            description: 'Sembang bantuan pengurusan kediaman',
             type: 'dm'
           });
         }
-      } else {
-        dmChannels.push({
-          key: `dm_helpdesk`,
-          label: `💬 DM: Helpdesk Kediaman`,
-          channelKey: `dm_${currentUser.id}_admin`,
-          description: 'Hubungi pihak pentadbir urusan blok/kolej',
-          type: 'dm'
-        });
       }
-      
+
+      // Masukkan saluran Bilik
       if (s?.room_number && s?.block_name) {
         publicChannels.unshift({ 
-          key: 'room', 
+          key: `room_${s.room_number}`, 
           label: `Room ${s.room_number}`, 
-          channelKey: `${s.room_number}_${s.block_name}`, 
-          description: 'Your room',
+          channelKey: `room_${s.room_number}_${s.block_name}`.toLowerCase(), 
+          description: 'Sembang ahli bilik anda',
           type: 'public' 
         });
       }
@@ -151,24 +145,21 @@ export default function Chat() {
     const allChannels = [...publicChannels, ...dmChannels];
     setChannels(allChannels);
 
-    // Kekalkan activeChannel jika sudah ada, jika tiada set yang pertama
+    // Tetapkan saluran aktif jika belum dipilih
     if (!activeChannelRef.current && allChannels.length > 0) {
       setActiveChannel(allChannels[0]);
     }
   }
 
-  // Menguruskan pemuatan mesej & langganan real-time global
+  // Hook untuk menguruskan pemuatan mesej & realtime sync
   useEffect(() => {
     if (!user) return;
 
-    // Muat mesej pertama kali saluran bertukar
     if (activeChannel) {
       loadMessages();
     }
 
-    // KRITIKAL: Subscribe secara global. Setiap kali ada mesej masuk (dari sesiapa sahaja),
-    // kita kemas kini semula senarai saluran (supaya nama pelajar baru muncul pada skrin warden)
-    // dan kemas kini mesej jika berada di saluran aktif tersebut.
+    // Melanggan kemas kini secara global daripada pangkalan data
     const unsub = base44.entities.ChatMessage.subscribe(() => {
       loadChannels(user);
       if (activeChannelRef.current) {
@@ -185,43 +176,58 @@ export default function Chat() {
 
   async function loadMessages() {
     if (!activeChannelRef.current) return;
-    const msgs = await base44.entities.ChatMessage.filter(
-      { channel_key: activeChannelRef.current.channelKey, is_deleted: false }, 
-      'created_date', 
-      100
-    );
-    setMessages(msgs);
+    try {
+      const msgs = await base44.entities.ChatMessage.filter(
+        { channel_key: activeChannelRef.current.channelKey, is_deleted: false }, 
+        'created_date', 
+        100
+      );
+      setMessages(msgs);
+    } catch (err) {
+      console.error("Gagal memuatkan mesej:", err);
+    }
   }
 
   async function send() {
     if (!text.trim() || !user || !activeChannel) return;
-    await base44.entities.ChatMessage.create({
-      channel: activeChannel.type === 'dm' ? 'direct_message' : activeChannel.key,
-      channel_key: activeChannel.channelKey,
-      sender_user_id: user.id,
-      sender_name: user.full_name || user.email,
-      sender_role: user.role,
-      message: text.trim(),
-    });
-    setText('');
+    try {
+      await base44.entities.ChatMessage.create({
+        channel: activeChannel.type === 'dm' ? 'direct_message' : activeChannel.key,
+        channel_key: activeChannel.channelKey, // Menggunakan nilai channelKey yang diselaraskan
+        sender_user_id: user.id,
+        sender_name: user.full_name || user.email,
+        sender_role: user.role,
+        message: text.trim(),
+      });
+      setText('');
+      loadMessages(); // Muat semula mesej serta-merta selepas menghantar
+    } catch (err) {
+      console.error("Gagal menghantar mesej:", err);
+    }
   }
 
   async function sendImage(e) {
     const file = e.target.files[0];
     if (!file || !user || !activeChannel) return;
     setUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    await base44.entities.ChatMessage.create({
-      channel: activeChannel.type === 'dm' ? 'direct_message' : activeChannel.key,
-      channel_key: activeChannel.channelKey,
-      sender_user_id: user.id,
-      sender_name: user.full_name || user.email,
-      sender_role: user.role,
-      message: '',
-      image_url: file_url,
-    });
-    setUploading(false);
-    fileRef.current.value = '';
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      await base44.entities.ChatMessage.create({
+        channel: activeChannel.type === 'dm' ? 'direct_message' : activeChannel.key,
+        channel_key: activeChannel.channelKey,
+        sender_user_id: user.id,
+        sender_name: user.full_name || user.email,
+        sender_role: user.role,
+        message: '',
+        image_url: file_url,
+      });
+      loadMessages();
+    } catch (err) {
+      console.error("Gagal memuat naik gambar:", err);
+    } finally {
+      setUploading(false);
+      fileRef.current.value = '';
+    }
   }
 
   async function togglePin(msg) {
@@ -260,9 +266,9 @@ export default function Chat() {
               </div>
               <div className="space-y-0.5 px-1">
                 {channels.filter(ch => ch.type !== 'dm').map(ch => (
-                  <button key={ch.key} onClick={() => setActiveChannel(ch)} className={`w-full text-left px-3 py-2 text-sm transition-colors rounded-lg flex flex-col ${activeChannel?.key === ch.key ? 'bg-primary text-primary-foreground font-semibold' : 'hover:bg-muted text-slate-700'}`}>
+                  <button key={ch.key} onClick={() => setActiveChannel(ch)} className={`w-full text-left px-3 py-2 text-sm transition-colors rounded-lg flex flex-col ${activeChannel?.channelKey === ch.channelKey ? 'bg-primary text-primary-foreground font-semibold' : 'hover:bg-muted text-slate-700'}`}>
                     <p className="truncate"># {ch.label}</p>
-                    <p className={`text-[10px] truncate font-normal ${activeChannel?.key === ch.key ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{ch.description}</p>
+                    <p className={`text-[10px] truncate font-normal ${activeChannel?.channelKey === ch.channelKey ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{ch.description}</p>
                   </button>
                 ))}
               </div>
@@ -278,9 +284,9 @@ export default function Chat() {
                 </div>
                 <div className="space-y-0.5 px-1">
                   {channels.filter(ch => ch.type === 'dm').map(ch => (
-                    <button key={ch.key} onClick={() => setActiveChannel(ch)} className={`w-full text-left px-3 py-2 text-sm transition-colors rounded-lg flex flex-col border ${activeChannel?.key === ch.key ? 'bg-sky-600 border-sky-600 text-white font-semibold' : 'hover:bg-amber-50/50 border-transparent text-slate-700 bg-amber-50/20'}`}>
+                    <button key={ch.key} onClick={() => setActiveChannel(ch)} className={`w-full text-left px-3 py-2 text-sm transition-colors rounded-lg flex flex-col border ${activeChannel?.channelKey === ch.channelKey ? 'bg-sky-600 border-sky-600 text-white font-semibold' : 'hover:bg-amber-50/50 border-transparent text-slate-700 bg-amber-50/20'}`}>
                       <p className="truncate flex items-center gap-1 text-xs">{ch.label}</p>
-                      <p className={`text-[10px] truncate font-normal ${activeChannel?.key === ch.key ? 'text-white/80' : 'text-slate-400'}`}>{ch.description}</p>
+                      <p className={`text-[10px] truncate font-normal ${activeChannel?.channelKey === ch.channelKey ? 'text-white/80' : 'text-slate-400'}`}>{ch.description}</p>
                     </button>
                   ))}
                 </div>
