@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, CalendarOff, Check, X, Clock, AlertTriangle, Users, UserX, Loader2, MapPin, Calendar, User, FileText } from 'lucide-react';
 
+// Dikemaskini: Mengandungi tiga peringkat kelulusan utama
 const STATUS_BADGE = {
   Pending: 'bg-amber-50 text-amber-800 border-amber-200',
   Approved: 'bg-emerald-50 text-emerald-800 border-emerald-200',
@@ -194,15 +195,14 @@ export default function Leave() {
     <div className="space-y-6 max-w-7xl mx-auto px-2 pb-12">
       <PageHeader
         title="E-Leave KKTF"
-        description={isReviewer ? "Portal Kelulusan dan Log Keluar Pelajar Kolej Kediaman Tun Fuad" : "Sistem Permohonan Pelajar Bermalam Di Luar Kolej/Balik Rumah"}
+        description={isReviewer ? "Portal Kelulusan dan Log Keluar Pelajar Kolej Kediaman Tun Fuad" : "Sistem permohonan pas keluar digital dan semakan rekod cuti pelajar."}
         actions={!isReviewer && (
           <Button size="sm" onClick={() => setDialogOpen(true)} className="bg-[#132644] hover:bg-[#1e385f] text-white shadow-sm font-medium tracking-wide">
-            <Plus className="w-4 h-4 mr-2" /> MOHON
+            <Plus className="w-4 h-4 mr-2" /> Mohon E-Cuti KKTF
           </Button>
         )}
       />
 
-      {/* Kad Statistik Pengurusan Pentadbiran UMS */}
       {isReviewer && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
@@ -225,7 +225,6 @@ export default function Leave() {
         </div>
       )}
 
-      {/* Bar Navigasi Penapis Penapisan Status Rekod */}
       {isReviewer && (
         <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg w-fit border border-gray-200">
           {[
@@ -245,7 +244,6 @@ export default function Leave() {
         </div>
       )}
 
-      {/* Paparan Permohonan Jenis Grid E-Card KKTF */}
       {filteredApps.length === 0 ? (
         <EmptyState icon={CalendarOff} title="Tiada Permohonan Rekod" description="Tiada sebarang permohonan log e-cuti ditemui setakat ini." />
       ) : (
@@ -261,15 +259,20 @@ export default function Leave() {
                   isOverdue ? 'border-rose-200 bg-rose-50/10' : ''
                 }`}
               >
-                <div className="flex items-center justify-between border-b pb-3 mb-4">
+                <div className="flex items-center justify-between border-b pb-3 mb-4 min-h-[36px]">
                   <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{a.leave_type}</span>
                   <div>
+                    {/* Dikemaskini: Memaparkan semua 3 peringkat kelulusan (Menunggu, Lulus, Ditolak) */}
                     {isOverdue ? (
                       <span className="px-2.5 py-1 rounded text-[10px] font-bold border bg-rose-50 text-[#A31D1D] border-rose-200 uppercase tracking-wider animate-pulse">Overdue</span>
                     ) : isActive ? (
                       <span className="px-2.5 py-1 rounded text-[10px] font-bold border bg-blue-50 text-[#132644] border-blue-200 uppercase tracking-wider">Luar Kampus</span>
                     ) : (
-                      <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wider ${STATUS_BADGE[a.status]}`}>{a.status}</span>
+                      <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wider ${
+                        a.status === 'Pending' ? 'bg-amber-50 text-amber-800 border-amber-200' : STATUS_BADGE[a.status]
+                      }`}>
+                        {a.status === 'Pending' ? 'Menunggu' : a.status === 'Approved' ? 'Lulus' : 'Ditolak'}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -328,11 +331,9 @@ export default function Leave() {
         </div>
       )}
 
-      {/* Dialog Kemasukan Borang Aplikasi Keluar Pelajar */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md bg-white rounded-xl shadow-2xl border border-gray-200">
           <DialogHeader>
-            {/* Dikemaskini: Tajuk Borang Baharu */}
             <DialogTitle className="text-lg font-bold text-[#132644] tracking-tight border-b pb-2">Permohonan Bermalam di Luar Kolej</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
@@ -356,7 +357,6 @@ export default function Leave() {
           </div>
           <div className="flex justify-end gap-2.5 mt-5 pt-3 border-t border-gray-100">
             <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} disabled={submitting} className="border-gray-300 text-gray-700">Batal</Button>
-            {/* Dikemaskini: Butang Submit Ringkas 'MOHON' */}
             <Button size="sm" onClick={handleSubmit} disabled={submitting} className="bg-[#132644] hover:bg-[#1e385f] text-white font-medium px-6">
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'MOHON'}
             </Button>
