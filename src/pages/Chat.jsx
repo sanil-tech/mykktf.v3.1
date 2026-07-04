@@ -23,108 +23,124 @@ export default function Chat() {
   useEffect(() => { init(); }, []);
 
   async function init() {
-    const u = await base44.auth.me();
-    setUser(u);
+    try {
+      const u = await base44.auth.me();
+      setUser(u);
+      console.log("Current User logged in:", u);
 
-    const publicChannels = [];
-    const dmChannels = [];
+      const publicChannels = [];
+      const dmChannels = [];
 
-    // 1. Set saluran awam komuniti
-    publicChannels.push(COMMUNITY_CHANNEL);
+      // Sentiasa masukkan saluran utama komuniti terlebih dahulu
+      publicChannels.push(COMMUNITY_CHANNEL);
 
-    if (u.role === 'warden') {
-      // WARDEN FLOW: Ambil semua blok yang dijaga oleh warden ini
-      const wb = await base44.entities.WardenBlock.filter({ warden_user_id: u.id });
-      wb.forEach(w => {
-        publicChannels.unshift({ 
-          key: `block_${w.block_name}`, 
-          label: `Block ${w.block_name}`, 
-          channelKey: w.block_name, 
-          description: `Block ${w.block_name} residents`,
-          type: 'public'
+      if (u.role === 'warden') {
+        // --- ALIRAN WARDEN ---
+        const wb = await base44.entities.WardenBlock.filter({ warden_user_id: u.id });
+        console.log("Warden Assigned Blocks:", wb);
+        
+        wb.forEach(w => {
+          publicChannels.unshift({ 
+            key: `block_${w.block_name}`, 
+            label: `Block ${w.block_name}`, 
+            channelKey: w.block_name, 
+            description: `Block ${w.block_name} residents`,
+            type: 'public'
+          });
         });
-      });
 
-      // Ambil mesej-mesej DM yang pernah dihantar kepada warden ini oleh mana-mana pelajar
-      try {
+        // Cari semua mesej DM milik warden ini
         const allDmMessages = await base44.entities.ChatMessage.filter({ channel: 'direct_message' });
-        // Tapis mesej yang melibatkan warden ini sahaja (melalui struktur channel_key: dm_studentId_wardenId)
         const activeStudentIds = new Set();
+        
         allDmMessages.forEach(msg => {
           if (msg.channel_key && msg.channel_key.includes(`_${u.id}`)) {
             const parts = msg.channel_key.split('_');
-            const studentId = parts[1]; // Ekstrak student_user_id
+            const studentId = parts[1]; 
             activeStudentIds.add(studentId);
           }
         });
 
-        // Jana saluran DM bagi setiap pelajar yang pernah hantar mesej
         for (const studentId of activeStudentIds) {
-          // Anda boleh tambah panggilan API untuk dapatkan nama penuh pelajar jika perlu, 
-          // buat masa ini kita gunakan ID atau fallback yang ada dalam mesej terakhir
           const studentMsg = allDmMessages.find(m => m.sender_user_id === studentId);
           dmChannels.push({
             key: `dm_${studentId}`,
-            label: `DM: ${studentMsg?.sender_name || 'Pelajar'}`,
+            label: `DM: ${studentMsg?.sender_name || 'Pelajar Portal'}`,
             channelKey: `dm_${studentId}_${u.id}`,
             description: 'Sembang peribadi pelajar',
             type: 'dm'
           });
         }
-      } catch (err) {
-        console.error("Gagal memuatkan DM Warden:", err);
-      }
 
-    } else {
-      // STUDENT / STAFF FLOW
-      let sp = await base44.entities.Student.filter({ user_id: u.id });
-      if (!sp.length) sp = await base44.entities.Student.filter({ email: u.email });
-      const s = sp[0] || null;
+      } else {
+        // --- ALIRAN PELAJAR ---
+        let sp = await base44.entities.Student.filter({ user_id: u.id });
+        if (!sp.length) sp = await base44.entities.Student.filter({ email: u.email });
+        const s = sp[0] || null;
+        console.log("Student Profile Found:", s);
 
-      if (s?.block_name) {
-        publicChannels.unshift({ 
-          key: 'block', 
-          label: `Block ${s.block_name}`, 
-          channelKey: s.block_name, 
-          description: `Block ${s.block_name} residents`,
-          type: 'public' 
-        });
+        if (s?.block_name) {
+          publicChannels.unshift({ 
+            key: 'block', 
+            label: `Block ${s.block_name}`, 
+            channelKey: s.block_name, 
+            description: `Block ${s.block_name} residents`,
+            type: 'public' 
+          });
 
-        // Ambil maklumat warden yang menjaga blok pelajar ini untuk buat auto-link DM
-        try {
+          // PENTING: Dapatkan senarai warden untuk blok pelajar ini
           const blockWardens = await base44.entities.WardenBlock.filter({ block_name: s.block_name });
+          console.log("Found Wardens for Block:", blockWardens);
+
           if (blockWardens.length > 0) {
-            // Jika ada nama warden di entiti, paparkan nama. Jika tiada, letak fallback "Warden Blok"
             const wardenInfo = blockWardens[0];
             dmChannels.push({
               key: `dm_warden`,
               label: `💬 DM: Warden ${wardenInfo.block_name}`,
-              channelKey: `dm_${u.id}_${wardenInfo.warden_user_id}`, // Format unik: dm_studentId_wardenId
+              channelKey: `dm_${u.id}_${wardenInfo.warden_user_id}`, // Struktur: dm_studentId_wardenId
               description: 'Hubungi warden secara peribadi (Sulit)',
               type: 'dm'
             });
+          } else {
+            // FALLBACK 1: Jika tiada warden spesifik didaftarkan pada blok tersebut di DB
+            dmChannels.push({
+              key: `dm_general_warden`,
+              label: `💬 DM: Hubungi Warden Blok`,
+              channelKey: `dm_${u.id}_general_warden`,
+              description: 'Klik untuk mulakan sembang bantuan kediaman',
+              type: 'dm'
+            });
           }
-        } catch (err) {
-          console.error("Gagal memuatkan maklumat warden untuk DM:", err);
+        } else {
+          // FALLBACK 2: Jika profil pelajar belum dipautkan ke mana-mana blok kediaman lagi
+          dmChannels.push({
+            key: `dm_helpdesk`,
+            label: `💬 DM: Helpdesk Kediaman`,
+            channelKey: `dm_${u.id}_admin`,
+            description: 'Hubungi pihak pentadbir urusan blok/kolej',
+            type: 'dm'
+          });
+        }
+        
+        if (s?.room_number && s?.block_name) {
+          publicChannels.unshift({ 
+            key: 'room', 
+            label: `Room ${s.room_number}`, 
+            channelKey: `${s.room_number}_${s.block_name}`, 
+            description: 'Your room',
+            type: 'public' 
+          });
         }
       }
-      
-      if (s?.room_number && s?.block_name) {
-        publicChannels.unshift({ 
-          key: 'room', 
-          label: `Room ${s.room_number}`, 
-          channelKey: `${s.room_number}_${s.block_name}`, 
-          description: 'Your room',
-          type: 'public' 
-        });
-      }
-    }
 
-    // Gabungkan saluran awam dan DM ke dalam satu state
-    const allChannels = [...publicChannels, ...dmChannels];
-    setChannels(allChannels);
-    setActiveChannel(allChannels[0]);
-    setLoading(false);
+      const allChannels = [...publicChannels, ...dmChannels];
+      setChannels(allChannels);
+      setActiveChannel(allChannels[0]);
+    } catch (error) {
+      console.error("Ralat kritikal ketika memuatkan tetapan sembang:", error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
