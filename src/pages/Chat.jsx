@@ -111,22 +111,36 @@ export default function Chat() {
         const s = sp[0] || null;
 
         if (s?.block_name) {
+          const currentBlockLower = s.block_name.toLowerCase();
+
           publicChannels.unshift({ 
-            key: `block_${s.block_name}`.toLowerCase(), 
+            key: `block_${currentBlockLower}`, 
             label: `Block ${s.block_name}`, 
-            channelKey: `block_${s.block_name}`.toLowerCase(),
+            channelKey: `block_${currentBlockLower}`,
             description: `Block ${s.block_name} residents`,
             type: 'public' 
           });
 
-          const blockWardens = await base44.entities.WardenBlock.filter({ block_name: s.block_name });
-          if (blockWardens.length > 0) {
-            const wardenInfo = blockWardens[0];
+          // PEMBERBETULAN UTAMA: Ambil semua senarai WardenBlock dan tapis menggunakan .toLowerCase() 
+          // untuk mengelakkan ralat huruf besar/kecil (Case-sensitivity mismatch)
+          const allWardens = await base44.entities.WardenBlock.filter({});
+          const blockWardenInfo = allWardens.find(w => w.block_name?.toLowerCase() === currentBlockLower);
+
+          if (blockWardenInfo && blockWardenInfo.warden_user_id) {
             dmChannels.push({
-              key: `dm_warden`,
-              label: `💬 DM: Warden ${wardenInfo.block_name}`,
-              channelKey: getDMChannelKey(currentUser.id, wardenInfo.warden_user_id),
-              description: 'Hubungi warden secara peribadi (Sulit)',
+              key: `dm_warden_${blockWardenInfo.warden_user_id}`,
+              label: `💬 DM: Warden Block ${s.block_name}`,
+              channelKey: getDMChannelKey(currentUser.id, blockWardenInfo.warden_user_id),
+              description: 'Hubungi warden blok anda (Sulit)',
+              type: 'dm'
+            });
+          } else {
+            // Fallback sekiranya maklumat pemetaan warden tiada di database
+            dmChannels.push({
+              key: `dm_general_warden`,
+              label: `💬 DM: Hubungi Warden`,
+              channelKey: `dm_${currentUser.id}_general_warden`,
+              description: 'Bantuan umum pengurusan kediaman',
               type: 'dm'
             });
           }
@@ -176,7 +190,6 @@ export default function Chat() {
   async function loadMessages() {
     if (!activeChannelRef.current) return;
     try {
-      // Pembacaan terbuka memanfaatkan kebenaran baru, tapis secara lokal mengikut saluran aktif
       const allMsgs = await base44.entities.ChatMessage.filter({}, 'created_date', 150);
       const filtered = allMsgs.filter(msg => 
         msg.channel_key === activeChannelRef.current.channelKey && !msg.is_deleted
@@ -301,7 +314,7 @@ export default function Chat() {
         <div className="flex-1 bg-card border border-border rounded-xl flex flex-col overflow-hidden shadow-xs">
           {activeChannel?.type === 'dm' && (
             <div className="px-4 py-1.5 bg-sky-50 border-b border-sky-100 text-[11px] text-sky-800 font-medium flex items-center gap-1.5">
-              <ShieldAlert className="w-3.5 h-3.5 text-sky-600" /> Sulit: Perbualan ini adalah peribadi.
+              <ShieldAlert className="w-3.5 h-3.5 text-sky-600" /> Sulit: Perbualan ini adalah peribadi antara anda dan warden sahaja.
             </div>
           )}
 
