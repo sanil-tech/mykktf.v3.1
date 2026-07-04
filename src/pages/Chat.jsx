@@ -26,51 +26,68 @@ export default function Chat() {
     try {
       const u = await base44.auth.me();
       setUser(u);
-      console.log("Current User logged in:", u);
+      console.log("Pengguna semasa:", u);
 
       const publicChannels = [];
       const dmChannels = [];
 
-      // Sentiasa masukkan saluran utama komuniti terlebih dahulu
+      // 1. Sentiasa masukkan saluran utama komuniti terlebih dahulu
       publicChannels.push(COMMUNITY_CHANNEL);
 
       if (u.role === 'warden') {
         // --- ALIRAN WARDEN ---
+        // Ambil blok yang dijaga oleh warden ini
         const wb = await base44.entities.WardenBlock.filter({ warden_user_id: u.id });
-        console.log("Warden Assigned Blocks:", wb);
+        console.log("Blok Warden:", wb);
         
         wb.forEach(w => {
           publicChannels.unshift({ 
             key: `block_${w.block_name}`, 
             label: `Block ${w.block_name}`, 
             channelKey: w.block_name, 
-            description: `Block ${w.block_name} residents`,
+            description: `Residents of Block ${w.block_name}`,
             type: 'public'
           });
         });
 
-        // Cari semua mesej DM milik warden ini
+        // PENAMBAHBAIKAN KRITIKAL: Ambil semua mesej jenis DM untuk menapis senarai pelajar aktif
         const allDmMessages = await base44.entities.ChatMessage.filter({ channel: 'direct_message' });
+        console.log("Semua Mesej DM di DB:", allDmMessages);
+
         const activeStudentIds = new Set();
-        
+        const studentNamesMap = {}; // Menyimpan nama pelajar untuk paparan butang sidebar
+
         allDmMessages.forEach(msg => {
-          if (msg.channel_key && msg.channel_key.includes(`_${u.id}`)) {
+          // Semak jika channel_key mengandungi ID warden ini (Format: dm_studentId_wardenId)
+          if (msg.channel_key && msg.channel_key.includes(u.id)) {
             const parts = msg.channel_key.split('_');
-            const studentId = parts[1]; 
-            activeStudentIds.add(studentId);
+            
+            // Jika pencipta mesej adalah pelajar tersebut, ambil ID dan namanya
+            if (msg.sender_user_id !== u.id) {
+              activeStudentIds.add(msg.sender_user_id);
+              studentNamesMap[msg.sender_user_id] = msg.sender_name;
+            } else {
+              // Jika warden yang membalas mesej, ekstrak ID pelajar dari posisi index [1] dalam channel_key
+              const studentId = parts[1];
+              if (studentId && studentId !== u.id) {
+                activeStudentIds.add(studentId);
+              }
+            }
           }
         });
 
-        for (const studentId of activeStudentIds) {
-          const studentMsg = allDmMessages.find(m => m.sender_user_id === studentId);
+        console.log("ID Pelajar yang aktif DM warden ini:", Array.from(activeStudentIds));
+
+        // Bina butang saluran DM bagi setiap pelajar yang ditemui
+        activeStudentIds.forEach(studentId => {
           dmChannels.push({
             key: `dm_${studentId}`,
-            label: `DM: ${studentMsg?.sender_name || 'Pelajar Portal'}`,
-            channelKey: `dm_${studentId}_${u.id}`,
-            description: 'Sembang peribadi pelajar',
+            label: `💬 DM: ${studentNamesMap[studentId] || 'Pelajar Portal'}`,
+            channelKey: `dm_${studentId}_${u.id}`, 
+            description: 'Sembang peribadi (Klik untuk balas)',
             type: 'dm'
           });
-        }
+        });
 
       } else {
         // --- ALIRAN PELAJAR ---
@@ -88,7 +105,7 @@ export default function Chat() {
             type: 'public' 
           });
 
-          // PENTING: Dapatkan senarai warden untuk blok pelajar ini
+          // Dapatkan maklumat warden khusus untuk blok pelajar ini
           const blockWardens = await base44.entities.WardenBlock.filter({ block_name: s.block_name });
           console.log("Found Wardens for Block:", blockWardens);
 
