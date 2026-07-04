@@ -13,11 +13,28 @@ export default function WardenDashboard({ user }) {
 
   useEffect(() => { load(); }, []);
 
-  async function load() {
+  aasync function load() {
     setLoading(true);
-    const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
-    setWardenBlocks(wb);
-    const blockNames = wb.map(w => w.block_name);
+    try {
+      // Mengambil nama penuh daripada profile/user yang sedia ada
+      const targetName = profile?.full_name || user?.full_name;
+
+      // Pastikan menapis menggunakan nama lajur (column) yang betul dalam database anda (contoh: warden_name)
+      const wb = await base44.entities.WardenBlock.filter({
+        warden_name: targetName 
+      });
+
+      setWardenBlocks(wb);
+      const blockNames = wb.map(w => w.block_name);
+      
+      // Anda boleh simpan blockNames ke dalam state lain jika perlu
+      // setAvailableBlocks(blockNames);
+
+    } catch (error) {
+      console.error("Gagal memuatkan data WardenBlock:", error);
+    } finally {
+      setLoading(false);
+    }
 
     const [allLeaves, allMaint, allStudents, allRooms, allComplaints] = await Promise.all([
       base44.entities.LeaveApplication.list('-created_date'),
