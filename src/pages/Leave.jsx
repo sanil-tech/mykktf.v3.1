@@ -266,7 +266,7 @@ export default function Leave() {
                     {isOverdue ? (
                       <span className="px-2.5 py-1 rounded text-[10px] font-bold border bg-rose-50 text-[#A31D1D] border-rose-200 uppercase tracking-wider animate-pulse">Overdue</span>
                     ) : isActive ? (
-                      <span className="px-2.5 py-1 rounded text-[10px] font-bold border bg-blue-50 text-[#132644] border-blue-200 uppercase tracking-wider">Luar Kampus</span>
+                      <span className="px-2.5 py-1 rounded text-[10px] font-bold border bg-blue-50 text-[#132644] border-blue-200 uppercase tracking-wider">LULUS</span>
                     ) : (
                       <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wider ${
                         a.status === 'Pending' ? 'bg-amber-50 text-amber-800 border-amber-200' : STATUS_BADGE[a.status]
