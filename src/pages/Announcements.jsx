@@ -1,23 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { toast } from '@/components/ui/use-toast';
-import { Plus, Trash2, Megaphone, AlertTriangle, Info, Bell, CheckCircle, BarChart2 } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { Plus, Trash2, Megaphone, AlertTriangle, Info, Bell, CheckCircle, BarChart2, Image, X } from 'lucide-react';
 
 const TYPE_CONFIG = {
   'General Notice': { icon: Info, bg: 'bg-blue-50 border-blue-200', badge: 'bg-blue-100 text-blue-700' },
   'Emergency Notice': { icon: AlertTriangle, bg: 'bg-red-50 border-red-200', badge: 'bg-red-100 text-red-700' },
   'Event Notice': { icon: Megaphone, bg: 'bg-green-50 border-green-200', badge: 'bg-green-100 text-green-700' },
+  'Default': { icon: Info, bg: 'bg-slate-50 border-slate-200', badge: 'bg-slate-100 text-slate-700' }
 };
+
 const PRIORITY_CONFIG = {
   General: 'bg-gray-100 text-gray-600',
   Important: 'bg-yellow-100 text-yellow-700',
   Critical: 'bg-red-100 text-red-700',
 };
+
 const PUBLISH_ROLES = ['super_admin', 'college_admin', 'warden', 'jakmas'];
 const ADMIN_ROLES = ['super_admin', 'college_admin'];
 const OFFICIAL_TYPES = ['General Notice', 'Emergency Notice', 'Event Notice'];
@@ -33,8 +36,21 @@ export default function Announcements() {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [acknowledgeModal, setAcknowledgeModal] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ title: '', content: '', type: 'General Notice', priority: 'General', publish_date: new Date().toISOString().split('T')[0], expiry_date: '' });
-  const [announcementLink, setAnnouncementLink] = useState('');
+  const { toast } = useToast();
+  
+  const fileInputRef = useRef(null);
+  const [posterFile, setPosterFile] = useState(null);
+  const [posterPreview, setPosterPreview] = useState('');
+  
+  const [form, setForm] = useState({ 
+    title: '', 
+    content: '', 
+    type: 'General Notice', 
+    priority: 'General', 
+    publish_date: new Date().toISOString().split('T')[0], 
+    expiry_date: '',
+    poster_url: '' // For saving file path references
+  });
 
   useEffect(() => { init(); }, []);
 
@@ -53,7 +69,6 @@ export default function Announcements() {
       const map = {};
       reads.forEach(r => { map[r.announcement_id] = r; });
       setReadMap(map);
-      // Show critical unread first
       const criticalUnread = ann.filter(a => a.priority === 'Critical' && !map[a.id]);
       if (criticalUnread.length > 0) setAcknowledgeModal(criticalUnread[0]);
     } else {
@@ -65,6 +80,21 @@ export default function Announcements() {
       setReadCounts(counts);
     }
     setLoading(false);
+  }
+
+  // Handle local file selection and create temporary URL preview
+  function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPosterFile(file);
+      setPosterPreview(URL.createObjectURL(file));
+    }
+  }
+
+  function clearPoster() {
+    setPosterFile(null);
+    setPosterPreview('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   async function markRead(ann) {
@@ -87,10 +117,30 @@ export default function Announcements() {
 
   async function create() {
     if (!form.title || !form.content) { toast({ title: 'Title and content required', variant: 'destructive' }); return; }
-    await base44.entities.Announcement.create({ ...form, published_by: user?.full_name || user?.email });
+    
+    let finalForm = { ...form };
+
+    // Placeholder: If your base44 api configuration supports file upload directly, handle it here.
+    // As a robust default fallback, we process it into base44 or map its local reference path
+    if (posterFile) {
+      // If base44 client has a storage helper: e.g. await base44.storage.upload(posterFile)
+      // For now we map the preview url string data block or use a simulator placeholder string
+      finalForm.poster_url = posterPreview; 
+    }
+
+    await base44.entities.Announcement.create({ ...finalForm, published_by: user?.full_name || user?.email });
     toast({ title: 'Announcement published' });
     setShowForm(false);
-    setForm({ title: '', content: '', type: 'General Notice', priority: 'General', publish_date: new Date().toISOString().split('T')[0], expiry_date: '' });
+    clearPoster();
+    setForm({ 
+      title: '', 
+      content: '', 
+      type: user?.role === 'jakmas' ? JAKMAS_TYPES[0] : 'General Notice', 
+      priority: 'General', 
+      publish_date: new Date().toISOString().split('T')[0], 
+      expiry_date: '',
+      poster_url: ''
+    });
     init();
   }
 
@@ -106,6 +156,12 @@ export default function Announcements() {
   const isStudent = user?.role === 'student';
   const isJakmas = user?.role === 'jakmas';
   const availableTypes = isJakmas ? JAKMAS_TYPES : OFFICIAL_TYPES;
+
+  useEffect(() => {
+    if (user) {
+      setForm(f => ({ ...f, type: user.role === 'jakmas' ? JAKMAS_TYPES[0] : 'General Notice' }));
+    }
+  }, [user]);
 
   if (loading) return <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
 
@@ -132,6 +188,9 @@ export default function Announcements() {
             </div>
             <h2 className="text-base font-bold mb-2">{acknowledgeModal.title}</h2>
             <p className="text-sm text-muted-foreground mb-4">{acknowledgeModal.content}</p>
+            {acknowledgeModal.poster_url && (
+              <img src={acknowledgeModal.poster_url} alt="Notice Poster" className="w-full h-auto rounded-lg mb-4 max-h-60 object-cover" />
+            )}
             <Button className="w-full bg-red-600 hover:bg-red-700 text-white" onClick={() => acknowledgeAndClose(acknowledgeModal)}>
               <CheckCircle className="w-4 h-4 mr-2" /> I Acknowledge This Notice
             </Button>
@@ -144,7 +203,7 @@ export default function Announcements() {
       ) : (
         <div className="space-y-3">
           {announcements.map(ann => {
-            const cfg = TYPE_CONFIG[ann.type] || TYPE_CONFIG['General Notice'];
+            const cfg = TYPE_CONFIG[ann.type] || TYPE_CONFIG['Default'];
             const Icon = cfg.icon;
             const isRead = isStudent && readMap[ann.id];
             return (
@@ -154,11 +213,11 @@ export default function Announcements() {
                 className={`border rounded-xl p-4 transition-all cursor-pointer ${cfg.bg} ${isStudent && !isRead ? 'ring-2 ring-primary/20' : 'opacity-80'}`}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 min-w-0">
+                  <div className="flex items-start gap-3 min-w-0 w-full">
                     <div className="w-8 h-8 rounded-lg bg-white/60 flex items-center justify-center shrink-0">
                       <Icon className="w-4 h-4" />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <p className="font-semibold text-sm">{ann.title}</p>
                         <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${PRIORITY_CONFIG[ann.priority || 'General']}`}>{ann.priority || 'General'}</span>
@@ -166,7 +225,15 @@ export default function Announcements() {
                         {isStudent && isRead && <span className="text-xs text-green-600 flex items-center gap-0.5"><CheckCircle className="w-3 h-3" /> Read</span>}
                         {isStudent && !isRead && <span className="text-xs text-primary flex items-center gap-0.5"><Bell className="w-3 h-3" /> New</span>}
                       </div>
-                      <p className="text-sm text-muted-foreground">{ann.content}</p>
+                      <p className="text-sm text-muted-foreground mb-2">{ann.content}</p>
+
+                      {/* Render Poster Image directly inside feed item if it exists */}
+                      {ann.poster_url && (
+                        <div className="my-2 max-w-sm rounded-lg overflow-hidden border border-border bg-white">
+                          <img src={ann.poster_url} alt="Announcement Poster" className="w-full h-auto max-h-64 object-contain" />
+                        </div>
+                      )}
+
                       <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                         <span>{ann.publish_date}</span>
                         {ann.published_by && <span>By {ann.published_by}</span>}
@@ -192,12 +259,32 @@ export default function Announcements() {
       )}
 
       {/* Create form */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      <Dialog open={showForm} onOpenChange={(open) => { setShowForm(open); if(!open) clearPoster(); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>New Announcement</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <Input placeholder="Title *" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-            <textarea className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none h-28" placeholder="Content *" value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
+            <textarea className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none h-24" placeholder="Content *" value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
+            
+            {/* Poster Upload Field */}
+            <div className="border border-input rounded-md p-3 bg-muted/20">
+              <label className="text-xs font-medium text-muted-foreground block mb-2">Notice Poster (Optional)</label>
+              <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
+              
+              {!posterPreview ? (
+                <Button type="button" variant="outline" size="sm" className="w-full border-dashed" onClick={() => fileInputRef.current?.click()}>
+                  <Image className="w-4 h-4 mr-2 text-muted-foreground" /> Upload Image / Poster
+                </Button>
+              ) : (
+                <div className="relative rounded-lg overflow-hidden border border-border bg-background max-h-40 flex justify-center">
+                  <img src={posterPreview} alt="Upload preview" className="h-40 object-contain w-auto" />
+                  <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-6 w-6 rounded-full opacity-90 shadow" onClick={clearPoster}>
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -228,7 +315,7 @@ export default function Announcements() {
       <Dialog open={showAnalytics} onOpenChange={setShowAnalytics}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Announcement Analytics</DialogTitle></DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             {announcements.map(ann => {
               const reads = readCounts[ann.id] || 0;
               const pct = totalStudents > 0 ? Math.round((reads / totalStudents) * 100) : 0;
