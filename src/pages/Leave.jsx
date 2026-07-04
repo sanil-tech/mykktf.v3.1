@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, CalendarOff, Check, X, Clock, AlertTriangle, Users, UserCheck, UserX } from 'lucide-react';
+import { Plus, CalendarOff, Check, X, Clock, AlertTriangle, Users, UserX } from 'lucide-react';
 
 const STATUS_BADGE = {
   Pending: 'bg-yellow-100 text-yellow-700',
@@ -18,15 +18,10 @@ const STATUS_BADGE = {
 };
 
 const REVIEWER_ROLES = ['warden', 'super_admin', 'college_admin', 'staff'];
-
-function getLeaveStatus(app) {
-  const today = new Date().toISOString().split('T')[0];
-  if (app.status === 'Approved') {
-    if (app.departure_date <= today && app.return_date >= today) return 'active_leave';
-    if (app.return_date < today) return 'overdue';
-  }
-  return app.status?.toLowerCase().replace(' ', '_');
-}
+const INITIAL_FORM = {
+  leave_type: 'Weekend', destination: '', reason: '',
+  departure_date: '', departure_time: '', return_date: '', return_time: ''
+};
 
 export default function Leave() {
   const [apps, setApps] = useState([]);
@@ -36,123 +31,143 @@ export default function Leave() {
   const [myStudent, setMyStudent] = useState(null);
   const [filter, setFilter] = useState('all');
   const [stats, setStats] = useState({ inCollege: 0, onLeave: 0, overdue: 0, pendingApproval: 0 });
-  const [form, setForm] = useState({
-    leave_type: 'Weekend', destination: '', reason: '',
-    departure_date: '', departure_time: '', return_date: '', return_time: ''
-  });
+  const [form, setForm] = useState(INITIAL_FORM);
   const { toast } = useToast();
 
   const isReviewer = currentUser && REVIEWER_ROLES.includes(currentUser.role);
+  const today = new Date().toLocaleDateString('en-CA');
 
-  useEffect(() => { init(); }, []);
+  // Safely wipe form cache when dialog closes
+  useEffect(() => {
+    if (!dialogOpen) setForm(INITIAL_FORM);
+  }, [dialogOpen]);
+
+  const fetchLeaveData = useCallback(async (user, student) => {
+    try {
+      let leaveList = [];
+      const isRev = REVIEWER_ROLES.includes(user?.role);
+
+      if (isRev) {
+        leaveList = await base44.entities.LeaveApplication.list('-created_date');
+
+        if (user.role === 'warden') {
+          const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
+          if (wb.length > 0) {
+            const blockNames = wb.map(w => w.block_name);
+            leaveList = leaveList.filter(l => blockNames.includes(l.block_name));
+          }
+        }
+
+        const allStudents = await base44.entities.Student.filter({ status: 'Active' });
+        const approvedLeaves = leaveList.filter(l => l.status === 'Approved' && l.departure_date <= today && l.return_date >= today);
+        const overdueLeaves = leaveList.filter(l => l.status === 'Approved' && l.return_date < today);
+        const pendingLeaves = leaveList.filter(l => l.status === 'Pending');
+
+        setStats({
+          inCollege: Math.max(0, allStudents.length - approvedLeaves.length),
+          onLeave: approvedLeaves.length,
+          overdue: overdueLeaves.length,
+          pendingApproval: pendingLeaves.length,
+        });
+      } else if (student) {
+        leaveList = await base44.entities.LeaveApplication.filter({ student_id: student.student_id });
+      }
+
+      setApps(leaveList);
+    } catch (error) {
+      toast({ title: 'Failed to load records', description: error.message, variant: 'destructive' });
+    }
+  }, [today, toast]);
 
   async function init() {
     setLoading(true);
-    const user = await base44.auth.me();
-    setCurrentUser(user);
-    const isRev = REVIEWER_ROLES.includes(user?.role);
-
-    let leaveList = [];
-    let student = null;
-
-    if (isRev) {
-      leaveList = await base44.entities.LeaveApplication.list('-created_date');
-
-      // Wardens: filter by assigned blocks using block_name stored on leave record
-      if (user.role === 'warden') {
-        const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
-        if (wb.length > 0) {
-          const blockNames = wb.map(w => w.block_name);
-          // Filter by block_name stored directly on the leave application
-          leaveList = leaveList.filter(l => blockNames.includes(l.block_name));
-        }
+    try {
+      const user = await base44.auth.me();
+      setCurrentUser(user);
+      
+      let studentProfile = null;
+      if (user && !REVIEWER_ROLES.includes(user.role)) {
+        let students = await base44.entities.Student.filter({ user_id: user.id });
+        if (!students.length) students = await base44.entities.Student.filter({ email: user.email });
+        studentProfile = students[0] || null;
+        setMyStudent(studentProfile);
       }
 
-      // Compute dashboard stats
-      const today = new Date().toISOString().split('T')[0];
-      const allStudents = isRev ? await base44.entities.Student.filter({ status: 'Active' }) : [];
-      const approvedLeaves = leaveList.filter(l => l.status === 'Approved' && l.departure_date <= today && l.return_date >= today);
-      const overdueLeaves = leaveList.filter(l => l.status === 'Approved' && l.return_date < today);
-      const pendingLeaves = leaveList.filter(l => l.status === 'Pending');
-      setStats({
-        inCollege: allStudents.length - approvedLeaves.length,
-        onLeave: approvedLeaves.length,
-        overdue: overdueLeaves.length,
-        pendingApproval: pendingLeaves.length,
-      });
-    } else {
-      // Students: look up by user_id first, fallback to email
-      let students = await base44.entities.Student.filter({ user_id: user.id });
-      if (!students.length) students = await base44.entities.Student.filter({ email: user.email });
-      student = students[0] || null;
-      setMyStudent(student);
-      if (student) {
-        leaveList = await base44.entities.LeaveApplication.filter({ student_id: student.student_id });
-      }
+      await fetchLeaveData(user, studentProfile);
+    } catch (error) {
+      toast({ title: 'Authentication failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
     }
-
-    setApps(leaveList);
-    setLoading(false);
   }
+
+  useEffect(() => { init(); }, []);
 
   async function handleSubmit() {
     if (!form.destination || !form.reason || !form.departure_date || !form.return_date) {
-      toast({ title: 'Fill all required fields', variant: 'destructive' }); return;
+      toast({ title: 'Fill all required fields', variant: 'destructive' }); 
+      return;
     }
-    if (!myStudent) { toast({ title: 'Student profile not found. Complete your profile first.', variant: 'destructive' }); return; }
+    if (!myStudent) { 
+      toast({ title: 'Student profile not found. Complete profile configuration first.', variant: 'destructive' }); 
+      return; 
+    }
 
-    await base44.entities.LeaveApplication.create({
-      ...form,
-      student_id: myStudent.student_id,   // use matric number consistently
-      student_name: myStudent.full_name,
-      block_name: myStudent.block_name || '',
-      room_number: myStudent.room_number || '',
-      status: 'Pending',
-    });
+    try {
+      await base44.entities.LeaveApplication.create({
+        ...form,
+        student_id: myStudent.student_id,
+        student_name: myStudent.full_name,
+        block_name: myStudent.block_name || '',
+        room_number: myStudent.room_number || '',
+        status: 'Pending',
+      });
 
-    // Notify wardens of this student's block
-    if (myStudent.block_name) {
-      const wardenBlocks = await base44.entities.WardenBlock.filter({ block_name: myStudent.block_name });
-      for (const wb of wardenBlocks) {
+      if (myStudent.block_name) {
+        const wardenBlocks = await base44.entities.WardenBlock.filter({ block_name: myStudent.block_name });
+        await Promise.all(wardenBlocks.map(wb => 
+          base44.entities.Notification.create({
+            user_id: wb.warden_user_id,
+            title: 'New Leave Application',
+            message: `${myStudent.full_name} (${myStudent.student_id}) from Block ${myStudent.block_name} has submitted a leave application.`,
+            type: 'leave',
+            is_read: false,
+          })
+        ));
+      }
+
+      toast({ title: 'Leave application submitted successfully' });
+      setDialogOpen(false);
+      fetchLeaveData(currentUser, myStudent);
+    } catch (error) {
+      toast({ title: 'Submission failed', description: error.message, variant: 'destructive' });
+    }
+  }
+
+  async function updateStatus(app, status) {
+    try {
+      await base44.entities.LeaveApplication.update(app.id, {
+        status,
+        approved_by: currentUser?.full_name || currentUser?.email
+      });
+
+      const students = await base44.entities.Student.filter({ student_id: app.student_id });
+      if (students.length && students[0].user_id) {
         await base44.entities.Notification.create({
-          user_id: wb.warden_user_id,
-          title: 'New Leave Application',
-          message: `${myStudent.full_name} (${myStudent.student_id}) from Block ${myStudent.block_name} has submitted a leave application.`,
+          user_id: students[0].user_id,
+          title: `Leave ${status}`,
+          message: `Your leave application from ${app.departure_date} to ${app.return_date} has been ${status.toLowerCase()} by ${currentUser?.full_name || 'Warden'}.`,
           type: 'leave',
           is_read: false,
         });
       }
+
+      toast({ title: `Leave status updated to ${status.toLowerCase()}` });
+      fetchLeaveData(currentUser, myStudent);
+    } catch (error) {
+      toast({ title: 'Failed to update record', description: error.message, variant: 'destructive' });
     }
-
-    toast({ title: 'Leave application submitted' });
-    setDialogOpen(false);
-    setForm({ leave_type: 'Weekend', destination: '', reason: '', departure_date: '', departure_time: '', return_date: '', return_time: '' });
-    init();
   }
-
-  async function updateStatus(app, status) {
-    await base44.entities.LeaveApplication.update(app.id, {
-      status,
-      approved_by: currentUser?.full_name || currentUser?.email
-    });
-
-    // Find the student's user_id to notify them
-    const students = await base44.entities.Student.filter({ student_id: app.student_id });
-    if (students.length && students[0].user_id) {
-      await base44.entities.Notification.create({
-        user_id: students[0].user_id,
-        title: `Leave ${status}`,
-        message: `Your leave application from ${app.departure_date} to ${app.return_date} has been ${status.toLowerCase()} by ${currentUser?.full_name || 'Warden'}.`,
-        type: 'leave',
-        is_read: false,
-      });
-    }
-
-    toast({ title: `Leave ${status.toLowerCase()}` });
-    init();
-  }
-
-  const today = new Date().toISOString().split('T')[0];
 
   const filteredApps = apps.filter(a => {
     if (filter === 'all') return true;
@@ -164,7 +179,13 @@ export default function Leave() {
     return true;
   });
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div>
