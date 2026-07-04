@@ -368,22 +368,33 @@ export default function Chat() {
                   <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
                     <p className="text-xs text-muted-foreground mb-0.5">{msg.sender_name}</p>
                     
-                    <div className={`rounded-xl px-3 py-2 text-sm ${isOwn ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                    {/* BUBBLE CHAT UTAMA */}
+                    <div className={`rounded-xl px-3 py-2 text-sm ${isOwn ? 'bg-primary text-primary-foreground' : 'bg-muted text-slate-900'}`}>
                       {editingMessageId === msg.id ? (
-                        <div className="flex gap-1 items-center min-w-[200px]">
-                          <Input className="h-7 text-xs text-black" value={editText} onChange={e => setEditText(e.target.value)} />
-                          <Button size="icon" className="h-7 w-7 bg-green-600 hover:bg-green-700" onClick={() => saveEdit(msg.id)}><Check className="w-3 h-3" /></Button>
-                          <Button size="icon" className="h-7 w-7 bg-red-500" onClick={() => setEditingMessageId(null)}><X className="w-3 h-3" /></Button>
+                        /* FIXED: Penambahbaikan Kontras UI Kotak Edit Utama */
+                        <div className="flex gap-1.5 items-center min-w-[240px] p-0.5">
+                          <Input 
+                            className="h-8 text-xs bg-white text-slate-900 border border-slate-300 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-primary shadow-inner" 
+                            value={editText} 
+                            onChange={e => setEditText(e.target.value)} 
+                            onKeyDown={e => e.key === 'Enter' && saveEdit(msg.id)}
+                            autoFocus
+                          />
+                          <Button size="icon" className="h-8 w-8 bg-green-600 hover:bg-green-700 text-white shrink-0" onClick={() => saveEdit(msg.id)} title="Simpan">
+                            <Check className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button size="icon" className="h-8 w-8 bg-slate-200 hover:bg-slate-300 text-slate-700 shrink-0 border border-slate-300" onClick={() => setEditingMessageId(null)} title="Batal">
+                            <X className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
                       ) : (
                         <>
-                          {msg.message && <p className="break-words">{renderMessageText(msg.message)}</p>}
+                          {msg.message && <p className="break-words leading-relaxed">{renderMessageText(msg.message)}</p>}
                           {renderAttachment(msg.image_url)}
                         </>
                       )}
                     </div>
 
-                    {/* MENU AKSI SEMBANG UTAMA */}
                     <div className="flex gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity text-[11px]">
                       {isOwn && editingMessageId !== msg.id && (
                         <button onClick={() => startEdit(msg)} className="text-slate-500 hover:underline flex items-center gap-0.5"><Edit2 className="w-2.5 h-2.5" /> Edit</button>
@@ -425,22 +436,33 @@ export default function Chat() {
               const isOwnDm = m.sender_user_id === user?.id;
               return (
                 <div key={m.id} className={`flex flex-col group ${isOwnDm ? 'items-end' : 'items-start'}`}>
-                  <div className={`rounded-lg px-2.5 py-1.5 text-xs max-w-[85%] break-words ${isOwnDm ? 'bg-sky-600 text-white rounded-br-none' : 'bg-white border text-slate-800 rounded-bl-none'}`}>
+                  {/* BUBBLE CHAT MINI DM */}
+                  <div className={`rounded-lg px-2.5 py-1.5 text-xs max-w-[85%] break-words shadow-2xs ${isOwnDm ? 'bg-sky-600 text-white rounded-br-none' : 'bg-white border text-slate-800 rounded-bl-none'}`}>
                     {editingMessageId === m.id ? (
-                      <div className="flex gap-1 items-center min-w-[150px]">
-                        <input className="h-6 text-xs text-black border rounded px-1 flex-1 min-w-0" value={editText} onChange={e => setEditText(e.target.value)} />
-                        <button className="bg-green-600 text-white p-0.5 rounded" onClick={() => saveEdit(m.id, true)}><Check className="w-3 h-3" /></button>
-                        <button className="bg-slate-400 text-white p-0.5 rounded" onClick={() => setEditingMessageId(null)}><X className="w-3 h-3" /></button>
+                      /* FIXED: Penambahbaikan Kontras UI Kotak Edit Mini DM */
+                      <div className="flex gap-1 items-center min-w-[170px] p-0.5">
+                        <input 
+                          className="h-7 text-xs bg-white text-slate-900 border border-slate-300 rounded px-1.5 flex-1 min-w-0 shadow-inner focus:outline-none focus:ring-1 focus:ring-sky-500" 
+                          value={editText} 
+                          onChange={e => setEditText(e.target.value)} 
+                          onKeyDown={e => e.key === 'Enter' && saveEdit(m.id, true)}
+                          autoFocus
+                        />
+                        <button className="bg-green-600 hover:bg-green-700 text-white p-1 rounded shrink-0 transition-colors" onClick={() => saveEdit(m.id, true)} title="Selesai">
+                          <Check className="w-3 h-3" />
+                        </button>
+                        <button className="bg-slate-200 hover:bg-slate-300 text-slate-700 p-1 rounded shrink-0 border border-slate-300 transition-colors" onClick={() => setEditingMessageId(null)} title="Batal">
+                          <X className="w-3 h-3" />
+                        </button>
                       </div>
                     ) : (
                       <>
-                        {m.message && <p>{renderMessageText(m.message)}</p>}
+                        {m.message && <p className="leading-normal">{renderMessageText(m.message)}</p>}
                         {renderAttachment(m.image_url)}
                       </>
                     )}
                   </div>
-                  {/* MENU AKSI MINI DM */}
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] mt-0.5">
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] mt-0.5 px-0.5">
                     {isOwnDm && editingMessageId !== m.id && (
                       <button onClick={() => startEdit(m)} className="text-slate-500 hover:underline">Edit</button>
                     )}
