@@ -9,20 +9,20 @@ import { useToast } from '@/components/ui/use-toast';
 import { User, Save, Loader2, Building2, Plus, X } from 'lucide-react';
 
 const UMS_FACULTIES = [
-  { code: 'ASTiF', name: 'Academy of Arts and Creative Technology' },
-  { code: 'FPEP', name: 'Faculty of Business, Economics and Accountancy' },
-  { code: 'FKI', name: 'Faculty of Computing and Informatics' },
-  { code: 'FPPS', name: 'Faculty of Education and Sports Studies' },
-  { code: 'FKJ', name: 'Faculty of Engineering' },
-  { code: 'FSMP', name: 'Faculty of Food Science and Nutrition' },
-  { code: 'FPI', name: 'Faculty of Islamic Studies' },
-  { code: 'FKAL', name: 'Faculty of International Finance Labuan' },
-  { code: 'FPSK', name: 'Faculty of Medicine and Health Sciences' },
-  { code: 'FPKS', name: 'Faculty of Psychology and Social Work' },
-  { code: 'FST', name: 'Faculty of Science and Technology' },
-  { code: 'FSSK', name: 'Faculty of Social Sciences and Humanities' },
-  { code: 'FPL', name: 'Faculty of Sustainable Agriculture' },
-  { code: 'FPT', name: 'Faculty of Tropical Forestry' },
+  'Academy of Arts and Creative Technology (ASTiF)',
+  'Faculty of Business, Economics and Accountancy (FPEP)',
+  'Faculty of Computing and Informatics (FKI)',
+  'Faculty of Education and Sports Studies (FPPS)',
+  'Faculty of Engineering (FKJ)',
+  'Faculty of Food Science and Nutrition (FSMP)',
+  'Faculty of Islamic Studies (FPI)',
+  'Faculty of International Finance Labuan (FKAL)',
+  'Faculty of Medicine and Health Sciences (FPSK)',
+  'Faculty of Psychology and Social Work (FPKS)',
+  'Faculty of Science and Technology (FST)',
+  'Faculty of Social Sciences and Humanities (FSSK)',
+  'Faculty of Sustainable Agriculture (FPL)',
+  'Faculty of Tropical Forestry (FPT)',
 ];
 
 export default function MyProfile() {
