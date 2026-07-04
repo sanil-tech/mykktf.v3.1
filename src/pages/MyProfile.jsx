@@ -70,11 +70,11 @@ export default function MyProfile() {
       const wa = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
       setWardenAssignments(wa);
     }
-    setLoading(false);
+    loading_completed: setLoading(false);
   }
 
   async function handleSave() {
-    if (!form.full_name || !form.phone) {
+    if (!form?.full_name || !form?.phone) {
       toast({ title: 'Full name and phone are required', variant: 'destructive' }); return;
     }
     setSaving(true);
@@ -111,18 +111,20 @@ export default function MyProfile() {
 
     toast({ title: 'Profile saved successfully' });
     setSaving(false);
+    // Re-initialize to refresh current room structures in sync
+    init();
   }
 
   const f = (field, label, type = 'text', opts = null) => (
     <div key={field}>
       <Label className="text-xs">{label}</Label>
       {opts ? (
-        <Select value={String(form[field] || '')} onValueChange={v => setForm({ ...form, [field]: type === 'number' ? Number(v) : v })}>
+        <Select value={String(form?.[field] || '')} onValueChange={v => setForm({ ...form, [field]: type === 'number' ? Number(v) : v })}>
           <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
           <SelectContent>{opts.map(o => <SelectItem key={o.v} value={String(o.v)}>{o.l}</SelectItem>)}</SelectContent>
         </Select>
       ) : (
-        <Input type={type} value={form[field] || ''} onChange={e => setForm({ ...form, [field]: e.target.value })} className="h-9 text-sm mt-1" />
+        <Input type={type} value={form?.[field] || ''} onChange={e => setForm({ ...form, [field]: e.target.value })} className="h-9 text-sm mt-1" />
       )}
     </div>
   );
@@ -155,6 +157,9 @@ export default function MyProfile() {
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
 
+  // Check if current user is a restricted standard student/user role
+  const isStudentOrUser = currentUser?.role === 'student' || !currentUser?.role || currentUser?.role === 'user';
+
   return (
     <div className="max-w-2xl">
       <PageHeader title="My Profile" description="View and update your personal information" />
@@ -166,7 +171,7 @@ export default function MyProfile() {
             <User className="w-7 h-7 text-primary-foreground" />
           </div>
           <div>
-            <p className="font-heading font-semibold text-base">{form.full_name || currentUser?.full_name}</p>
+            <p className="font-heading font-semibold text-base">{form?.full_name || currentUser?.full_name}</p>
             <p className="text-xs text-muted-foreground">{currentUser?.email}</p>
             <p className="text-xs text-muted-foreground capitalize">{currentUser?.role || 'student'}</p>
           </div>
@@ -195,30 +200,38 @@ export default function MyProfile() {
           </div>
         </div>
 
-        {/* Room */}
-        {(currentUser?.role === 'student' || !currentUser?.role || currentUser?.role === 'user') && (
+        {/* Room - Visible to student structures, but fields are disabled if they don't have Admin permissions */}
+        {isStudentOrUser && (
           <div>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Room Assignment</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Block</Label>
-                <Select value={form.block_name || ''} onValueChange={v => {
-                  const block = blocks.find(b => b.block_name === v);
-                  setForm({ ...form, block_name: v, block_id: block?.id || '', room_number: '', room_id: '' });
-                }}>
+                <Select 
+                  value={form?.block_name || ''} 
+                  onValueChange={v => {
+                    const block = blocks.find(b => b.block_name === v);
+                    setForm({ ...form, block_name: v, block_id: block?.id || '', room_number: '', room_id: '' });
+                  }}
+                  disabled={isStudentOrUser}
+                >
                   <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select block" /></SelectTrigger>
                   <SelectContent>{blocks.map(b => <SelectItem key={b.id} value={b.block_name}>{b.block_name} ({b.gender_restriction})</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
                 <Label className="text-xs">Room Number</Label>
-                <Select value={form.room_number || ''} onValueChange={v => {
-                  const room = rooms.find(r => r.room_number === v && r.block_name === form.block_name);
-                  setForm({ ...form, room_number: v, room_id: room?.id || '' });
-                }} disabled={!form.block_name}>
+                <Select 
+                  value={form?.room_number || ''} 
+                  onValueChange={v => {
+                    const room = rooms.find(r => r.room_number === v && r.block_name === form?.block_name);
+                    setForm({ ...form, room_number: v, room_id: room?.id || '' });
+                  }} 
+                  disabled={isStudentOrUser || !form?.block_name}
+                >
                   <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select room" /></SelectTrigger>
                   <SelectContent>
-                    {rooms.filter(r => r.block_name === form.block_name && r.status !== 'Maintenance').map(r => (
+                    {rooms.filter(r => r.block_name === form?.block_name && r.status !== 'Maintenance').map(r => (
                       <SelectItem key={r.id} value={r.room_number}>{r.room_number} ({r.room_type}, {r.current_occupancy}/{r.capacity})</SelectItem>
                     ))}
                   </SelectContent>
