@@ -13,58 +13,46 @@ export default function WardenDashboard({ user }) {
 
   useEffect(() => { load(); }, []);
 
-  aasync function load() {
+  async function load() {
     setLoading(true);
     try {
-      // Mengambil nama penuh daripada profile/user yang sedia ada
-      const targetName = profile?.full_name || user?.full_name;
-
-      // Pastikan menapis menggunakan nama lajur (column) yang betul dalam database anda (contoh: warden_name)
-      const wb = await base44.entities.WardenBlock.filter({
-        warden_name: targetName 
-      });
-
+      const targetName = user?.full_name;
+      const wb = await base44.entities.WardenBlock.filter({ warden_name: targetName });
       setWardenBlocks(wb);
       const blockNames = wb.map(w => w.block_name);
-      
-      // Anda boleh simpan blockNames ke dalam state lain jika perlu
-      // setAvailableBlocks(blockNames);
 
+      const [allLeaves, allMaint, allStudents, allRooms, allComplaints] = await Promise.all([
+        base44.entities.LeaveApplication.list('-created_date'),
+        base44.entities.MaintenanceRequest.filter({ status: 'Submitted' }, '-created_date'),
+        base44.entities.Student.list(),
+        base44.entities.Room.list(),
+        base44.entities.Complaint.list('-created_date'),
+      ]);
+
+      if (blockNames.length > 0) {
+        const blockStudents = allStudents.filter(s => blockNames.includes(s.block_name));
+        const blockRooms = allRooms.filter(r => blockNames.includes(r.block_name));
+        const blockComplaints = allComplaints.filter(c => blockNames.includes(c.block_name));
+
+        const pendingLeaves = allLeaves.filter(lv => blockNames.includes(lv.block_name) && lv.status === 'Pending');
+        setLeaves(pendingLeaves);
+        setMaintenance(allMaint.filter(mx => blockNames.includes(mx.block_name)));
+
+        setStats({
+          totalStudents: blockStudents.length,
+          occupiedRooms: blockRooms.filter(r => r.status === 'Occupied' || r.status === 'Full').length,
+          vacantRooms: blockRooms.filter(r => r.status === 'Available').length,
+          activeComplaints: blockComplaints.filter(c => c.status === 'Submitted' || c.status === 'Under Review').length,
+        });
+      } else {
+        setLeaves(allLeaves.filter(l => l.status === 'Pending'));
+        setMaintenance(allMaint);
+      }
     } catch (error) {
       console.error("Gagal memuatkan data WardenBlock:", error);
     } finally {
       setLoading(false);
     }
-
-    const [allLeaves, allMaint, allStudents, allRooms, allComplaints] = await Promise.all([
-      base44.entities.LeaveApplication.list('-created_date'),
-      base44.entities.MaintenanceRequest.filter({ status: 'Submitted' }, '-created_date'),
-      base44.entities.Student.list(),
-      base44.entities.Room.list(),
-      base44.entities.Complaint.list('-created_date'),
-    ]);
-
-    if (blockNames.length > 0) {
-      const blockStudents = allStudents.filter(s => blockNames.includes(s.block_name));
-      const blockRooms = allRooms.filter(r => blockNames.includes(r.block_name));
-      const blockComplaints = allComplaints.filter(c => blockNames.includes(c.block_name));
-
-      // Filter leaves by block_name stored directly on the leave record
-      const pendingLeaves = allLeaves.filter(lv => blockNames.includes(lv.block_name) && lv.status === 'Pending');
-      setLeaves(pendingLeaves);
-      setMaintenance(allMaint.filter(mx => blockNames.includes(mx.block_name)));
-
-      setStats({
-        totalStudents: blockStudents.length,
-        occupiedRooms: blockRooms.filter(r => r.status === 'Occupied' || r.status === 'Full').length,
-        vacantRooms: blockRooms.filter(r => r.status === 'Available').length,
-        activeComplaints: blockComplaints.filter(c => c.status === 'Submitted' || c.status === 'Under Review').length,
-      });
-    } else {
-      setLeaves(allLeaves.filter(l => l.status === 'Pending'));
-      setMaintenance(allMaint);
-    }
-    setLoading(false);
   }
 
   async function updateLeave(id, status) {
