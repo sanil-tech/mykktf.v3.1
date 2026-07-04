@@ -195,7 +195,7 @@ export default function Leave() {
     <div className="space-y-6 max-w-7xl mx-auto px-2 pb-12">
       <PageHeader
         title="E-Leave KKTF"
-        description={isReviewer ? "Portal Kelulusan dan Log Keluar Pelajar Kolej Kediaman Tun Fuad" : "Sistem permohonan pas keluar digital dan semakan rekod cuti pelajar."}
+        description={isReviewer ? "Portal Kelulusan dan Log Keluar Pelajar Kolej Kediaman Tun Fuad" : "Sistem Permohonan Kebenaran Bermalam Di Luar Kolej"}
         actions={!isReviewer && (
           <Button size="sm" onClick={() => setDialogOpen(true)} className="bg-[#132644] hover:bg-[#1e385f] text-white shadow-sm font-medium tracking-wide">
             <Plus className="w-4 h-4 mr-2" /> Mohon E-Cuti KKTF
