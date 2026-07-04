@@ -6,23 +6,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
-import { User, Save, Loader2, Building2, Plus, X, Lock } from 'lucide-react';
+import { User, Save, Loader2, Building2, Plus, X } from 'lucide-react';
 
 const UMS_FACULTIES = [
-  'Faculty of Business, Economics and Accountancy (FPEP)',
-  'Faculty of Computing and Informatics (FKI)',
-  'Faculty of Engineering (FKJ)',
-  'Faculty of Food, Agriculture and Bioresources (FPPK)',
-  'Faculty of Humanities, Arts and Heritage (FKSW)',
-  'Faculty of Law (FU)',
-  'Faculty of Medicine and Health Sciences (FPSK)',
-  'Faculty of Psychology and Education (FPP)',
-  'Faculty of Science and Natural Resources (FSSA)',
-  'Faculty of Social Sciences and Liberal Arts (FOSSLA)',
-  'Faculty of Sustainable Agriculture (FPL)',
-  'School of Engineering and Information Technology (SEEIT)',
-  'School of International Tropical Forestry (SITF)',
-  'Other',
+  { code: 'ASTiF', name: 'Academy of Arts and Creative Technology' },
+  { code: 'FPEP', name: 'Faculty of Business, Economics and Accountancy' },
+  { code: 'FKI', name: 'Faculty of Computing and Informatics' },
+  { code: 'FPPS', name: 'Faculty of Education and Sports Studies' },
+  { code: 'FKJ', name: 'Faculty of Engineering' },
+  { code: 'FSMP', name: 'Faculty of Food Science and Nutrition' },
+  { code: 'FPI', name: 'Faculty of Islamic Studies' },
+  { code: 'FKAL', name: 'Faculty of International Finance Labuan' },
+  { code: 'FPSK', name: 'Faculty of Medicine and Health Sciences' },
+  { code: 'FPKS', name: 'Faculty of Psychology and Social Work' },
+  { code: 'FST', name: 'Faculty of Science and Technology' },
+  { code: 'FSSK', name: 'Faculty of Social Sciences and Humanities' },
+  { code: 'FPL', name: 'Faculty of Sustainable Agriculture' },
+  { code: 'FPT', name: 'Faculty of Tropical Forestry' },
 ];
 
 export default function MyProfile() {
@@ -44,11 +44,11 @@ export default function MyProfile() {
     setLoading(true);
     const user = await base44.auth.me();
     setCurrentUser(user);
-    
+    // Match by user_id first (most reliable), then fall back to email
     let studs = await base44.entities.Student.filter({ user_id: user.id });
     if (!studs.length) studs = await base44.entities.Student.filter({ email: user.email });
     const s = studs[0] || null;
-    
+    // If found by email but missing user_id, link it now
     if (s && !s.user_id) {
       await base44.entities.Student.update(s.id, { user_id: user.id });
       s.user_id = user.id;
@@ -73,14 +73,6 @@ export default function MyProfile() {
     setLoading(false);
   }
 
-  function computeRoomStatus(currentStatus, occupancy, capacity) {
-    if (occupancy >= capacity) return 'Full';
-    if (['Maintenance', 'Under Maintenance', 'Reserved', 'Not Available'].includes(currentStatus)) {
-      return currentStatus;
-    }
-    return occupancy === 0 ? 'Available' : 'Occupied';
-  }
-
   async function handleSave() {
     if (!form.full_name || !form.phone) {
       toast({ title: 'Full name and phone are required', variant: 'destructive' }); return;
@@ -97,12 +89,13 @@ export default function MyProfile() {
       setStudent(created);
     }
 
+    // Update room occupancy if room changed
     if (oldRoomId !== newRoomId) {
       if (oldRoomId) {
         const oldRoom = rooms.find(r => r.id === oldRoomId);
         if (oldRoom) {
           const newOcc = Math.max(0, (oldRoom.current_occupancy || 1) - 1);
-          const newStatus = computeRoomStatus(oldRoom.status, newOcc, Number(oldRoom.capacity || 4));
+          const newStatus = newOcc === 0 ? 'Available' : newOcc >= oldRoom.capacity ? 'Full' : 'Occupied';
           await base44.entities.Room.update(oldRoomId, { current_occupancy: newOcc, status: newStatus });
         }
       }
@@ -110,7 +103,7 @@ export default function MyProfile() {
         const newRoom = rooms.find(r => r.id === newRoomId);
         if (newRoom) {
           const newOcc = (newRoom.current_occupancy || 0) + 1;
-          const newStatus = computeRoomStatus(newRoom.status, newOcc, Number(newRoom.capacity || 4));
+          const newStatus = newOcc >= newRoom.capacity ? 'Full' : 'Occupied';
           await base44.entities.Room.update(newRoomId, { current_occupancy: newOcc, status: newStatus });
         }
       }
@@ -118,7 +111,6 @@ export default function MyProfile() {
 
     toast({ title: 'Profile saved successfully' });
     setSaving(false);
-    init();
   }
 
   const f = (field, label, type = 'text', opts = null) => (
@@ -203,39 +195,36 @@ export default function MyProfile() {
           </div>
         </div>
 
-        {/* Room Allocation - LOCKED FOR STUDENTS */}
+        {/* Room */}
         {(currentUser?.role === 'student' || !currentUser?.role || currentUser?.role === 'user') && (
-          <div className="bg-muted/40 p-4 rounded-xl border border-border/60">
-            <div className="flex items-center gap-1.5 mb-3">
-              <Lock className="w-3.5 h-3.5 text-muted-foreground" />
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Room Assignment (Read-Only)</h3>
-            </div>
-            
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Room Assignment</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-muted-foreground">Block</Label>
-                <Select value={form.block_name || ''} disabled={true}>
-                  <SelectTrigger className="h-9 text-sm mt-1 bg-muted/70 text-muted-foreground cursor-not-allowed">
-                    <SelectValue placeholder="Not assigned yet" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {blocks.map(b => <SelectItem key={b.id} value={b.block_name}>{b.block_name}</SelectItem>)}
-                  </SelectContent>
+                <Label className="text-xs">Block</Label>
+                <Select value={form.block_name || ''} onValueChange={v => {
+                  const block = blocks.find(b => b.block_name === v);
+                  setForm({ ...form, block_name: v, block_id: block?.id || '', room_number: '', room_id: '' });
+                }}>
+                  <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select block" /></SelectTrigger>
+                  <SelectContent>{blocks.map(b => <SelectItem key={b.id} value={b.block_name}>{b.block_name} ({b.gender_restriction})</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">Room Number</Label>
-                <Select value={form.room_number || ''} disabled={true}>
-                  <SelectTrigger className="h-9 text-sm mt-1 bg-muted/70 text-muted-foreground cursor-not-allowed">
-                    <SelectValue placeholder="Not assigned yet" />
-                  </SelectTrigger>
+                <Label className="text-xs">Room Number</Label>
+                <Select value={form.room_number || ''} onValueChange={v => {
+                  const room = rooms.find(r => r.room_number === v && r.block_name === form.block_name);
+                  setForm({ ...form, room_number: v, room_id: room?.id || '' });
+                }} disabled={!form.block_name}>
+                  <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select room" /></SelectTrigger>
                   <SelectContent>
-                    {rooms.map(r => <SelectItem key={r.id} value={r.room_number}>{r.room_number}</SelectItem>)}
+                    {rooms.filter(r => r.block_name === form.block_name && r.status !== 'Maintenance').map(r => (
+                      <SelectItem key={r.id} value={r.room_number}>{r.room_number} ({r.room_type}, {r.current_occupancy}/{r.capacity})</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground mt-2 italic">Note: Room settings are managed centrally by the college administration.</p>
           </div>
         )}
 
