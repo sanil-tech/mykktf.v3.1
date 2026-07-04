@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Pin, Trash2, Image as ImageIcon, MessageSquare, ShieldAlert, X, Bell, User, Paperclip, FileText, Download, ExternalLink, Edit2, Check } from 'lucide-react';
+import { Send, Pin, Trash2, MessageSquare, X, Bell, User, Paperclip, FileText, Download, ExternalLink, Edit2, Check, Hash } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
 const COMMUNITY_CHANNEL = { 
@@ -69,12 +69,10 @@ export default function Chat() {
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   
-  // State Sembang DM Mini
   const [dmTarget, setDmTarget] = useState(null); 
   const [dmMessages, setDmMessages] = useState([]);
   const [dmText, setDmText] = useState('');
 
-  // State Pengurusan Edit Mesej
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editText, setEditText] = useState('');
 
@@ -109,19 +107,13 @@ export default function Chat() {
     finally { setLoading(false); }
   }
 
-  // Fungsi pembantu khas untuk mendapatkan Full Name rasmi daripada entiti Student
   async function resolveSenderName(currentUser) {
     if (!currentUser) return 'Unknown';
     try {
       let profiles = await base44.entities.Student.filter({ user_id: currentUser.id });
       if (!profiles.length) profiles = await base44.entities.Student.filter({ email: currentUser.email });
-      
-      if (profiles.length > 0 && profiles[0].full_name) {
-        return profiles[0].full_name;
-      }
-    } catch (e) {
-      console.error("Gagal mendapatkan nama penuh dari profil:", e);
-    }
+      if (profiles.length > 0 && profiles[0].full_name) return profiles[0].full_name;
+    } catch (e) { console.error(e); }
     return currentUser.full_name || currentUser.email;
   }
 
@@ -204,7 +196,6 @@ export default function Chat() {
       const allMsgs = await base44.entities.ChatMessage.filter({}, 'created_date', 150);
       const filtered = allMsgs.filter(msg => msg.channel_key === activeChannelRef.current.channelKey && !msg.is_deleted);
       
-      // Mengemas kini nama pengirim secara dinamik pada perbualan awam berdasarkan data profil terkini
       const allStudents = await base44.entities.Student.filter({});
       const enhancedFiltered = filtered.map(msg => {
         const profile = allStudents.find(s => s.user_id === msg.sender_user_id);
@@ -345,47 +336,34 @@ export default function Chat() {
   if (loading) return <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
 
   return (
-    <div className="relative">
-      <PageHeader title="Community Chat" description="Sembang komuniti awam serta sistem pengurusan mesej Menggunakan Full Name Profil." />
+    <div className="relative flex flex-col h-[calc(100vh-140px)]">
+      <PageHeader title="Community Chat" description="Sembang komuniti dengan paparan Top Bar yang mesra peranti mudah alih (mobile)." />
       
-      <div className="flex gap-4 h-[calc(100vh-220px)] min-h-[400px]">
-        {/* SIDEBAR */}
-        <div className="w-64 shrink-0 bg-card border border-border rounded-xl overflow-hidden flex flex-col shadow-xs">
-          <div className="flex-1 overflow-y-auto py-2 space-y-4">
-            <div>
-              <div className="px-3 py-1.5 mb-1"><p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Channels</p></div>
-              <div className="space-y-0.5 px-1">
-                {channels.map(ch => (
-                  <button key={ch.key} onClick={() => setActiveChannel(ch)} className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${activeChannel?.channelKey === ch.channelKey ? 'bg-primary text-primary-foreground font-semibold' : 'hover:bg-muted text-slate-700'}`}>
-                    # {ch.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="px-3 py-1.5 mb-1 border-t pt-3"><p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1"><MessageSquare className="w-3 h-3 text-sky-600" /> Inbox Perbualan DM</p></div>
-              <div className="space-y-1 px-1">
-                {dmInbox.length === 0 && <p className="text-[11px] text-muted-foreground px-3 py-1 italic">Tiada DM aktif.</p>}
-                {dmInbox.map(inbox => (
-                  <button key={inbox.id} onClick={() => { setDmTarget(inbox); loadDmMessages(user, inbox); }} className={`w-full text-left px-2.5 py-2 text-xs rounded-lg border ${inbox.isUnread ? 'bg-amber-50 border-amber-200 font-bold' : 'hover:bg-muted bg-slate-50/50 border-transparent text-slate-700'}`}>
-                    <div className="flex items-start justify-between w-full gap-1">
-                      <div className="min-w-0 flex-1">
-                        <span className="block truncate font-semibold text-slate-900">{inbox.name}</span>
-                        {inbox.block && <span className="text-[9px] text-sky-700 bg-sky-50 px-1 rounded-sm">{inbox.block}</span>}
-                      </div>
-                      {inbox.isUnread && <span className="text-[9px] bg-amber-500 text-white font-extrabold px-1 rounded animate-pulse"><Bell className="w-2 h-2 inline" /> Baru</span>}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground truncate w-full mt-0.5">{inbox.lastMessage}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
+      {/* 1. TOP BAR CHANNELS - Menghemat ruang tepi mobile */}
+      <div className="bg-card border border-border rounded-xl p-2 mb-3 shadow-xs">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth pb-1 md:pb-0">
+          <div className="flex items-center gap-1 shrink-0 text-muted-foreground px-2 text-xs font-bold uppercase tracking-wider border-r pr-3">
+            <Hash className="w-3.5 h-3.5 text-primary" /> Saluran
+          </div>
+          <div className="flex gap-1.5 pl-1">
+            {channels.map(ch => (
+              <button 
+                key={ch.key} 
+                onClick={() => setActiveChannel(ch)} 
+                className={`whitespace-nowrap px-3 py-1.5 text-xs rounded-lg transition-all border ${activeChannel?.channelKey === ch.channelKey ? 'bg-primary text-primary-foreground font-semibold border-primary shadow-xs' : 'hover:bg-muted bg-slate-50 border-transparent text-slate-700'}`}
+              >
+                # {ch.label}
+              </button>
+            ))}
           </div>
         </div>
+      </div>
 
-        {/* UTAMA WINDOW */}
-        <div className="flex-1 bg-card border border-border rounded-xl flex flex-col overflow-hidden shadow-xs">
+      {/* Rangka Utama Bawah */}
+      <div className="flex flex-col md:flex-row gap-4 flex-1 min-h-0">
+        
+        {/* KOTAK SEMBANG UTAMA (Luas penuh di Mobile) */}
+        <div className="flex-1 bg-card border border-border rounded-xl flex flex-col overflow-hidden shadow-xs h-full">
           {pinnedMessages.length > 0 && (
             <div className="px-4 py-2 bg-yellow-50 border-b border-yellow-200">
               <p className="text-xs font-semibold text-yellow-700 flex items-center gap-1">📌 Pinned Message</p>
@@ -396,6 +374,7 @@ export default function Chat() {
           )}
 
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+            {messages.length === 0 && <div className="text-center py-8 text-muted-foreground text-xs italic">Tiada mesej di saluran ini.</div>}
             {messages.map(msg => {
               const isOwn = msg.sender_user_id === user?.id;
               const isWarden = msg.sender_role === 'warden';
@@ -406,12 +385,12 @@ export default function Chat() {
                     {(msg.sender_name || '?')[0].toUpperCase()}
                   </div>
                   
-                  <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
-                    <p className="text-xs text-muted-foreground mb-0.5">{msg.sender_name}</p>
+                  <div className={`max-w-[85%] md:max-w-[70%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
+                    <p className="text-[11px] text-muted-foreground mb-0.5">{msg.sender_name}</p>
                     
                     <div className={`rounded-xl px-3 py-2 text-sm ${isOwn ? 'bg-primary text-primary-foreground' : 'bg-muted text-slate-900'}`}>
                       {editingMessageId === msg.id ? (
-                        <div className="flex gap-1.5 items-center min-w-[240px] p-0.5">
+                        <div className="flex gap-1.5 items-center min-w-[220px] p-0.5">
                           <Input 
                             className="h-8 text-xs bg-white text-slate-900 border border-slate-300 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-primary shadow-inner" 
                             value={editText} 
@@ -419,10 +398,10 @@ export default function Chat() {
                             onKeyDown={e => e.key === 'Enter' && saveEdit(msg.id)}
                             autoFocus
                           />
-                          <Button size="icon" className="h-8 w-8 bg-green-600 hover:bg-green-700 text-white shrink-0" onClick={() => saveEdit(msg.id)} title="Simpan">
+                          <Button size="icon" className="h-8 w-8 bg-green-600 text-white shrink-0" onClick={() => saveEdit(msg.id)}>
                             <Check className="w-3.5 h-3.5" />
                           </Button>
-                          <Button size="icon" className="h-8 w-8 bg-slate-200 hover:bg-slate-300 text-slate-700 shrink-0 border border-slate-300" onClick={() => setEditingMessageId(null)} title="Batal">
+                          <Button size="icon" className="h-8 w-8 bg-slate-200 text-slate-700 shrink-0 border" onClick={() => setEditingMessageId(null)}>
                             <X className="w-3.5 h-3.5" />
                           </Button>
                         </div>
@@ -453,18 +432,43 @@ export default function Chat() {
           </div>
 
           {/* INPUT BAR UTAMA */}
-          <div className="p-3 border-t border-border flex gap-2 items-center">
+          <div className="p-3 border-t border-border flex gap-2 items-center bg-card">
             <input type="file" ref={fileRef} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" className="hidden" onChange={handleMainUpload} />
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500" onClick={() => fileRef.current?.click()}><Paperclip className="w-4 h-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 shrink-0" onClick={() => fileRef.current?.click()}><Paperclip className="w-4 h-4" /></Button>
             <Input className="flex-1 h-9" placeholder="Tulis mesej..." value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} />
-            <Button size="icon" className="h-9 w-9" onClick={send} disabled={!text.trim()}><Send className="w-4 h-4" /></Button>
+            <Button size="icon" className="h-9 w-9 shrink-0" onClick={send} disabled={!text.trim()}><Send className="w-4 h-4" /></Button>
           </div>
         </div>
+
+        {/* INBOX PERBUALAN DM SIDEBAR - Menjadi panel bawah/tepi mengikut saiz skrin */}
+        <div className="w-full md:w-64 shrink-0 bg-card border border-border rounded-xl overflow-hidden flex flex-col shadow-xs h-[200px] md:h-full">
+          <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 shrink-0">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <MessageSquare className="w-3 h-3 text-sky-600" /> Inbox Perbualan DM
+            </p>
+          </div>
+          <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+            {dmInbox.length === 0 && <p className="text-[11px] text-muted-foreground px-2 py-1 italic">Tiada DM aktif.</p>}
+            {dmInbox.map(inbox => (
+              <button key={inbox.id} onClick={() => { setDmTarget(inbox); loadDmMessages(user, inbox); }} className={`w-full text-left px-2.5 py-2 text-xs rounded-lg border ${inbox.isUnread ? 'bg-amber-50 border-amber-200 font-bold' : 'hover:bg-muted bg-slate-50/50 border-transparent text-slate-700'}`}>
+                <div className="flex items-start justify-between w-full gap-1">
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold text-slate-900 leading-tight">{inbox.name}</span>
+                    {inbox.block && <span className="inline-block text-[9px] text-sky-700 bg-sky-50 px-1 rounded-sm mt-0.5">{inbox.block}</span>}
+                  </div>
+                  {inbox.isUnread && <span className="text-[9px] bg-amber-500 text-white font-extrabold px-1 rounded animate-pulse shrink-0"><Bell className="w-2 h-2 inline" /> Baru</span>}
+                </div>
+                <p className="text-[10px] text-muted-foreground truncate w-full mt-0.5">{inbox.lastMessage}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
       </div>
 
-      {/* TETINGKAP MINI DM */}
+      {/* MINI DM POP-UP */}
       {dmTarget && (
-        <div className="fixed bottom-4 right-4 w-80 h-96 bg-card border-2 border-sky-400 rounded-xl shadow-2xl flex flex-col overflow-hidden z-50">
+        <div className="fixed bottom-4 right-4 w-80 h-96 bg-card border-2 border-sky-400 rounded-xl shadow-2xl flex flex-col overflow-hidden z-50 animate-in slide-in-from-bottom-5">
           <div className="bg-sky-600 text-white px-3 py-2 flex items-center justify-between">
             <p className="text-xs font-bold truncate">PM: {dmTarget.name} ({dmTarget.block || 'Warden'})</p>
             <button onClick={() => setDmTarget(null)} className="text-white hover:bg-sky-700 p-1 rounded-full"><X className="w-4 h-4" /></button>
@@ -479,18 +483,14 @@ export default function Chat() {
                     {editingMessageId === m.id ? (
                       <div className="flex gap-1 items-center min-w-[170px] p-0.5">
                         <input 
-                          className="h-7 text-xs bg-white text-slate-900 border border-slate-300 rounded px-1.5 flex-1 min-w-0 shadow-inner focus:outline-none focus:ring-1 focus:ring-sky-500" 
+                          className="h-7 text-xs bg-white text-slate-900 border border-slate-300 rounded px-1.5 flex-1 min-w-0 focus:outline-none focus:ring-1 focus:ring-sky-500" 
                           value={editText} 
                           onChange={e => setEditText(e.target.value)} 
                           onKeyDown={e => e.key === 'Enter' && saveEdit(m.id, true)}
                           autoFocus
                         />
-                        <button className="bg-green-600 hover:bg-green-700 text-white p-1 rounded shrink-0 transition-colors" onClick={() => saveEdit(m.id, true)} title="Selesai">
-                          <Check className="w-3 h-3" />
-                        </button>
-                        <button className="bg-slate-200 hover:bg-slate-300 text-slate-700 p-1 rounded shrink-0 border border-slate-300 transition-colors" onClick={() => setEditingMessageId(null)} title="Batal">
-                          <X className="w-3 h-3" />
-                        </button>
+                        <button className="bg-green-600 text-white p-1 rounded shrink-0" onClick={() => saveEdit(m.id, true)}><Check className="w-3 h-3" /></button>
+                        <button className="bg-slate-200 text-slate-700 p-1 rounded shrink-0 border" onClick={() => setEditingMessageId(null)}><X className="w-3 h-3" /></button>
                       </div>
                     ) : (
                       <>
@@ -500,12 +500,8 @@ export default function Chat() {
                     )}
                   </div>
                   <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] mt-0.5 px-0.5">
-                    {isOwnDm && editingMessageId !== m.id && (
-                      <button onClick={() => startEdit(m)} className="text-slate-500 hover:underline">Edit</button>
-                    )}
-                    {(isOwnDm || isAdmin) && (
-                      <button onClick={() => deleteMessage(m.id, true)} className="text-red-500 hover:underline">Padam</button>
-                    )}
+                    {isOwnDm && editingMessageId !== m.id && <button onClick={() => startEdit(m)} className="text-slate-500 hover:underline">Edit</button>}
+                    {(isOwnDm || isAdmin) && <button onClick={() => deleteMessage(m.id, true)} className="text-red-500 hover:underline">Padam</button>}
                   </div>
                 </div>
               );
@@ -513,12 +509,11 @@ export default function Chat() {
             <div ref={dmBottomRef} />
           </div>
 
-          {/* INPUT BAR MINI DM */}
           <div className="p-2 border-t flex gap-1.5 bg-card items-center">
             <input type="file" ref={dmFileRef} accept="image/*,.pdf,.doc,.docx" className="hidden" onChange={handleMiniDmUpload} />
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400" onClick={() => dmFileRef.current?.click()}><Paperclip className="w-3.5 h-3.5" /></Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 shrink-0" onClick={() => dmFileRef.current?.click()}><Paperclip className="w-3.5 h-3.5" /></Button>
             <Input className="h-8 text-xs flex-1" placeholder="Tulis PM..." value={dmText} onChange={e => setDmText(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendDm()} />
-            <Button size="icon" className="h-8 w-8 bg-sky-600 hover:bg-sky-700 text-white" onClick={sendDm} disabled={!dmText.trim()}><Send className="w-3 h-3" /></Button>
+            <Button size="icon" className="h-8 w-8 bg-sky-600 text-white shrink-0" onClick={sendDm} disabled={!dmText.trim()}><Send className="w-3 h-3" /></Button>
           </div>
         </div>
       )}
