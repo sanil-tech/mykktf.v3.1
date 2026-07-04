@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, CalendarOff, Check, X, Clock, AlertTriangle, Users, UserX, Loader2 } from 'lucide-react';
+import { Plus, CalendarOff, Check, X, Clock, AlertTriangle, Users, UserX, Loader2, MapPin, Calendar, User, FileText } from 'lucide-react';
 
 const STATUS_BADGE = {
   Pending: 'bg-amber-50 text-amber-800 border-amber-200',
@@ -70,13 +70,13 @@ export default function Leave() {
           pendingApproval: pendingLeaves.length,
         });
       } else if (student) {
-        // SECURITY SANDBOX: Enforces strict data-isolation so students ONLY view their records
+        // Sekuriti sandbox data untuk pastikan pelajar hanya melihat permohonan mereka sahaja
         leaveList = await base44.entities.LeaveApplication.filter({ student_id: student.student_id });
       }
 
       setApps(leaveList);
     } catch (error) {
-      toast({ title: 'System Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Ralat Sistem', description: error.message, variant: 'destructive' });
     }
   }, [today, toast]);
 
@@ -96,7 +96,7 @@ export default function Leave() {
 
       await fetchLeaveData(user, studentProfile);
     } catch (error) {
-      toast({ title: 'Authentication Exception', description: error.message, variant: 'destructive' });
+      toast({ title: 'Ralat Autentikasi', description: error.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -106,15 +106,15 @@ export default function Leave() {
 
   async function handleSubmit() {
     if (!form.destination || !form.reason || !form.departure_date || !form.return_date) {
-      toast({ title: 'Validation Warning', description: 'Please fill out all mandatory components.', variant: 'destructive' }); 
+      toast({ title: 'Maklumat Tidak Lengkap', description: 'Sila isi semua ruangan bermarkah (*).', variant: 'destructive' }); 
       return;
     }
     if (!myStudent) { 
-      toast({ title: 'Profile Error', description: 'No active student matric record found.', variant: 'destructive' }); 
+      toast({ title: 'Ralat Profil', description: 'Profil maklumat pelajar tidak ditemui.', variant: 'destructive' }); 
       return; 
     }
 
-    setSubmitting(true); // Double click mitigation guard active
+    setSubmitting(true); // Sekatan elak double click / data duplikasi
     try {
       await base44.entities.LeaveApplication.create({
         ...form,
@@ -130,19 +130,19 @@ export default function Leave() {
         await Promise.all(wardenBlocks.map(wb => 
           base44.entities.Notification.create({
             user_id: wb.warden_user_id,
-            title: 'Action Required: New Leave Submission',
-            message: `${myStudent.full_name} (${myStudent.student_id}) has filed an application for residential exit clearance.`,
+            title: 'Permohonan E-Cuti Baharu KKTF',
+            message: `${myStudent.full_name} (${myStudent.student_id}) Blok ${myStudent.block_name} telah menyerahkan permohonan kebenaran cuti.`,
             type: 'leave',
             is_read: false,
           })
         ));
       }
 
-      toast({ title: 'Application registered successfully.' });
+      toast({ title: 'Permohonan berjaya dihantar ke pentadbiran KKTF.' });
       setDialogOpen(false);
       await fetchLeaveData(currentUser, myStudent);
     } catch (error) {
-      toast({ title: 'Execution Failure', description: error.message, variant: 'destructive' });
+      toast({ title: 'Ralat Penghantaran', description: error.message, variant: 'destructive' });
     } finally {
       setSubmitting(false);
     }
@@ -155,22 +155,22 @@ export default function Leave() {
         approved_by: currentUser?.full_name || currentUser?.email
       });
 
-      // NOTIFICATION TRIGGER: Queries and dispatches real-time review results directly to the applicant
+      // Menghantar notifikasi automatik terus kepada pelajar sebaik sahaja permohonan diuruskan
       const students = await base44.entities.Student.filter({ student_id: app.student_id });
       if (students.length && students[0].user_id) {
         await base44.entities.Notification.create({
           user_id: students[0].user_id,
-          title: `E-Leave Application Update [${status.toUpperCase()}]`,
-          message: `Your requested leave exit from ${app.departure_date} to ${app.return_date} has been officially ${status.toLowerCase()} by UMS Residential Services.`,
+          title: `Kemaskini Permohonan E-Cuti KKTF [${status.toUpperCase()}]`,
+          message: `Permohonan pergerakan e-cuti anda bertarikh ${app.departure_date} telah ${status === 'Approved' ? 'DILULUSKAN' : 'DITOLAK'} oleh Warden / Pentadbiran Kolej Kediaman Tun Fuad.`,
           type: 'leave',
           is_read: false,
         });
       }
 
-      toast({ title: `Application status altered to: ${status}` });
+      toast({ title: `Status permohonan dikemaskini kepada: ${status}` });
       await fetchLeaveData(currentUser, myStudent);
     } catch (error) {
-      toast({ title: 'Data Mutate Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Gagal Mengemaskini Log', description: error.message, variant: 'destructive' });
     }
   }
 
@@ -193,50 +193,50 @@ export default function Leave() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-2">
+    <div className="space-y-6 max-w-7xl mx-auto px-2 pb-12">
       <PageHeader
-        title="Sistem E-Cuti Pelajar UMS"
-        description={isReviewer ? "Residential College Administration Leave Tracking Portal" : "Submit and monitor formal university exit passes."}
+        title="E-Leave KKTF"
+        description={isReviewer ? "Portal Kelulusan dan Log Keluar Pelajar Kolej Kediaman Tun Fuad" : "Sistem permohonan pas keluar digital dan semakan rekod cuti pelajar."}
         actions={!isReviewer && (
           <Button size="sm" onClick={() => setDialogOpen(true)} className="bg-[#132644] hover:bg-[#1e385f] text-white shadow-sm font-medium tracking-wide">
-            <Plus className="w-4 h-4 mr-2" /> Request Exit Authorization
+            <Plus className="w-4 h-4 mr-2" /> Mohon E-Cuti KKTF
           </Button>
         )}
       />
 
-      {/* UMS Corporate Identity Status Cards */}
+      {/* Kad Statistik Pengurusan Pentadbiran UMS */}
       {isReviewer && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: 'In College Campus', value: stats.inCollege, icon: Users, color: 'border-l-4 border-l-[#132644] text-[#132644]' },
-            { label: 'Active Leave Exits', value: stats.onLeave, icon: UserX, color: 'border-l-4 border-l-emerald-600 text-emerald-700' },
-            { label: 'Overdue Returns Tracked', value: stats.overdue, icon: AlertTriangle, color: 'border-l-4 border-l-[#A31D1D] text-[#A31D1D]' },
-            { label: 'Pending Assessment', value: stats.pendingApproval, icon: Clock, color: 'border-l-4 border-l-amber-500 text-amber-700' },
+            { label: 'Pelajar Di Kolej', value: stats.inCollege, icon: Users, color: 'border-l-4 border-l-[#132644] text-[#132644]' },
+            { label: 'Sedang Cuti Luar', value: stats.onLeave, icon: UserX, color: 'border-l-4 border-l-emerald-600 text-emerald-700' },
+            { label: 'Lewat Kembali (Overdue)', value: stats.overdue, icon: AlertTriangle, color: 'border-l-4 border-l-[#A31D1D] text-[#A31D1D]' },
+            { label: 'Menunggu Kelulusan', value: stats.pendingApproval, icon: Clock, color: 'border-l-4 border-l-amber-500 text-amber-700' },
           ].map(s => {
             const Icon = s.icon;
             return (
-              <div key={s.label} className={`bg-white border rounded-lg p-5 flex items-center justify-between shadow-xs transition-all ${s.color}`}>
+              <div key={s.label} className="bg-white border border-gray-100 rounded-lg p-5 flex items-center justify-between shadow-xs">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{s.label}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{s.label}</p>
                   <p className="text-3xl font-bold tracking-tight mt-1">{s.value}</p>
                 </div>
-                <Icon className="w-6 h-6 opacity-40 shrink-0" />
+                <Icon className={`w-6 h-6 shrink-0 opacity-80 ${s.color}`} />
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Corporate Filter Badges */}
+      {/* Bar Navigasi Penapis Penapisan Status Rekod */}
       {isReviewer && (
         <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg w-fit border border-gray-200">
           {[
-            { key: 'all', label: 'All Entries' },
-            { key: 'pending', label: 'Pending Action' },
-            { key: 'approved', label: 'Approved Logs' },
-            { key: 'rejected', label: 'Rejected Logs' },
-            { key: 'active_leave', label: 'Active Exits' },
-            { key: 'overdue', label: 'Overdue Alerts' },
+            { key: 'all', label: 'Semua Rekod' },
+            { key: 'pending', label: 'Menunggu' },
+            { key: 'approved', label: 'Diluluskan' },
+            { key: 'rejected', label: 'Ditolak' },
+            { key: 'active_leave', label: 'Sedang Cuti' },
+            { key: 'overdue', label: 'Amaran Lewat' },
           ].map(f => (
             <button
               key={f.key}
@@ -247,102 +247,119 @@ export default function Leave() {
         </div>
       )}
 
-      {/* Main Records Table Presentation */}
+      {/* Makeover Baharu: Paparan Permohonan Jenis Grid E-Card KKTF */}
       {filteredApps.length === 0 ? (
-        <EmptyState icon={CalendarOff} title="No Records Tracked" description="There are currently no exit authorizations linked with your account parameters." />
+        <EmptyState icon={CalendarOff} title="Tiada Permohonan Rekod" description="Tiada sebarang permohonan log e-cuti ditemui setakat ini." />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50/75 text-gray-500 font-semibold text-xs uppercase tracking-wider">
-                  <th className="text-left px-6 py-4">Student Identity</th>
-                  {isReviewer && <>
-                    <th className="text-left px-6 py-4 hidden lg:table-cell">Matric Number</th>
-                    <th className="text-left px-6 py-4 hidden md:table-cell">Block / Room</th>
-                  </>}
-                  <th className="text-left px-6 py-4 hidden sm:table-cell">Classification</th>
-                  <th className="text-left px-6 py-4 hidden md:table-cell">Departure Date</th>
-                  <th className="text-left px-6 py-4 hidden md:table-cell">Return Date</th>
-                  {isReviewer && <th className="text-left px-6 py-4 hidden lg:table-cell">Destination</th>}
-                  <th className="text-left px-6 py-4">Status</th>
-                  {isReviewer && <th className="text-right px-6 py-4">Workflow Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredApps.map(a => {
-                  const isOverdue = a.status === 'Approved' && a.return_date < today;
-                  const isActive = a.status === 'Approved' && a.departure_date <= today && a.return_date >= today;
-                  return (
-                    <tr key={a.id} className={`hover:bg-gray-50/50 transition-colors ${isOverdue ? 'bg-rose-50/30' : ''}`}>
-                      <td className="px-6 py-4">
-                        <p className="font-semibold text-gray-900">{a.student_name}</p>
-                        <p className="text-xs text-gray-500 line-clamp-1 max-w-xs">{a.reason}</p>
-                      </td>
-                      {isReviewer && <>
-                        <td className="px-6 py-4 font-mono text-xs text-gray-600 hidden lg:table-cell">{a.student_id}</td>
-                        <td className="px-6 py-4 text-gray-600 hidden md:table-cell">{a.block_name || '—'} / {a.room_number || '—'}</td>
-                      </>}
-                      <td className="px-6 py-4 text-gray-600 hidden sm:table-cell">{a.leave_type}</td>
-                      <td className="px-6 py-4 text-gray-600 hidden md:table-cell">{a.departure_date}</td>
-                      <td className="px-6 py-4 text-gray-600 hidden md:table-cell">{a.return_date}</td>
-                      {isReviewer && <td className="px-6 py-4 text-gray-600 hidden lg:table-cell max-w-[140px] truncate">{a.destination}</td>}
-                      <td className="px-6 py-4">
-                        {isOverdue ? (
-                          <span className="px-2.5 py-1 rounded text-[11px] font-bold border bg-rose-50 text-[#A31D1D] border-rose-100 uppercase tracking-wide">Overdue Alert</span>
-                        ) : isActive ? (
-                          <span className="px-2.5 py-1 rounded text-[11px] font-bold border bg-blue-50 text-[#132644] border-blue-100 uppercase tracking-wide">Off Campus</span>
-                        ) : (
-                          <span className={`px-2.5 py-1 rounded text-[11px] font-bold border uppercase tracking-wide ${STATUS_BADGE[a.status] || 'bg-gray-100 text-gray-600'}`}>{a.status}</span>
-                        )}
-                      </td>
-                      {isReviewer && (
-                        <td className="px-6 py-4 text-right whitespace-nowrap">
-                          {a.status === 'Pending' && (
-                            <div className="flex items-center justify-end gap-2">
-                              <Button variant="outline" size="sm" className="h-8 border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold px-3" onClick={() => updateStatus(a, 'Approved')}><Check className="w-3.5 h-3.5 mr-1" /> Approve</Button>
-                              <Button variant="outline" size="sm" className="h-8 border-rose-300 text-[#A31D1D] hover:bg-rose-50 text-xs font-semibold px-3" onClick={() => updateStatus(a, 'Rejected')}><X className="w-3.5 h-3.5 mr-1" /> Reject</Button>
-                            </div>
-                          )}
-                          {a.status !== 'Pending' && <span className="text-xs font-medium text-gray-500 italic">Audited by: {a.approved_by || '—'}</span>}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredApps.map(a => {
+            const isOverdue = a.status === 'Approved' && a.return_date < today;
+            const isActive = a.status === 'Approved' && a.departure_date <= today && a.return_date >= today;
+            
+            return (
+              <div 
+                key={a.id} 
+                className={`bg-white rounded-xl border border-gray-200 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden ${
+                  isOverdue ? 'border-rose-200 bg-rose-50/10' : ''
+                }`}
+              >
+                {/* Bahagian Header Atas Kad */}
+                <div className="flex items-center justify-between border-b pb-3 mb-4">
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{a.leave_type}</span>
+                  <div>
+                    {isOverdue ? (
+                      <span className="px-2.5 py-1 rounded text-[10px] font-bold border bg-rose-50 text-[#A31D1D] border-rose-200 uppercase tracking-wider animate-pulse">Overdue</span>
+                    ) : isActive ? (
+                      <span className="px-2.5 py-1 rounded text-[10px] font-bold border bg-blue-50 text-[#132644] border-blue-200 uppercase tracking-wider">Luar Kampus</span>
+                    ) : (
+                      <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wider ${STATUS_BADGE[a.status]}`}>{a.status}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Seksyen Penerangan Konten Profil Permohonan */}
+                <div className="space-y-3 flex-1">
+                  <div className="flex items-start gap-2.5">
+                    <User className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-bold text-gray-900 leading-tight">{a.student_name}</p>
+                      <p className="text-xs font-mono text-gray-500 mt-0.5">{a.student_id} {a.block_name ? `• Blok ${a.block_name} (${a.room_number})` : ''}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5">
+                    <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Destinasi</p>
+                      <p className="text-sm text-gray-700 font-medium line-clamp-1">{a.destination}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5">
+                    <Calendar className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tempoh Pergerakan</p>
+                      <p className="text-sm text-gray-700 font-medium">
+                        {a.departure_date} <span className="text-gray-400 text-xs">({a.departure_time || 'N/A'})</span> sehingga {a.return_date} <span className="text-gray-400 text-xs">({a.return_time || 'N/A'})</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                    <FileText className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sebab Kebenaran</p>
+                      <p className="text-xs text-gray-600 mt-0.5 font-medium italic line-clamp-2">"{a.reason}"</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Struktur Kawalan Pengurusan Kelulusan Warden */}
+                {isReviewer && (
+                  <div className="border-t pt-4 mt-4 flex items-center justify-between">
+                    {a.status === 'Pending' ? (
+                      <div className="flex items-center gap-2 w-full">
+                        <Button variant="outline" size="sm" className="w-1/2 h-9 border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs font-bold" onClick={() => updateStatus(a, 'Approved')}><Check className="w-3.5 h-3.5 mr-1" /> Lulus</Button>
+                        <Button variant="outline" size="sm" className="w-1/2 h-9 border-rose-300 text-[#A31D1D] hover:bg-rose-50 text-xs font-bold" onClick={() => updateStatus(a, 'Rejected')}><X className="w-3.5 h-3.5 mr-1" /> Tolak</Button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400 italic font-medium w-full text-right">Disemak oleh: {a.approved_by || 'Pentadbiran KKTF'}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Input Dialog Window */}
+      {/* Dialog Kemasukan Borang Aplikasi Keluar Pelajar */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md bg-white rounded-lg shadow-xl border border-gray-200">
-          <DialogHeader><DialogTitle className="text-lg font-bold text-[#132644] tracking-tight border-b pb-2">UMS Exit Clearance Request Form</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-md bg-white rounded-xl shadow-2xl border border-gray-200">
+          <DialogHeader><DialogTitle className="text-lg font-bold text-[#132644] tracking-tight border-b pb-2">Borang Permohonan E-Cuti KKTF</DialogTitle></DialogHeader>
           <div className="space-y-4 mt-2">
             <div className="space-y-1">
-              <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Classification Category</Label>
+              <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Kategori Keluar</Label>
               <Select value={form.leave_type} onValueChange={v => setForm({ ...form, leave_type: v })}>
                 <SelectTrigger className="h-10 text-sm mt-1 bg-gray-50 border-gray-300 focus:ring-[#132644]"><SelectValue /></SelectTrigger>
                 <SelectContent>{['Weekend','Semester Break','Emergency','Medical','Other'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Target Destination *</Label><Input value={form.destination} onChange={e => setForm({ ...form, destination: e.target.value })} className="h-10 text-sm mt-1 bg-gray-50 border-gray-300" placeholder="Address destination coordinates" /></div>
-            <div className="space-y-1"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Comprehensive Reason *</Label><Textarea value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })} className="text-sm mt-1 bg-gray-50 border-gray-300" rows={3} placeholder="Provide academic, personal, or clinical reasoning..." /></div>
+            <div className="space-y-1"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Destinasi Perjalanan *</Label><Input value={form.destination} onChange={e => setForm({ ...form, destination: e.target.value })} className="h-10 text-sm mt-1 bg-gray-50 border-gray-300" placeholder="Alamat penuh destinasi dituju" /></div>
+            <div className="space-y-1"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Sebab / Alasan Cuti *</Label><Textarea value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })} className="text-sm mt-1 bg-gray-50 border-gray-300" rows={3} placeholder="Berikan kenyataan sebab rasmi..." /></div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Departure Date *</Label><Input type="date" value={form.departure_date} onChange={e => setForm({ ...form, departure_date: e.target.value })} className="h-10 text-sm mt-1 bg-gray-50 border-gray-300" /></div>
-              <div className="space-y-1"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Departure Time</Label><Input type="time" value={form.departure_time} onChange={e => setForm({ ...form, departure_time: e.target.value })} className="h-10 text-sm mt-1 bg-gray-50 border-gray-300" /></div>
+              <div className="space-y-1"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Tarikh Keluar *</Label><Input type="date" value={form.departure_date} onChange={e => setForm({ ...form, departure_date: e.target.value })} className="h-10 text-sm mt-1 bg-gray-50 border-gray-300" /></div>
+              <div className="space-y-1"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Jam Keluar</Label><Input type="time" value={form.departure_time} onChange={e => setForm({ ...form, departure_time: e.target.value })} className="h-10 text-sm mt-1 bg-gray-50 border-gray-300" /></div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Expected Return *</Label><Input type="date" value={form.return_date} onChange={e => setForm({ ...form, return_date: e.target.value })} className="h-10 text-sm mt-1 bg-gray-50 border-gray-300" /></div>
-              <div className="space-y-1"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Return Time</Label><Input type="time" value={form.return_time} onChange={e => setForm({ ...form, return_time: e.target.value })} className="h-10 text-sm mt-1 bg-gray-50 border-gray-300" /></div>
+              <div className="space-y-1"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Tarikh Kembali *</Label><Input type="date" value={form.return_date} onChange={e => setForm({ ...form, return_date: e.target.value })} className="h-10 text-sm mt-1 bg-gray-50 border-gray-300" /></div>
+              <div className="space-y-1"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Jam Kembali</Label><Input type="time" value={form.return_time} onChange={e => setForm({ ...form, return_time: e.target.value })} className="h-10 text-sm mt-1 bg-gray-50 border-gray-300" /></div>
             </div>
           </div>
-          <div className="flex justify-end gap-2 mt-5 pt-3 border-t border-gray-100">
-            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} disabled={submitting} className="border-gray-300 text-gray-700">Cancel</Button>
+          <div className="flex justify-end gap-2.5 mt-5 pt-3 border-t border-gray-100">
+            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} disabled={submitting} className="border-gray-300 text-gray-700">Batal</Button>
             <Button size="sm" onClick={handleSubmit} disabled={submitting} className="bg-[#132644] hover:bg-[#1e385f] text-white font-medium px-5">
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'File Request'}
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Hantar Permohonan'}
             </Button>
           </div>
         </DialogContent>
