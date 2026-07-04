@@ -70,7 +70,6 @@ export default function Leave() {
           pendingApproval: pendingLeaves.length,
         });
       } else if (student) {
-        // Sekuriti sandbox data untuk pastikan pelajar hanya melihat permohonan mereka sahaja
         leaveList = await base44.entities.LeaveApplication.filter({ student_id: student.student_id });
       }
 
@@ -114,7 +113,7 @@ export default function Leave() {
       return; 
     }
 
-    setSubmitting(true); // Sekatan elak double click / data duplikasi
+    setSubmitting(true);
     try {
       await base44.entities.LeaveApplication.create({
         ...form,
@@ -155,7 +154,6 @@ export default function Leave() {
         approved_by: currentUser?.full_name || currentUser?.email
       });
 
-      // Menghantar notifikasi automatik terus kepada pelajar sebaik sahaja permohonan diuruskan
       const students = await base44.entities.Student.filter({ student_id: app.student_id });
       if (students.length && students[0].user_id) {
         await base44.entities.Notification.create({
@@ -247,7 +245,7 @@ export default function Leave() {
         </div>
       )}
 
-      {/* Makeover Baharu: Paparan Permohonan Jenis Grid E-Card KKTF */}
+      {/* Paparan Permohonan Jenis Grid E-Card KKTF */}
       {filteredApps.length === 0 ? (
         <EmptyState icon={CalendarOff} title="Tiada Permohonan Rekod" description="Tiada sebarang permohonan log e-cuti ditemui setakat ini." />
       ) : (
@@ -263,7 +261,6 @@ export default function Leave() {
                   isOverdue ? 'border-rose-200 bg-rose-50/10' : ''
                 }`}
               >
-                {/* Bahagian Header Atas Kad */}
                 <div className="flex items-center justify-between border-b pb-3 mb-4">
                   <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{a.leave_type}</span>
                   <div>
@@ -277,7 +274,6 @@ export default function Leave() {
                   </div>
                 </div>
 
-                {/* Seksyen Penerangan Konten Profil Permohonan */}
                 <div className="space-y-3 flex-1">
                   <div className="flex items-start gap-2.5">
                     <User className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
@@ -314,7 +310,6 @@ export default function Leave() {
                   </div>
                 </div>
 
-                {/* Struktur Kawalan Pengurusan Kelulusan Warden */}
                 {isReviewer && (
                   <div className="border-t pt-4 mt-4 flex items-center justify-between">
                     {a.status === 'Pending' ? (
@@ -336,7 +331,10 @@ export default function Leave() {
       {/* Dialog Kemasukan Borang Aplikasi Keluar Pelajar */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md bg-white rounded-xl shadow-2xl border border-gray-200">
-          <DialogHeader><DialogTitle className="text-lg font-bold text-[#132644] tracking-tight border-b pb-2">Borang Permohonan E-Cuti KKTF</DialogTitle></DialogHeader>
+          <DialogHeader>
+            {/* Dikemaskini: Tajuk Borang Baharu */}
+            <DialogTitle className="text-lg font-bold text-[#132644] tracking-tight border-b pb-2">Permohonan Bermalam di Luar Kolej</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4 mt-2">
             <div className="space-y-1">
               <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Kategori Keluar</Label>
@@ -358,8 +356,9 @@ export default function Leave() {
           </div>
           <div className="flex justify-end gap-2.5 mt-5 pt-3 border-t border-gray-100">
             <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} disabled={submitting} className="border-gray-300 text-gray-700">Batal</Button>
-            <Button size="sm" onClick={handleSubmit} disabled={submitting} className="bg-[#132644] hover:bg-[#1e385f] text-white font-medium px-5">
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Hantar Permohonan'}
+            {/* Dikemaskini: Butang Submit Ringkas 'MOHON' */}
+            <Button size="sm" onClick={handleSubmit} disabled={submitting} className="bg-[#132644] hover:bg-[#1e385f] text-white font-medium px-6">
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'MOHON'}
             </Button>
           </div>
         </DialogContent>
