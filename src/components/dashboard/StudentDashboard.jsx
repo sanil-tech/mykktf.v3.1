@@ -164,7 +164,7 @@ export default function StudentDashboard({ user }) {
             })()}
           </p>
           <h1 className="text-2xl font-extrabold tracking-tight md:text-3xl capitalize">
-            {User.Myprofile.Full_Name || 'Resident'}
+            {student?.full_name || user?.full_name || 'Resident'}
           </h1>
           
           {student ? (

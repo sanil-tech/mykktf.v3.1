@@ -324,6 +324,13 @@ export default function CheckInOut() {
     }
   }
 
+  async function onSurveyComplete() {
+    setShowSurvey(false);
+    setPendingCheckout(null);
+    toast({ title: 'Check-out selesai sepenuhnya.' });
+    await load();
+  }
+
   async function handleMassArchive() {
     setArchiving(true);
     try {
