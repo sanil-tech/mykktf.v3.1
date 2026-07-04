@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Pin, Flag, Trash2, Image as ImageIcon, MessageSquare, ShieldAlert, X, Bell } from 'lucide-react';
+import { Send, Pin, Flag, Trash2, Image as ImageIcon, MessageSquare, ShieldAlert, X, Bell, User } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
 const COMMUNITY_CHANNEL = { 
@@ -118,11 +118,14 @@ export default function Chat() {
       }
       setChannels(publicChannels);
 
-      // 2. KESAN DM AKTIF (INBOX 2-WAY): Berfungsi automatik untuk Pelajar & Warden
+      // 2. KESAN DM AKTIF (INBOX DENGAN CARIAN MAKLOOMAT BLOK & NAMA PENUH)
       const allMsgs = await base44.entities.ChatMessage.filter({});
       const dmMessages = allMsgs.filter(m => m.channel === 'direct_message' && m.channel_key?.includes(currentUser.id));
       
       dmMessages.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+
+      // Ambil senarai semua pelajar untuk buat pemetaan nama & blok
+      const allStudents = await base44.entities.Student.filter({});
 
       const uniqueConversations = {};
       
@@ -131,21 +134,29 @@ export default function Chat() {
         const partnerId = parts[1] === currentUser.id ? parts[2] : parts[1];
         
         if (partnerId && !uniqueConversations[partnerId]) {
-          // KOD 2-WAY NOTIFICATION: Mesej dianggap unread jika penghantar terakhir BUKAN dirinya sendiri
           const isUnread = msg.sender_user_id !== currentUser.id;
           
-          // Tentukan nama paparan berdasarkan peranan pasangan perbualan
+          // Cari data pelajar daripada database jika partnerId sepadan dengan user_id pelajar
+          const studentProfile = allStudents.find(s => s.user_id === partnerId);
+          
           let displayName = msg.sender_name;
-          if (msg.sender_user_id === currentUser.id) {
-            displayName = currentUser.role === 'warden' ? 'Pelajar' : 'Warden';
+          let blockName = '';
+
+          if (studentProfile) {
+            displayName = studentProfile.full_name || studentProfile.name || msg.sender_name;
+            blockName = studentProfile.block_name ? `Blok ${studentProfile.block_name}` : '';
+          } else if (msg.sender_role === 'warden') {
+            displayName = msg.sender_name;
+            blockName = 'Warden Kediaman';
           }
 
           uniqueConversations[partnerId] = {
             id: partnerId,
             name: displayName,
+            block: blockName,
             role: msg.sender_role,
             lastMessage: msg.message || '📁 [Gambar]',
-            isUnread: isUnread // Kedua-dua peranan (student/warden) akan terima true jika ada mesej masuk baru
+            isUnread: isUnread 
           };
         }
       });
@@ -198,13 +209,40 @@ export default function Chat() {
     }
   }
 
-  function handleOpenDm(targetUser) {
-    if (!user || targetUser.id === user.id) return;
+  // Klik nama pembual untuk buka DM
+  async function handleOpenDmFromChat(msg) {
+    if (!user || msg.sender_user_id === user.id) return;
+
+    let blockInfo = '';
+    let resolvedName = msg.sender_name;
+
+    try {
+      const profiles = await base44.entities.Student.filter({ user_id: msg.sender_user_id });
+      if (profiles.length > 0) {
+        resolvedName = profiles[0].full_name || profiles[0].name || msg.sender_name;
+        blockInfo = profiles[0].block_name ? `Blok ${profiles[0].block_name}` : '';
+      } else if (msg.sender_role === 'warden') {
+        blockInfo = 'Warden Kediaman';
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    const targetUser = {
+      id: msg.sender_user_id,
+      name: resolvedName,
+      block: blockInfo,
+      role: msg.sender_role
+    };
+
     setDmTarget(targetUser);
     loadDmMessages(user, targetUser);
-    
-    // Serta-merta hilangkan status unread secara lokal sebelum DB sync selesai
-    setDmInbox(prev => prev.map(item => item.id === targetUser.id ? { ...item, isUnread: false } : item));
+  }
+
+  function handleOpenDmFromInbox(inboxItem) {
+    setDmTarget(inboxItem);
+    loadDmMessages(user, inboxItem);
+    setDmInbox(prev => prev.map(item => item.id === inboxItem.id ? { ...item, isUnread: false } : item));
   }
 
   async function send() {
@@ -293,8 +331,8 @@ export default function Chat() {
       
       <div className="flex gap-4 h-[calc(100vh-220px)] min-h-[400px]">
         
-        {/* SIDEBAR INBOX (NOTIFIKASI SEHALA & DUA HALA BERFUNGSI PENUH) */}
-        <div className="w-60 shrink-0 bg-card border border-border rounded-xl overflow-hidden flex flex-col shadow-xs">
+        {/* SIDEBAR INBOX DENGAN PAPARAN BLOK */}
+        <div className="w-64 shrink-0 bg-card border border-border rounded-xl overflow-hidden flex flex-col shadow-xs">
           <div className="flex-1 overflow-y-auto py-2 space-y-4">
             
             {/* Urusan Saluran Awam */}
@@ -311,7 +349,7 @@ export default function Chat() {
               </div>
             </div>
 
-            {/* INBOX DM DUA HALA */}
+            {/* INBOX DM DUA HALA + BLOK TAG */}
             <div>
               <div className="px-3 py-1.5 mb-1 border-t pt-3">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
@@ -325,19 +363,24 @@ export default function Chat() {
                 {dmInbox.map(inbox => (
                   <button 
                     key={inbox.id} 
-                    onClick={() => handleOpenDm(inbox)} 
+                    onClick={() => handleOpenDmFromInbox(inbox)} 
                     className={`w-full text-left px-2.5 py-2 text-xs rounded-lg flex flex-col gap-0.5 transition-all border
                       ${inbox.isUnread ? 'bg-amber-50 border-amber-200 font-bold shadow-2xs' : 'hover:bg-muted bg-slate-50/50 border-transparent text-slate-700'}`}
                   >
-                    <div className="flex items-center justify-between w-full">
-                      <span className="truncate max-w-[70%] text-slate-900">{inbox.name}</span>
+                    <div className="flex items-start justify-between w-full gap-1">
+                      <div className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold text-slate-900 leading-tight">{inbox.name}</span>
+                        {inbox.block && (
+                          <span className="inline-block text-[9px] text-sky-700 bg-sky-50 px-1 rounded-sm mt-0.5 font-medium">{inbox.block}</span>
+                        )}
+                      </div>
                       {inbox.isUnread && (
-                        <span className="text-[9px] bg-amber-500 text-white font-extrabold px-1 rounded flex items-center gap-0.5 animate-pulse">
+                        <span className="text-[9px] bg-amber-500 text-white font-extrabold px-1 py-0.5 rounded flex items-center gap-0.5 animate-pulse shrink-0">
                           <Bell className="w-2 h-2" /> Baru
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-muted-foreground truncate w-full font-normal">{inbox.lastMessage}</p>
+                    <p className="text-[10px] text-muted-foreground truncate w-full font-normal mt-0.5">{inbox.lastMessage}</p>
                   </button>
                 ))}
               </div>
@@ -370,7 +413,7 @@ export default function Chat() {
                 <div key={msg.id} className={`flex gap-2 group ${isOwn ? 'flex-row-reverse' : ''}`}>
                   
                   <div 
-                    onClick={() => handleOpenDm({ id: msg.sender_user_id, name: msg.sender_name, role: msg.sender_role })}
+                    onClick={() => handleOpenDmFromChat(msg)}
                     className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 cursor-pointer transition-transform active:scale-90
                       ${isWarden ? 'bg-red-600 text-white' : isSuperAdmin ? 'bg-amber-600 text-white' : 'bg-primary text-primary-foreground'}`}
                   >
@@ -380,7 +423,7 @@ export default function Chat() {
                   <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
                     {!isOwn && (
                       <p 
-                        onClick={() => handleOpenDm({ id: msg.sender_user_id, name: msg.sender_name, role: msg.sender_role })}
+                        onClick={() => handleOpenDmFromChat(msg)}
                         className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1 cursor-pointer hover:underline"
                       >
                         {msg.sender_name} 
@@ -396,7 +439,7 @@ export default function Chat() {
 
                     <div className="flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {!isOwn && (
-                        <button onClick={() => handleOpenDm({ id: msg.sender_user_id, name: msg.sender_name, role: msg.sender_role })} className="text-[11px] text-sky-600 hover:underline flex items-center gap-0.5 px-1 bg-sky-50 rounded">
+                        <button onClick={() => handleOpenDmFromChat(msg)} className="text-[11px] text-sky-600 hover:underline flex items-center gap-0.5 px-1 bg-sky-50 rounded">
                           <MessageSquare className="w-2.5 h-2.5" /> Mesej Peribadi
                         </button>
                       )}
@@ -428,21 +471,26 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* TETINGKAP POP-UP DM AKTIF */}
+      {/* TETINGKAP POP-UP DM AKTIF DENGAN INFO NAMA PENUH & BLOK */}
       {dmTarget && (
         <div className="fixed bottom-4 right-4 w-80 h-96 bg-card border-2 border-sky-400 rounded-xl shadow-2xl flex flex-col overflow-hidden z-50 animate-in slide-in-from-bottom-5">
           <div className="bg-sky-600 text-white px-3 py-2 flex items-center justify-between">
             <div className="flex items-center gap-1.5 min-w-0">
-              <MessageSquare className="w-4 h-4 shrink-0" />
-              <p className="text-xs font-bold truncate">PM: {dmTarget.name}</p>
+              <User className="w-4 h-4 shrink-0 text-sky-200" />
+              <div className="min-w-0 flex flex-col">
+                <p className="text-xs font-bold truncate leading-tight">{dmTarget.name}</p>
+                {dmTarget.block && (
+                  <span className="text-[9px] text-sky-200/90 font-medium truncate leading-none mt-0.5">{dmTarget.block}</span>
+                )}
+              </div>
             </div>
-            <button onClick={() => setDmTarget(null)} className="text-white/80 hover:text-white hover:bg-sky-700 p-1 rounded-full">
+            <button onClick={() => setDmTarget(null)} className="text-white/80 hover:text-white hover:bg-sky-700 p-1 rounded-full transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
           
-          <div className="px-3 py-1 bg-sky-50 border-b border-sky-100 text-[10px] text-sky-800 flex items-center gap-1">
-            <ShieldAlert className="w-3 h-3" /> Sembang selamat (Private).
+          <div className="px-3 py-1 bg-sky-50 border-b border-sky-100 text-[10px] text-sky-800 flex items-center gap-1.5">
+            <ShieldAlert className="w-3 h-3 text-sky-600" /> Sembang selamat & peribadi.
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50/50">
