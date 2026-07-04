@@ -56,7 +56,7 @@ export default function MyProfile() {
     setStudent(s);
     setForm(s ? { ...s } : {
       student_id: '', full_name: user.full_name || '', ic_passport: '', gender: 'Male',
-      date_of_birth: '', faculty: '', programme: '', year_of_study: 1,
+      date_of_birth: '', faculty: '', programme: '', year_of_study: 1, semester: '', session: '',
       phone: '', email: user.email || '', block_name: '', room_number: '',
       parent_name: '', parent_phone: '', emergency_contact: '', vehicle_reg: '',
     });
@@ -70,7 +70,7 @@ export default function MyProfile() {
       const wa = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
       setWardenAssignments(wa);
     }
-    loading_completed: setLoading(false);
+    setLoading(false);
   }
 
   async function handleSave() {
@@ -111,7 +111,6 @@ export default function MyProfile() {
 
     toast({ title: 'Profile saved successfully' });
     setSaving(false);
-    // Re-initialize to refresh current room structures in sync
     init();
   }
 
@@ -157,7 +156,6 @@ export default function MyProfile() {
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
 
-  // Check if current user is a restricted standard student/user role
   const isStudentOrUser = currentUser?.role === 'student' || !currentUser?.role || currentUser?.role === 'user';
 
   return (
@@ -197,10 +195,12 @@ export default function MyProfile() {
             {f('faculty', 'Faculty', 'text', UMS_FACULTIES.map(fc => ({ v: fc, l: fc })))}
             {f('programme', 'Programme')}
             {f('year_of_study', 'Year of Study', 'number', [1,2,3,4,5].map(y => ({ v: y, l: `Year ${y}` })))}
+            {f('semester', 'Semester', 'number', [1,2,3,4,5,6,7,8].map(s => ({ v: s, l: `Semester ${s}` })))}
+            {f('session', 'Session (e.g., 2025/2026)')}
           </div>
         </div>
 
-        {/* Room - Visible to student structures, but fields are disabled if they don't have Admin permissions */}
+        {/* Room */}
         {isStudentOrUser && (
           <div>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Room Assignment</h3>
