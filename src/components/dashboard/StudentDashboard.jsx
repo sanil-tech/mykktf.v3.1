@@ -50,9 +50,25 @@ export default function StudentDashboard({ user }) {
   const [myMaint, setMyMaint] = useState([]);
   const [myParcels, setMyParcels] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
+  const [recentChats, setRecentChats] = useState([]); // State baharu untuk mesej komuniti live
   const [readMap, setReadMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
+
+  // Ambil data mesej terkini untuk saluran komuniti
+  async function loadRecentChats() {
+    try {
+      const chats = await base44.entities.ChatMessage.filter(
+        { channel_key: 'kktf', is_deleted: false }, 
+        '-created_date', 
+        2
+      );
+      // Susun balik mesej supaya yang paling lama di atas mengikut gaya perbualan biasa
+      setRecentChats(chats.reverse());
+    } catch (err) {
+      console.error("Gagal memuatkan mesej komuniti:", err);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -82,6 +98,9 @@ export default function StudentDashboard({ user }) {
         reads.forEach(r => { map[r.announcement_id] = r; });
         setReadMap(map);
         setAnnouncements(ann);
+        
+        // Muatkan mesej sembang kali pertama
+        await loadRecentChats();
       } catch (error) {
         console.error("Failed to load UMS dashboard data:", error);
       } finally {
@@ -89,6 +108,12 @@ export default function StudentDashboard({ user }) {
       }
     }
     load();
+
+    // Langganan mesej masa nyata (real-time chat updates)
+    const unsubChat = base44.entities.ChatMessage.subscribe(() => {
+      loadRecentChats();
+    });
+    return unsubChat;
   }, [user]);
 
   async function markRead(ann) {
@@ -351,7 +376,7 @@ export default function StudentDashboard({ user }) {
           </div>
         </div>
 
-        {/* 3. Right Column Stack (1/3 width) - Mini Side Menu Router Gateway */}
+        {/* 3. Right Column Stack (1/3 width) - Ditambah baik untuk mengambil data Live Chat */}
         <div className="lg:col-span-1">
           <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex flex-col justify-between h-full min-h-[320px] sticky top-6">
             <div className="space-y-4">
@@ -371,18 +396,25 @@ export default function StudentDashboard({ user }) {
                 </span>
               </div>
               
-              <div className="border border-slate-100 bg-slate-50/50 rounded-xl p-4 space-y-3">
-                <div className="space-y-1">
-                  <p className="text-[11px] font-bold text-sky-700">Ahmad Faiz (KK Mas)</p>
-                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">Anyone heading to the library? Is it crowded right now?</p>
-                  <span className="block text-[10px] text-slate-400">11:15 PM</span>
+              {/* Dipautan penuh menggunakan Link supaya mesra pengguna */}
+              <Link to="/chat" className="block space-y-3 group/chatbox">
+                <div className="border border-slate-100 bg-slate-50/50 rounded-xl p-4 space-y-3 group-hover/chatbox:border-sky-200 transition-colors">
+                  {recentChats.length === 0 ? (
+                    <p className="text-xs text-slate-400 text-center py-6">Tiada mesej terbaru. Mulakan sembang!</p>
+                  ) : (
+                    recentChats.map((msg, index) => (
+                      <div key={msg.id} className={`${index > 0 ? 'border-t border-slate-100 pt-3' : ''} space-y-1`}>
+                        <p className={`text-[11px] font-bold ${msg.sender_role === 'student' ? 'text-sky-700' : 'text-red-600'}`}>
+                          {msg.sender_name} {msg.sender_role !== 'student' && `(${msg.sender_role})`}
+                        </p>
+                        <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                          {msg.message || '📷 [Sent an image]'}
+                        </p>
+                      </div>
+                    ))
+                  )}
                 </div>
-                <div className="border-t border-slate-100 pt-3 space-y-1">
-                  <p className="text-[11px] font-bold text-red-600">Resident Admin</p>
-                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">Reminder: Water disruption notice for Block C has been resolved.</p>
-                  <span className="block text-[10px] text-slate-400">11:28 PM</span>
-                </div>
-              </div>
+              </Link>
             </div>
 
             <div className="pt-4">
