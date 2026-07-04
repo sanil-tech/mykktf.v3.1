@@ -75,7 +75,7 @@ export default function WardenDashboard({ user }) {
     <div className="space-y-6">
       {/* Welcome */}
       <div className="bg-primary text-primary-foreground rounded-xl p-5">
-        <h1 className="text-lg font-heading font-bold">Welcome, {user?.full_name || 'Warden'}</h1>
+        <h1 className="text-lg font-heading font-bold">Welcome, {warden?.full_name||user?.full_name ||'Warden'}</h1>
         <p className="text-sm opacity-80 mt-0.5">Here's what needs your attention today.</p>
         {wardenBlocks.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
