@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, Trash2, Megaphone, AlertTriangle, Info, Bell, CheckCircle, BarChart2, Image, X } from 'lucide-react';
+import { Plus, Trash2, Megaphone, AlertTriangle, Info, Bell, CheckCircle, BarChart2, Image, X, Users, Calendar } from 'lucide-react';
 
 const TYPE_CONFIG = {
   'General Notice': { icon: Info, bg: 'bg-blue-50 border-blue-200', badge: 'bg-blue-100 text-blue-700' },
@@ -29,6 +29,7 @@ const JAKMAS_TYPES = ['Student Activities', 'Sports', 'Community Programs', 'Vol
 export default function Announcements() {
   const [user, setUser] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
+  const [rawReads, setRawReads] = useState([]); // Stores complete list of read logs for admin lookup
   const [readMap, setReadMap] = useState({});
   const [readCounts, setReadCounts] = useState({});
   const [totalStudents, setTotalStudents] = useState(0);
@@ -38,6 +39,10 @@ export default function Announcements() {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   
+  // States for viewing individual reader details
+  const [activeTrackingAnn, setActiveTrackingAnn] = useState(null);
+  const [trackingSearch, setTrackingSearch] = useState('');
+
   const fileInputRef = useRef(null);
   const [posterFile, setPosterFile] = useState(null);
   const [posterPreview, setPosterPreview] = useState('');
@@ -49,7 +54,7 @@ export default function Announcements() {
     priority: 'General', 
     publish_date: new Date().toISOString().split('T')[0], 
     expiry_date: '',
-    poster_url: '' // For saving file path references
+    poster_url: ''
   });
 
   useEffect(() => { init(); }, []);
@@ -72,6 +77,7 @@ export default function Announcements() {
       const criticalUnread = ann.filter(a => a.priority === 'Critical' && !map[a.id]);
       if (criticalUnread.length > 0) setAcknowledgeModal(criticalUnread[0]);
     } else {
+      setRawReads(reads); // Keep array reference alive for mapping lists
       const counts = {};
       reads.forEach(r => {
         if (!counts[r.announcement_id]) counts[r.announcement_id] = 0;
@@ -82,7 +88,6 @@ export default function Announcements() {
     setLoading(false);
   }
 
-  // Handle local file selection and create temporary URL preview
   function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (file) {
@@ -117,14 +122,8 @@ export default function Announcements() {
 
   async function create() {
     if (!form.title || !form.content) { toast({ title: 'Title and content required', variant: 'destructive' }); return; }
-    
     let finalForm = { ...form };
-
-    // Placeholder: If your base44 api configuration supports file upload directly, handle it here.
-    // As a robust default fallback, we process it into base44 or map its local reference path
     if (posterFile) {
-      // If base44 client has a storage helper: e.g. await base44.storage.upload(posterFile)
-      // For now we map the preview url string data block or use a simulator placeholder string
       finalForm.poster_url = posterPreview; 
     }
 
@@ -163,6 +162,11 @@ export default function Announcements() {
     }
   }, [user]);
 
+  // Extract readers matching active modal choice
+  const activeReadersList = rawReads
+    .filter(r => r.announcement_id === activeTrackingAnn?.id)
+    .filter(r => r.student_name?.toLowerCase().includes(trackingSearch.toLowerCase()));
+
   if (loading) return <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
 
   return (
@@ -178,7 +182,7 @@ export default function Announcements() {
         }
       />
 
-      {/* Critical unread acknowledgement modal */}
+      {/* Critical acknowledgement popup block */}
       {acknowledgeModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-card border-2 border-red-500 rounded-2xl p-6 max-w-md w-full">
@@ -210,7 +214,7 @@ export default function Announcements() {
               <div
                 key={ann.id}
                 onClick={() => isStudent && markRead(ann)}
-                className={`border rounded-xl p-4 transition-all cursor-pointer ${cfg.bg} ${isStudent && !isRead ? 'ring-2 ring-primary/20' : 'opacity-80'}`}
+                className={`border rounded-xl p-4 transition-all ${isStudent ? 'cursor-pointer' : ''} ${cfg.bg} ${isStudent && !isRead ? 'ring-2 ring-primary/20' : 'opacity-80'}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0 w-full">
@@ -227,7 +231,6 @@ export default function Announcements() {
                       </div>
                       <p className="text-sm text-muted-foreground mb-2">{ann.content}</p>
 
-                      {/* Render Poster Image directly inside feed item if it exists */}
                       {ann.poster_url && (
                         <div className="my-2 max-w-sm rounded-lg overflow-hidden border border-border bg-white">
                           <img src={ann.poster_url} alt="Announcement Poster" className="w-full h-auto max-h-64 object-contain" />
@@ -237,7 +240,16 @@ export default function Announcements() {
                       <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                         <span>{ann.publish_date}</span>
                         {ann.published_by && <span>By {ann.published_by}</span>}
-                        {!isStudent && <span className="text-blue-600">{readCounts[ann.id] || 0} read</span>}
+                        
+                        {/* Functional Read Counter Trigger Link */}
+                        {!isStudent && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setActiveTrackingAnn(ann); }} 
+                            className="text-blue-600 font-medium hover:underline flex items-center gap-1 bg-white/40 px-2 py-0.5 rounded"
+                          >
+                            <Users className="w-3 h-3" /> {readCounts[ann.id] || 0} read
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -258,6 +270,44 @@ export default function Announcements() {
         </div>
       )}
 
+      {/* Dynamic Student Reading Progress Modal */}
+      <Dialog open={!!activeTrackingAnn} onOpenChange={(open) => { if(!open) { setActiveTrackingAnn(null); setTrackingSearch(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between text-base">
+              <span>Read Confirmation Tracking</span>
+              <span className="text-xs font-normal text-muted-foreground mr-4">Total: {readCounts[activeTrackingAnn?.id] || 0} Students</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            <p className="text-xs font-medium text-muted-foreground truncate bg-muted px-2.5 py-1.5 rounded">
+              Notice: "{activeTrackingAnn?.title}"
+            </p>
+            <Input 
+              placeholder="Search readers by name..." 
+              value={trackingSearch} 
+              onChange={e => setTrackingSearch(e.target.value)} 
+              className="h-8 text-xs"
+            />
+            <div className="border border-border rounded-lg max-h-60 overflow-y-auto divide-y divide-border">
+              {activeReadersList.length === 0 ? (
+                <div className="p-4 text-center text-xs text-muted-foreground">No matches found matching search filters.</div>
+              ) : (
+                activeReadersList.map(r => (
+                  <div key={r.id} className="p-2.5 flex items-center justify-between text-xs bg-card hover:bg-muted/30">
+                    <div className="font-medium truncate max-w-[200px]">{r.student_name}</div>
+                    <div className="text-muted-foreground text-[11px] flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-emerald-600" />
+                      {r.read_at ? new Date(r.read_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Unknown'}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Create form */}
       <Dialog open={showForm} onOpenChange={(open) => { setShowForm(open); if(!open) clearPoster(); }}>
         <DialogContent className="max-w-lg">
@@ -266,7 +316,6 @@ export default function Announcements() {
             <Input placeholder="Title *" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
             <textarea className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none h-24" placeholder="Content *" value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
             
-            {/* Poster Upload Field */}
             <div className="border border-input rounded-md p-3 bg-muted/20">
               <label className="text-xs font-medium text-muted-foreground block mb-2">Notice Poster (Optional)</label>
               <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
