@@ -164,7 +164,7 @@ export default function StudentDashboard({ user }) {
             })()}
           </p>
           <h1 className="text-2xl font-extrabold tracking-tight md:text-3xl capitalize">
-            {user.full_name || 'Resident'}
+            {user.Full_Name || 'Resident'}
           </h1>
           
           {student ? (
