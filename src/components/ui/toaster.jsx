@@ -3,6 +3,9 @@ import { cva } from "class-variance-authority";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// 1. Cipta konteks tempatan untuk berkongsi fungsi tutup
+const ToastContext = React.createContext(null);
+
 const ToastProvider = React.forwardRef(({ ...props }, ref) => (
   <div
     ref={ref}
@@ -37,13 +40,22 @@ const toastVariants = cva(
   }
 );
 
+// 2. Kemaskini komponen Toast untuk mengawal keadaan paparannya sendiri
 const Toast = React.forwardRef(({ className, variant, ...props }, ref) => {
+  const [open, setOpen] = React.useState(true);
+
+  // Jika open bertukar kepada false, padamkan terus elemen ini daripada skrin
+  if (!open) return null;
+
   return (
-    <div
-      ref={ref}
-      className={cn(toastVariants({ variant }), className)}
-      {...props}
-    />
+    <ToastContext.Provider value={{ setOpen }}>
+      <div
+        ref={ref}
+        className={cn(toastVariants({ variant }), className)}
+        data-state={open ? "open" : "closed"}
+        {...props}
+      />
+    </ToastContext.Provider>
   );
 });
 Toast.displayName = "Toast";
@@ -60,37 +72,33 @@ const ToastAction = React.forwardRef(({ className, ...props }, ref) => (
 ));
 ToastAction.displayName = "ToastAction";
 
-const ToastClose = React.forwardRef(({ className, onClick, ...props }, ref) => (
-  <button
-    ref={ref}
-    className={cn(
-      "absolute right-2 top-2 rounded-md p-1.5 text-foreground/60 transition-all hover:text-foreground hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring active:scale-95 group-[.destructive]:text-red-300 group-[.destructive]:hover:text-red-50 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-600",
-      className
-    )}
-    toast-close=""
-    onClick={(e) => {
-      // 1. Jalankan fungsi asal jika dipaparkan oleh Toaster.jsx
-      if (onClick) onClick(e);
-      
-      // 2. Logik Tambahan (Fallback): Paksa buang dari DOM jika React state tersekat
-      const toastElement = e.currentTarget.closest('.group') || e.currentTarget.parentElement;
-      if (toastElement) {
-        toastElement.style.pointerEvents = 'none';
-        toastElement.style.transform = 'translateX(100%)';
-        toastElement.style.opacity = '0';
-        toastElement.style.transition = 'all 0.15s ease-in-out';
+// 3. Kemaskini ToastClose untuk menggunakan fungsi penutupan daripada konteks
+const ToastClose = React.forwardRef(({ className, onClick, ...props }, ref) => {
+  const context = React.useContext(ToastContext);
+
+  return (
+    <button
+      ref={ref}
+      className={cn(
+        "absolute right-2 top-2 rounded-md p-1.5 text-foreground/60 transition-all hover:text-foreground hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring active:scale-95 group-[.destructive]:text-red-300 group-[.destructive]:hover:text-red-50 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-600",
+        className
+      )}
+      toast-close=""
+      onClick={(e) => {
+        // Jalankan fungsi onClick asal sekiranya ada
+        if (onClick) onClick(e);
         
-        // Buang elemen secara fizikal selepas animasi tamat
-        setTimeout(() => {
-          toastElement.remove();
-        }, 150);
-      }
-    }}
-    {...props}
-  >
-    <X className="h-4 w-4" />
-  </button>
-));
+        // Paksa tukar state tempatan kepada tutup untuk menghilangkan toast
+        if (context?.setOpen) {
+          context.setOpen(false);
+        }
+      }}
+      {...props}
+    >
+      <X className="h-4 w-4" />
+    </button>
+  );
+});
 ToastClose.displayName = "ToastClose";
 
 const ToastTitle = React.forwardRef(({ className, ...props }, ref) => (
