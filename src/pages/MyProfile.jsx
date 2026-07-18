@@ -9,20 +9,19 @@ import { useToast } from '@/components/ui/use-toast';
 import { User, Save, Loader2, Building2, Plus, X } from 'lucide-react';
 
 const UMS_FACULTIES = [
-  'Academy of Arts and Creative Technology (ASTiF)',
+  'Biotechnology Research Institute (BRI)',
+  'Borneo Institute for Indigenous Studies (BorIIS)',
+  'Borneo Marine Research Institute (BMRI)',
   'Faculty of Business, Economics and Accountancy (FPEP)',
   'Faculty of Computing and Informatics (FKI)',
-  'Faculty of Education and Sports Studies (FPPS)',
   'Faculty of Engineering (FKJ)',
   'Faculty of Food Science and Nutrition (FSMP)',
-  'Faculty of Islamic Studies (FPI)',
-  'Faculty of International Finance Labuan (FKAL)',
   'Faculty of Medicine and Health Sciences (FPSK)',
-  'Faculty of Psychology and Social Work (FPKS)',
-  'Faculty of Science and Technology (FST)',
+  'Faculty of Psychology and Education (FPP)',
+  'Faculty of Science and Natural Resources (FSSA)',
   'Faculty of Social Sciences and Humanities (FSSK)',
-  'Faculty of Sustainable Agriculture (FPL)',
   'Faculty of Tropical Forestry (FPT)',
+  'Institute for Tropical Biology and Conservation (ITBC)',
 ];
 
 export default function MyProfile() {
@@ -192,10 +191,10 @@ export default function MyProfile() {
         <div>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Academic Details</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {f('faculty', 'Faculty', 'text', UMS_FACULTIES.map(fc => ({ v: fc, l: fc })))}
+            {f('faculty', 'Faculty / Institute', 'text', UMS_FACULTIES.map(fc => ({ v: fc, l: fc })))}
             {f('programme', 'Programme')}
-            {f('year_of_study', 'Year of Study', 'number', [1,2,3,4,5].map(y => ({ v: y, l: `Year ${y}` })))}
-            {f('semester', 'Semester', 'number', [1,2,3,4,5,6,7,8].map(s => ({ v: s, l: `Semester ${s}` })))}
+            {f('year_of_study', 'Year of Study', 'number', [1, 2, 3, 4, 5].map(y => ({ v: y, l: `Year ${y}` })))}
+            {f('semester', 'Semester', 'number', [1, 2, 3, 4, 5, 6, 7, 8].map(s => ({ v: s, l: `Semester ${s}` })))}
             {f('session', 'Session (e.g., 2025/2026)')}
           </div>
         </div>
