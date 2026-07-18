@@ -9,24 +9,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, CalendarOff, Check, X, Clock, AlertTriangle, Users, UserX, Loader2, MapPin, Calendar, User, FileText, Home } from 'lucide-react';
+import { Plus, CalendarOff, Check, X, Clock, AlertTriangle, Users, UserX, Loader2, MapPin, Calendar, User, FileText } from 'lucide-react';
 
-// Pemetaan warna status permohonan termasuk status Selesai (Completed)
+// Dikemaskini: Mengandungi tiga peringkat kelulusan utama
 const STATUS_BADGE = {
   Pending: 'bg-amber-50 text-amber-800 border-amber-200',
   Approved: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   Rejected: 'bg-rose-50 text-rose-800 border-rose-200',
-  Completed: 'bg-blue-50 text-blue-800 border-blue-200',
 };
-
-// Pilihan Jenis Cuti dengan Terjemahan Bahasa Melayu
-const LEAVE_TYPES = [
-  { v: 'Weekend', l: 'Hujung Minggu' },
-  { v: 'Semester Break', l: 'Cuti Semester' },
-  { v: 'Emergency', l: 'Kecemasan' },
-  { v: 'Medical', l: 'Perubatan / Sakit' },
-  { v: 'Other', l: 'Lain-lain' }
-];
 
 const REVIEWER_ROLES = ['warden', 'super_admin', 'college_admin', 'staff'];
 const INITIAL_FORM = {
@@ -47,7 +37,7 @@ export default function Leave() {
   const { toast } = useToast();
 
   const isReviewer = currentUser && REVIEWER_ROLES.includes(currentUser.role);
-  const today = new Date().toLocaleDateString('en-CA'); // Format: YYYY-MM-DD
+  const today = new Date().toLocaleDateString('en-CA');
 
   useEffect(() => {
     if (!dialogOpen) setForm(INITIAL_FORM);
@@ -169,46 +159,17 @@ export default function Leave() {
       if (students.length && students[0].user_id) {
         await base44.entities.Notification.create({
           user_id: students[0].user_id,
-          title: `Kemaskini Permohonan E-Cuti KKTF [${status === 'Approved' ? 'DILULUSKAN' : 'DITOLAK'}]`,
+          title: `Kemaskini Permohonan E-Cuti KKTF [${status.toUpperCase()}]`,
           message: `Permohonan pergerakan e-cuti anda bertarikh ${app.departure_date} telah ${status === 'Approved' ? 'DILULUSKAN' : 'DITOLAK'} oleh Warden / Pentadbiran Kolej Kediaman Tun Fuad.`,
           type: 'leave',
           is_read: false,
         });
       }
 
-      const statusMelayu = status === 'Approved' ? 'Diluluskan' : 'Ditolak';
-      toast({ title: `Status permohonan dikemaskini kepada: ${statusMelayu}` });
+      toast({ title: `Status permohonan dikemaskini kepada: ${status}` });
       await fetchLeaveData(currentUser, myStudent);
     } catch (error) {
       toast({ title: 'Gagal Mengemaskini Log', description: error.message, variant: 'destructive' });
-    }
-  }
-
-  // Fungsi baharu untuk pelajar mengesahkan kepulangan fizikal mereka ke kolej
-  async function handleConfirmReturn(app) {
-    try {
-      await base44.entities.LeaveApplication.update(app.id, {
-        status: 'Completed',
-        actual_return_date: today
-      });
-
-      if (app.block_name) {
-        const wardenBlocks = await base44.entities.WardenBlock.filter({ block_name: app.block_name });
-        await Promise.all(wardenBlocks.map(wb => 
-          base44.entities.Notification.create({
-            user_id: wb.warden_user_id,
-            title: 'Pelajar Sah Pulang Ke Kolej',
-            message: `Pelajar ${app.student_name} (${app.student_id}) dari Blok ${app.block_name} telah mengesahkan selamat kembali ke kolej hari ini.`,
-            type: 'leave',
-            is_read: false,
-          })
-        ));
-      }
-
-      toast({ title: 'Pengesahan Berjaya!', description: 'Selamat kembali ke Kolej Kediaman Tun Fuad.' });
-      await fetchLeaveData(currentUser, myStudent);
-    } catch (error) {
-      toast({ title: 'Ralat Pengesahan', description: error.message, variant: 'destructive' });
     }
   }
 
@@ -217,7 +178,6 @@ export default function Leave() {
     if (filter === 'pending') return a.status === 'Pending';
     if (filter === 'approved') return a.status === 'Approved';
     if (filter === 'rejected') return a.status === 'Rejected';
-    if (filter === 'completed') return a.status === 'Completed';
     if (filter === 'active_leave') return a.status === 'Approved' && a.departure_date <= today && a.return_date >= today;
     if (filter === 'overdue') return a.status === 'Approved' && a.return_date < today;
     return true;
@@ -234,7 +194,7 @@ export default function Leave() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-2 pb-12">
       <PageHeader
-        title="E-Cuti KKTF"
+        title="E-Leave KKTF"
         description={isReviewer ? "Portal Kelulusan dan Log Keluar Pelajar Kolej Kediaman Tun Fuad" : "Sistem Permohonan Kebenaran Bermalam Di Luar Kolej"}
         actions={!isReviewer && (
           <Button size="sm" onClick={() => setDialogOpen(true)} className="bg-[#132644] hover:bg-[#1e385f] text-white shadow-sm font-medium tracking-wide">
@@ -248,7 +208,7 @@ export default function Leave() {
           {[
             { label: 'Pelajar Di Kolej', value: stats.inCollege, icon: Users, color: 'border-l-4 border-l-[#132644] text-[#132644]' },
             { label: 'Sedang Cuti Luar', value: stats.onLeave, icon: UserX, color: 'border-l-4 border-l-emerald-600 text-emerald-700' },
-            { label: 'Lewat Kembali', value: stats.overdue, icon: AlertTriangle, color: 'border-l-4 border-l-[#A31D1D] text-[#A31D1D]' },
+            { label: 'Lewat Kembali (Overdue)', value: stats.overdue, icon: AlertTriangle, color: 'border-l-4 border-l-[#A31D1D] text-[#A31D1D]' },
             { label: 'Menunggu Kelulusan', value: stats.pendingApproval, icon: Clock, color: 'border-l-4 border-l-amber-500 text-amber-700' },
           ].map(s => {
             const Icon = s.icon;
@@ -272,7 +232,6 @@ export default function Leave() {
             { key: 'pending', label: 'Menunggu' },
             { key: 'approved', label: 'Diluluskan' },
             { key: 'rejected', label: 'Ditolak' },
-            { key: 'completed', label: 'Selesai Kembali' },
             { key: 'active_leave', label: 'Sedang Cuti' },
             { key: 'overdue', label: 'Amaran Lewat' },
           ].map(f => (
@@ -286,13 +245,12 @@ export default function Leave() {
       )}
 
       {filteredApps.length === 0 ? (
-        <EmptyState icon={CalendarOff} title="Tiada Rekod Permohonan" description="Tiada sebarang permohonan log e-cuti ditemui setakat ini." />
+        <EmptyState icon={CalendarOff} title="Tiada Permohonan Rekod" description="Tiada sebarang permohonan log e-cuti ditemui setakat ini." />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredApps.map(a => {
             const isOverdue = a.status === 'Approved' && a.return_date < today;
             const isActive = a.status === 'Approved' && a.departure_date <= today && a.return_date >= today;
-            const jenisCutiTerjemah = LEAVE_TYPES.find(t => t.v === a.leave_type)?.l || a.leave_type;
             
             return (
               <div 
@@ -302,17 +260,18 @@ export default function Leave() {
                 }`}
               >
                 <div className="flex items-center justify-between border-b pb-3 mb-4 min-h-[36px]">
-                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{jenisCutiTerjemah}</span>
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{a.leave_type}</span>
                   <div>
+                    {/* Dikemaskini: Memaparkan semua 3 peringkat kelulusan (Menunggu, Lulus, Ditolak) */}
                     {isOverdue ? (
-                      <span className="px-2.5 py-1 rounded text-[10px] font-bold border border-rose-200 bg-rose-50 text-[#A31D1D] uppercase tracking-wider animate-pulse">LEWAT KEMBALI</span>
+                      <span className="px-2.5 py-1 rounded text-[10px] font-bold border bg-rose-50 text-[#A31D1D] border-rose-200 uppercase tracking-wider animate-pulse">Overdue</span>
                     ) : isActive ? (
-                      <span className="px-2.5 py-1 rounded text-[10px] font-bold border border-blue-200 bg-blue-50 text-[#132644] uppercase tracking-wider">SEDANG CUTI</span>
+                      <span className="px-2.5 py-1 rounded text-[10px] font-bold border bg-blue-50 text-[#132644] border-blue-200 uppercase tracking-wider">LULUS</span>
                     ) : (
                       <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wider ${
                         a.status === 'Pending' ? 'bg-amber-50 text-amber-800 border-amber-200' : STATUS_BADGE[a.status]
                       }`}>
-                        {a.status === 'Pending' ? 'Menunggu' : a.status === 'Approved' ? 'Lulus' : a.status === 'Rejected' ? 'Ditolak' : 'Selesai'}
+                        {a.status === 'Pending' ? 'Menunggu' : a.status === 'Approved' ? 'Lulus' : 'Ditolak'}
                       </span>
                     )}
                   </div>
@@ -354,25 +313,6 @@ export default function Leave() {
                   </div>
                 </div>
 
-                {/* Bahagian khas Pelajar: Butang Maklumbalas Masa Kembali */}
-                {!isReviewer && a.status === 'Approved' && (
-                  <div className="border-t pt-4 mt-4 space-y-2">
-                    {isOverdue && (
-                      <div className="flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-lg p-2.5 text-xs text-[#A31D1D] animate-pulse">
-                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                        <p className="font-semibold">Amaran: Anda telah melebihi had tempoh kebenaran cuti bermalam. Sila sahkan kepulangan anda ke kolej dengan segera.</p>
-                      </div>
-                    )}
-                    <Button 
-                      onClick={() => handleConfirmReturn(a)}
-                      size="sm" 
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 tracking-wide"
-                    >
-                      <Home className="w-3.5 h-3.5 mr-1.5" /> SAYA DAH KEMBALI KE KOLEJ
-                    </Button>
-                  </div>
-                )}
-
                 {isReviewer && (
                   <div className="border-t pt-4 mt-4 flex items-center justify-between">
                     {a.status === 'Pending' ? (
@@ -381,9 +321,7 @@ export default function Leave() {
                         <Button variant="outline" size="sm" className="w-1/2 h-9 border-rose-300 text-[#A31D1D] hover:bg-rose-50 text-xs font-bold" onClick={() => updateStatus(a, 'Rejected')}><X className="w-3.5 h-3.5 mr-1" /> Tolak</Button>
                       </div>
                     ) : (
-                      <p className="text-xs text-gray-400 italic font-medium w-full text-right">
-                        {a.status === 'Completed' ? `Selesai Kembali (${a.actual_return_date})` : `Disemak oleh: ${a.approved_by || 'Pentadbiran KKTF'}`}
-                      </p>
+                      <p className="text-xs text-gray-400 italic font-medium w-full text-right">Disemak oleh: {a.approved_by || 'Pentadbiran KKTF'}</p>
                     )}
                   </div>
                 )}
@@ -403,9 +341,7 @@ export default function Leave() {
               <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Kategori Keluar</Label>
               <Select value={form.leave_type} onValueChange={v => setForm({ ...form, leave_type: v })}>
                 <SelectTrigger className="h-10 text-sm mt-1 bg-gray-50 border-gray-300 focus:ring-[#132644]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {LEAVE_TYPES.map(t => <SelectItem key={t.v} value={t.v}>{t.l}</SelectItem>)}
-                </SelectContent>
+                <SelectContent>{['Weekend','Semester Break','Emergency','Medical','Other'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Destinasi Perjalanan *</Label><Input value={form.destination} onChange={e => setForm({ ...form, destination: e.target.value })} className="h-10 text-sm mt-1 bg-gray-50 border-gray-300" placeholder="Alamat penuh destinasi dituju" /></div>
