@@ -9,19 +9,19 @@ import { useToast } from '@/components/ui/use-toast';
 import { User, Save, Loader2, Building2, Plus, X } from 'lucide-react';
 
 const UMS_FACULTIES = [
-  'Biotechnology Research Institute (BRI)',
-  'Borneo Institute for Indigenous Studies (BorIIS)',
-  'Borneo Marine Research Institute (BMRI)',
-  'Faculty of Business, Economics and Accountancy (FPEP)',
-  'Faculty of Computing and Informatics (FKI)',
-  'Faculty of Engineering (FKJ)',
-  'Faculty of Food Science and Nutrition (FSMP)',
-  'Faculty of Medicine and Health Sciences (FPSK)',
-  'Faculty of Psychology and Education (FPP)',
-  'Faculty of Science and Natural Resources (FSSA)',
-  'Faculty of Social Sciences and Humanities (FSSK)',
-  'Faculty of Tropical Forestry (FPT)',
-  'Institute for Tropical Biology and Conservation (ITBC)',
+  'Borneo Institute for Indigenous Studies (BORIIS)',
+  'Fakulti Kejuruteraan (FKJ)',
+  'Fakulti Komputeran dan Informatika (FKI)',
+  'Fakulti Perhutanan Tropika (FPT)',
+  'Fakulti Perniagaan, Ekonomi dan Perakaunan (FPEP)',
+  'Fakulti Perubatan dan Sains Kesihatan (FPSK)',
+  'Fakulti Psikologi dan Pendidikan (FPP)',
+  'Fakulti Sains dan Sumber Alam (FSSA)',
+  'Fakulti Sains Makanan dan Pemakanan (FSMP)',
+  'Fakulti Sains Sosial dan Kemanusiaan (FSSK)',
+  'Institut Biologi Tropika dan Pemuliharaan (IBTP)',
+  'Institut Marin Borneo (IMB)',
+  'Institut Penyelidikan Bioteknologi (IPB)',
 ];
 
 export default function MyProfile() {
@@ -191,7 +191,7 @@ export default function MyProfile() {
         <div>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Academic Details</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {f('faculty', 'Faculty / Institute', 'text', UMS_FACULTIES.map(fc => ({ v: fc, l: fc })))}
+            {f('faculty', 'Fakulti / Institut', 'text', UMS_FACULTIES.map(fc => ({ v: fc, l: fc })))}
             {f('programme', 'Programme')}
             {f('year_of_study', 'Year of Study', 'number', [1, 2, 3, 4, 5].map(y => ({ v: y, l: `Year ${y}` })))}
             {f('semester', 'Semester', 'number', [1, 2, 3, 4, 5, 6, 7, 8].map(s => ({ v: s, l: `Semester ${s}` })))}
