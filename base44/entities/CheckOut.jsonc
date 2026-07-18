@@ -3,44 +3,55 @@
   "type": "object",
   "properties": {
     "student_id": {
-      "type": "string"
+      "type": "string",
+      "title": "ID Pelajar"
     },
     "student_name": {
-      "type": "string"
+      "type": "string",
+      "title": "Nama Pelajar"
     },
     "room_id": {
-      "type": "string"
+      "type": "string",
+      "title": "ID Bilik"
     },
     "room_number": {
-      "type": "string"
+      "type": "string",
+      "title": "Nombor Bilik"
     },
     "block_name": {
-      "type": "string"
+      "type": "string",
+      "title": "Nama Blok"
     },
     "check_out_date": {
       "type": "string",
-      "format": "date"
+      "format": "date",
+      "title": "Tarikh Daftar Keluar"
     },
     "check_out_time": {
-      "type": "string"
+      "type": "string",
+      "title": "Masa Daftar Keluar"
     },
     "room_condition": {
       "type": "string",
       "enum": [
-        "Good",
-        "Fair",
-        "Damaged"
-      ]
+        "Baik",
+        "Sederhana",
+        "Rosak"
+      ],
+      "title": "Keadaan Bilik"
     },
     "damage_assessment": {
-      "type": "string"
+      "type": "string",
+      "title": "Penilaian Kerosakan"
     },
     "refund_amount": {
       "type": "number",
-      "default": 0
+      "default": 0,
+      "title": "Jumlah Bayaran Balik"
     },
     "approved_by": {
-      "type": "string"
+      "type": "string",
+      "title": "Diluluskan Oleh"
     }
   },
   "required": [
@@ -53,88 +64,40 @@
   "rls": {
     "create": {
       "$or": [
-        {
-          "user_condition": {
-            "role": "super_admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "college_admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "staff"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "warden"
-          }
-        }
+        { "user_condition": { "role": "super_admin" } },
+        { "user_condition": { "role": "college_admin" } },
+        { "user_condition": { "role": "staff" } },
+        { "user_condition": { "role": "warden" } }
       ]
     },
     "read": {
       "$or": [
+        { "user_condition": { "role": "super_admin" } },
+        { "user_condition": { "role": "college_admin" } },
+        { "user_condition": { "role": "staff" } },
+        { "user_condition": { "role": "warden" } },
         {
           "user_condition": {
-            "role": "super_admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "college_admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "staff"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "warden"
+            "role": "student"
+          },
+          "row_condition": {
+            "student_id": "$user.id"
           }
         }
       ]
     },
     "update": {
       "$or": [
-        {
-          "user_condition": {
-            "role": "super_admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "college_admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "staff"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "warden"
-          }
-        }
+        { "user_condition": { "role": "super_admin" } },
+        { "user_condition": { "role": "college_admin" } },
+        { "user_condition": { "role": "staff" } },
+        { "user_condition": { "role": "warden" } }
       ]
     },
     "delete": {
       "$or": [
-        {
-          "user_condition": {
-            "role": "super_admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "college_admin"
-          }
-        }
+        { "user_condition": { "role": "super_admin" } },
+        { "user_condition": { "role": "college_admin" } }
       ]
     }
   }
