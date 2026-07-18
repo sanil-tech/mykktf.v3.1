@@ -36,11 +36,23 @@ const DialogContent = React.forwardRef(({ className, children, ...props }, ref) 
       )}
       ...props}>
       {children}
+      
+      {/* Butang Tutup (X) yang telah ditambahbaik untuk responsif mudah alih */}
       <DialogPrimitive.Close
-        className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
-        <X className="h-4 w-4" />
+        className={cn(
+          "absolute right-2 top-2 sm:right-4 sm:top-4", // Kedudukan mengikut saiz skrin
+          "rounded-md p-2 sm:p-1 opacity-70", // Ruang dalaman (padding) lebih besar pada mobile
+          "ring-offset-background transition-all hover:opacity-100",
+          "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+          "disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground",
+          "active:scale-95 sm:active:scale-100", // Kesan maklum balas klik/sentuh
+          "after:absolute after:-inset-2 md:after:hidden" // Membesarkan invisible hit-area pada mobile
+        )}
+      >
+        <X className="h-5 w-5 sm:h-4 sm:w-4" /> {/* Ikon lebih besar sedikit pada skrin telefon */}
         <span className="sr-only">Tutup</span>
       </DialogPrimitive.Close>
+      
     </DialogPrimitive.Content>
   </DialogPortal>
 ))
