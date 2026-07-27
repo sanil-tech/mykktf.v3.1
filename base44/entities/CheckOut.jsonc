@@ -34,9 +34,9 @@
     "room_condition": {
       "type": "string",
       "enum": [
-        "Baik",
-        "Sederhana",
-        "Rosak"
+        "Good",
+        "Fair",
+        "Damaged"
       ],
       "title": "Keadaan Bilik"
     },
@@ -64,40 +64,88 @@
   "rls": {
     "create": {
       "$or": [
-        { "user_condition": { "role": "super_admin" } },
-        { "user_condition": { "role": "college_admin" } },
-        { "user_condition": { "role": "staff" } },
-        { "user_condition": { "role": "warden" } }
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "warden"
+          }
+        }
       ]
     },
     "read": {
       "$or": [
-        { "user_condition": { "role": "super_admin" } },
-        { "user_condition": { "role": "college_admin" } },
-        { "user_condition": { "role": "staff" } },
-        { "user_condition": { "role": "warden" } },
         {
           "user_condition": {
-            "role": "student"
-          },
-          "row_condition": {
-            "student_id": "$user.id"
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "warden"
           }
         }
       ]
     },
     "update": {
       "$or": [
-        { "user_condition": { "role": "super_admin" } },
-        { "user_condition": { "role": "college_admin" } },
-        { "user_condition": { "role": "staff" } },
-        { "user_condition": { "role": "warden" } }
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "warden"
+          }
+        }
       ]
     },
     "delete": {
       "$or": [
-        { "user_condition": { "role": "super_admin" } },
-        { "user_condition": { "role": "college_admin" } }
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        }
       ]
     }
   }
