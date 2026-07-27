@@ -340,8 +340,33 @@ export default function CheckInOut() {
         setArchiveDialog(false);
         return;
       }
+      const today = new Date().toISOString().split('T')[0];
+      const alumniRecords = candidates.map(st => {
+        const co = checkOuts.find(c => String(c.student_id) === String(st.id));
+        return {
+          student_id: st.student_id || '',
+          full_name: st.full_name || '',
+          ic_passport: st.ic_passport || '',
+          gender: st.gender,
+          date_of_birth: st.date_of_birth,
+          faculty: st.faculty || '',
+          programme: st.programme || '',
+          year_of_study: st.year_of_study,
+          phone: st.phone || '',
+          email: st.email || '',
+          block_name: st.block_name || '',
+          room_number: st.room_number || '',
+          check_in_date: st.check_in_date,
+          check_out_date: co?.check_out_date,
+          room_condition: co?.room_condition,
+          semester: selectedSemesterFilter,
+          user_id: st.user_id,
+          archived_date: today
+        };
+      });
+      await base44.entities.Alumni.bulkCreate(alumniRecords);
       await Promise.all(candidates.map(st => base44.entities.Student.update(st.id, { resident_status: 'Archived' })));
-      toast({ title: 'Sesi Ditutup', description: 'Berjaya mengarkibkan data.' });
+      toast({ title: 'Sesi Ditutup', description: `${candidates.length} residen telah dipindahkan ke rekod Alumni.` });
       setArchiveDialog(false);
       await load();
       dispatchGlobalRefresh();
@@ -721,7 +746,7 @@ export default function CheckInOut() {
             <DialogTitle>Tutup Sesi Akademik</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 mt-2 text-sm">
-            <p className="text-muted-foreground">Tindakan ini akan menukarkan status residen yang telah mendaftar keluar kepada status <strong className="text-foreground">Archived</strong>.</p>
+            <p className="text-muted-foreground">Tindakan ini akan memindahkan semua residen berstatus <strong className="text-foreground">Checked Out</strong> ke pangkalan data <strong className="text-foreground">Alumni</strong> untuk rekod, kemudian menandakan mereka sebagai <strong className="text-foreground">Archived</strong>.</p>
             <div className="flex justify-end gap-2 pt-4 border-t">
               <Button type="button" variant="outline" size="sm" disabled={archiving} onClick={() => setArchiveDialog(false)}>Batal</Button>
               <Button type="button" size="sm" disabled={archiving} onClick={handleMassArchive}>
