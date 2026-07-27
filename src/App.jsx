@@ -20,13 +20,10 @@ import Rooms from '@/pages/Rooms';
 import CheckInOut from '@/pages/CheckInOut';
 import Leave from '@/pages/Leave';
 import Maintenance from '@/pages/Maintenance';
-import Visitors from '@/pages/Visitors';
-import Parcels from '@/pages/Parcels';
-import Discipline from '@/pages/Discipline';
+
 import Facilities from '@/pages/Facilities';
 import AttendancePage from '@/pages/AttendancePage';
 import Announcements from '@/pages/Announcements';
-import Fees from '@/pages/Fees';
 import Reports from '@/pages/Reports';
 import AuditLog from '@/pages/AuditLog';
 import MyProfile from '@/pages/MyProfile';
@@ -37,7 +34,6 @@ import Chat from '@/pages/Chat';
 import LeaveMonitor from '@/pages/LeaveMonitor';
 import SurveyAnalytics from '@/pages/SurveyAnalytics';
 import Events from '@/pages/Events';
-import RoomInspections from '@/pages/RoomInspections';
 import ResidentDirectory from '@/pages/ResidentDirectory';
 import { useState, useEffect } from 'react';
 
@@ -99,13 +95,9 @@ const AuthenticatedApp = () => {
           <Route path="/check-in-out" element={<CheckInOut />} />
           <Route path="/leave" element={<Leave />} />
           <Route path="/maintenance" element={<Maintenance />} />
-          <Route path="/visitors" element={<Visitors />} />
-          <Route path="/parcels" element={<Parcels />} />
-          <Route path="/discipline" element={<Discipline />} />
           <Route path="/facilities" element={<Facilities />} />
           <Route path="/attendance" element={<AttendancePage />} />
           <Route path="/announcements" element={<Announcements />} />
-          <Route path="/fees" element={<Fees />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/audit-log" element={<AuditLog />} />
           <Route path="/my-profile" element={<MyProfile />} />
@@ -115,7 +107,6 @@ const AuthenticatedApp = () => {
           <Route path="/leave-monitor" element={<LeaveMonitor />} />
           <Route path="/survey-analytics" element={<SurveyAnalytics />} />
           <Route path="/events" element={<Events />} />
-          <Route path="/room-inspections" element={<RoomInspections />} />
           <Route path="/directory" element={<ResidentDirectory />} />
         </Route>
       </Route>

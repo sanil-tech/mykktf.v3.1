@@ -3,18 +3,18 @@ import { Link, useLocation } from 'react-router-dom';
 import { getNavItems } from '@/lib/roles';
 import {
   LayoutDashboard, GraduationCap, DoorOpen, ArrowLeftRight, CalendarOff,
-  Wrench, UserCheck, Package, ShieldAlert, Building2, ClipboardCheck,
-  Megaphone, CreditCard, FileBarChart, ScrollText, X, ChevronLeft,
+  Wrench, Building2,
+  Megaphone, FileBarChart, ScrollText, X, ChevronLeft,
   MessageSquare, MessagesSquare, CalendarCheck, Star, UserCog,
-  CalendarDays, ClipboardList, Users
+  CalendarDays, Users
 } from 'lucide-react';
 
 const iconMap = {
   LayoutDashboard, GraduationCap, DoorOpen, ArrowLeftRight, CalendarOff,
-  Wrench, UserCheck, Package, ShieldAlert, Building2, ClipboardCheck,
-  Megaphone, CreditCard, FileBarChart, ScrollText,
+  Wrench, Building2,
+  Megaphone, FileBarChart, ScrollText,
   MessageSquare, MessagesSquare, CalendarCheck, Star, UserCog,
-  CalendarDays, ClipboardList, Users
+  CalendarDays, Users
 };
 
 export default function Sidebar({ userRole, open, onClose, collapsed, onToggleCollapse }) {
