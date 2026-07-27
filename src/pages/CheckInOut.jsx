@@ -13,6 +13,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Archive, LogIn, LogOut, Search, User, Loader2, Calendar } from 'lucide-react';
 import SurveyModal from '@/components/SurveyModal';
+import TablePagination from '@/components/shared/TablePagination';
+
+const PAGE_SIZE = 10;
 
 export default function CheckInOut() {
   const [checkIns, setCheckIns] = useState([]);
@@ -33,6 +36,15 @@ export default function CheckInOut() {
   const [archiveDialog, setArchiveDialog] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState(null);
   const [showSurvey, setShowSurvey] = useState(false);
+
+  // Pagination States
+  const [ciPage, setCiPage] = useState(1);
+  const [coPage, setCoPage] = useState(1);
+
+  useEffect(() => {
+    setCiPage(1);
+    setCoPage(1);
+  }, [selectedSemesterFilter]);
   
   // Live Search Pelajar (Taip & Tapis)
   const [studentSearch, setStudentSearch] = useState('');
@@ -384,6 +396,13 @@ export default function CheckInOut() {
   const displayCheckIns = checkIns.filter(ci => (ci.semester || 'Sem1_2526') === selectedSemesterFilter);
   const displayCheckOuts = checkOuts.filter(co => (co.semester || 'Sem1_2526') === selectedSemesterFilter);
 
+  const totalCiPages = Math.ceil(displayCheckIns.length / PAGE_SIZE);
+  const totalCoPages = Math.ceil(displayCheckOuts.length / PAGE_SIZE);
+  const safeCiPage = Math.min(ciPage, totalCiPages || 1);
+  const safeCoPage = Math.min(coPage, totalCoPages || 1);
+  const paginatedCheckIns = displayCheckIns.slice((safeCiPage - 1) * PAGE_SIZE, safeCiPage * PAGE_SIZE);
+  const paginatedCheckOuts = displayCheckOuts.slice((safeCoPage - 1) * PAGE_SIZE, safeCoPage * PAGE_SIZE);
+
   return (
     <div>
       <PageHeader
@@ -446,7 +465,7 @@ export default function CheckInOut() {
                     </tr>
                   </thead>
                   <tbody>
-                    {displayCheckIns.map((ci) => (
+                    {paginatedCheckIns.map((ci) => (
                       <tr key={ci.id} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-4 py-3 font-medium">{ci.student_name}</td>
                         <td className="px-4 py-3 text-muted-foreground">{ci.room_number}</td>
@@ -457,6 +476,7 @@ export default function CheckInOut() {
                   </tbody>
                 </table>
               </div>
+              <TablePagination page={safeCiPage} totalPages={totalCiPages} onPageChange={setCiPage} />
             </div>
           )}
         </TabsContent>
@@ -477,7 +497,7 @@ export default function CheckInOut() {
                     </tr>
                   </thead>
                   <tbody>
-                    {displayCheckOuts.map((co) => (
+                    {paginatedCheckOuts.map((co) => (
                       <tr key={co.id} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-4 py-3 font-medium">{co.student_name}</td>
                         <td className="px-4 py-3 text-muted-foreground">{co.room_number}</td>
@@ -488,6 +508,7 @@ export default function CheckInOut() {
                   </tbody>
                 </table>
               </div>
+              <TablePagination page={safeCoPage} totalPages={totalCoPages} onPageChange={setCoPage} />
             </div>
           )}
         </TabsContent>
