@@ -10,8 +10,10 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, Search, GraduationCap, Edit, Trash2, Eye } from 'lucide-react';
+import TablePagination from '@/components/shared/TablePagination';
 
 const FACULTIES = ['Engineering', 'Science', 'Arts', 'Business', 'Medicine', 'Education', 'Law', 'IT'];
+const PAGE_SIZE = 10;
 const emptyForm = { student_id: '', full_name: '', ic_passport: '', gender: 'Male', date_of_birth: '', faculty: '', programme: '', year_of_study: 1, phone: '', email: '', block_name: '', room_number: '', parent_name: '', parent_phone: '', emergency_contact: '', vehicle_reg: '', status: 'Active' };
 
 export default function Students() {
@@ -26,9 +28,11 @@ export default function Students() {
   const [form, setForm] = useState(emptyForm);
   const [editId, setEditId] = useState(null);
   const [viewStudent, setViewStudent] = useState(null);
+  const [page, setPage] = useState(1);
   const { toast } = useToast();
 
   useEffect(() => { load(); }, []);
+  useEffect(() => { setPage(1); }, [search, filterFaculty, filterStatus]);
 
   async function load() {
     setLoading(true);
@@ -54,6 +58,10 @@ export default function Students() {
     const matchStatus = filterStatus === 'all' || s.status === filterStatus;
     return matchSearch && matchFaculty && matchStatus;
   });
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const safePage = Math.min(page, totalPages || 1);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   function openAdd() { setForm(emptyForm); setEditId(null); setDialogOpen(true); }
   function openEdit(s) { setForm({ ...emptyForm, ...s }); setEditId(s.id); setDialogOpen(true); }
@@ -127,7 +135,7 @@ export default function Students() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(s => (
+                {paginated.map(s => (
                   <tr key={s.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs">{s.student_id}</td>
                     <td className="px-4 py-3 font-medium">{s.full_name}</td>
@@ -146,6 +154,7 @@ export default function Students() {
               </tbody>
             </table>
           </div>
+          <TablePagination page={safePage} totalPages={totalPages} onPageChange={setPage} />
         </div>
       )}
 
