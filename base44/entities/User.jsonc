@@ -9,7 +9,9 @@
         "college_admin",
         "warden",
         "staff",
-        "student"
+        "jakmas",
+        "student",
+        "user"
       ],
       "default": "student"
     }

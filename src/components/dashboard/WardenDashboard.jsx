@@ -16,8 +16,7 @@ export default function WardenDashboard({ user }) {
   async function load() {
     setLoading(true);
     try {
-      const targetName = user?.full_name;
-      const wb = await base44.entities.WardenBlock.filter({ warden_name: targetName });
+      const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user?.id });
       setWardenBlocks(wb);
       const blockNames = wb.map(w => w.block_name);
 

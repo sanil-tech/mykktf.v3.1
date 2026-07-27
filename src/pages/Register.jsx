@@ -57,9 +57,9 @@ export default function Register() {
       if (result?.access_token) {
         base44.auth.setToken(result.access_token);
 
-        // Every public registration becomes a normal user
+        // Every public registration becomes a student
         await base44.auth.updateMe({
-          role: "user",
+          role: "student",
         });
       }
 

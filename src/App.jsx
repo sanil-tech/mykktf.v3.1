@@ -7,6 +7,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
@@ -45,7 +46,7 @@ const AuthenticatedApp = () => {
   useEffect(() => {
     // Only check setup for newly registered users (no role yet or role is default)
     if (user && !isLoadingAuth) {
-      const isStudent = !user.role || user.role === 'student';
+      const isStudent = !user.role || user.role === 'student' || user.role === 'user';
       if (isStudent) {
         setCheckingSetup(true);
         base44.entities.Student.filter({ email: user.email }).then(results => {
@@ -119,14 +120,16 @@ const AuthenticatedApp = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <AuthenticatedApp />
-        </Router>
-        <Toaster />
-      </QueryClientProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <QueryClientProvider client={queryClientInstance}>
+          <Router>
+            <AuthenticatedApp />
+          </Router>
+          <Toaster />
+        </QueryClientProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   )
 }
 
