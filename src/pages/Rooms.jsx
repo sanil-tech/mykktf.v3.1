@@ -22,12 +22,12 @@ export default function Rooms() {
   const filterParam = searchParams.get('filter'); 
   const { toast } = useToast();
 
-  // --- 👥 ROLE-BASED ACCESS CONTROL SIMULATOR ---
-  const [currentUser, setCurrentUser] = useState({
-    name: 'John Doe',
-    role: 'super_admin', 
-    college: 'Block A'   
-  });
+  // --- 👤 AUTHENTICATED USER ---
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    base44.auth.me().then(setCurrentUser).catch(() => {});
+  }, []);
 
   // Structural Core States
   const [rooms, setRooms] = useState([]);
@@ -65,7 +65,7 @@ export default function Rooms() {
 
   // --- 🔐 PERMISSION EVALUATION ---
   const permissions = useMemo(() => {
-    const role = currentUser.role;
+    const role = currentUser?.role;
     return {
       canViewModule: role !== 'student',
       canCreateRoom: ['super_admin', 'college_admin'].includes(role),
@@ -76,7 +76,7 @@ export default function Rooms() {
       canModifyRoomNumber: ['super_admin', 'college_admin', 'staff'].includes(role),
       canModifyStatus: ['super_admin', 'college_admin', 'staff'].includes(role)
     };
-  }, [currentUser.role]);
+  }, [currentUser?.role]);
 
   // Kesan perubahan kebenaran modul & pasang global listener untuk inter-module refresh
   useEffect(() => {
@@ -415,40 +415,26 @@ export default function Rooms() {
   }
 
   // --- 🖼️ JSX RENDERING PANEL ---
+  if (!currentUser) {
+    return <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
+  }
+
   return (
     <div className="space-y-6">
-      
-      {/* SECURITY CONTROLS SANDBOX PANEL */}
-      <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
-          <div className="text-xs">
-            <span className="font-bold text-primary">Simulation Environment:</span> Active Profile : <span className="font-mono font-bold bg-background px-1 py-0.5 rounded">{currentUser.role}</span>
-          </div>
+      {currentUser?.role === 'super_admin' && (
+        <div className="flex justify-end">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={runManualGlobalSync} 
+            disabled={syncing}
+            className="h-8 text-xs bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800"
+          >
+            <RefreshCw className={`w-3 h-3 mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
+            Synchronize Room Occupancy
+          </Button>
         </div>
-        <div className="flex items-center gap-2">
-          {currentUser.role === 'super_admin' && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={runManualGlobalSync} 
-              disabled={syncing}
-              className="h-8 text-xs bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800"
-            >
-              <RefreshCw className={`w-3 h-3 mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
-              Synchronize Room Occupancy
-            </Button>
-          )}
-          <Select value={currentUser.role} onValueChange={(r) => setCurrentUser(prev => ({ ...prev, role: r }))}>
-            <SelectTrigger className="h-8 text-xs w-[140px] bg-background"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="super_admin">⚡ Super Admin</SelectItem>
-              <SelectItem value="college_admin">🏢 College Admin</SelectItem>
-              <SelectItem value="staff">🔧 Staff Team</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      )}
 
       <PageHeader
         title="Room Configuration Management"

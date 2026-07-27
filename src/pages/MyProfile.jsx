@@ -80,16 +80,21 @@ export default function MyProfile() {
 
     const oldRoomId = student?.room_id;
     const newRoomId = form.room_id;
+    const isStudentRole = !currentUser?.role || currentUser?.role === 'student' || currentUser?.role === 'user';
+
+    // Students cannot self-assign rooms — strip room fields from their update payload
+    const { room_id, block_name, room_number, ...personalData } = form;
+    const updatePayload = isStudentRole ? personalData : form;
 
     if (student) {
-      await base44.entities.Student.update(student.id, { ...form, user_id: currentUser.id });
+      await base44.entities.Student.update(student.id, { ...updatePayload, user_id: currentUser.id });
     } else {
-      const created = await base44.entities.Student.create({ ...form, user_id: currentUser.id });
+      const created = await base44.entities.Student.create({ ...updatePayload, user_id: currentUser.id });
       setStudent(created);
     }
 
-    // Update room occupancy if room changed
-    if (oldRoomId !== newRoomId) {
+    // Update room occupancy if room changed (staff/admin only)
+    if (!isStudentRole && oldRoomId !== newRoomId) {
       if (oldRoomId) {
         const oldRoom = rooms.find(r => r.id === oldRoomId);
         if (oldRoom) {

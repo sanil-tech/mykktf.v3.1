@@ -397,7 +397,7 @@ const SidebarGroupContent = React.forwardRef(({ className, ...props }, ref) => (
     ref={ref}
     data-sidebar="group-content"
     className={cn("w-full text-sm", className)}
-    ...props />
+    {...props} />
 ))
 SidebarGroupContent.displayName = "SidebarGroupContent"
 
@@ -406,7 +406,7 @@ const SidebarMenu = React.forwardRef(({ className, ...props }, ref) => (
     ref={ref}
     data-sidebar="menu"
     className={cn("flex w-full min-w-0 flex-col gap-1", className)}
-    ...props />
+    {...props} />
 ))
 SidebarMenu.displayName = "SidebarMenu"
 
@@ -415,7 +415,7 @@ const SidebarMenuItem = React.forwardRef(({ className, ...props }, ref) => (
     ref={ref}
     data-sidebar="menu-item"
     className={cn("group/menu-item relative", className)}
-    ...props />
+    {...props} />
 ))
 SidebarMenuItem.displayName = "SidebarMenuItem"
 
@@ -463,7 +463,7 @@ const SidebarMenuButton = React.forwardRef((
       data-size={size}
       data-active={isActive}
       className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
-      ...props />
+      {...props} />
   )
 
   if (!tooltip) {
@@ -483,7 +483,7 @@ const SidebarMenuButton = React.forwardRef((
         side="right"
         align="center"
         hidden={state !== "collapsed" || isMobile}
-        ...tooltip} />
+        {...tooltip} />
     </Tooltip>)
   );
 })
@@ -525,9 +525,9 @@ const SidebarMenuBadge = React.forwardRef(({ className, ...props }, ref) => (
       "peer-data-[size=lg]/menu-button:top-2.5",
       "group-data-[collapsible=icon]:hidden",
       className
-    )}
-    ...props />
-))
+      )}
+      {...props} />
+      ))
 SidebarMenuBadge.displayName = "SidebarMenuBadge"
 
 const SidebarMenuSkeleton = React.forwardRef(({ className, showIcon = false, ...props }, ref) => {
@@ -566,9 +566,9 @@ const SidebarMenuSub = React.forwardRef(({ className, ...props }, ref) => (
       "mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border px-2.5 py-0.5",
       "group-data-[collapsible=icon]:hidden",
       className
-    )}
-    ...props />
-))
+      )}
+      {...props} />
+      ))
 SidebarMenuSub.displayName = "SidebarMenuSub"
 
 const SidebarMenuSubItem = React.forwardRef(({ ...props }, ref) => <li ref={ref} {...props} />)

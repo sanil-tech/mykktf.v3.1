@@ -124,7 +124,8 @@ export default function Announcements() {
     if (!form.title || !form.content) { toast({ title: 'Title and content required', variant: 'destructive' }); return; }
     let finalForm = { ...form };
     if (posterFile) {
-      finalForm.poster_url = posterPreview; 
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: posterFile });
+      finalForm.poster_url = file_url;
     }
 
     await base44.entities.Announcement.create({ ...finalForm, published_by: user?.full_name || user?.email });
