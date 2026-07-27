@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, Search, GraduationCap, Edit, Trash2, Eye } from 'lucide-react';
 import TablePagination from '@/components/shared/TablePagination';
+import { TableSkeleton } from '@/components/shared/ListSkeletons';
 
 const FACULTIES = ['Engineering', 'Science', 'Arts', 'Business', 'Medicine', 'Education', 'Law', 'IT'];
 const PAGE_SIZE = 10;
@@ -89,7 +90,7 @@ export default function Students() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
+    return <div><PageHeader title="Student Management" description="Manage resident profiles" /><TableSkeleton rows={8} cols={6} /></div>;
   }
 
   return (

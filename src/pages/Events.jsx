@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
 import { Plus, Calendar, MapPin, Users, UserCheck, Trash2, Eye } from 'lucide-react';
+import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 
 const MANAGE_ROLES = ['super_admin', 'college_admin', 'warden', 'staff', 'jakmas'];
 const STATUS_COLORS = {
@@ -110,7 +111,7 @@ export default function Events() {
   const canManage = user && MANAGE_ROLES.includes(user.role);
   const isStudent = user?.role === 'student';
 
-  if (loading) return <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
+  if (loading) return <div><PageHeader title="Events & Activities" description="Loading events..." /><CardGridSkeleton count={6} /></div>;
 
   return (
     <div>

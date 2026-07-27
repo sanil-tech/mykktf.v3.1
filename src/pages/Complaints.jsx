@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
 import { Plus, MessageSquare, Lightbulb, Eye, CheckCircle } from 'lucide-react';
+import { ListSkeleton } from '@/components/shared/ListSkeletons';
 
 const CATEGORIES = ['Facilities', 'Internet', 'Security', 'Cleanliness', 'Staff Services', 'Others'];
 const STATUS_FLOW = ['Submitted', 'Under Review', 'Resolved', 'Closed'];
@@ -95,7 +96,7 @@ export default function Complaints() {
   const isStaff = user && STAFF_ROLES.includes(user.role);
   const filtered = filterType === 'all' ? items : items.filter(i => i.type === filterType);
 
-  if (loading) return <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
+  if (loading) return <div><PageHeader title="Complaints & Suggestions" description="Loading submissions..." /><ListSkeleton count={5} /></div>;
 
   return (
     <div>

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, Building2, Check, X, Calendar } from 'lucide-react';
+import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 
 const FACILITIES = ['Multipurpose Hall', 'Badminton Court 1', 'Badminton Court 2'];
 const statusBadge = { Pending: 'bg-yellow-100 text-yellow-700', Approved: 'bg-green-100 text-green-700', Rejected: 'bg-red-100 text-red-700', Cancelled: 'bg-gray-100 text-gray-600' };
@@ -63,7 +64,7 @@ export default function Facilities() {
     init();
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
+  if (loading) return <div><PageHeader title="Facility Booking" description="Loading bookings..." /><CardGridSkeleton count={6} /></div>;
 
   return (
     <div>

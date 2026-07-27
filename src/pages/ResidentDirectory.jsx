@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import EmptyState from '@/components/shared/EmptyState';
 import { Search, Users } from 'lucide-react';
+import { TableSkeleton } from '@/components/shared/ListSkeletons';
 
 // JAKMAS can only see: Name, Matric Number, Block, Room Number
 // No IC, Passport, Address, Discipline, Leave, Staff Notes
@@ -36,7 +37,7 @@ export default function ResidentDirectory() {
     return matchSearch && matchBlock;
   });
 
-  if (loading) return <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
+  if (loading) return <div><PageHeader title="Resident Directory" description="Active resident listing (limited view)" /><TableSkeleton rows={8} cols={5} /></div>;
 
   return (
     <div>

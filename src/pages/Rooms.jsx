@@ -15,6 +15,7 @@ import {
   Home, Search, Plus, LayoutGrid, List, Bed, Users, AlertTriangle, RefreshCw, CheckCircle,
   ShieldAlert, ChevronDown, ChevronUp, User, RotateCcw, Edit2, Trash2, ShieldCheck, Phone, FileText
 } from 'lucide-react';
+import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 
 export default function Rooms() {
   const [searchParams] = useSearchParams();
@@ -560,7 +561,7 @@ export default function Rooms() {
 
       {/* VIEW MODES PANELS */}
       {loading ? (
-        <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-t-primary rounded-full animate-spin" /></div>
+        <CardGridSkeleton count={8} />
       ) : filteredRooms.length === 0 ? (
         <EmptyState icon={Home} title="No room layouts found matching criteria." />
       ) : (

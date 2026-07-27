@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, Trash2, Megaphone, AlertTriangle, Info, Bell, CheckCircle, BarChart2, Image, X, Users, Calendar } from 'lucide-react';
+import { ListSkeleton } from '@/components/shared/ListSkeletons';
 
 const TYPE_CONFIG = {
   'General Notice': { icon: Info, bg: 'bg-blue-50 border-blue-200', badge: 'bg-blue-100 text-blue-700' },
@@ -168,7 +169,7 @@ export default function Announcements() {
     .filter(r => r.announcement_id === activeTrackingAnn?.id)
     .filter(r => r.student_name?.toLowerCase().includes(trackingSearch.toLowerCase()));
 
-  if (loading) return <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
+  if (loading) return <div><PageHeader title="Announcements" description="College notices and updates" /><ListSkeleton count={5} /></div>;
 
   return (
     <div>

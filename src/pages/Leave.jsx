@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, CalendarOff, Check, X, Clock, AlertTriangle, Users, UserX, Loader2, MapPin, Calendar, User, FileText } from 'lucide-react';
+import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 
 // Dikemaskini: Mengandungi tiga peringkat kelulusan utama
 const STATUS_BADGE = {
@@ -185,8 +186,9 @@ export default function Leave() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 text-[#132644] animate-spin" />
+      <div className="space-y-6 max-w-7xl mx-auto px-2 pb-12">
+        <PageHeader title="E-Leave KKTF" description="Loading leave records..." />
+        <CardGridSkeleton count={6} />
       </div>
     );
   }

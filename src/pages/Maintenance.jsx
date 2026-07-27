@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, Wrench } from 'lucide-react';
+import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 
 const statusBadge = { Submitted: 'bg-gray-100 text-gray-700', Assigned: 'bg-blue-100 text-blue-700', 'In Progress': 'bg-yellow-100 text-yellow-700', Completed: 'bg-green-100 text-green-700' };
 const STAFF_ROLES = ['warden', 'staff', 'admin'];
@@ -75,7 +76,7 @@ export default function Maintenance() {
 
   const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter);
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
+  if (loading) return <div><PageHeader title="Maintenance Requests" description="Loading requests..." /><CardGridSkeleton count={6} /></div>;
 
   return (
     <div>
