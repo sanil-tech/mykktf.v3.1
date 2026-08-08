@@ -5,7 +5,6 @@ import { base44 } from '@/api/base44Client';
 import { ROLE_LABELS } from '@/lib/roles';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
 
 export default function TopBar({ onMenuClick, user }) {
   const [unreadCount, setUnreadCount] = useState(0);

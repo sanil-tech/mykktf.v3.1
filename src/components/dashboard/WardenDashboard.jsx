@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { CalendarOff, Wrench, Check, X, Clock, AlertCircle, Building2, Users, DoorOpen, MessageSquare, Megaphone } from 'lucide-react';
+import { CalendarOff, Wrench, Check, X, Clock, AlertCircle, Building2, Users, DoorOpen, MessageSquare } from 'lucide-react';
 
 export default function WardenDashboard({ user }) {
   const [leaves, setLeaves] = useState([]);

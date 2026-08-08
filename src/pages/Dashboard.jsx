@@ -12,20 +12,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, ClipboardCheck, MapPin, Info, Users, BedDouble, AlertCircle } from "lucide-react";
 
 const UMS_FACULTIES = [
-  'Faculty of Business, Economics and Accountancy (FPEP)',
-  'Faculty of Computing and Informatics (FKI)',
-  'Faculty of Engineering (FKJ)',
-  'Faculty of Food, Agriculture and Bioresources (FPPK)',
-  'Faculty of Humanities, Arts and Heritage (FKSW)',
-  'Faculty of Law (FU)',
-  'Faculty of Medicine and Health Sciences (FPSK)',
-  'Faculty of Psychology and Education (FPP)',
-  'Faculty of Science and Natural Resources (FSSA)',
-  'Faculty of Social Sciences and Liberal Arts (FOSSLA)',
-  'Faculty of Sustainable Agriculture (FPL)',
-  'School of Engineering and Information Technology (SEEIT)',
-  'School of International Tropical Forestry (SITF)',
-  'Other',
+  'Fakulti Sains dan Sumber Alam (FSSA)',
+  'Fakulti Sains Sosial dan Kemanusiaan (FSSK)',
+  'Fakulti Psikologi dan Pendidikan (FPP)',
+  'Fakulti Komputeran dan Informatik (FKI)',
+  'Fakulti Kejuruteraan (FKJ)',
+  'Fakulti Perniagaan, Ekonomi dan Perakaunan (FPEP)',
+  'Fakulti Perubatan dan Sains Kesihatan (FPSK)',
+  'Fakulti Sains Makanan dan Pemakanan (FSMP)',
+  'Akademi Seni dan Teknologi Kreatif (ASTiF)',
+  'Fakulti Pengajian Islam (FIS)'
 ];
 
 export default function Dashboard() {

@@ -1,0 +1,6 @@
+{
+  "name": "KKMS - Kolej Kediaman Management System",
+  "description": "Kolej Kediaman Management System for student housing, rooms, attendance, maintenance, complaints, and facility bookings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
