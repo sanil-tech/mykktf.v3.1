@@ -7,19 +7,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { GraduationCap, User, Phone, BookOpen, Car, Users, CheckCircle2, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
 
 const FACULTIES = [
-  'Faculty of Computing and Informatics (FCI)',
-  'Faculty of Business, Economics and Accountancy (FBEA)',
-  'Faculty of Engineering (FE)',
-  'Faculty of Science and Natural Resources (FSNR)',
-  'Faculty of Social Sciences and Humanities (FSSH)',
-  'Faculty of Education (FPEND)',
-  'Faculty of Medicine (FM)',
-  'Faculty of Law (FL)',
-  'Faculty of Humanities, Arts and Heritage (FKAB)',
-  'Faculty of Food Technology and Nutrition Sciences (FSTMN)',
-  'Faculty of Pharmacy (FP)',
-  'Academy of Language Studies (APB)',
-  'Centre for the Promotion of Knowledge and Language Learning (PPIB)',
+'Fakulti Sains dan Sumber Alam (FSSA)',
+  'Fakulti Sains Sosial dan Kemanusiaan (FSSK)',
+  'Fakulti Psikologi dan Pendidikan (FPP)',
+  'Fakulti Komputeran dan Informatik (FKI)',
+  'Fakulti Kejuruteraan (FKJ)',
+  'Fakulti Perniagaan, Ekonomi dan Perakaunan (FPEP)',
+  'Fakulti Perubatan dan Sains Kesihatan (FPSK)',
+  'Fakulti Sains Makanan dan Pemakanan (FSMP)',
+  'Akademi Seni dan Teknologi Kreatif (ASTiF)',
+  'Fakulti Pengajian Islam (FIS)'
 ];
 
 const STEPS = [
