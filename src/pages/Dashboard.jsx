@@ -390,7 +390,7 @@ export default function Dashboard() {
           <div className="space-y-2">
             <h1 className="text-xl font-bold text-[#002147] tracking-tight">Pendaftaran Profil Berjaya! 🎉</h1>
             <p className="text-sm text-slate-500 leading-relaxed">
-              Akaun anda aktif, namun penempatan blok & bilik kolej anda masih belum dikemas kini oleh pentadbir.
+              TAHNIAH! Akaun anda telah aktif, namun penempatan blok & bilik kolej anda masih belum dikemas kini oleh pentadbir.
             </p>
           </div>
 
@@ -402,7 +402,7 @@ export default function Dashboard() {
             <div className="space-y-3 text-sm text-slate-600">
               <div className="flex gap-3 items-start">
                 <span className="w-5 h-5 rounded-full bg-[#002147] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
-                <p>Hadir ke <strong>Pejabat Pentadbiran Kolej Kediaman Tun Mustapha (KKTF)</strong>.</p>
+                <p>Hadir ke <strong>Pejabat Pentadbiran Kolej Kediaman Tun Fuad (KKTF)</strong>.</p>
               </div>
               <div className="flex gap-3 items-start">
                 <span className="w-5 h-5 rounded-full bg-[#002147] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
