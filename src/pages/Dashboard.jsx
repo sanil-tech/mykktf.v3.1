@@ -388,7 +388,7 @@ export default function Dashboard() {
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-xl font-bold text-[#002147] tracking-tight">Pendaftaran Profil Berjaya! 🎉</h1>
+            <h1 className="text-xl font-bold text-[#002147] tracking-tight">Tahniah! Pendaftaran Profil Berjaya! 🎉</h1>
             <p className="text-sm text-slate-500 leading-relaxed">
               TAHNIAH! Akaun anda telah aktif, namun penempatan blok & bilik kolej anda masih belum dikemas kini oleh pentadbir.
             </p>
