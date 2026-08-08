@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { GraduationCap, User, Phone, BookOpen, Users, CheckCircle2, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
+import { GraduationCap, User, Phone, BookOpen, Users, CheckCircle2, ChevronRight, ChevronLeft, Loader2, Info } from 'lucide-react';
 
 const FACULTIES = [
   'Fakulti Sains dan Sumber Alam (FSSA)',
@@ -208,13 +208,19 @@ export default function StudentSetup({ user, onComplete }) {
           {/* Step 3: Room & Contact */}
           {step === 3 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label className="text-xs font-medium">Block Name</Label>
-                <Input value={form.block_name} onChange={e => set('block_name', e.target.value)} placeholder="e.g. Block A" className="mt-1 h-10 text-sm" />
+              <div className="sm:col-span-2 bg-blue-50/50 p-3 rounded-md border border-blue-100 flex items-start gap-2 mb-2">
+                <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-blue-700 leading-relaxed">
+                  <strong>Room Assignment:</strong> Your block and room number will be assigned later by the KKTF office. You can view it in your dashboard once assigned.
+                </p>
               </div>
               <div>
-                <Label className="text-xs font-medium">Room Number</Label>
-                <Input value={form.room_number} onChange={e => set('room_number', e.target.value)} placeholder="e.g. A-101" className="mt-1 h-10 text-sm" />
+                <Label className="text-xs font-medium text-slate-500">Block Name</Label>
+                <Input value={form.block_name} disabled placeholder="Pending KKTF assignment" className="mt-1 h-10 text-sm bg-slate-50 cursor-not-allowed" />
+              </div>
+              <div>
+                <Label className="text-xs font-medium text-slate-500">Room Number</Label>
+                <Input value={form.room_number} disabled placeholder="Pending KKTF assignment" className="mt-1 h-10 text-sm bg-slate-50 cursor-not-allowed" />
               </div>
               <div>
                 <Label className="text-xs font-medium">Phone Number <span className="text-red-500">*</span></Label>
