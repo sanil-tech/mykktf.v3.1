@@ -14,16 +14,34 @@ import { Badge } from '@/components/ui/badge';
 import { Archive, LogIn, LogOut, Search, User, Loader2, Calendar } from 'lucide-react';
 import SurveyModal from '@/components/SurveyModal';
 import TablePagination from '@/components/shared/TablePagination';
+import { useQuery } from '@tanstack/react-query';
+import { realTimeQueryOptions } from '@/lib/query-client';
 
 const PAGE_SIZE = 10;
 
 export default function CheckInOut() {
-  const [checkIns, setCheckIns] = useState([]);
-  const [checkOuts, setCheckOuts] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [rooms, setRooms] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
+  const { data: students = [], refetch: refetchStudents } = useQuery({
+    queryKey: ['checkinout', 'students'],
+    queryFn: () => base44.entities.Student.list()
+  });
+
+  const { data: rooms = [], refetch: refetchRooms } = useQuery({
+    queryKey: ['checkinout', 'rooms'],
+    queryFn: () => base44.entities.Room.list()
+  });
+
+  const { data: checkIns = [], refetch: refetchCheckIns } = useQuery({
+    queryKey: ['checkinout', 'checkIns'],
+    queryFn: () => base44.entities.CheckIn.list('-created_date'),
+    ...realTimeQueryOptions
+  });
+
+  const { data: checkOuts = [], refetch: refetchCheckOuts } = useQuery({
+    queryKey: ['checkinout', 'checkOuts'],
+    queryFn: () => base44.entities.CheckOut.list('-created_date'),
+    ...realTimeQueryOptions
+  });
+
   const [submitting, setSubmitting] = useState(false);
   const [archiving, setArchiving] = useState(false);
   
@@ -67,11 +85,7 @@ export default function CheckInOut() {
   const { toast } = useToast();
 
   useEffect(() => {
-    base44.auth.me().then(setCurrentUser);
-  }, []);
-
-  useEffect(() => {
-    load();
+    base44.auth.me().then(setCurrentUser).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -81,7 +95,7 @@ export default function CheckInOut() {
         setSelectedStudent(updatedData);
       }
     }
-  }, [students]);
+  }, [students, selectedStudent]);
 
   const hasActiveRoom = (student) => {
     if (!student) return false;
@@ -192,23 +206,10 @@ export default function CheckInOut() {
   }
 
   async function load() {
-    try {
-      const [ci, co, s, r] = await Promise.all([
-        base44.entities.CheckIn.list('-created_date'),
-        base44.entities.CheckOut.list('-created_date'),
-        base44.entities.Student.list(),
-        base44.entities.Room.list(),
-      ]);
-      setCheckIns(ci);
-      setCheckOuts(co);
-      setStudents(s);
-      setRooms(r);
-    } catch (err) {
-      console.error(err);
-      toast({ title: 'Ralat memuatkan data', description: err.message, variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
+    refetchStudents();
+    refetchRooms();
+    refetchCheckIns();
+    refetchCheckOuts();
   }
 
   function dispatchGlobalRefresh() {

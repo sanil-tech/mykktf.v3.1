@@ -9,19 +9,16 @@ import { useToast } from '@/components/ui/use-toast';
 import { User, Save, Loader2, Building2, Plus, X } from 'lucide-react';
 
 const UMS_FACULTIES = [
-  'Borneo Institute for Indigenous Studies (BORIIS)',
+  'Fakulti Sains dan Sumber Alam (FSSA)',
+  'Fakulti Sains Sosial dan Kemanusiaan (FSSK)',
+  'Fakulti Psikologi dan Pendidikan (FPP)',
+  'Fakulti Komputeran dan Informatik (FKI)',
   'Fakulti Kejuruteraan (FKJ)',
-  'Fakulti Komputeran dan Informatika (FKI)',
-  'Fakulti Perhutanan Tropika (FPT)',
   'Fakulti Perniagaan, Ekonomi dan Perakaunan (FPEP)',
   'Fakulti Perubatan dan Sains Kesihatan (FPSK)',
-  'Fakulti Psikologi dan Pendidikan (FPP)',
-  'Fakulti Sains dan Sumber Alam (FSSA)',
   'Fakulti Sains Makanan dan Pemakanan (FSMP)',
-  'Fakulti Sains Sosial dan Kemanusiaan (FSSK)',
-  'Institut Biologi Tropika dan Pemuliharaan (IBTP)',
-  'Institut Marin Borneo (IMB)',
-  'Institut Penyelidikan Bioteknologi (IPB)',
+  'Akademi Seni dan Teknologi Kreatif (ASTiF)',
+  'Fakulti Pengajian Islam (FIS)'
 ];
 
 export default function MyProfile() {

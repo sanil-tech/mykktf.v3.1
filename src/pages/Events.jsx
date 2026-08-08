@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
 import { Plus, Calendar, MapPin, Users, UserCheck, Trash2, Eye } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';

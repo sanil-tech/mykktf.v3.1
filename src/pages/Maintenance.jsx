@@ -8,9 +8,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/components/ui/use-toast';
 import { Plus, Wrench } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
+import { toast } from 'sonner';
+import { validateAttachment } from '@/lib/validators';
 
 const statusBadge = { Submitted: 'bg-gray-100 text-gray-700', Assigned: 'bg-blue-100 text-blue-700', 'In Progress': 'bg-yellow-100 text-yellow-700', Completed: 'bg-green-100 text-green-700' };
 const STAFF_ROLES = ['warden', 'staff', 'admin'];
@@ -21,9 +22,8 @@ export default function Maintenance() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [myStudent, setMyStudent] = useState(null);
-  const [form, setForm] = useState({ room_number: '', block_name: '', category: 'Electrical', description: '' });
+  const [form, setForm] = useState({ room_number: '', block_name: '', category: 'Electrical', description: '', photo: null });
   const [filter, setFilter] = useState('all');
-  const { toast } = useToast();
 
   const isStaff = currentUser && STAFF_ROLES.includes(currentUser.role);
 
@@ -55,22 +55,41 @@ export default function Maintenance() {
     setLoading(false);
   }
 
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const validation = validateAttachment(file);
+    if (!validation.valid) {
+      toast.error(validation.error);
+      e.target.value = '';
+      setForm(f => ({ ...f, photo: null }));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setForm(f => ({ ...f, photo: event.target.result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   async function handleSubmit() {
-    if (!form.room_number || !form.description) { toast({ title: 'Fill required fields', variant: 'destructive' }); return; }
-    if (!myStudent) { toast({ title: 'Student profile not found', variant: 'destructive' }); return; }
+    if (!form.room_number || !form.description) { toast.error('Fill required fields'); return; }
+    if (!myStudent) { toast.error('Student profile not found'); return; }
     await base44.entities.MaintenanceRequest.create({
       ...form,
       student_id: myStudent.id,
       student_name: myStudent.full_name,
     });
-    toast({ title: 'Request submitted' });
+    toast.success('Request submitted');
     setDialogOpen(false);
     init();
   }
 
   async function updateStatus(id, status) {
     await base44.entities.MaintenanceRequest.update(id, { status });
-    toast({ title: `Status updated to ${status}` });
+    toast.success(`Status updated to ${status}`);
     init();
   }
 
@@ -84,7 +103,7 @@ export default function Maintenance() {
         title="Maintenance Requests"
         description={isStaff ? "Review and manage maintenance issues" : "Report a maintenance issue in your room"}
         actions={!isStaff && (
-          <Button size="sm" onClick={() => { setForm({ room_number: myStudent?.room_number || '', block_name: myStudent?.block_name || '', category: 'Electrical', description: '' }); setDialogOpen(true); }}>
+          <Button size="sm" onClick={() => { setForm({ room_number: myStudent?.room_number || '', block_name: myStudent?.block_name || '', category: 'Electrical', description: '', photo: null }); setDialogOpen(true); }}>
             <Plus className="w-4 h-4 mr-1.5" /> New Request
           </Button>
         )}
@@ -143,6 +162,10 @@ export default function Maintenance() {
               </Select>
             </div>
             <div><Label className="text-xs">Description *</Label><Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="text-sm mt-1" rows={3} /></div>
+            <div>
+              <Label className="text-xs">Attachment (Optional)</Label>
+              <Input type="file" onChange={handleFileChange} className="text-sm mt-1" accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx" />
+            </div>
           </div>
           <div className="flex justify-end gap-2 mt-4"><Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>Cancel</Button><Button size="sm" onClick={handleSubmit}>Submit</Button></div>
         </DialogContent>

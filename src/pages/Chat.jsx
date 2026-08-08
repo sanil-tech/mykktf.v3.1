@@ -3,8 +3,11 @@ import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Pin, Trash2, MessageSquare, X, Bell, User, Paperclip, FileText, Download, ExternalLink, Edit2, Check, Hash } from 'lucide-react';
+import { Send, Pin, Trash2, MessageSquare, X, Bell, Paperclip, FileText, Download, ExternalLink, Edit2, Check, Hash } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { realTimeQueryOptions } from '@/lib/query-client';
+import { toast as sonnerToast } from 'sonner';
 
 const COMMUNITY_CHANNEL = { 
   key: 'community', 
@@ -60,17 +63,13 @@ function renderAttachment(url) {
 }
 
 export default function Chat() {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
-  const [messages, setMessages] = useState([]);
   const [activeChannel, setActiveChannel] = useState(COMMUNITY_CHANNEL);
-  const [channels, setChannels] = useState([COMMUNITY_CHANNEL]);
-  const [dmInbox, setDmInbox] = useState([]); 
   const [text, setText] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [loading, setLoading] = useState(true);
   
   const [dmTarget, setDmTarget] = useState(null); 
-  const [dmMessages, setDmMessages] = useState([]);
   const [dmText, setDmText] = useState('');
 
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -81,49 +80,18 @@ export default function Chat() {
   const fileRef = useRef(null);
   const dmFileRef = useRef(null);
 
-  const activeChannelRef = useRef(activeChannel);
-  const dmTargetRef = useRef(dmTarget);
+  useEffect(() => {
+    base44.auth.me().then(u => setUser(u)).catch(console.error);
+  }, []);
 
-  useEffect(() => { activeChannelRef.current = activeChannel; }, [activeChannel]);
-  useEffect(() => { dmTargetRef.current = dmTarget; }, [dmTarget]);
+  const { data: channelsData, refetch: refetchChannels } = useQuery({
+    queryKey: ['chat', 'channelsAndInbox', user?.id],
+    queryFn: async () => {
+      if (!user) return { channels: [COMMUNITY_CHANNEL], dmInbox: [] };
+      const publicChannels = [COMMUNITY_CHANNEL];
 
-  useEffect(() => { init(); }, []);
-
-  async function init() {
-    try {
-      const u = await base44.auth.me();
-      setUser(u);
-      await loadChannelsAndInbox(u);
-
-      const unsub = base44.entities.ChatMessage.subscribe(() => {
-        loadMessages();
-        loadChannelsAndInbox(u);
-        if (dmTargetRef.current) {
-          loadDmMessages(u, dmTargetRef.current);
-        }
-      });
-      return unsub;
-    } catch (error) { console.error("Ralat sembang:", error); } 
-    finally { setLoading(false); }
-  }
-
-  async function resolveSenderName(currentUser) {
-    if (!currentUser) return 'Unknown';
-    try {
-      let profiles = await base44.entities.Student.filter({ user_id: currentUser.id });
-      if (!profiles.length) profiles = await base44.entities.Student.filter({ email: currentUser.email });
-      if (profiles.length > 0 && profiles[0].full_name) return profiles[0].full_name;
-    } catch (e) { console.error(e); }
-    return currentUser.full_name || currentUser.email;
-  }
-
-  async function loadChannelsAndInbox(currentUser) {
-    if (!currentUser) return;
-    const publicChannels = [COMMUNITY_CHANNEL];
-
-    try {
-      if (currentUser.role === 'warden') {
-        const wb = await base44.entities.WardenBlock.filter({ warden_user_id: currentUser.id });
+      if (user.role === 'warden') {
+        const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
         wb.forEach(w => {
           publicChannels.unshift({ 
             key: `block_${w.block_name}`.toLowerCase(), 
@@ -133,8 +101,8 @@ export default function Chat() {
           });
         });
       } else {
-        let sp = await base44.entities.Student.filter({ user_id: currentUser.id });
-        if (!sp.length) sp = await base44.entities.Student.filter({ email: currentUser.email });
+        let sp = await base44.entities.Student.filter({ user_id: user.id });
+        if (!sp.length) sp = await base44.entities.Student.filter({ email: user.email });
         const s = sp[0] || null;
 
         if (s?.block_name) {
@@ -144,10 +112,9 @@ export default function Chat() {
           publicChannels.unshift({ key: `room_${s.room_number}_${s.block_name}`.toLowerCase(), label: `Room ${s.room_number}`, channelKey: `room_${s.room_number}_${s.block_name}`.toLowerCase(), type: 'public' });
         }
       }
-      setChannels(publicChannels);
 
       const allMsgs = await base44.entities.ChatMessage.filter({});
-      const dmMessages = allMsgs.filter(m => m.channel === 'direct_message' && m.channel_key?.includes(currentUser.id));
+      const dmMessages = allMsgs.filter(m => m.channel === 'direct_message' && m.channel_key?.includes(user.id));
       
       dmMessages.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
       const allStudents = await base44.entities.Student.filter({});
@@ -155,10 +122,10 @@ export default function Chat() {
       
       dmMessages.forEach(msg => {
         const parts = msg.channel_key.split('_');
-        const partnerId = parts[1] === currentUser.id ? parts[2] : parts[1];
+        const partnerId = parts[1] === user.id ? parts[2] : parts[1];
         
         if (partnerId && !uniqueConversations[partnerId]) {
-          const isUnread = msg.sender_user_id !== currentUser.id;
+          const isUnread = msg.sender_user_id !== user.id;
           const studentProfile = allStudents.find(s => s.user_id === partnerId);
           
           let displayName = msg.sender_name;
@@ -182,19 +149,22 @@ export default function Chat() {
           };
         }
       });
-      setDmInbox(Object.values(uniqueConversations));
-    } catch (err) { console.error(err); }
-  }
 
-  useEffect(() => { if (user && activeChannel) loadMessages(); }, [activeChannel, user]);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
-  useEffect(() => { if (dmMessages.length > 0) dmBottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [dmMessages]);
+      return { channels: publicChannels, dmInbox: Object.values(uniqueConversations) };
+    },
+    enabled: !!user,
+    ...realTimeQueryOptions
+  });
 
-  async function loadMessages() {
-    if (!activeChannelRef.current) return;
-    try {
+  const channels = channelsData?.channels || [COMMUNITY_CHANNEL];
+  const dmInbox = channelsData?.dmInbox || [];
+
+  const { data: messages = [], refetch: refetchMessages, isLoading: isLoadingMessages } = useQuery({
+    queryKey: ['chat', 'messages', activeChannel?.channelKey],
+    queryFn: async () => {
+      if (!activeChannel) return [];
       const allMsgs = await base44.entities.ChatMessage.filter({}, 'created_date', 150);
-      const filtered = allMsgs.filter(msg => msg.channel_key === activeChannelRef.current.channelKey && !msg.is_deleted);
+      const filtered = allMsgs.filter(msg => msg.channel_key === activeChannel.channelKey && !msg.is_deleted);
       
       const allStudents = await base44.entities.Student.filter({});
       const enhancedFiltered = filtered.map(msg => {
@@ -204,15 +174,17 @@ export default function Chat() {
         }
         return msg;
       });
+      return enhancedFiltered;
+    },
+    enabled: !!activeChannel,
+    ...realTimeQueryOptions
+  });
 
-      setMessages(enhancedFiltered);
-    } catch (err) { console.error(err); }
-  }
-
-  async function loadDmMessages(currentUser, target) {
-    if (!currentUser || !target) return;
-    try {
-      const targetKey = getDMChannelKey(currentUser.id, target.id);
+  const { data: dmMessages = [], refetch: refetchDmMessages } = useQuery({
+    queryKey: ['chat', 'dmMessages', dmTarget?.id],
+    queryFn: async () => {
+      if (!user || !dmTarget) return [];
+      const targetKey = getDMChannelKey(user.id, dmTarget.id);
       const allMsgs = await base44.entities.ChatMessage.filter({});
       const filtered = allMsgs.filter(msg => msg.channel_key === targetKey && !msg.is_deleted);
       
@@ -224,10 +196,49 @@ export default function Chat() {
         }
         return msg;
       });
+      return enhancedFiltered;
+    },
+    enabled: !!user && !!dmTarget,
+    ...realTimeQueryOptions
+  });
 
-      setDmMessages(enhancedFiltered);
-    } catch (err) { console.error(err); }
+  async function resolveSenderName(currentUser) {
+    if (!currentUser) return 'Unknown';
+    try {
+      let profiles = await base44.entities.Student.filter({ user_id: currentUser.id });
+      if (!profiles.length) profiles = await base44.entities.Student.filter({ email: currentUser.email });
+      if (profiles.length > 0 && profiles[0].full_name) return profiles[0].full_name;
+    } catch (e) { console.error(e); }
+    return currentUser.full_name || currentUser.email;
   }
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => { if (dmMessages.length > 0) dmBottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [dmMessages]);
+
+  useEffect(() => {
+    if (!activeChannel) return;
+    
+    if (typeof base44.entities.ChatMessage.subscribe === 'function') {
+      const unsubscribe = base44.entities.ChatMessage.subscribe(
+        { channel_key: activeChannel.channelKey },
+        (event) => {
+          if (event.type === 'create') {
+            queryClient.setQueryData(['chat', 'messages', activeChannel.channelKey], (old = []) => {
+              if (old.some(m => m.id === event.data.id)) return old;
+              return [...old, event.data];
+            });
+          } else if (event.type === 'update') {
+            queryClient.setQueryData(['chat', 'messages', activeChannel.channelKey], (old = []) => {
+              return old.map(m => m.id === event.data.id ? event.data : m);
+            });
+          }
+        }
+      );
+      return () => {
+        if (unsubscribe) unsubscribe();
+      };
+    }
+  }, [activeChannel?.channelKey, queryClient]);
 
   function startEdit(msg) {
     setEditingMessageId(msg.id);
@@ -241,10 +252,10 @@ export default function Chat() {
       setEditingMessageId(null);
       setEditText('');
       if (isDm) {
-        await loadDmMessages(user, dmTarget);
-        await loadChannelsAndInbox(user);
+        refetchDmMessages();
+        refetchChannels();
       } else {
-        await loadMessages();
+        refetchMessages();
       }
       toast({ title: "Mesej dikemas kini" });
     } catch (err) { console.error(err); }
@@ -254,10 +265,10 @@ export default function Chat() {
     try {
       await base44.entities.ChatMessage.update(id, { is_deleted: true });
       if (isDm) {
-        await loadDmMessages(user, dmTarget);
-        await loadChannelsAndInbox(user);
+        refetchDmMessages();
+        refetchChannels();
       } else {
-        await loadMessages();
+        refetchMessages();
       }
       toast({ title: "Mesej dipadam" });
     } catch (err) { console.error(err); }
@@ -266,7 +277,7 @@ export default function Chat() {
   async function togglePin(msg) {
     try {
       await base44.entities.ChatMessage.update(msg.id, { is_pinned: !msg.is_pinned });
-      await loadMessages();
+      refetchMessages();
       toast({ title: msg.is_pinned ? "Pin dibuang" : "Mesej di-pin" });
     } catch (err) { console.error(err); }
   }
@@ -282,7 +293,7 @@ export default function Chat() {
         channel: 'public', channel_key: activeChannel.channelKey, sender_user_id: user.id,
         sender_name: resolvedName, sender_role: user.role, message: '', image_url: file_url, is_deleted: false
       });
-      await loadMessages();
+      refetchMessages();
     } catch (err) { console.error(err); } 
     finally { setUploading(false); fileRef.current.value = ''; }
   }
@@ -299,22 +310,60 @@ export default function Chat() {
         channel: 'direct_message', channel_key: targetKey, sender_user_id: user.id,
         sender_name: resolvedName, sender_role: user.role, message: '', image_url: file_url, is_deleted: false
       });
-      await loadDmMessages(user, dmTarget);
-      await loadChannelsAndInbox(user);
+      refetchDmMessages();
+      refetchChannels();
     } catch (err) { console.error(err); } 
     finally { setUploading(false); dmFileRef.current.value = ''; }
   }
 
+  const sendMessageMutation = useMutation({
+    mutationFn: async ({ channelKey, text }) => {
+      const resolvedName = await resolveSenderName(user);
+      return await base44.entities.ChatMessage.create({
+        channel: 'public',
+        channel_key: channelKey,
+        sender_user_id: user.id,
+        sender_name: resolvedName,
+        sender_role: user.role,
+        message: text,
+        is_deleted: false,
+      });
+    },
+    onMutate: async (newMsg) => {
+      await queryClient.cancelQueries({ queryKey: ['chat', 'messages', newMsg.channelKey] });
+      const previousMessages = queryClient.getQueryData(['chat', 'messages', newMsg.channelKey]);
+
+      queryClient.setQueryData(['chat', 'messages', newMsg.channelKey], (old = []) => [
+        ...old,
+        {
+          id: `temp-${Date.now()}`,
+          channel_key: newMsg.channelKey,
+          message: newMsg.text,
+          sender_user_id: user.id,
+          sender_name: user.full_name || user.email || 'Me',
+          sender_role: user.role,
+          isPending: true,
+          created_date: new Date().toISOString(),
+        },
+      ]);
+      return { previousMessages };
+    },
+    onError: (err, newMsg, context) => {
+      if (context?.previousMessages) {
+        queryClient.setQueryData(['chat', 'messages', newMsg.channelKey], context.previousMessages);
+      }
+      sonnerToast.error("Failed to send message");
+    },
+    onSettled: (data, error, newMsg) => {
+      queryClient.invalidateQueries({ queryKey: ['chat', 'messages', newMsg.channelKey] });
+    },
+  });
+
   async function send() {
     if (!text.trim() || !user || !activeChannel) return;
-    try {
-      const resolvedName = await resolveSenderName(user);
-      await base44.entities.ChatMessage.create({
-        channel: 'public', channel_key: activeChannel.channelKey, sender_user_id: user.id,
-        sender_name: resolvedName, sender_role: user.role, message: text.trim(), is_deleted: false
-      });
-      setText(''); await loadMessages(); 
-    } catch (err) { console.error(err); }
+    const msgText = text.trim();
+    setText('');
+    sendMessageMutation.mutate({ channelKey: activeChannel.channelKey, text: msgText });
   }
 
   async function sendDm() {
@@ -326,14 +375,16 @@ export default function Chat() {
         channel: 'direct_message', channel_key: targetKey, sender_user_id: user.id,
         sender_name: resolvedName, sender_role: user.role, message: dmText.trim(), is_deleted: false
       });
-      setDmText(''); await loadDmMessages(user, dmTarget); await loadChannelsAndInbox(user);
+      setDmText(''); 
+      refetchDmMessages();
+      refetchChannels();
     } catch (err) { console.error(err); }
   }
 
   const isAdmin = user && ADMIN_ROLES.includes(user.role);
   const pinnedMessages = messages.filter(m => m.is_pinned);
 
-  if (loading) return <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
+  if (isLoadingMessages && messages.length === 0) return <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
 
   return (
     <div className="relative flex flex-col h-[calc(100vh-140px)]">
@@ -388,7 +439,7 @@ export default function Chat() {
                   <div className={`max-w-[85%] md:max-w-[70%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
                     <p className="text-[11px] text-muted-foreground mb-0.5">{msg.sender_name}</p>
                     
-                    <div className={`rounded-xl px-3 py-2 text-sm ${isOwn ? 'bg-primary text-primary-foreground' : 'bg-muted text-slate-900'}`}>
+                    <div className={`rounded-xl px-3 py-2 text-sm ${isOwn ? 'bg-primary text-primary-foreground' : 'bg-muted text-slate-900'} ${msg.isPending ? 'opacity-70' : ''}`}>
                       {editingMessageId === msg.id ? (
                         <div className="flex gap-1.5 items-center min-w-[220px] p-0.5">
                           <Input 
@@ -450,7 +501,7 @@ export default function Chat() {
           <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
             {dmInbox.length === 0 && <p className="text-[11px] text-muted-foreground px-2 py-1 italic">Tiada DM aktif.</p>}
             {dmInbox.map(inbox => (
-              <button key={inbox.id} onClick={() => { setDmTarget(inbox); loadDmMessages(user, inbox); }} className={`w-full text-left px-2.5 py-2 text-xs rounded-lg border ${inbox.isUnread ? 'bg-amber-50 border-amber-200 font-bold' : 'hover:bg-muted bg-slate-50/50 border-transparent text-slate-700'}`}>
+              <button key={inbox.id} onClick={() => { setDmTarget(inbox); }} className={`w-full text-left px-2.5 py-2 text-xs rounded-lg border ${inbox.isUnread ? 'bg-amber-50 border-amber-200 font-bold' : 'hover:bg-muted bg-slate-50/50 border-transparent text-slate-700'}`}>
                 <div className="flex items-start justify-between w-full gap-1">
                   <div className="min-w-0 flex-1">
                     <span className="block truncate font-semibold text-slate-900 leading-tight">{inbox.name}</span>

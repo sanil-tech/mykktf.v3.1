@@ -12,8 +12,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Home, Search, Plus, LayoutGrid, List, Bed, Users, AlertTriangle, RefreshCw, CheckCircle,
-  ShieldAlert, ChevronDown, ChevronUp, User, RotateCcw, Edit2, Trash2, ShieldCheck, Phone, FileText
+  Home, Search, Plus, LayoutGrid, List, Bed, AlertTriangle, RefreshCw,
+  ShieldAlert, ChevronDown, ChevronUp, User, RotateCcw, Edit2, Trash2
 } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 
