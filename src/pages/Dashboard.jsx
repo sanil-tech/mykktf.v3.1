@@ -97,12 +97,30 @@ export default function Dashboard() {
           console.error("Gagal mengira statistik:", countErr);
         }
 
+        // Non-resident roles (warden, staff, admin) must never be recorded or
+        // counted as students. Remove any stray Student record linked to their
+        // account so they don't appear in the student list / directory.
         if (
           effectiveRole === 'warden' ||
-          effectiveRole === 'jakmas' ||
+          effectiveRole === 'staff' ||
           effectiveRole === 'super_admin' ||
           effectiveRole === 'college_admin'
         ) {
+          if (user?.id) {
+            try {
+              const stray = await base44.entities.Student.filter({ user_id: user.id });
+              if (stray.length > 0) {
+                await base44.entities.Student.deleteMany({ user_id: user.id });
+              }
+            } catch (e) { /* best-effort cleanup, must not block login */ }
+          }
+          setHasStudentProfile(true);
+          setIsRoomAssigned(true);
+          return;
+        }
+
+        // JAKMAS members ARE students — keep their Student record; skip onboarding.
+        if (effectiveRole === 'jakmas') {
           setHasStudentProfile(true);
           setIsRoomAssigned(true);
           return;
@@ -453,7 +471,11 @@ export default function Dashboard() {
 
   if (effectiveRole === 'warden') return <WardenDashboard {...dashboardProps} />;
   if (effectiveRole === 'jakmas') return <JakmasDashboard {...dashboardProps} />;
-  if (effectiveRole === 'super_admin' || effectiveRole === 'college_admin') {
+  if (
+    effectiveRole === 'super_admin' ||
+    effectiveRole === 'college_admin' ||
+    effectiveRole === 'staff'
+  ) {
     return <AdminDashboard {...dashboardProps} />;
   }
   
