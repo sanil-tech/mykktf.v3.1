@@ -20,9 +20,9 @@ const ICONS = {
 const SLIDES = [
   {
     kind: 'cover',
-    title: 'MyKKTF — Kolej Kediaman Tun Fuad',
-    subtitle: 'Panduan Fungsi Sistem Pengurusan Resident',
-    meta: 'Pembentangan Modul & Ciri Aplikasi',
+    title: 'MyKKTF',
+    subtitle: 'Sistem Pengurusan Digital Kolej Kediaman Tun Fuad, Universiti Malaysia Sabah',
+    meta: 'Panduan Fungsi Sistem',
   },
 
   { kind: 'section', label: 'Bahagian 1', title: 'Pengenalan & Pengalaman Pengguna', icon: 'LayoutDashboard' },
