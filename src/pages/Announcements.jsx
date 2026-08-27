@@ -108,7 +108,7 @@ export default function Announcements() {
   }
 
   async function markRead(ann) {
-    if (!user || user.role !== 'student') return;
+    if (!user || user.effectiveRole !== 'student') return;
     if (readMap[ann.id]) return;
     await base44.entities.AnnouncementRead.create({
       announcement_id: ann.id,
@@ -140,7 +140,7 @@ export default function Announcements() {
     setForm({ 
       title: '', 
       content: '', 
-      type: user?.role === 'jakmas' ? JAKMAS_TYPES[0] : 'General Notice', 
+      type: user?.effectiveRole === 'jakmas' ? JAKMAS_TYPES[0] : 'General Notice', 
       priority: 'General', 
       publish_date: new Date().toISOString().split('T')[0], 
       expiry_date: '',
@@ -156,15 +156,16 @@ export default function Announcements() {
     init();
   }
 
-  const canPublish = user && PUBLISH_ROLES.includes(user.role);
-  const isAdmin = user && ADMIN_ROLES.includes(user.role);
-  const isStudent = user?.role === 'student';
-  const isJakmas = user?.role === 'jakmas';
+  const role = user?.effectiveRole;
+  const canPublish = user && PUBLISH_ROLES.includes(role);
+  const isAdmin = user && ADMIN_ROLES.includes(role);
+  const isStudent = role === 'student';
+  const isJakmas = role === 'jakmas';
   const availableTypes = isJakmas ? JAKMAS_TYPES : OFFICIAL_TYPES;
 
   useEffect(() => {
     if (user) {
-      setForm(f => ({ ...f, type: user.role === 'jakmas' ? JAKMAS_TYPES[0] : 'General Notice' }));
+      setForm(f => ({ ...f, type: user.effectiveRole === 'jakmas' ? JAKMAS_TYPES[0] : 'General Notice' }));
     }
   }, [user]);
 

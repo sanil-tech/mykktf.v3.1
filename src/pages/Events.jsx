@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { toast } from '@/components/ui/use-toast';
 import { Plus, Calendar, MapPin, Users, UserCheck, Trash2, Eye } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
+import { computeEffectiveRole, fetchActiveJakmasAppointment } from '@/lib/jakmas';
 
 const MANAGE_ROLES = ['super_admin', 'college_admin', 'warden', 'staff', 'jakmas'];
 const STATUS_COLORS = {
@@ -35,11 +36,13 @@ export default function Events() {
   useEffect(() => { init(); }, []);
 
   async function init() {
-    const u = await base44.auth.me();
+    const raw = await base44.auth.me();
+    const appt = await fetchActiveJakmasAppointment(raw.id);
+    const u = { ...raw, effectiveRole: computeEffectiveRole(raw.role, appt), jakmasAppointment: appt };
     setUser(u);
     const [evs] = await Promise.all([base44.entities.Event.list('-event_date')]);
     setEvents(evs);
-    if (u.role === 'student') {
+    if (u.effectiveRole === 'student') {
       let sp = await base44.entities.Student.filter({ user_id: u.id });
       if (!sp.length) sp = await base44.entities.Student.filter({ email: u.email });
       if (sp.length) setStudent(sp[0]);
@@ -107,8 +110,9 @@ export default function Events() {
     setUploading(false);
   }
 
-  const canManage = user && MANAGE_ROLES.includes(user.role);
-  const isStudent = user?.role === 'student';
+  const role = user?.effectiveRole;
+  const canManage = user && MANAGE_ROLES.includes(role);
+  const isStudent = role === 'student';
 
   if (loading) return <div><PageHeader title="Events & Activities" description="Loading events..." /><CardGridSkeleton count={6} /></div>;
 
@@ -166,7 +170,7 @@ export default function Events() {
                     {isStudent && isFull && !isRegistered && (
                       <span className="flex-1 text-center text-xs text-muted-foreground py-1">Full</span>
                     )}
-                    {canManage && (user?.role === 'super_admin' || user?.role === 'college_admin' || ev.organizer_user_id === user?.id) && (
+                    {canManage && (role === 'super_admin' || role === 'college_admin' || ev.organizer_user_id === user?.id) && (
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive shrink-0" onClick={() => deleteEvent(ev.id)}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
