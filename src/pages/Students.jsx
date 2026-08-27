@@ -54,7 +54,7 @@ export default function Students() {
 
   const filtered = students.filter(s => {
     const q = search.toLowerCase();
-    const matchSearch = !q || s.full_name?.toLowerCase().includes(q) || s.student_id?.toLowerCase().includes(q) || s.email?.toLowerCase().includes(q);
+    const matchSearch = !q || s.full_name?.toLowerCase().includes(q) || s.student_id?.toLowerCase().includes(q) || s.email?.toLowerCase().includes(q) || s.room_number?.toLowerCase().includes(q);
     const matchFaculty = filterFaculty === 'all' || s.faculty === filterFaculty;
     const matchStatus = filterStatus === 'all' || s.status === filterStatus;
     return matchSearch && matchFaculty && matchStatus;
