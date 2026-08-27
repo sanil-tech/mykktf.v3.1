@@ -17,9 +17,9 @@ const iconMap = {
   CalendarDays, Users, ClipboardList, Sparkles
 };
 
-export default function Sidebar({ userRole, open, onClose, collapsed, onToggleCollapse }) {
+export default function Sidebar({ userRole, hasJakmas, open, onClose, collapsed, onToggleCollapse }) {
   const location = useLocation();
-  const navItems = getNavItems(userRole);
+  const navItems = getNavItems(userRole, hasJakmas);
 
   return (
     <>

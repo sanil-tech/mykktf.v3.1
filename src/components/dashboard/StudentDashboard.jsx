@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
 import { Wrench, CalendarOff, Package, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import JakmasPanel from '@/components/dashboard/JakmasPanel';
 
 const PRIORITY_BORDER = { 
   Critical: 'border-l-4 border-l-red-600 shadow-[0_0_15px_rgba(220,38,38,0.1)]', 
@@ -44,7 +45,7 @@ function QuickAction({ to, icon: Icon, label, color, description }) {
   );
 }
 
-export default function StudentDashboard({ user }) {
+export default function StudentDashboard({ user, jakmasAppointment }) {
   const [student, setStudent] = useState(null);
   const [myLeave, setMyLeave] = useState([]);
   const [myMaint, setMyMaint] = useState([]);
@@ -186,6 +187,8 @@ export default function StudentDashboard({ user }) {
           )}
         </div>
       </div>
+
+      {jakmasAppointment && <JakmasPanel user={user} appointment={jakmasAppointment} />}
 
       {/* 2. Urgent Unread Notices Box */}
       {unreadAnn.length > 0 && (

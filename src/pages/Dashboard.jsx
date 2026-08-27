@@ -3,7 +3,6 @@ import { base44 } from '@/api/base44Client';
 import AdminDashboard from '@/components/dashboard/AdminDashboard';
 import StudentDashboard from '@/components/dashboard/StudentDashboard';
 import WardenDashboard from '@/components/dashboard/WardenDashboard';
-import JakmasDashboard from '@/components/dashboard/JakmasDashboard';
 import { fetchActiveJakmasAppointment, computeEffectiveRole } from '@/lib/jakmas';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -473,7 +472,7 @@ export default function Dashboard() {
   const tour = <WelcomeTour user={currentUser} role={effectiveRole} />;
 
   if (effectiveRole === 'warden') return <><WardenDashboard {...dashboardProps} />{tour}</>;
-  if (effectiveRole === 'jakmas') return <><JakmasDashboard {...dashboardProps} />{tour}</>;
+  if (effectiveRole === 'jakmas') return <><StudentDashboard user={currentUser} jakmasAppointment={jakmasAppointment} />{tour}</>;
   if (
     effectiveRole === 'super_admin' ||
     effectiveRole === 'college_admin' ||

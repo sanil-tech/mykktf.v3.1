@@ -21,11 +21,11 @@ export function hasAccess(userRole, allowedRoles) {
   return allowedRoles.includes(userRole);
 }
 
-export function getNavItems(role) {
+export function getNavItems(role, hasJakmas = false) {
   const all = [
     { label: 'Dashboard', path: '/', icon: 'LayoutDashboard', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
     { label: 'Students', path: '/students', icon: 'GraduationCap', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.WARDEN] },
-    { label: 'Resident Directory', path: '/directory', icon: 'Users', roles: [ROLES.JAKMAS] },
+    { label: 'Resident Directory', path: '/directory', icon: 'Users', roles: [] },
     { label: 'Rooms', path: '/rooms', icon: 'DoorOpen', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
     { label: 'Check-In/Out', path: '/check-in-out', icon: 'ArrowLeftRight', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.STAFF] },
     { label: 'Leave', path: '/leave', icon: 'CalendarOff', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.WARDEN, ROLES.STUDENT] },
@@ -42,8 +42,10 @@ export function getNavItems(role) {
     { label: 'Block Assignments', path: '/block-assignment', icon: 'UserCog', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
     { label: 'JAKMAS Management', path: '/jakmas-management', icon: 'UserCog', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
     { label: 'AI Knowledge', path: '/ai-knowledge', icon: 'Sparkles', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
-    { label: 'My JAKMAS Tasks', path: '/jakmas-tasks', icon: 'ClipboardList', roles: [ROLES.JAKMAS] },
+    { label: 'My JAKMAS Tasks', path: '/jakmas-tasks', icon: 'ClipboardList', roles: [], jakmasOnly: true },
     { label: 'Audit Log', path: '/audit-log', icon: 'ScrollText', roles: [ROLES.SUPER_ADMIN] },
   ];
-  return all.filter(item => hasAccess(role, item.roles));
+  const base = all.filter(item => hasAccess(role, item.roles));
+  if (!hasJakmas) return base;
+  return [...base, ...all.filter(item => item.jakmasOnly)];
 }
