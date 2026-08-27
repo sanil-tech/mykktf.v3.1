@@ -11,7 +11,7 @@ export default function AppLayout({ user }) {
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar
-        userRole={user?.role || 'student'}
+        userRole={user?.effectiveRole || user?.role || 'student'}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         collapsed={collapsed}

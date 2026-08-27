@@ -1,0 +1,148 @@
+{
+  "name": "JakmasAppointment",
+  "type": "object",
+  "properties": {
+    "student_user_id": {
+      "type": "string",
+      "description": "User account ID of the appointed student (authoritative link)"
+    },
+    "student_id": {
+      "type": "string",
+      "description": "University matric number (denormalized for display)"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "student_email": {
+      "type": "string",
+      "format": "email"
+    },
+    "block_name": {
+      "type": "string"
+    },
+    "room_number": {
+      "type": "string"
+    },
+    "position": {
+      "type": "string",
+      "description": "JAKMAS position / role title"
+    },
+    "portfolio": {
+      "type": "string",
+      "description": "Portfolio / responsibility area"
+    },
+    "term_start": {
+      "type": "string",
+      "format": "date"
+    },
+    "term_end": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "active",
+        "suspended",
+        "expired",
+        "ended"
+      ],
+      "default": "active"
+    },
+    "appointed_by_user_id": {
+      "type": "string"
+    },
+    "appointed_by_name": {
+      "type": "string"
+    },
+    "appointed_at": {
+      "type": "string",
+      "format": "date"
+    },
+    "ended_at": {
+      "type": "string",
+      "format": "date"
+    },
+    "ended_by_user_id": {
+      "type": "string"
+    },
+    "ended_by_name": {
+      "type": "string"
+    },
+    "end_reason": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "student_user_id",
+    "student_name",
+    "position",
+    "term_start",
+    "status"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        },
+        {
+          "data.student_user_id": "{{user.id}}"
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        }
+      ]
+    }
+  }
+}

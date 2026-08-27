@@ -36,6 +36,8 @@ import LeaveMonitor from '@/pages/LeaveMonitor';
 import SurveyAnalytics from '@/pages/SurveyAnalytics';
 import Events from '@/pages/Events';
 import ResidentDirectory from '@/pages/ResidentDirectory';
+import JakmasManagement from '@/pages/JakmasManagement';
+import JakmasTasks from '@/pages/JakmasTasks';
 import { useState, useEffect } from 'react';
 
 const AuthenticatedApp = () => {
@@ -109,6 +111,8 @@ const AuthenticatedApp = () => {
           <Route path="/survey-analytics" element={<SurveyAnalytics />} />
           <Route path="/events" element={<Events />} />
           <Route path="/directory" element={<ResidentDirectory />} />
+          <Route path="/jakmas-management" element={<JakmasManagement />} />
+          <Route path="/jakmas-tasks" element={<JakmasTasks />} />
         </Route>
       </Route>
 

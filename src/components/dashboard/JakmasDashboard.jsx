@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { Users, Megaphone, Calendar, UserCheck, ClipboardList, Flag, BarChart2 } from 'lucide-react';
+import { Users, Megaphone, Calendar, UserCheck, ClipboardList, Flag, BarChart2, BadgeCheck } from 'lucide-react';
+import { fetchActiveJakmasAppointment } from '@/lib/jakmas';
 
 export default function JakmasDashboard({ user }) {
-  const [stats, setStats] = useState({ totalStudents: 0, myAnnouncements: 0, upcomingEvents: 0, totalRegistrations: 0, pendingInspections: 0, chatReports: 0 });
+  const [stats, setStats] = useState({ totalStudents: 0, myAnnouncements: 0, upcomingEvents: 0, totalRegistrations: 0, pendingInspections: 0, chatReports: 0, myTasks: 0 });
   const [upcomingEvents, setUpcomingEvents] = useState([]);
+  const [appointment, setAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { load(); }, []);
@@ -13,17 +15,20 @@ export default function JakmasDashboard({ user }) {
   async function load() {
     setLoading(true);
     const today = new Date().toISOString().split('T')[0];
-    const [students, announcements, events, registrations, inspections, chatReports] = await Promise.all([
+    const [students, announcements, events, registrations, inspections, chatReports, appt, myTasks] = await Promise.all([
       base44.entities.Student.filter({ status: 'Active' }),
       base44.entities.Announcement.list(),
       base44.entities.Event.list('-event_date'),
       base44.entities.EventRegistration.list(),
       base44.entities.RoomInspection.filter({ status: 'Submitted' }),
       base44.entities.ChatMessage.filter({ reported: true }),
+      fetchActiveJakmasAppointment(user?.id),
+      user?.id ? base44.entities.JakmasTask.filter({ assigned_to_user_id: user.id }).catch(() => []) : [],
     ]);
 
     const upcoming = events.filter(e => e.event_date >= today && e.status !== 'Cancelled');
     setUpcomingEvents(upcoming.slice(0, 3));
+    setAppointment(appt);
 
     setStats({
       totalStudents: students.length,
@@ -32,6 +37,7 @@ export default function JakmasDashboard({ user }) {
       totalRegistrations: registrations.filter(r => r.status === 'Registered').length,
       pendingInspections: inspections.length,
       chatReports: chatReports.length,
+      myTasks: myTasks.filter(t => t.status !== 'approved' && t.status !== 'cancelled').length,
     });
     setLoading(false);
   }
@@ -44,6 +50,7 @@ export default function JakmasDashboard({ user }) {
 
   const statCards = [
     { label: 'Total Residents', value: stats.totalStudents, icon: Users, color: 'bg-blue-100 text-blue-600', link: '/directory' },
+    { label: 'My JAKMAS Tasks', value: stats.myTasks, icon: ClipboardList, color: 'bg-indigo-100 text-indigo-600', link: '/jakmas-tasks' },
     { label: 'My Announcements', value: stats.myAnnouncements, icon: Megaphone, color: 'bg-purple-100 text-purple-600', link: '/announcements' },
     { label: 'Upcoming Events', value: stats.upcomingEvents, icon: Calendar, color: 'bg-green-100 text-green-600', link: '/events' },
     { label: 'Event Registrations', value: stats.totalRegistrations, icon: UserCheck, color: 'bg-teal-100 text-teal-600', link: '/events' },
@@ -53,10 +60,19 @@ export default function JakmasDashboard({ user }) {
 
   return (
     <div className="space-y-6">
-      {/* Welcome */}
+      {/* Identity — student serving as JAKMAS via active appointment */}
       <div className="bg-primary text-primary-foreground rounded-xl p-5">
-        <h1 className="text-lg font-heading font-bold">Welcome, {user?.full_name || 'JAKMAS'}</h1>
-        <p className="text-sm opacity-80 mt-0.5">Jawatankuasa Mahasiswa Kolej — Student Committee Dashboard</p>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="inline-flex items-center gap-1 bg-emerald-400/90 text-emerald-950 text-xs font-semibold px-2 py-0.5 rounded-full">
+            <BadgeCheck className="w-3.5 h-3.5" /> JAKMAS — ACTIVE
+          </span>
+          <span className="text-xs opacity-80">Student</span>
+        </div>
+        <h1 className="text-lg font-heading font-bold">{user?.full_name || 'JAKMAS'}</h1>
+        <p className="text-xs opacity-80">Student ID: {appointment?.student_id || '-'}</p>
+        <p className="text-sm opacity-80 mt-1">
+          Position: {appointment?.position || '-'} · Portfolio: {appointment?.portfolio || '-'} · Term: {appointment?.term_start || '-'} → {appointment?.term_end || 'open'}
+        </p>
       </div>
 
       {/* Stats */}
@@ -102,12 +118,12 @@ export default function JakmasDashboard({ user }) {
       {/* Quick Links */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {[
+          { label: 'My JAKMAS Tasks', path: '/jakmas-tasks', icon: ClipboardList },
           { label: 'Create Announcement', path: '/announcements', icon: Megaphone },
           { label: 'Create Event', path: '/events', icon: Calendar },
           { label: 'Room Inspection', path: '/room-inspections', icon: ClipboardList },
           { label: 'Community Chat', path: '/chat', icon: Flag },
           { label: 'Resident Directory', path: '/directory', icon: Users },
-          { label: 'View Analytics', path: '/announcements', icon: BarChart2 },
         ].map(item => {
           const Icon = item.icon;
           return (

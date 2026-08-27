@@ -4,6 +4,7 @@ import AdminDashboard from '@/components/dashboard/AdminDashboard';
 import StudentDashboard from '@/components/dashboard/StudentDashboard';
 import WardenDashboard from '@/components/dashboard/WardenDashboard';
 import JakmasDashboard from '@/components/dashboard/JakmasDashboard';
+import { fetchActiveJakmasAppointment, computeEffectiveRole } from '@/lib/jakmas';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +27,7 @@ const UMS_FACULTIES = [
 
 export default function Dashboard() {
   const [currentUser, setCurrentUser] = useState(null);
+  const [jakmasAppointment, setJakmasAppointment] = useState(null);
   const [hasStudentProfile, setHasStudentProfile] = useState(false);
   const [isRoomAssigned, setIsRoomAssigned] = useState(false); 
   const [loading, setLoading] = useState(true);
@@ -61,6 +63,14 @@ export default function Dashboard() {
         const user = await base44.auth.me();
         setCurrentUser(user);
 
+        // JAKMAS capability is appointment-derived (mirrors WardenBlock pattern).
+        let appt = null;
+        if (!user?.role || user?.role === 'student' || user?.role === 'user') {
+          appt = await fetchActiveJakmasAppointment(user.id);
+        }
+        setJakmasAppointment(appt);
+        const effectiveRole = computeEffectiveRole(user?.role, appt);
+
         // --- PENGAMBILAN DATA REAL-TIME ---
         try {
           const allStudents = await base44.entities.Student.filter({});
@@ -88,13 +98,13 @@ export default function Dashboard() {
         }
 
         if (
-          user?.role === 'warden' || 
-          user?.role === 'jakmas' || 
-          user?.role === 'super_admin' || 
-          user?.role === 'college_admin'
+          effectiveRole === 'warden' ||
+          effectiveRole === 'jakmas' ||
+          effectiveRole === 'super_admin' ||
+          effectiveRole === 'college_admin'
         ) {
           setHasStudentProfile(true);
-          setIsRoomAssigned(true); 
+          setIsRoomAssigned(true);
           return;
         }
 
@@ -431,17 +441,19 @@ export default function Dashboard() {
   // ====================================================================
   // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD (STAFF/ADMIN)
   // ====================================================================
+  const effectiveRole = computeEffectiveRole(currentUser?.role, jakmasAppointment);
   const dashboardProps = {
     user: currentUser,
+    jakmasAppointment,
     checkedInCount,
     pendingRoomCount,
     availableRoomCount,
-    statsComponent: renderStatsCards() 
+    statsComponent: renderStatsCards()
   };
 
-  if (currentUser?.role === 'warden') return <WardenDashboard {...dashboardProps} />;
-  if (currentUser?.role === 'jakmas') return <JakmasDashboard {...dashboardProps} />;
-  if (currentUser?.role === 'super_admin' || currentUser?.role === 'college_admin') {
+  if (effectiveRole === 'warden') return <WardenDashboard {...dashboardProps} />;
+  if (effectiveRole === 'jakmas') return <JakmasDashboard {...dashboardProps} />;
+  if (effectiveRole === 'super_admin' || effectiveRole === 'college_admin') {
     return <AdminDashboard {...dashboardProps} />;
   }
   

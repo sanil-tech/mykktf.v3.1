@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
+import { fetchActiveJakmasAppointment, computeEffectiveRole } from '@/lib/jakmas';
 
 const AuthContext = createContext();
 
@@ -100,7 +101,15 @@ export const AuthProvider = ({ children }) => {
       // Now check if the user is authenticated
       setIsLoadingAuth(true);
       const currentUser = await base44.auth.me();
-      setUser(currentUser);
+      // Enrich with JAKMAS appointment-derived capability (mirrors WardenBlock pattern).
+      // base_role stays unchanged; effectiveRole grants 'jakmas' only via an ACTIVE appointment.
+      const appt = await fetchActiveJakmasAppointment(currentUser.id);
+      const enriched = {
+        ...currentUser,
+        jakmasAppointment: appt,
+        effectiveRole: computeEffectiveRole(currentUser.role, appt),
+      };
+      setUser(enriched);
       setIsAuthenticated(true);
       setIsLoadingAuth(false);
       setAuthChecked(true);

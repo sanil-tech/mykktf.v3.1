@@ -3,6 +3,7 @@ import { Menu, Bell, LogOut, User, UserCog } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { ROLE_LABELS } from '@/lib/roles';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
@@ -45,8 +46,13 @@ export default function TopBar({ onMenuClick, user }) {
                 <User className="w-3.5 h-3.5 text-primary-foreground" />
               </div>
               <div className="hidden sm:block text-left">
-                <p className="text-xs font-medium leading-none">{user?.full_name || 'User'}</p>
-                <p className="text-[10px] text-muted-foreground leading-none mt-0.5">{ROLE_LABELS[user?.role] || user?.role}</p>
+                <p className="text-xs font-medium leading-none flex items-center gap-1">
+                  {user?.full_name || 'User'}
+                  {user?.jakmasAppointment && (
+                    <Badge className="bg-emerald-100 text-emerald-700 text-[9px] px-1 py-0 leading-none">JAKMAS</Badge>
+                  )}
+                </p>
+                <p className="text-[10px] text-muted-foreground leading-none mt-0.5">{ROLE_LABELS[user?.effectiveRole] || ROLE_LABELS[user?.role] || user?.role}</p>
               </div>
             </Button>
           </DropdownMenuTrigger>

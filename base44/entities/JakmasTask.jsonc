@@ -1,0 +1,172 @@
+{
+  "name": "JakmasTask",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "instructions": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "urgent"
+      ],
+      "default": "medium"
+    },
+    "deadline": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "assigned",
+        "acknowledged",
+        "in_progress",
+        "submitted",
+        "approved",
+        "returned",
+        "cancelled"
+      ],
+      "default": "assigned"
+    },
+    "portfolio": {
+      "type": "string"
+    },
+    "position": {
+      "type": "string"
+    },
+    "assigned_to_user_id": {
+      "type": "string",
+      "description": "User ID of the JAKMAS member assigned to this task"
+    },
+    "assigned_to_name": {
+      "type": "string"
+    },
+    "appointment_id": {
+      "type": "string",
+      "description": "Reference to the active JakmasAppointment at time of assignment"
+    },
+    "created_by_user_id": {
+      "type": "string"
+    },
+    "created_by_name": {
+      "type": "string"
+    },
+    "acknowledged_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "submitted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "approved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "returned_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cancelled_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "progress_notes": {
+      "type": "string"
+    },
+    "evidence_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "admin_feedback": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "assigned_to_user_id",
+    "assigned_to_name",
+    "status"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        },
+        {
+          "data.assigned_to_user_id": "{{user.id}}"
+        },
+        {
+          "data.created_by_user_id": "{{user.id}}"
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        },
+        {
+          "data.assigned_to_user_id": "{{user.id}}"
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        }
+      ]
+    }
+  }
+}

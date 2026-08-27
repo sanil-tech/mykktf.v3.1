@@ -40,6 +40,8 @@ export function getNavItems(role) {
     { label: 'Reports', path: '/reports', icon: 'FileBarChart', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
     { label: 'Survey Analytics', path: '/survey-analytics', icon: 'Star', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
     { label: 'Block Assignments', path: '/block-assignment', icon: 'UserCog', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
+    { label: 'JAKMAS Management', path: '/jakmas-management', icon: 'UserCog', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
+    { label: 'My JAKMAS Tasks', path: '/jakmas-tasks', icon: 'ClipboardList', roles: [ROLES.JAKMAS] },
     { label: 'Audit Log', path: '/audit-log', icon: 'ScrollText', roles: [ROLES.SUPER_ADMIN] },
   ];
   return all.filter(item => hasAccess(role, item.roles));

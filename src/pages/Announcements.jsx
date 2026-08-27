@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, Trash2, Megaphone, AlertTriangle, Info, Bell, CheckCircle, BarChart2, Image, X, Users, Calendar } from 'lucide-react';
 import { ListSkeleton } from '@/components/shared/ListSkeletons';
+import { computeEffectiveRole, fetchActiveJakmasAppointment } from '@/lib/jakmas';
 
 const TYPE_CONFIG = {
   'General Notice': { icon: Info, bg: 'bg-blue-50 border-blue-200', badge: 'bg-blue-100 text-blue-700' },
@@ -61,17 +62,20 @@ export default function Announcements() {
   useEffect(() => { init(); }, []);
 
   async function init() {
-    const u = await base44.auth.me();
+    const raw = await base44.auth.me();
+    const appt = await fetchActiveJakmasAppointment(raw.id);
+    const u = { ...raw, effectiveRole: computeEffectiveRole(raw.role, appt), jakmasAppointment: appt };
     setUser(u);
+    const role = u.effectiveRole;
     const [ann, reads, students] = await Promise.all([
       base44.entities.Announcement.list('-publish_date'),
-      (u.role === 'student') ? base44.entities.AnnouncementRead.filter({ student_user_id: u.id }) : base44.entities.AnnouncementRead.list(),
-      (ADMIN_ROLES.includes(u.role) || u.role === 'jakmas') ? base44.entities.Student.filter({ status: 'Active' }) : Promise.resolve([]),
+      (role === 'student') ? base44.entities.AnnouncementRead.filter({ student_user_id: u.id }) : base44.entities.AnnouncementRead.list(),
+      (ADMIN_ROLES.includes(role) || role === 'jakmas') ? base44.entities.Student.filter({ status: 'Active' }) : Promise.resolve([]),
     ]);
     setAnnouncements(ann);
     setTotalStudents(students.length);
 
-    if (u.role === 'student') {
+    if (role === 'student') {
       const map = {};
       reads.forEach(r => { map[r.announcement_id] = r; });
       setReadMap(map);
