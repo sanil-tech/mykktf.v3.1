@@ -3,9 +3,12 @@ import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, UserCog, Plus } from 'lucide-react';
+import { Trash2, UserCog, Plus, ShieldAlert } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { logAudit } from '@/lib/audit';
+import EmptyState from '@/components/shared/EmptyState';
+
+const ADMIN_ROLES = ['super_admin', 'college_admin'];
 
 export default function BlockAssignment() {
   const [assignments, setAssignments] = useState([]);
@@ -22,6 +25,11 @@ export default function BlockAssignment() {
     setLoading(true);
     const u = await base44.auth.me();
     setCurrentUser(u);
+    // User.list() is admin-only; skip the restricted fetch for non-admins.
+    if (!ADMIN_ROLES.includes(u?.role)) {
+      setLoading(false);
+      return;
+    }
     const [a, b, users] = await Promise.all([
       base44.entities.WardenBlock.list(),
       base44.entities.Block.list(),
@@ -29,7 +37,7 @@ export default function BlockAssignment() {
     ]);
     setAssignments(a);
     setBlocks(b);
-    setWardens(users.filter(u => u.role === 'warden'));
+    setWardens(users.filter(usr => usr.role === 'warden'));
     setLoading(false);
   }
 
@@ -66,6 +74,10 @@ export default function BlockAssignment() {
     acc[a.warden_user_id].blocks.push(a);
     return acc;
   }, {});
+
+  if (!loading && currentUser && !ADMIN_ROLES.includes(currentUser.role)) {
+    return <EmptyState icon={ShieldAlert} title="Access denied" description="Hanya Super Admin / College Admin boleh menguruskan tugasan blok warden." />;
+  }
 
   return (
     <div>
