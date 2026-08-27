@@ -418,13 +418,14 @@ export default function AdminDashboard({ user }) {
                   <TableHead className="text-center">Diduduki</TableHead>
                   <TableHead className="text-center">Kosong</TableHead>
                   <TableHead className="text-center">Penyelenggaraan</TableHead>
+                  <TableHead className="text-center">Ditempah</TableHead>
                   <TableHead className="text-center">Ketersediaan</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {stats.blockAvailability.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6 text-muted-foreground text-sm">
+                    <TableCell colSpan={8} className="text-center py-6 text-muted-foreground text-sm">
                       Tiada data bilik. Sila tambah blok dan bilik dalam modul Rooms.
                     </TableCell>
                   </TableRow>
@@ -439,6 +440,7 @@ export default function AdminDashboard({ user }) {
                         <TableCell className="text-center text-sm text-blue-600">{b.occupied}</TableCell>
                         <TableCell className="text-center text-sm font-semibold text-emerald-600">{b.vacant}</TableCell>
                         <TableCell className="text-center text-sm text-amber-600">{b.maintenance}</TableCell>
+                        <TableCell className="text-center text-sm text-violet-600">{b.reserved}</TableCell>
                         <TableCell className="text-center">
                           <Badge
                             variant="outline"
