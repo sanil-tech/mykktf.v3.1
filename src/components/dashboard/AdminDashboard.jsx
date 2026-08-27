@@ -169,51 +169,64 @@ export default function AdminDashboard({ user }) {
     <div className="space-y-6 p-6 max-w-7xl mx-auto">
       
       {/* HEADER DASHBOARD */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-6 rounded-xl border shadow-sm">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Building className="w-6 h-6 text-primary" /> Panel Pentadbiran KKTF
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Selamat kembali, <span className="font-semibold text-foreground">{user?.full_name || 'Pentadbir'}</span>. Kawalan penempatan Kolej Kediaman Tun Fuad.
-          </p>
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#0B1E36] via-[#132A4A] to-[#1E3A60] rounded-2xl p-6 text-white shadow-lg border border-[#1E3A60]">
+        <div className="absolute top-0 right-0 transform translate-x-6 -translate-y-6 w-44 h-44 bg-sky-500/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 transform translate-y-12 w-60 h-20 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
+          <div>
+            <p className="text-xs font-bold tracking-wider text-amber-400 uppercase drop-shadow-sm mb-1">
+              {(() => { const h = new Date().getHours(); if (h<12) return '🌅 Selamat Pagi'; if (h<18) return '☀️ Selamat Tengahari'; return '🌙 Selamat Malam'; })()}
+            </p>
+            <h1 className="text-2xl font-extrabold tracking-tight flex items-center gap-2">
+              <Building className="w-6 h-6 text-amber-400" /> Panel Pentadbiran KKTF
+            </h1>
+            <p className="text-sm text-slate-200 mt-1">
+              Selamat kembali, <span className="font-semibold text-white">{user?.full_name || 'Pentadbir'}</span>. Kawalan penempatan Kolej Kediaman Tun Fuad.
+            </p>
+          </div>
+          <button 
+            onClick={fetchDashboardData}
+            className="flex items-center gap-2 text-xs bg-white/10 hover:bg-white/20 text-white px-4 h-9 rounded-xl border border-white/10 font-semibold transition-colors backdrop-blur-sm"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Segarkan Data
+          </button>
         </div>
-        <button 
-          onClick={fetchDashboardData}
-          className="flex items-center gap-2 text-xs bg-secondary hover:bg-secondary/80 text-secondary-foreground px-3 h-9 rounded-md border font-medium transition-colors"
-        >
-          <RefreshCw className="w-3.5 h-3.5" /> Segarkan Data
-        </button>
       </div>
 
       {/* 📊 SEKSYEN KAD METRIK UTAMA */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="shadow-sm">
+        <Card className="shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all bg-gradient-to-br from-blue-50/50 to-transparent border-blue-100/60">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Jumlah Residen</CardTitle>
-            <Users className="w-4 h-4 text-blue-500" />
+            <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
+              <Users className="w-5 h-5 text-blue-600" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
+            <div className="text-2xl font-bold text-blue-700">{stats.total}</div>
             <p className="text-xs text-muted-foreground mt-1">Profil berdaftar dalam sistem</p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-l-4 border-l-green-500">
+        <Card className="shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all bg-gradient-to-br from-emerald-50/50 to-transparent border-emerald-100/60 border-l-4 border-l-green-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Aktif (Check-In)</CardTitle>
-            <UserCheck className="w-4 h-4 text-green-500" />
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center">
+              <UserCheck className="w-5 h-5 text-emerald-600" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.checkedIn}</div>
+            <div className="text-2xl font-bold text-emerald-600">{stats.checkedIn}</div>
             <p className="text-xs text-muted-foreground mt-1">Mempunyai blok & bilik sah</p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-l-4 border-l-amber-500">
+        <Card className="shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all bg-gradient-to-br from-amber-50/50 to-transparent border-amber-100/60 border-l-4 border-l-amber-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Menunggu Penempatan</CardTitle>
-            <UserMinus className="w-4 h-4 text-amber-500" />
+            <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center">
+              <UserMinus className="w-5 h-5 text-amber-600" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-amber-600">{stats.pending}</div>
@@ -221,13 +234,15 @@ export default function AdminDashboard({ user }) {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm">
+        <Card className="shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all bg-gradient-to-br from-purple-50/50 to-transparent border-purple-100/60">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Kenderaan Residen</CardTitle>
-            <Car className="w-4 h-4 text-purple-500" />
+            <div className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center">
+              <Car className="w-5 h-5 text-purple-600" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.vehicles}</div>
+            <div className="text-2xl font-bold text-purple-700">{stats.vehicles}</div>
             <p className="text-xs text-muted-foreground mt-1">Kereta/motosikal aktif</p>
           </CardContent>
         </Card>
@@ -237,7 +252,7 @@ export default function AdminDashboard({ user }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         
         {/* Kad Residen Lelaki */}
-        <Card className="shadow-sm bg-gradient-to-br from-blue-50/40 to-transparent">
+        <Card className="shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all bg-gradient-to-br from-blue-50/40 to-transparent">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Residen Lelaki</CardTitle>
             <Contact2 className="w-4 h-4 text-blue-600" />
@@ -249,7 +264,7 @@ export default function AdminDashboard({ user }) {
         </Card>
 
         {/* Kad Residen Perempuan */}
-        <Card className="shadow-sm bg-gradient-to-br from-pink-50/40 to-transparent">
+        <Card className="shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all bg-gradient-to-br from-pink-50/40 to-transparent">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Residen Perempuan</CardTitle>
             <Contact2 className="w-4 h-4 text-pink-600" />

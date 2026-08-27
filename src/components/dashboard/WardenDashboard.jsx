@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { CalendarOff, Wrench, Check, X, Clock, AlertCircle, Building2, Users, DoorOpen, MessageSquare } from 'lucide-react';
+import { CalendarOff, Wrench, Check, X, Clock, AlertCircle, Building2, Users, DoorOpen, MessageSquare, ShieldCheck } from 'lucide-react';
 
 export default function WardenDashboard({ user }) {
   const [leaves, setLeaves] = useState([]);
@@ -73,56 +73,65 @@ export default function WardenDashboard({ user }) {
   return (
     <div className="space-y-6">
       {/* Welcome */}
-      <div className="bg-primary text-primary-foreground rounded-xl p-5">
-        <h1 className="text-lg font-heading font-bold">Welcome, {user?.full_name ||'Warden'}</h1>
-        <p className="text-sm opacity-80 mt-0.5">Here's what needs your attention today.</p>
-        {wardenBlocks.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {wardenBlocks.map(wb => (
-              <span key={wb.id} className="text-xs bg-white/20 px-2 py-0.5 rounded-full flex items-center gap-1">
-                <Building2 className="w-3 h-3" /> {wb.block_name}
-              </span>
-            ))}
-          </div>
-        )}
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#0B1E36] via-[#132A4A] to-[#1E3A60] rounded-2xl p-6 text-white shadow-lg border border-[#1E3A60]">
+        <div className="absolute top-0 right-0 transform translate-x-6 -translate-y-6 w-44 h-44 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 transform translate-y-12 w-60 h-20 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10">
+          <p className="text-xs font-bold tracking-wider text-amber-400 uppercase drop-shadow-sm mb-1">
+            {(() => { const h = new Date().getHours(); if (h<12) return '🌅 Selamat Pagi'; if (h<18) return '☀️ Selamat Tengahari'; return '🌙 Selamat Malam'; })()}
+          </p>
+          <h1 className="text-xl font-heading font-bold flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-amber-400" /> Selamat Datang, {user?.full_name || 'Warden'}
+          </h1>
+          <p className="text-sm text-slate-200 mt-0.5">Berikut perkara yang memerlukan perhatian anda hari ini.</p>
+          {wardenBlocks.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {wardenBlocks.map(wb => (
+                <span key={wb.id} className="text-xs bg-white/10 px-2.5 py-1 rounded-full flex items-center gap-1 border border-white/10 backdrop-blur-sm">
+                  <Building2 className="w-3 h-3 text-amber-400" /> {wb.block_name}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Stats grid */}
       {wardenBlocks.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+          <div className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3 hover:shadow-md hover:-translate-y-0.5 transition-all bg-gradient-to-br from-blue-50/40 to-transparent">
+            <div className="w-11 h-11 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
               <Users className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{stats.totalStudents}</p>
+              <p className="text-2xl font-bold text-blue-700">{stats.totalStudents}</p>
               <p className="text-xs text-muted-foreground">Total Students</p>
             </div>
           </div>
-          <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
+          <div className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3 hover:shadow-md hover:-translate-y-0.5 transition-all bg-gradient-to-br from-emerald-50/40 to-transparent">
+            <div className="w-11 h-11 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
               <DoorOpen className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{stats.vacantRooms}</p>
+              <p className="text-2xl font-bold text-green-700">{stats.vacantRooms}</p>
               <p className="text-xs text-muted-foreground">Vacant Rooms</p>
             </div>
           </div>
-          <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center shrink-0">
+          <div className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3 hover:shadow-md hover:-translate-y-0.5 transition-all bg-gradient-to-br from-amber-50/40 to-transparent">
+            <div className="w-11 h-11 rounded-xl bg-yellow-100 flex items-center justify-center shrink-0">
               <CalendarOff className="w-5 h-5 text-yellow-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{leaves.length}</p>
+              <p className="text-2xl font-bold text-amber-700">{leaves.length}</p>
               <p className="text-xs text-muted-foreground">Pending Leaves</p>
             </div>
           </div>
-          <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
+          <div className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3 hover:shadow-md hover:-translate-y-0.5 transition-all bg-gradient-to-br from-rose-50/40 to-transparent">
+            <div className="w-11 h-11 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
               <MessageSquare className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{stats.activeComplaints}</p>
+              <p className="text-2xl font-bold text-rose-700">{stats.activeComplaints}</p>
               <p className="text-xs text-muted-foreground">Active Complaints</p>
             </div>
           </div>
@@ -154,7 +163,7 @@ export default function WardenDashboard({ user }) {
       )}
 
       {/* Pending Leave Applications */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h2 className="text-sm font-heading font-semibold flex items-center gap-2">
             <Clock className="w-4 h-4 text-yellow-500" /> Pending Leave Applications
@@ -190,7 +199,7 @@ export default function WardenDashboard({ user }) {
       </div>
 
       {/* New Maintenance Requests */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h2 className="text-sm font-heading font-semibold flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-blue-500" /> New Maintenance Requests
