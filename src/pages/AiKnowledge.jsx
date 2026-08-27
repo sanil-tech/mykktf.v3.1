@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
+import { ShieldAlert } from 'lucide-react';
+import { ROLES } from '@/lib/roles';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,8 +34,21 @@ const CATEGORY_COLOR = {
 
 const EMPTY = { title: '', content: '', category: 'General', tags: '', effective_date: '', expiry_date: '', status: 'active' };
 
-export default function AiKnowledge({ user }) {
+export default function AiKnowledge() {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { user, isLoadingAuth } = useAuth();
+
+  // Restrict to administrators (Super Admin / College Admin). RLS already blocks
+  // data access at the backend, but this gives a clean UX for direct-URL visits.
+  const isAdmin = user?.role === ROLES.SUPER_ADMIN || user?.role === ROLES.ADMIN;
+  useEffect(() => {
+    if (!isLoadingAuth && user && !isAdmin) {
+      toast({ title: 'Akses ditolak', description: 'Halaman ini hanya untuk Pentadbir.', variant: 'destructive' });
+      navigate('/', { replace: true });
+    }
+  }, [isLoadingAuth, user, isAdmin]);
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
