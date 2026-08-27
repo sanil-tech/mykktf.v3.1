@@ -314,6 +314,30 @@ const SLIDES = [
   },
 ];
 
+const SLIDE_IMAGES = {
+  'Dashboard Berperanan': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/28d5bd17a_generated_image.png',
+  'Resident Directory': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/09ad816a0_generated_image.png',
+  'Audit Log': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/f17ee8b98_generated_image.png',
+  'Pengurusan Pelajar': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/da759f923_generated_image.png',
+  'Pengurusan Bilik & Blok': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/f67adf498_generated_image.png',
+  'Daftar Masuk / Keluar': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/7f5bdd49f_generated_image.png',
+  'Permohonan Cuti': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/6bf861469_generated_image.png',
+  'Leave Monitor': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/0b168e59d_generated_image.png',
+  'Aduan & Kerosakan (Maintenance)': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/e44253e1a_generated_image.png',
+  'Tempahan Kemudahan (Facilities)': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/a81c0941b_generated_image.png',
+  'Kehadiran (Attendance)': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/9c1101875_generated_image.png',
+  'Pengumuman': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/df7f7d1dc_generated_image.png',
+  'Acara (Events)': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/84600b305_generated_image.png',
+  'Aduan (Complaints)': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/1def8f30b_generated_image.png',
+  'Community Chat': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/2a96c3299_generated_image.png',
+  'Pengurusan JAKMAS': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/2575ab1eb_generated_image.png',
+  'Tugas JAKMAS': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/0c7cf3e2a_generated_image.png',
+  'Block Assignment': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/9aa5f50b6_generated_image.png',
+  'Laporan (Reports)': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/520008582_generated_image.png',
+  'Survey Analytics': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/0ac6b6820_generated_image.png',
+  'Pangkalan Pengetahuan AI': 'https://media.base44.com/images/public/6a2b3f6fae08d02dcdee4719/b66c1665f_generated_image.png',
+};
+
 const TONES = {
   indigo: { bg: 'from-indigo-500 to-indigo-700', chip: 'bg-indigo-100 text-indigo-700', dot: 'bg-indigo-500', soft: 'bg-indigo-50' },
   sky: { bg: 'from-sky-500 to-sky-700', chip: 'bg-sky-100 text-sky-700', dot: 'bg-sky-500', soft: 'bg-sky-50' },
@@ -359,35 +383,41 @@ function SectionSlide({ slide }) {
 function FeatureSlide({ slide }) {
   const Icon = ICONS[slide.icon] || PresentationIcon;
   const tone = TONES[slide.tone] || TONES.indigo;
+  const img = SLIDE_IMAGES[slide.title];
   return (
-    <div className="h-full flex flex-col px-10 md:px-14 py-8 bg-background">
-      <div className="flex items-center gap-4 mb-6">
-        <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${tone.bg} text-white shadow-md shrink-0`}>
-          <Icon className="h-7 w-7" />
+    <div className="h-full flex flex-col px-8 md:px-12 py-6 bg-background">
+      <div className="flex items-center gap-3.5 mb-4">
+        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${tone.bg} text-white shadow-md shrink-0`}>
+          <Icon className="h-6 w-6" />
         </div>
         <div>
-          <h2 className="text-2xl md:text-3xl font-heading font-bold leading-tight">{slide.title}</h2>
-          <p className="text-sm md:text-base text-muted-foreground mt-0.5">{slide.tagline}</p>
+          <h2 className="text-xl md:text-2xl font-heading font-bold leading-tight">{slide.title}</h2>
+          <p className="text-xs md:text-sm text-muted-foreground mt-0.5">{slide.tagline}</p>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6 flex-1 min-h-0">
-        <div className="md:col-span-2">
-          <h3 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase mb-3">Apa yang ia buat</h3>
-          <ul className="space-y-2.5">
+      <div className="grid md:grid-cols-2 gap-5 flex-1 min-h-0">
+        <div className="flex flex-col min-h-0">
+          {img && (
+            <div className="rounded-xl border border-border overflow-hidden shadow-sm bg-muted/30 mb-4 flex-1 min-h-0">
+              <img src={img} alt={slide.title} className="w-full h-full object-cover object-top" />
+            </div>
+          )}
+        </div>
+        <div className="flex flex-col min-h-0">
+          <h3 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase mb-2.5">Apa yang ia buat</h3>
+          <ul className="space-y-2">
             {slide.does.map((d, i) => (
-              <li key={i} className="flex items-start gap-3">
+              <li key={i} className="flex items-start gap-2.5">
                 <span className={`mt-1.5 h-2 w-2 rounded-full ${tone.dot} shrink-0`} />
-                <span className="text-sm md:text-base text-foreground/90">{d}</span>
+                <span className="text-sm text-foreground/90 leading-relaxed">{d}</span>
               </li>
             ))}
           </ul>
-        </div>
-        <div>
-          <h3 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase mb-3">Siapa yang guna</h3>
-          <div className="flex flex-wrap gap-2">
+          <h3 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase mb-2.5 mt-4">Siapa yang guna</h3>
+          <div className="flex flex-wrap gap-1.5">
             {slide.roles.map((r, i) => (
-              <span key={i} className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${tone.chip}`}>{r}</span>
+              <span key={i} className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${tone.chip}`}>{r}</span>
             ))}
           </div>
         </div>
