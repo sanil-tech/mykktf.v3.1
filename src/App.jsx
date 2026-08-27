@@ -39,6 +39,7 @@ import ResidentDirectory from '@/pages/ResidentDirectory';
 import JakmasManagement from '@/pages/JakmasManagement';
 import JakmasTasks from '@/pages/JakmasTasks';
 import AiKnowledge from '@/pages/AiKnowledge';
+import Presentation from '@/pages/Presentation';
 import { useState, useEffect } from 'react';
 
 const AuthenticatedApp = () => {
@@ -115,6 +116,7 @@ const AuthenticatedApp = () => {
           <Route path="/jakmas-management" element={<JakmasManagement />} />
           <Route path="/jakmas-tasks" element={<JakmasTasks />} />
           <Route path="/ai-knowledge" element={<AiKnowledge />} />
+          <Route path="/presentation" element={<Presentation />} />
         </Route>
       </Route>
 

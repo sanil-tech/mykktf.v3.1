@@ -44,6 +44,7 @@ export function getNavItems(role, hasJakmas = false) {
     { label: 'AI Knowledge', path: '/ai-knowledge', icon: 'Sparkles', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
     { label: 'My JAKMAS Tasks', path: '/jakmas-tasks', icon: 'ClipboardList', roles: [], jakmasOnly: true },
     { label: 'Audit Log', path: '/audit-log', icon: 'ScrollText', roles: [ROLES.SUPER_ADMIN] },
+    { label: 'Pembentangan', path: '/presentation', icon: 'Presentation', roles: [ROLES.SUPER_ADMIN] },
   ];
   const base = all.filter(item => hasAccess(role, item.roles));
   if (!hasJakmas) return base;
