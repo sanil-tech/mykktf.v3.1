@@ -30,14 +30,14 @@ export default function BlockAssignment() {
       setLoading(false);
       return;
     }
-    const [a, b, users] = await Promise.all([
+    const [a, b, wardensRes] = await Promise.all([
       base44.entities.WardenBlock.list(),
       base44.entities.Block.list(),
-      base44.entities.User.list(),
+      base44.functions.invoke('getAllWardens', {}),
     ]);
     setAssignments(a);
     setBlocks(b);
-    setWardens(users.filter(usr => usr.role === 'warden'));
+    setWardens(wardensRes.wardens || []);
     setLoading(false);
   }
 
