@@ -20,7 +20,7 @@ const ICONS = {
 const SLIDES = [
   {
     kind: 'cover',
-    title: 'KKMS — Kolej Kediaman Tun Fuad',
+    title: 'MyKKTF — Kolej Kediaman Tun Fuad',
     subtitle: 'Panduan Fungsi Sistem Pengurusan Resident',
     meta: 'Pembentangan Modul & Ciri Aplikasi',
   },
