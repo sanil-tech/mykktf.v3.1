@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, ClipboardCheck, MapPin, Info, Users, BedDouble, AlertCircle } from "lucide-react";
+import WelcomeTour from '@/components/onboarding/WelcomeTour';
 
 const UMS_FACULTIES = [
   'Fakulti Sains dan Sumber Alam (FSSA)',
@@ -469,19 +470,21 @@ export default function Dashboard() {
     statsComponent: renderStatsCards()
   };
 
-  if (effectiveRole === 'warden') return <WardenDashboard {...dashboardProps} />;
-  if (effectiveRole === 'jakmas') return <JakmasDashboard {...dashboardProps} />;
+  const tour = <WelcomeTour user={currentUser} role={effectiveRole} />;
+
+  if (effectiveRole === 'warden') return <><WardenDashboard {...dashboardProps} />{tour}</>;
+  if (effectiveRole === 'jakmas') return <><JakmasDashboard {...dashboardProps} />{tour}</>;
   if (
     effectiveRole === 'super_admin' ||
     effectiveRole === 'college_admin' ||
     effectiveRole === 'staff'
   ) {
-    return <AdminDashboard {...dashboardProps} />;
+    return <><AdminDashboard {...dashboardProps} />{tour}</>;
   }
-  
+
   if (hasStudentProfile && isRoomAssigned) {
-    return <StudentDashboard user={currentUser} />;
+    return <><StudentDashboard user={currentUser} />{tour}</>;
   }
-  
-  return <AdminDashboard {...dashboardProps} />;
+
+  return <><AdminDashboard {...dashboardProps} />{tour}</>;
 }
