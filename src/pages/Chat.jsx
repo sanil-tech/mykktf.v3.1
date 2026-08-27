@@ -390,17 +390,15 @@ export default function Chat() {
     setWardenOptions([]);
     setLoadingWardens(true);
     try {
-      let sp = await base44.entities.Student.filter({ user_id: user.id });
-      if (!sp.length) sp = await base44.entities.Student.filter({ email: user.email });
-      const s = sp[0];
-      if (!s?.block_name) {
-        toast({ title: "Blok kediaman belum ditetapkan untuk profil anda." });
-        return;
+      const res = await base44.functions.invoke('getBlockWardens', {});
+      const data = res.data || res;
+      if (data.message) {
+        toast({ title: data.message });
       }
-      const wardens = await base44.entities.WardenBlock.filter({ block_name: s.block_name });
-      setWardenOptions(wardens.map(w => ({ id: w.warden_user_id, name: w.warden_name || 'Warden', block: `Blok ${w.block_name}` })));
+      setWardenOptions(data.wardens || []);
     } catch (e) {
       console.error(e);
+      toast({ title: "Gagal memuatkan senarai warden blok." });
     } finally {
       setLoadingWardens(false);
     }
