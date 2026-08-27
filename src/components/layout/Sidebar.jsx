@@ -38,7 +38,7 @@ export default function Sidebar({ userRole, hasJakmas, open, onClose, collapsed,
               <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
                 <Building2 className="w-4 h-4 text-accent-foreground" />
               </div>
-              <span className="font-heading font-bold text-sm tracking-tight">KKMS</span>
+              <span className="font-heading font-bold text-sm tracking-tight">MyKKTF</span>
             </div>
           )}
           {collapsed && (
