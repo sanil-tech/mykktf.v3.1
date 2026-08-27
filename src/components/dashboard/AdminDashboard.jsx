@@ -76,7 +76,9 @@ export default function AdminDashboard({ user }) {
 
     // 🏠 STATISTIK KETERSEDIAAN BILIK (Pengiraan katil sebenar dari penghuni)
     const totalRooms = rooms.length;
-    let totalBeds = 0;
+    let totalBeds = 0;          // kapasiti boleh diagihkan (TIDAK termasuk penyelenggaraan)
+    let trueTotalBeds = 0;      // jumlah kapasiti sebenar (TERMASUK penyelenggaraan)
+    let maintenanceBeds = 0;     // kapasiti bilik dalam penyelenggaraan
     let occupiedBeds = 0;
     let vacantBeds = 0;
     let fullyVacantRooms = 0;   // bilik kosong sepenuhnya (0 penghuni)
@@ -95,10 +97,14 @@ export default function AdminDashboard({ user }) {
       ).length;
       const isMaintenance = room.status === 'Maintenance';
 
+      // Jumlah kapasiti sebenar sentiasa mengandungi SEMUA bilik (termasuk penyelenggaraan)
+      trueTotalBeds += cap;
+
       // Bilik penyelenggaraan DIKECUALIKAN dari kiraan ketersediaan katil
       // (katilnya tidak boleh diagihkan). Ia hanya dikira dalam maintenanceRooms.
       if (isMaintenance) {
         maintenanceRooms++;
+        maintenanceBeds += cap;
       } else {
         const vacantInRoom = Math.max(0, cap - occupants);
         totalBeds += cap;
@@ -134,7 +140,7 @@ export default function AdminDashboard({ user }) {
 
     return {
       total, checkedIn, pending, vehicles, maleCount, femaleCount, occupiedRoomsCount,
-      totalRooms, totalBeds, occupiedBeds, vacantBeds,
+      totalRooms, totalBeds, trueTotalBeds, maintenanceBeds, occupiedBeds, vacantBeds,
       fullyVacantRooms, partialRooms, fullRooms, maintenanceRooms, blockAvailability
     };
   }, [students, rooms]);
@@ -281,14 +287,14 @@ export default function AdminDashboard({ user }) {
         <CardContent className="space-y-5">
 
           {/* Kad ringkasan katil */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="rounded-lg border bg-muted/30 p-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">Jumlah Katil</span>
                 <BedDouble className="w-4 h-4 text-slate-400" />
               </div>
               <div className="text-2xl font-bold mt-1">{stats.totalBeds}</div>
-              <p className="text-xs text-muted-foreground">{stats.totalRooms} unit bilik</p>
+              <p className="text-xs text-muted-foreground">{stats.totalRooms - stats.maintenanceRooms} bilik aktif</p>
             </div>
 
             <div className="rounded-lg border border-emerald-200/60 bg-emerald-50/40 p-4">
@@ -319,7 +325,19 @@ export default function AdminDashboard({ user }) {
                 <Wrench className="w-4 h-4 text-amber-500" />
               </div>
               <div className="text-2xl font-bold mt-1 text-amber-600">{stats.maintenanceRooms}</div>
-              <p className="text-xs text-muted-foreground">Bilik ditarik balik</p>
+              <p className="text-xs text-muted-foreground">{stats.maintenanceBeds} katil ditarik balik</p>
+            </div>
+
+            {/* Kad tambahan: Jumlah Kapasiti Sebenar (TERMASUK penyelenggaraan) */}
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-primary">Kapasiti Sebenar</span>
+                <BedDouble className="w-4 h-4 text-primary" />
+              </div>
+              <div className="text-2xl font-bold mt-1 text-primary">{stats.trueTotalBeds}</div>
+              <p className="text-xs text-muted-foreground">
+                Termasuk {stats.maintenanceBeds} katil penyelenggaraan
+              </p>
             </div>
           </div>
 
