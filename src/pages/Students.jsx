@@ -144,7 +144,7 @@ export default function Students() {
                     <td className="px-4 py-3 font-medium">{s.full_name}</td>
                     <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">{s.faculty}</td>
                     <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">{s.year_of_study}</td>
-                    <td className="px-4 py-3"><Badge variant={s.status === 'Active' ? 'default' : 'secondary'} className="text-[10px]">{s.status}</Badge></td>
+                    <td className="px-4 py-3"><Badge variant={(s.room_number ? s.status : 'Pending') === 'Active' ? 'default' : 'secondary'} className="text-[10px]">{s.room_number ? s.status : 'Pending'}</Badge></td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setViewStudent(s); setViewOpen(true); }}><Eye className="w-3.5 h-3.5" /></Button>
