@@ -3,7 +3,9 @@ import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, UserCog, Plus, ShieldAlert } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Trash2, UserCog, Plus, ShieldAlert, ChevronDown } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { logAudit } from '@/lib/audit';
 import EmptyState from '@/components/shared/EmptyState';
@@ -14,7 +16,7 @@ export default function BlockAssignment() {
   const [assignments, setAssignments] = useState([]);
   const [blocks, setBlocks] = useState([]);
   const [wardens, setWardens] = useState([]);
-  const [form, setForm] = useState({ warden_user_id: '', block_id: '' });
+  const [form, setForm] = useState({ warden_user_id: '', block_ids: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -42,22 +44,27 @@ export default function BlockAssignment() {
   }
 
   async function addAssignment() {
-    if (!form.warden_user_id || !form.block_id) return;
-    const block = blocks.find(b => b.id === form.block_id);
+    if (!form.warden_user_id || form.block_ids.length === 0) return;
     const warden = wardens.find(w => w.id === form.warden_user_id);
-    const exists = assignments.find(a => a.warden_user_id === form.warden_user_id && a.block_id === form.block_id);
-    if (exists) { toast({ title: 'Already assigned', variant: 'destructive' }); return; }
+    const toCreate = form.block_ids
+      .map(bid => blocks.find(b => b.id === bid))
+      .filter(Boolean)
+      .filter(b => !assignments.find(a => a.warden_user_id === form.warden_user_id && a.block_id === b.id));
+    if (toCreate.length === 0) {
+      toast({ title: 'Blok sudah ditugaskan kepada warden ini', variant: 'destructive' });
+      return;
+    }
     setSaving(true);
-    await base44.entities.WardenBlock.create({
+    await base44.entities.WardenBlock.bulkCreate(toCreate.map(b => ({
       warden_user_id: form.warden_user_id,
       warden_name: warden?.full_name || warden?.email || '',
       warden_email: warden?.email || '',
-      block_id: form.block_id,
-      block_name: block?.block_name || '',
-    });
-    await logAudit(currentUser, 'WARDEN_BLOCK_ASSIGNED', 'Block Assignment', { warden: warden?.full_name || warden?.email, block: block?.block_name });
-    toast({ title: 'Assignment added' });
-    setForm({ warden_user_id: '', block_id: '' });
+      block_id: b.id,
+      block_name: b.block_name || '',
+    })));
+    await logAudit(currentUser, 'WARDEN_BLOCK_ASSIGNED', 'Block Assignment', { warden: warden?.full_name || warden?.email, blocks: toCreate.map(b => b.block_name) });
+    toast({ title: `${toCreate.length} blok ditugaskan` });
+    setForm({ warden_user_id: '', block_ids: [] });
     setSaving(false);
     load();
   }
@@ -89,11 +96,34 @@ export default function BlockAssignment() {
             <SelectTrigger className="flex-1"><SelectValue placeholder="Select Warden" /></SelectTrigger>
             <SelectContent>{wardens.map(w => <SelectItem key={w.id} value={w.id}>{w.full_name || w.email}</SelectItem>)}</SelectContent>
           </Select>
-          <Select value={form.block_id} onValueChange={v => setForm(f => ({ ...f, block_id: v }))}>
-            <SelectTrigger className="flex-1"><SelectValue placeholder="Select Block" /></SelectTrigger>
-            <SelectContent>{blocks.map(b => <SelectItem key={b.id} value={b.id}>{b.block_name}</SelectItem>)}</SelectContent>
-          </Select>
-          <Button onClick={addAssignment} disabled={saving || !form.warden_user_id || !form.block_id} className="shrink-0">Assign</Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" role="combobox" className="flex-1 justify-between font-normal">
+                {form.block_ids.length === 0
+                  ? <span className="text-muted-foreground">Select Block(s) — boleh pilih beberapa</span>
+                  : <span className="truncate">{blocks.filter(b => form.block_ids.includes(b.id)).map(b => b.block_name).join(', ')}</span>}
+                <ChevronDown className="w-4 h-4 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 p-0" align="start">
+              <div className="max-h-60 overflow-y-auto p-1">
+                {blocks.map(b => {
+                  const checked = form.block_ids.includes(b.id);
+                  return (
+                    <label key={b.id} className="flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox checked={checked} onCheckedChange={(v) => {
+                        setForm(f => v
+                          ? { ...f, block_ids: [...f.block_ids, b.id] }
+                          : { ...f, block_ids: f.block_ids.filter(id => id !== b.id) });
+                      }} />
+                      <span>{b.block_name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
+          <Button onClick={addAssignment} disabled={saving || !form.warden_user_id || form.block_ids.length === 0} className="shrink-0">Assign</Button>
         </div>
       </div>
       {loading ? (
