@@ -93,21 +93,25 @@ export default function AdminDashboard({ user }) {
       const occupants = students.filter(s =>
         s.block_name === room.block_name && s.room_number === room.room_number
       ).length;
-      const vacantInRoom = Math.max(0, cap - occupants);
-
-      totalBeds += cap;
-      occupiedBeds += Math.min(occupants, cap);
-      vacantBeds += vacantInRoom;
-
       const isMaintenance = room.status === 'Maintenance';
+
+      // Bilik penyelenggaraan DIKECUALIKAN dari kiraan ketersediaan katil
+      // (katilnya tidak boleh diagihkan). Ia hanya dikira dalam maintenanceRooms.
       if (isMaintenance) {
         maintenanceRooms++;
-      } else if (occupants === 0) {
-        fullyVacantRooms++;
-      } else if (occupants >= cap) {
-        fullRooms++;
       } else {
-        partialRooms++;
+        const vacantInRoom = Math.max(0, cap - occupants);
+        totalBeds += cap;
+        occupiedBeds += Math.min(occupants, cap);
+        vacantBeds += vacantInRoom;
+
+        if (occupants === 0) {
+          fullyVacantRooms++;
+        } else if (occupants >= cap) {
+          fullRooms++;
+        } else {
+          partialRooms++;
+        }
       }
 
       // Agregat per blok
@@ -116,10 +120,14 @@ export default function AdminDashboard({ user }) {
         blockMap[bn] = { block: bn, rooms: 0, beds: 0, occupied: 0, vacant: 0, maintenance: 0 };
       }
       blockMap[bn].rooms++;
-      blockMap[bn].beds += cap;
-      blockMap[bn].occupied += Math.min(occupants, cap);
-      blockMap[bn].vacant += vacantInRoom;
-      if (isMaintenance) blockMap[bn].maintenance++;
+      if (isMaintenance) {
+        blockMap[bn].maintenance++;
+      } else {
+        const vacantInRoom = Math.max(0, cap - occupants);
+        blockMap[bn].beds += cap;
+        blockMap[bn].occupied += Math.min(occupants, cap);
+        blockMap[bn].vacant += vacantInRoom;
+      }
     });
 
     const blockAvailability = Object.values(blockMap).sort((a, b) => a.block.localeCompare(b.block));
