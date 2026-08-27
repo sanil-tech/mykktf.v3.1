@@ -38,6 +38,7 @@ import Events from '@/pages/Events';
 import ResidentDirectory from '@/pages/ResidentDirectory';
 import JakmasManagement from '@/pages/JakmasManagement';
 import JakmasTasks from '@/pages/JakmasTasks';
+import AiKnowledge from '@/pages/AiKnowledge';
 import { useState, useEffect } from 'react';
 
 const AuthenticatedApp = () => {
@@ -113,6 +114,7 @@ const AuthenticatedApp = () => {
           <Route path="/directory" element={<ResidentDirectory />} />
           <Route path="/jakmas-management" element={<JakmasManagement />} />
           <Route path="/jakmas-tasks" element={<JakmasTasks />} />
+          <Route path="/ai-knowledge" element={<AiKnowledge />} />
         </Route>
       </Route>
 

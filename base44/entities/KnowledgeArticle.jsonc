@@ -1,0 +1,101 @@
+{
+  "name": "KnowledgeArticle",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Short heading summarising this knowledge entry"
+    },
+    "content": {
+      "type": "string",
+      "description": "Full knowledge text the AI assistant will use as context"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Rule",
+        "Process",
+        "Event",
+        "Announcement",
+        "FAQ",
+        "General"
+      ],
+      "default": "General"
+    },
+    "tags": {
+      "type": "string",
+      "description": "Comma-separated keywords for search/filtering"
+    },
+    "effective_date": {
+      "type": "string",
+      "format": "date",
+      "description": "When this rule/process takes effect (optional)"
+    },
+    "expiry_date": {
+      "type": "string",
+      "format": "date",
+      "description": "When this knowledge becomes obsolete (optional)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "default": "active"
+    },
+    "created_by_name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "content",
+    "category"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        }
+      ]
+    },
+    "read": true,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        }
+      ]
+    }
+  }
+}

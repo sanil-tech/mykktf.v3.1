@@ -91,6 +91,16 @@ export default function WelcomeTour({ user, role }) {
     } catch (e) { /* localStorage may be unavailable */ }
   }, [user?.id]);
 
+  // Allow the AI assistant (or any other component) to re-open the tour on demand.
+  useEffect(() => {
+    function onRestart() {
+      setStep(0);
+      setOpen(true);
+    }
+    window.addEventListener('kkms:restart-tour', onRestart);
+    return () => window.removeEventListener('kkms:restart-tour', onRestart);
+  }, []);
+
   function close(persist = true) {
     setOpen(false);
     if (persist && user?.id) {

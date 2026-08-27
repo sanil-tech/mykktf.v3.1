@@ -23,7 +23,7 @@ export default function AppLayout({ user }) {
           <Outlet />
         </main>
       </div>
-      <AIAssistant />
+      <AIAssistant user={user} />
     </div>
   );
 }
