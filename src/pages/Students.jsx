@@ -93,9 +93,11 @@ export default function Students() {
     return <div><PageHeader title="Student Management" description="Manage resident profiles" /><TableSkeleton rows={8} cols={6} /></div>;
   }
 
+  const canManageStudents = user && user.role !== 'warden' && user.role !== 'student';
+
   return (
     <div>
-      <PageHeader title="Student Management" description="Manage resident profiles" actions={<Button onClick={openAdd} size="sm"><Plus className="w-4 h-4 mr-1.5" /> Add Student</Button>} />
+      <PageHeader title="Student Management" description="Manage resident profiles" actions={canManageStudents && <Button onClick={openAdd} size="sm"><Plus className="w-4 h-4 mr-1.5" /> Add Student</Button>} />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
         <div className="relative flex-1">
