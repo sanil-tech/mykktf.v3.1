@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Pin, Trash2, MessageSquare, X, Bell, Paperclip, FileText, Download, ExternalLink, Edit2, Check, Hash } from 'lucide-react';
+import { Send, Pin, Trash2, MessageSquare, X, Bell, Paperclip, FileText, Download, ExternalLink, Edit2, Check, Hash, Plus } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { realTimeQueryOptions } from '@/lib/query-client';
@@ -71,6 +71,9 @@ export default function Chat() {
   
   const [dmTarget, setDmTarget] = useState(null); 
   const [dmText, setDmText] = useState('');
+  const [dmComposerOpen, setDmComposerOpen] = useState(false);
+  const [wardenOptions, setWardenOptions] = useState([]);
+  const [loadingWardens, setLoadingWardens] = useState(false);
 
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editText, setEditText] = useState('');
@@ -381,6 +384,28 @@ export default function Chat() {
     } catch (err) { console.error(err); }
   }
 
+  async function openWardenComposer() {
+    if (!user) return;
+    setDmComposerOpen(true);
+    setWardenOptions([]);
+    setLoadingWardens(true);
+    try {
+      let sp = await base44.entities.Student.filter({ user_id: user.id });
+      if (!sp.length) sp = await base44.entities.Student.filter({ email: user.email });
+      const s = sp[0];
+      if (!s?.block_name) {
+        toast({ title: "Blok kediaman belum ditetapkan untuk profil anda." });
+        return;
+      }
+      const wardens = await base44.entities.WardenBlock.filter({ block_name: s.block_name });
+      setWardenOptions(wardens.map(w => ({ id: w.warden_user_id, name: w.warden_name || 'Warden', block: `Blok ${w.block_name}` })));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingWardens(false);
+    }
+  }
+
   const isAdmin = user && ADMIN_ROLES.includes(user.role);
   const pinnedMessages = messages.filter(m => m.is_pinned);
 
@@ -493,25 +518,47 @@ export default function Chat() {
 
         {/* INBOX PERBUALAN DM SIDEBAR - Menjadi panel bawah/tepi mengikut saiz skrin */}
         <div className="w-full md:w-64 shrink-0 bg-card border border-border rounded-xl overflow-hidden flex flex-col shadow-xs h-[200px] md:h-full">
-          <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 shrink-0">
+          <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 shrink-0 flex items-center justify-between gap-1">
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
               <MessageSquare className="w-3 h-3 text-sky-600" /> Inbox Perbualan DM
             </p>
+            {user && !isAdmin && (
+              <button onClick={() => dmComposerOpen ? setDmComposerOpen(false) : openWardenComposer()} className="text-[10px] font-bold text-sky-700 hover:text-sky-800 bg-white border border-sky-200 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                <Plus className="w-2.5 h-2.5" /> Warden Blok
+              </button>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
-            {dmInbox.length === 0 && <p className="text-[11px] text-muted-foreground px-2 py-1 italic">Tiada DM aktif.</p>}
-            {dmInbox.map(inbox => (
-              <button key={inbox.id} onClick={() => { setDmTarget(inbox); }} className={`w-full text-left px-2.5 py-2 text-xs rounded-lg border ${inbox.isUnread ? 'bg-amber-50 border-amber-200 font-bold' : 'hover:bg-muted bg-slate-50/50 border-transparent text-slate-700'}`}>
-                <div className="flex items-start justify-between w-full gap-1">
-                  <div className="min-w-0 flex-1">
-                    <span className="block truncate font-semibold text-slate-900 leading-tight">{inbox.name}</span>
-                    {inbox.block && <span className="inline-block text-[9px] text-sky-700 bg-sky-50 px-1 rounded-sm mt-0.5">{inbox.block}</span>}
-                  </div>
-                  {inbox.isUnread && <span className="text-[9px] bg-amber-500 text-white font-extrabold px-1 rounded animate-pulse shrink-0"><Bell className="w-2 h-2 inline" /> Baru</span>}
-                </div>
-                <p className="text-[10px] text-muted-foreground truncate w-full mt-0.5">{inbox.lastMessage}</p>
-              </button>
-            ))}
+            {dmComposerOpen ? (
+              loadingWardens ? (
+                <p className="text-[11px] text-muted-foreground px-2 py-1">Memuatkan warden...</p>
+              ) : wardenOptions.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground px-2 py-1 italic">Tiada warden ditugaskan untuk blok anda.</p>
+              ) : (
+                wardenOptions.map(w => (
+                  <button key={w.id} onClick={() => { setDmTarget(w); setDmComposerOpen(false); }} className="w-full text-left px-2.5 py-2 text-xs rounded-lg hover:bg-sky-50 bg-slate-50/50 border border-transparent text-slate-700">
+                    <span className="block truncate font-semibold text-slate-900 leading-tight">{w.name}</span>
+                    <span className="inline-block text-[9px] text-red-600 bg-red-50 px-1 rounded-sm mt-0.5">{w.block} · Warden</span>
+                  </button>
+                ))
+              )
+            ) : (
+              <>
+                {dmInbox.length === 0 && <p className="text-[11px] text-muted-foreground px-2 py-1 italic">Tiada DM aktif. Gunakan "Warden Blok" untuk menghubungi warden blok anda secara sulit.</p>}
+                {dmInbox.map(inbox => (
+                  <button key={inbox.id} onClick={() => { setDmTarget(inbox); }} className={`w-full text-left px-2.5 py-2 text-xs rounded-lg border ${inbox.isUnread ? 'bg-amber-50 border-amber-200 font-bold' : 'hover:bg-muted bg-slate-50/50 border-transparent text-slate-700'}`}>
+                    <div className="flex items-start justify-between w-full gap-1">
+                      <div className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold text-slate-900 leading-tight">{inbox.name}</span>
+                        {inbox.block && <span className="inline-block text-[9px] text-sky-700 bg-sky-50 px-1 rounded-sm mt-0.5">{inbox.block}</span>}
+                      </div>
+                      {inbox.isUnread && <span className="text-[9px] bg-amber-500 text-white font-extrabold px-1 rounded animate-pulse shrink-0"><Bell className="w-2 h-2 inline" /> Baru</span>}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground truncate w-full mt-0.5">{inbox.lastMessage}</p>
+                  </button>
+                ))}
+              </>
+            )}
           </div>
         </div>
 
