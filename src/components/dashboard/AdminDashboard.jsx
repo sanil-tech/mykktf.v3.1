@@ -324,7 +324,7 @@ export default function AdminDashboard({ user }) {
         <CardContent className="space-y-5">
 
           {/* Kad ringkasan katil */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             <div className="rounded-lg border bg-muted/30 p-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">Jumlah Katil</span>
@@ -363,6 +363,16 @@ export default function AdminDashboard({ user }) {
               </div>
               <div className="text-2xl font-bold mt-1 text-amber-600">{stats.maintenanceRooms}</div>
               <p className="text-xs text-muted-foreground">{stats.maintenanceBeds} katil ditarik balik</p>
+            </div>
+
+            {/* Kad bilik ditempah (Reserved) */}
+            <div className="rounded-lg border border-violet-200/60 bg-violet-50/40 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-violet-700">Ditempah (Reserved)</span>
+                <BedDouble className="w-4 h-4 text-violet-600" />
+              </div>
+              <div className="text-2xl font-bold mt-1 text-violet-700">{stats.reservedRooms}</div>
+              <p className="text-xs text-muted-foreground">{stats.reservedBeds} katil ditempah</p>
             </div>
 
             {/* Kad tambahan: Jumlah Kapasiti Sebenar (TERMASUK penyelenggaraan & ditempah) */}
