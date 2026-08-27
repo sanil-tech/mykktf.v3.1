@@ -76,15 +76,25 @@ export default function AdminDashboard({ user }) {
 
     // 🏠 STATISTIK KETERSEDIAAN BILIK (Pengiraan katil sebenar dari penghuni)
     const totalRooms = rooms.length;
-    let totalBeds = 0;          // kapasiti boleh diagihkan (TIDAK termasuk penyelenggaraan)
-    let trueTotalBeds = 0;      // jumlah kapasiti sebenar (TERMASUK penyelenggaraan)
+    let totalBeds = 0;          // kapasiti boleh diagihkan (hanya bilik OPERATIONAL)
+    let trueTotalBeds = 0;      // jumlah kapasiti sebenar (SEMUA bilik — kapasiti fizikal)
     let maintenanceBeds = 0;     // kapasiti bilik dalam penyelenggaraan
+    let reservedBeds = 0;        // kapasiti bilik ditempah (Reserved)
+    let unavailableBeds = 0;     // kapasiti bilik "Not Available"
     let occupiedBeds = 0;
     let vacantBeds = 0;
     let fullyVacantRooms = 0;   // bilik kosong sepenuhnya (0 penghuni)
     let partialRooms = 0;      // bilik separa isi (ada ruang lagi)
     let fullRooms = 0;          // bilik penuh
     let maintenanceRooms = 0;   // bilik penyelenggaraan
+    let reservedRooms = 0;      // bilik ditempah (Reserved)
+    let unavailableRooms = 0;   // bilik Not Available
+
+    // Status bukan-operasi: dikecualikan daripada kiraan ketersediaan katil,
+    // tetapi kekal dikira dalam trueTotalBeds (kapasiti fizikal sebenar).
+    const MAINTENANCE_STATUSES = ['Maintenance', 'Under Maintenance'];
+    const RESERVED_STATUSES = ['Reserved'];
+    const UNAVAILABLE_STATUSES = ['Not Available'];
 
     // Pecahan mengikut blok
     const blockMap = {};
@@ -95,17 +105,25 @@ export default function AdminDashboard({ user }) {
       const occupants = students.filter(s =>
         s.block_name === room.block_name && s.room_number === room.room_number
       ).length;
-      const isMaintenance = room.status === 'Maintenance';
 
-      // Jumlah kapasiti sebenar sentiasa mengandungi SEMUA bilik (termasuk penyelenggaraan)
+      const isMaintenance = MAINTENANCE_STATUSES.includes(room.status);
+      const isReserved = RESERVED_STATUSES.includes(room.status);
+      const isUnavailable = UNAVAILABLE_STATUSES.includes(room.status);
+      const isOperational = !isMaintenance && !isReserved && !isUnavailable;
+
+      // Jumlah kapasiti sebenar sentiasa mengandungi SEMUA bilik (fizikal)
       trueTotalBeds += cap;
 
-      // Bilik penyelenggaraan DIKECUALIKAN dari kiraan ketersediaan katil
-      // (katilnya tidak boleh diagihkan). Ia hanya dikira dalam maintenanceRooms.
       if (isMaintenance) {
         maintenanceRooms++;
         maintenanceBeds += cap;
-      } else {
+      } else if (isReserved) {
+        reservedRooms++;
+        reservedBeds += cap;
+      } else if (isUnavailable) {
+        unavailableRooms++;
+        unavailableBeds += cap;
+      } else if (isOperational) {
         const vacantInRoom = Math.max(0, cap - occupants);
         totalBeds += cap;
         occupiedBeds += Math.min(occupants, cap);
@@ -123,12 +141,14 @@ export default function AdminDashboard({ user }) {
       // Agregat per blok
       const bn = room.block_name || 'Tanpa Blok';
       if (!blockMap[bn]) {
-        blockMap[bn] = { block: bn, rooms: 0, beds: 0, occupied: 0, vacant: 0, maintenance: 0 };
+        blockMap[bn] = { block: bn, rooms: 0, beds: 0, occupied: 0, vacant: 0, maintenance: 0, reserved: 0 };
       }
       blockMap[bn].rooms++;
       if (isMaintenance) {
         blockMap[bn].maintenance++;
-      } else {
+      } else if (isReserved) {
+        blockMap[bn].reserved++;
+      } else if (isOperational) {
         const vacantInRoom = Math.max(0, cap - occupants);
         blockMap[bn].beds += cap;
         blockMap[bn].occupied += Math.min(occupants, cap);
@@ -140,8 +160,10 @@ export default function AdminDashboard({ user }) {
 
     return {
       total, checkedIn, pending, vehicles, maleCount, femaleCount, occupiedRoomsCount,
-      totalRooms, totalBeds, trueTotalBeds, maintenanceBeds, occupiedBeds, vacantBeds,
-      fullyVacantRooms, partialRooms, fullRooms, maintenanceRooms, blockAvailability
+      totalRooms, totalBeds, trueTotalBeds, maintenanceBeds, reservedBeds, unavailableBeds,
+      occupiedBeds, vacantBeds,
+      fullyVacantRooms, partialRooms, fullRooms, maintenanceRooms, reservedRooms, unavailableRooms,
+      blockAvailability
     };
   }, [students, rooms]);
 
@@ -309,7 +331,7 @@ export default function AdminDashboard({ user }) {
                 <BedDouble className="w-4 h-4 text-slate-400" />
               </div>
               <div className="text-2xl font-bold mt-1">{stats.totalBeds}</div>
-              <p className="text-xs text-muted-foreground">{stats.totalRooms - stats.maintenanceRooms} bilik aktif</p>
+              <p className="text-xs text-muted-foreground">{stats.totalRooms - stats.maintenanceRooms - stats.reservedRooms - stats.unavailableRooms} bilik aktif</p>
             </div>
 
             <div className="rounded-lg border border-emerald-200/60 bg-emerald-50/40 p-4">
@@ -343,7 +365,7 @@ export default function AdminDashboard({ user }) {
               <p className="text-xs text-muted-foreground">{stats.maintenanceBeds} katil ditarik balik</p>
             </div>
 
-            {/* Kad tambahan: Jumlah Kapasiti Sebenar (TERMASUK penyelenggaraan) */}
+            {/* Kad tambahan: Jumlah Kapasiti Sebenar (TERMASUK penyelenggaraan & ditempah) */}
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-primary">Kapasiti Sebenar</span>
@@ -351,7 +373,7 @@ export default function AdminDashboard({ user }) {
               </div>
               <div className="text-2xl font-bold mt-1 text-primary">{stats.trueTotalBeds}</div>
               <p className="text-xs text-muted-foreground">
-                Termasuk {stats.maintenanceBeds} katil penyelenggaraan
+                Termasuk {stats.maintenanceBeds} penyelenggaraan & {stats.reservedBeds} ditempah
               </p>
             </div>
           </div>

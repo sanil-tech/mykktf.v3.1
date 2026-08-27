@@ -80,7 +80,12 @@ export default function Dashboard() {
           const allRooms = await base44.entities.Room.filter({});
           let availableRooms = 0;
 
+          // Hanya bilik OPERATIONAL (Available / Occupied) dikira sebagai kosong.
+          // Bilik Reserved, Maintenance & Not Available dikecualikan daripada
+          // jumlah kapasiti sebenar yang sedia untuk diinap.
+          const NON_OPERATIONAL_STATUSES = ['Reserved', 'Maintenance', 'Under Maintenance', 'Not Available'];
           allRooms.forEach(room => {
+            if (NON_OPERATIONAL_STATUSES.includes(room.status)) return;
             const currentOccupants = allStudents.filter(s => 
               s.block_name === room.block_name && s.room_number === room.room_number
             ).length;
