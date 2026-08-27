@@ -58,6 +58,7 @@ export default function Events() {
     }
     await base44.entities.Event.create({ ...form, organizer_user_id: user.id, organizer: form.organizer || user.full_name || user.email });
     await base44.entities.AuditLog.create({ user_id: user.id, user_name: user.full_name || user.email, action: 'Event Created', module: 'Events', details: form.event_name, timestamp: new Date().toISOString() });
+    base44.functions.invoke('sendNotificationEmail', { type: 'event', title: form.event_name, message: form.description || `${form.event_name} di ${form.venue} pada ${form.event_date}` }).catch(() => {});
     toast({ title: 'Event created' });
     setShowForm(false);
     setForm(emptyForm);

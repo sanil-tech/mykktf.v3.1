@@ -153,6 +153,9 @@ export default function Announcements() {
     const needsApproval = isJakmas && OFFICIAL_TYPES.includes(finalForm.type);
     const approval_status = needsApproval ? 'pending_approval' : 'published';
     await base44.entities.Announcement.create({ ...finalForm, published_by: user?.full_name || user?.email, approval_status });
+    if (!needsApproval) {
+      base44.functions.invoke('sendNotificationEmail', { type: 'announcement', title: finalForm.title, message: finalForm.content }).catch(() => {});
+    }
     toast({ title: needsApproval ? 'Submitted for admin approval' : 'Announcement published' });
     setShowForm(false);
     clearPoster();
@@ -176,7 +179,9 @@ export default function Announcements() {
   }
 
   async function approve(id) {
+    const ann = announcements.find(a => a.id === id);
     await base44.entities.Announcement.update(id, { approval_status: 'published' });
+    base44.functions.invoke('sendNotificationEmail', { type: 'announcement', title: ann?.title, message: ann?.content }).catch(() => {});
     toast({ title: 'Approved & published' });
     init();
   }

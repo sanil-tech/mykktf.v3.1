@@ -371,16 +371,18 @@ export default function Chat() {
 
   async function sendDm() {
     if (!dmText.trim() || !user || !dmTarget) return;
+    const msgText = dmText.trim();
     try {
       const resolvedName = await resolveSenderName(user);
       const targetKey = getDMChannelKey(user.id, dmTarget.id);
       await base44.entities.ChatMessage.create({
         channel: 'direct_message', channel_key: targetKey, sender_user_id: user.id,
-        sender_name: resolvedName, sender_role: user.role, message: dmText.trim(), is_deleted: false
+        sender_name: resolvedName, sender_role: user.role, message: msgText, is_deleted: false
       });
       setDmText(''); 
       refetchDmMessages();
       refetchChannels();
+      base44.functions.invoke('sendNotificationEmail', { type: 'dm', recipientUserId: dmTarget.id, message: msgText }).catch(() => {});
     } catch (err) { console.error(err); }
   }
 
