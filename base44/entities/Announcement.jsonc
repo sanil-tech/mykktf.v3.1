@@ -48,6 +48,20 @@
         "Critical"
       ],
       "default": "General"
+    },
+    "approval_status": {
+      "type": "string",
+      "enum": [
+        "published",
+        "pending_approval",
+        "rejected"
+      ],
+      "default": "published",
+      "description": "Approval state. JAKMAS-submitted official notices are 'pending_approval' until an admin approves; non-official JAKMAS content and admin/warden posts are 'published' directly."
+    },
+    "approval_feedback": {
+      "type": "string",
+      "description": "Admin feedback when an official notice submission is rejected."
     }
   },
   "required": [

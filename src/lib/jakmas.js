@@ -51,8 +51,19 @@ export function isActiveAppointment(appt, today = todayISO()) {
   if (!appt) return false;
   if (appt.status !== 'active') return false;
   if (appt.term_end && appt.term_end < today) return false;
-  if (appt.term_start && appt.term_start > today) return false;
+  // term_start is the official start-of-term date (record only). A status of
+  // 'active' grants JAKMAS capability immediately upon appointment, even if
+  // term_start is in the future — the admin has appointed them now.
   return true;
+}
+
+/**
+ * Whether the official term has started. Used to show a "term starts on" label
+ * when an active appointment's term_start is still in the future.
+ */
+export function isTermStarted(appt, today = todayISO()) {
+  if (!appt?.term_start) return true;
+  return appt.term_start <= today;
 }
 
 /**

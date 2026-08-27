@@ -27,6 +27,13 @@ const PUBLISH_ROLES = ['super_admin', 'college_admin', 'warden', 'jakmas'];
 const ADMIN_ROLES = ['super_admin', 'college_admin'];
 const OFFICIAL_TYPES = ['General Notice', 'Emergency Notice', 'Event Notice'];
 const JAKMAS_TYPES = ['Student Activities', 'Sports', 'Community Programs', 'Volunteer Programs', 'Club Activities', 'General Student Notices'];
+// JAKMAS may submit official notices for admin approval AND publish non-official
+// student content directly.
+const JAKMAS_AVAILABLE_TYPES = [...OFFICIAL_TYPES, ...JAKMAS_TYPES];
+const APPROVAL_BADGE = {
+  pending_approval: 'bg-amber-100 text-amber-700',
+  rejected: 'bg-red-100 text-red-700',
+};
 
 export default function Announcements() {
   const [user, setUser] = useState(null);
@@ -67,11 +74,19 @@ export default function Announcements() {
     const u = { ...raw, effectiveRole: computeEffectiveRole(raw.role, appt), jakmasAppointment: appt };
     setUser(u);
     const role = u.effectiveRole;
-    const [ann, reads, students] = await Promise.all([
+    const [allAnn, reads, students] = await Promise.all([
       base44.entities.Announcement.list('-publish_date'),
       (role === 'student') ? base44.entities.AnnouncementRead.filter({ student_user_id: u.id }) : base44.entities.AnnouncementRead.list(),
       (ADMIN_ROLES.includes(role) || role === 'jakmas') ? base44.entities.Student.filter({ status: 'Active' }) : Promise.resolve([]),
     ]);
+    let ann = allAnn;
+    // Students only see published notices. JAKMAS sees published + their own
+    // pending/rejected submissions. Admins/wardens see everything (to review).
+    if (role === 'student') {
+      ann = allAnn.filter(a => !a.approval_status || a.approval_status === 'published');
+    } else if (role === 'jakmas') {
+      ann = allAnn.filter(a => !a.approval_status || a.approval_status === 'published' || a.created_by_id === u.id);
+    }
     setAnnouncements(ann);
     setTotalStudents(students.length);
 
@@ -133,8 +148,12 @@ export default function Announcements() {
       finalForm.poster_url = file_url;
     }
 
-    await base44.entities.Announcement.create({ ...finalForm, published_by: user?.full_name || user?.email });
-    toast({ title: 'Announcement published' });
+    // JAKMAS-submitted official notices require admin approval before publishing;
+    // non-official JAKMAS content and admin/warden posts publish directly.
+    const needsApproval = isJakmas && OFFICIAL_TYPES.includes(finalForm.type);
+    const approval_status = needsApproval ? 'pending_approval' : 'published';
+    await base44.entities.Announcement.create({ ...finalForm, published_by: user?.full_name || user?.email, approval_status });
+    toast({ title: needsApproval ? 'Submitted for admin approval' : 'Announcement published' });
     setShowForm(false);
     clearPoster();
     setForm({ 
@@ -156,12 +175,25 @@ export default function Announcements() {
     init();
   }
 
+  async function approve(id) {
+    await base44.entities.Announcement.update(id, { approval_status: 'published' });
+    toast({ title: 'Approved & published' });
+    init();
+  }
+
+  async function reject(id) {
+    const feedback = prompt('Sebab penolakan (pilihan):', '') || '';
+    await base44.entities.Announcement.update(id, { approval_status: 'rejected', approval_feedback: feedback });
+    toast({ title: 'Notice ditolak' });
+    init();
+  }
+
   const role = user?.effectiveRole;
   const canPublish = user && PUBLISH_ROLES.includes(role);
   const isAdmin = user && ADMIN_ROLES.includes(role);
   const isStudent = role === 'student';
   const isJakmas = role === 'jakmas';
-  const availableTypes = isJakmas ? JAKMAS_TYPES : OFFICIAL_TYPES;
+  const availableTypes = isJakmas ? JAKMAS_AVAILABLE_TYPES : OFFICIAL_TYPES;
 
   useEffect(() => {
     if (user) {
@@ -233,10 +265,16 @@ export default function Announcements() {
                         <p className="font-semibold text-sm">{ann.title}</p>
                         <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${PRIORITY_CONFIG[ann.priority || 'General']}`}>{ann.priority || 'General'}</span>
                         <span className={`text-xs px-1.5 py-0.5 rounded-full ${cfg.badge}`}>{ann.type}</span>
+                        {ann.approval_status === 'pending_approval' && <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${APPROVAL_BADGE.pending_approval}`}>Pending Approval</span>}
+                        {ann.approval_status === 'rejected' && <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${APPROVAL_BADGE.rejected}`} title={ann.approval_feedback || ''}>Rejected</span>}
                         {isStudent && isRead && <span className="text-xs text-green-600 flex items-center gap-0.5"><CheckCircle className="w-3 h-3" /> Read</span>}
                         {isStudent && !isRead && <span className="text-xs text-primary flex items-center gap-0.5"><Bell className="w-3 h-3" /> New</span>}
                       </div>
                       <p className="text-sm text-muted-foreground mb-2">{ann.content}</p>
+
+                      {ann.approval_status === 'rejected' && ann.approval_feedback && (
+                        <p className="text-xs text-red-600 italic mb-2">Sebab penolakan: {ann.approval_feedback}</p>
+                      )}
 
                       {ann.poster_url && (
                         <div className="my-2 max-w-sm rounded-lg overflow-hidden border border-border bg-white">
@@ -260,16 +298,24 @@ export default function Announcements() {
                       </div>
                     </div>
                   </div>
-                  {(canPublish && !isJakmas) && (
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-100 shrink-0" onClick={(e) => { e.stopPropagation(); remove(ann.id); }}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                  {isJakmas && ann.published_by === (user?.full_name || user?.email) && (
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-100 shrink-0" onClick={(e) => { e.stopPropagation(); remove(ann.id); }}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {isAdmin && ann.approval_status === 'pending_approval' && (
+                      <>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200" onClick={(e) => { e.stopPropagation(); approve(ann.id); }}>Approve</Button>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs bg-red-100 text-red-700 hover:bg-red-200" onClick={(e) => { e.stopPropagation(); reject(ann.id); }}>Reject</Button>
+                      </>
+                    )}
+                    {(canPublish && !isJakmas) && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-100" onClick={(e) => { e.stopPropagation(); remove(ann.id); }}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {isJakmas && ann.published_by === (user?.full_name || user?.email) && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-100" onClick={(e) => { e.stopPropagation(); remove(ann.id); }}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -355,6 +401,11 @@ export default function Announcements() {
                 </SelectContent>
               </Select>
             </div>
+            {isJakmas && OFFICIAL_TYPES.includes(form.type) && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
+                Notis rasmi (General/Emergency/Event Notice) akan dihantar kepada pentadbir untuk kelulusan sebelum diterbitkan.
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div><label className="text-xs text-muted-foreground mb-1 block">Publish Date</label><Input type="date" value={form.publish_date} onChange={e => setForm(f => ({ ...f, publish_date: e.target.value }))} /></div>
               <div><label className="text-xs text-muted-foreground mb-1 block">Expiry Date</label><Input type="date" value={form.expiry_date} onChange={e => setForm(f => ({ ...f, expiry_date: e.target.value }))} /></div>

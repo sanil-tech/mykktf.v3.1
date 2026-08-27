@@ -73,6 +73,11 @@ export default function JakmasDashboard({ user }) {
         <p className="text-sm opacity-80 mt-1">
           Position: {appointment?.position || '-'} · Portfolio: {appointment?.portfolio || '-'} · Term: {appointment?.term_start || '-'} → {appointment?.term_end || 'open'}
         </p>
+        {appointment?.term_start && appointment.term_start > new Date().toISOString().split('T')[0] && (
+          <span className="inline-block mt-2 text-xs bg-amber-400/20 text-amber-100 border border-amber-300/30 px-2 py-0.5 rounded-full">
+            Term bermula {appointment.term_start}
+          </span>
+        )}
       </div>
 
       {/* Stats */}
