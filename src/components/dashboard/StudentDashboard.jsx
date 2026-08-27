@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { Wrench, CalendarOff, Package, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare } from 'lucide-react';
+import { Wrench, CalendarOff, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import JakmasPanel from '@/components/dashboard/JakmasPanel';
 
@@ -49,7 +49,6 @@ export default function StudentDashboard({ user, jakmasAppointment }) {
   const [student, setStudent] = useState(null);
   const [myLeave, setMyLeave] = useState([]);
   const [myMaint, setMyMaint] = useState([]);
-  const [myParcels, setMyParcels] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [recentChats, setRecentChats] = useState([]); // State baharu untuk mesej komuniti live
   const [readMap, setReadMap] = useState({});
@@ -86,14 +85,12 @@ export default function StudentDashboard({ user, jakmasAppointment }) {
         if (myStudent) {
           dataPromises.push(base44.entities.LeaveApplication.filter({ student_id: myStudent.student_id }, '-created_date', 5));
           dataPromises.push(base44.entities.MaintenanceRequest.filter({ student_id: myStudent.student_id }, '-created_date', 5));
-          dataPromises.push(base44.entities.Parcel.filter({ student_id: myStudent.student_id }, '-created_date', 5));
         }
 
-        const [ann, reads, leave = [], maint = [], parcels = []] = await Promise.all(dataPromises);
+        const [ann, reads, leave = [], maint = []] = await Promise.all(dataPromises);
 
         setMyLeave(leave);
         setMyMaint(maint);
-        setMyParcels(parcels);
 
         const map = {};
         reads.forEach(r => { map[r.announcement_id] = r; });
@@ -143,7 +140,6 @@ export default function StudentDashboard({ user, jakmasAppointment }) {
     );
   }
 
-  const pendingParcels = myParcels.filter(p => p.status === 'Pending Collection').length;
   const activeMaint = myMaint.filter(m => m.status !== 'Completed').length;
   const pendingLeave = myLeave.filter(l => l.status === 'Pending').length;
   const unreadAnn = announcements.filter(a => !readMap[a.id]);
@@ -233,14 +229,8 @@ export default function StudentDashboard({ user, jakmasAppointment }) {
       )}
 
       {/* Action System Alerts */}
-      {(pendingParcels > 0 || activeMaint > 0 || pendingLeave > 0) && (
+      {(activeMaint > 0 || pendingLeave > 0) && (
         <div className="flex flex-wrap gap-2.5">
-          {pendingParcels > 0 && (
-            <Link to="/parcels" className="flex items-center gap-2 bg-amber-50/70 border border-amber-200/60 text-amber-900 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-amber-100/80 transition-colors shadow-2xs">
-              <Package className="w-4 h-4 text-amber-600" /> {pendingParcels} Parcel Baru Sedia Diambil
-              <ChevronRight className="w-3 h-3 ml-0.5 opacity-60" />
-            </Link>
-          )}
           {activeMaint > 0 && (
             <Link to="/maintenance" className="flex items-center gap-2 bg-sky-50/70 border border-sky-200/60 text-sky-900 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-sky-100/80 transition-colors shadow-2xs">
               <Wrench className="w-4 h-4 text-sky-600" /> {activeMaint} Aduan Kerosakan Sedang Diproses
@@ -316,29 +306,6 @@ export default function StudentDashboard({ user, jakmasAppointment }) {
                         <p className="text-[11px] text-slate-500 truncate font-medium">{m.description}</p>
                       </div>
                       <StatusBadge status={m.status} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Parcels */}
-            <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-slate-800 tracking-tight">Penerimaan Parcel / Bingkisan</h3>
-                <Link to="/parcels"><Button variant="ghost" size="sm" className="text-xs font-bold text-sky-700 hover:text-sky-800 hover:bg-sky-50 h-8 rounded-lg">Semua</Button></Link>
-              </div>
-              {myParcels.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-10">Tiada rekod bungkusan atau parcel.</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {myParcels.map(p => (
-                    <div key={p.id} className="flex items-start justify-between p-3.5 bg-slate-50/50 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors">
-                      <div className="space-y-0.5">
-                        <p className="text-xs font-bold text-slate-800">{p.courier_company}</p>
-                        <p className="text-[11px] text-slate-500 font-medium">Tracking: <span className="font-mono text-slate-600">{p.tracking_number}</span> · Tarikh: {p.arrival_date}</p>
-                      </div>
-                      <StatusBadge status={p.status} />
                     </div>
                   ))}
                 </div>
