@@ -39,7 +39,7 @@ export default function BlockAssignment() {
     ]);
     setAssignments(a);
     setBlocks(b);
-    setWardens(wardensRes.wardens || []);
+    setWardens(wardensRes?.data?.wardens || wardensRes?.wardens || []);
     setLoading(false);
   }
 
