@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, ShieldAlert, Edit } from 'lucide-react';
+import { logAudit } from '@/lib/audit';
 
 const statusBadge = { Investigation: 'bg-blue-100 text-blue-700', Warning: 'bg-yellow-100 text-yellow-700', Fine: 'bg-red-100 text-red-700', Closed: 'bg-gray-100 text-gray-600' };
 
@@ -20,11 +21,14 @@ export default function Discipline() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ student_id: '', student_name: '', incident_date: '', offence_category: 'Noise Violation', description: '', action_taken: '', status: 'Investigation' });
   const [editId, setEditId] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const { toast } = useToast();
 
   useEffect(() => { load(); }, []);
   async function load() {
     setLoading(true);
+    const u = await base44.auth.me();
+    setCurrentUser(u);
     const [r, s] = await Promise.all([base44.entities.DisciplineRecord.list('-created_date'), base44.entities.Student.list()]);
     setRecords(r);
     setStudents(s);
@@ -37,6 +41,7 @@ export default function Discipline() {
     const data = { ...form, student_name: student?.full_name || '' };
     if (editId) await base44.entities.DisciplineRecord.update(editId, data);
     else await base44.entities.DisciplineRecord.create(data);
+    await logAudit(currentUser, editId ? 'DISCIPLINE_UPDATED' : 'DISCIPLINE_CREATED', 'Discipline', { student: data.student_name, offence: data.offence_category, status: data.status });
     toast({ title: editId ? 'Record updated' : 'Record created' });
     setDialogOpen(false);
     setEditId(null);

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
 import { Plus, CheckCircle, AlertTriangle, Eye } from 'lucide-react';
+import { logAudit } from '@/lib/audit';
 
 const STATUS_COLORS = {
   Submitted: 'bg-yellow-100 text-yellow-700',
@@ -59,12 +60,7 @@ export default function RoomInspections() {
       inspected_by_user_id: user.id,
       inspected_by_name: user.full_name || user.email,
     });
-    await base44.entities.AuditLog.create({
-      user_id: user.id, user_name: user.full_name || user.email,
-      action: 'Inspection Submitted', module: 'Room Inspections',
-      details: `Room ${form.room_number} — ${form.student_name}`,
-      timestamp: new Date().toISOString(),
-    });
+    await logAudit(user, 'INSPECTION_SUBMITTED', 'Room Inspections', { room: form.room_number, student: form.student_name, block: form.block_name });
     toast({ title: 'Inspection submitted' });
     setShowForm(false);
     setForm(emptyForm);
@@ -73,6 +69,7 @@ export default function RoomInspections() {
 
   async function updateStatus(id, status) {
     await base44.entities.RoomInspection.update(id, { status });
+    await logAudit(user, status === 'Verified' ? 'INSPECTION_VERIFIED' : 'INSPECTION_REVIEWED', 'Room Inspections', { id, status });
     setViewing(v => ({ ...v, status }));
     init();
   }

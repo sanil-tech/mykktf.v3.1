@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, UserCheck } from 'lucide-react';
+import { logAudit } from '@/lib/audit';
 
 export default function Visitors() {
   const [visitors, setVisitors] = useState([]);
@@ -16,11 +17,14 @@ export default function Visitors() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ visitor_name: '', ic_passport: '', phone: '', student_id: '', student_name: '', visit_date: '', time_in: '', purpose: '' });
+  const [currentUser, setCurrentUser] = useState(null);
   const { toast } = useToast();
 
   useEffect(() => { load(); }, []);
   async function load() {
     setLoading(true);
+    const u = await base44.auth.me();
+    setCurrentUser(u);
     const [v, s] = await Promise.all([base44.entities.Visitor.list('-created_date'), base44.entities.Student.list()]);
     setVisitors(v);
     setStudents(s);
@@ -31,6 +35,7 @@ export default function Visitors() {
     if (!form.visitor_name || !form.ic_passport || !form.student_id || !form.visit_date || !form.time_in) { toast({ title: 'Fill required fields', variant: 'destructive' }); return; }
     const student = students.find(s => s.id === form.student_id);
     await base44.entities.Visitor.create({ ...form, student_name: student?.full_name || '' });
+    await logAudit(currentUser, 'VISITOR_REGISTERED', 'Visitors', { visitor: form.visitor_name, ic: form.ic_passport, visiting: student?.full_name });
     toast({ title: 'Visitor registered' });
     setDialogOpen(false);
     load();
@@ -39,6 +44,7 @@ export default function Visitors() {
   async function checkOut(id) {
     const now = new Date();
     await base44.entities.Visitor.update(id, { time_out: `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}` });
+    await logAudit(currentUser, 'VISITOR_CHECKOUT', 'Visitors', { id });
     toast({ title: 'Visitor checked out' });
     load();
   }

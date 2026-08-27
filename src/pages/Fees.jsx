@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, CreditCard, Edit } from 'lucide-react';
+import { logAudit } from '@/lib/audit';
 
 const statusBadge = { Paid: 'bg-green-100 text-green-700', Partial: 'bg-yellow-100 text-yellow-700', Unpaid: 'bg-red-100 text-red-700' };
 
@@ -19,6 +20,7 @@ export default function Fees() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ student_id: '', student_name: '', semester: '', hostel_fee: 0, outstanding_balance: 0, payment_date: '', receipt_number: '', status: 'Unpaid' });
   const [editId, setEditId] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const { toast } = useToast();
 
   useEffect(() => { load(); }, []);
@@ -37,6 +39,8 @@ export default function Fees() {
   async function load() {
     setLoading(true);
     try {
+      const u = await base44.auth.me();
+      setCurrentUser(u);
       // Stagger the two calls slightly to reduce burst-load on the API
       const f = await withRetry(() => base44.entities.Fee.list('-created_date'));
       const s = await withRetry(() => base44.entities.Student.list());
@@ -55,6 +59,7 @@ export default function Fees() {
     const data = { ...form, student_name: student?.full_name || '' };
     if (editId) await base44.entities.Fee.update(editId, data);
     else await base44.entities.Fee.create(data);
+    await logAudit(currentUser, editId ? 'FEE_UPDATED' : 'FEE_CREATED', 'Fees', { student: data.student_name, semester: data.semester, amount: data.hostel_fee, status: data.status });
     toast({ title: editId ? 'Fee record updated' : 'Fee record created' });
     setDialogOpen(false);
     setEditId(null);

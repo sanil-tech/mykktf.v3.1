@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Trash2, UserCog, Plus } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import { logAudit } from '@/lib/audit';
 
 export default function BlockAssignment() {
   const [assignments, setAssignments] = useState([]);
@@ -13,11 +14,14 @@ export default function BlockAssignment() {
   const [form, setForm] = useState({ warden_user_id: '', block_id: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
+    const u = await base44.auth.me();
+    setCurrentUser(u);
     const [a, b, users] = await Promise.all([
       base44.entities.WardenBlock.list(),
       base44.entities.Block.list(),
@@ -43,6 +47,7 @@ export default function BlockAssignment() {
       block_id: form.block_id,
       block_name: block?.block_name || '',
     });
+    await logAudit(currentUser, 'WARDEN_BLOCK_ASSIGNED', 'Block Assignment', { warden: warden?.full_name || warden?.email, block: block?.block_name });
     toast({ title: 'Assignment added' });
     setForm({ warden_user_id: '', block_id: '' });
     setSaving(false);
@@ -51,6 +56,7 @@ export default function BlockAssignment() {
 
   async function removeAssignment(id) {
     await base44.entities.WardenBlock.delete(id);
+    await logAudit(currentUser, 'WARDEN_BLOCK_UNASSIGNED', 'Block Assignment', { id });
     toast({ title: 'Assignment removed' });
     load();
   }

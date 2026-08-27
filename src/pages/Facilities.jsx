@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, Building2, Check, X, Calendar } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
+import { logAudit } from '@/lib/audit';
 
 const FACILITIES = ['Multipurpose Hall', 'Badminton Court 1', 'Badminton Court 2'];
 const statusBadge = { Pending: 'bg-yellow-100 text-yellow-700', Approved: 'bg-green-100 text-green-700', Rejected: 'bg-red-100 text-red-700', Cancelled: 'bg-gray-100 text-gray-600' };
@@ -53,6 +54,7 @@ export default function Facilities() {
     const conflict = allBks.find(b => b.status !== 'Rejected' && b.status !== 'Cancelled' && ((form.start_time >= b.start_time && form.start_time < b.end_time) || (form.end_time > b.start_time && form.end_time <= b.end_time)));
     if (conflict) { toast({ title: 'Time slot conflict', description: 'This facility is already booked at that time.', variant: 'destructive' }); return; }
     await base44.entities.FacilityBooking.create({ ...form, student_id: myStudent.id, student_name: myStudent.full_name });
+    await logAudit(currentUser, 'FACILITY_BOOKED', 'Facilities', { facility: form.facility, date: form.booking_date, student: myStudent.full_name });
     toast({ title: 'Booking submitted — pending approval' });
     setDialogOpen(false);
     init();
@@ -60,6 +62,7 @@ export default function Facilities() {
 
   async function updateStatus(id, status) {
     await base44.entities.FacilityBooking.update(id, { status, approved_by: currentUser?.full_name || currentUser?.email });
+    await logAudit(currentUser, status === 'Approved' ? 'FACILITY_APPROVED' : 'FACILITY_REJECTED', 'Facilities', { id, status });
     toast({ title: `Booking ${status.toLowerCase()}` });
     init();
   }

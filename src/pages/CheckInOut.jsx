@@ -16,6 +16,7 @@ import SurveyModal from '@/components/SurveyModal';
 import TablePagination from '@/components/shared/TablePagination';
 import { useQuery } from '@tanstack/react-query';
 import { realTimeQueryOptions } from '@/lib/query-client';
+import { logAudit } from '@/lib/audit';
 
 const PAGE_SIZE = 10;
 
@@ -276,6 +277,7 @@ export default function CheckInOut() {
         status: nextOcc >= (room.capacity || 4) ? 'Full' : 'Occupied',
       });
 
+      await logAudit(currentUser, 'CHECKIN_RECORDED', 'Check-In/Out', { student: selectedStudent.full_name, student_id: selectedStudent.student_id, room: room?.room_number, block: room?.block_name });
       toast({ title: 'Berjaya', description: 'Check-in direkodkan dengan jayanya.' });
       setCiDialog(false);
       resetSearchState();
@@ -324,6 +326,7 @@ export default function CheckInOut() {
         });
       }
 
+      await logAudit(currentUser, 'CHECKOUT_RECORDED', 'Check-In/Out', { student: selectedStudent.full_name, student_id: selectedStudent.student_id, room: selectedStudent.room_number, condition: coForm.room_condition });
       setCoDialog(false);
       setPendingCheckout({ checkoutId: checkout.id, student: { ...selectedStudent, room_id: null, room_number: null, block_name: null } });
       setShowSurvey(true);
@@ -379,6 +382,7 @@ export default function CheckInOut() {
       });
       await base44.entities.Alumni.bulkCreate(alumniRecords);
       await Promise.all(candidates.map(st => base44.entities.Student.update(st.id, { resident_status: 'Archived' })));
+      await logAudit(currentUser, 'SESSION_ARCHIVED', 'Check-In/Out', { count: candidates.length, semester: selectedSemesterFilter });
       toast({ title: 'Sesi Ditutup', description: `${candidates.length} residen telah dipindahkan ke rekod Alumni.` });
       setArchiveDialog(false);
       await load();

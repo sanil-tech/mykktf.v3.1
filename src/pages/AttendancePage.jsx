@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, ClipboardCheck, QrCode, ScanLine } from 'lucide-react';
+import { logAudit } from '@/lib/audit';
 
 const statusBadge = { Present: 'bg-green-100 text-green-700', Absent: 'bg-red-100 text-red-700', Late: 'bg-yellow-100 text-yellow-700' };
 const ADMIN_ROLES = ['warden', 'admin', 'staff'];
@@ -51,6 +52,7 @@ export default function AttendancePage() {
     if (!form.student_id || !form.event_name || !form.attendance_date) { toast({ title: 'Fill required fields', variant: 'destructive' }); return; }
     const student = students.find(s => s.id === form.student_id);
     await base44.entities.Attendance.create({ ...form, student_name: student?.full_name || '' });
+    await logAudit(currentUser, 'ATTENDANCE_RECORDED', 'Attendance', { student: student?.full_name, event: form.event_name, status: form.status });
     toast({ title: 'Attendance recorded' });
     setDialogOpen(false);
     init();
@@ -68,6 +70,7 @@ export default function AttendancePage() {
     const existing = records.find(r => r.student_id === myStudent.id && r.event_name === event_name && r.attendance_date === attendance_date);
     if (existing) { toast({ title: 'Already registered for this event' }); setQrScanOpen(false); return; }
     await base44.entities.Attendance.create({ student_id: myStudent.id, student_name: myStudent.full_name, event_type, event_name, attendance_date, method: 'QR Code', status: 'Present' });
+    await logAudit(currentUser, 'ATTENDANCE_QR_CHECKIN', 'Attendance', { event: event_name, student: myStudent.full_name });
     toast({ title: 'Attendance recorded via QR!' });
     setQrScanOpen(false);
     setQrToken('');

@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Plus, Search, GraduationCap, Edit, Trash2, Eye } from 'lucide-react';
 import TablePagination from '@/components/shared/TablePagination';
 import { TableSkeleton } from '@/components/shared/ListSkeletons';
+import { logAudit } from '@/lib/audit';
 
 const FACULTIES = ['Engineering', 'Science', 'Arts', 'Business', 'Medicine', 'Education', 'Law', 'IT'];
 const PAGE_SIZE = 10;
@@ -74,17 +75,20 @@ export default function Students() {
     }
     if (editId) {
       await base44.entities.Student.update(editId, form);
+      await logAudit(user, 'STUDENT_UPDATED', 'Students', { id: editId, name: form.full_name, student_id: form.student_id });
       toast({ title: 'Student updated' });
     } else {
       await base44.entities.Student.create(form);
+      await logAudit(user, 'STUDENT_CREATED', 'Students', { name: form.full_name, student_id: form.student_id });
       toast({ title: 'Student added' });
     }
     setDialogOpen(false);
     load();
   }
 
-  async function handleDelete(id) {
-    await base44.entities.Student.delete(id);
+  async function handleDelete(student) {
+    await base44.entities.Student.delete(student.id);
+    await logAudit(user, 'STUDENT_DELETED', 'Students', { id: student.id, name: student.full_name, student_id: student.student_id });
     toast({ title: 'Student removed' });
     load();
   }
@@ -149,7 +153,7 @@ export default function Students() {
                       <div className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setViewStudent(s); setViewOpen(true); }}><Eye className="w-3.5 h-3.5" /></Button>
                         {canManageStudents && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(s)}><Edit className="w-3.5 h-3.5" /></Button>}
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(s.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(s)}><Trash2 className="w-3.5 h-3.5" /></Button>
                       </div>
                     </td>
                   </tr>

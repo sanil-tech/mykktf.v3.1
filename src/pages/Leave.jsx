@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, CalendarOff, Check, X, Clock, AlertTriangle, Users, UserX, Loader2, MapPin, Calendar, User, FileText } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
+import { logAudit } from '@/lib/audit';
 
 // Dikemaskini: Mengandungi tiga peringkat kelulusan utama
 const STATUS_BADGE = {
@@ -125,6 +126,7 @@ export default function Leave() {
         room_number: myStudent.room_number || '',
         status: 'Pending',
       });
+      await logAudit(currentUser, 'LEAVE_SUBMITTED', 'E-Leave', { student: myStudent.full_name, student_id: myStudent.student_id, type: form.leave_type });
 
       if (myStudent.block_name) {
         const wardenBlocks = await base44.entities.WardenBlock.filter({ block_name: myStudent.block_name });
@@ -155,6 +157,7 @@ export default function Leave() {
         status,
         approved_by: currentUser?.full_name || currentUser?.email
       });
+      await logAudit(currentUser, status === 'Approved' ? 'LEAVE_APPROVED' : 'LEAVE_REJECTED', 'E-Leave', { id: app.id, student: app.student_name, student_id: app.student_id });
 
       const students = await base44.entities.Student.filter({ student_id: app.student_id });
       if (students.length && students[0].user_id) {

@@ -9,6 +9,7 @@ import { Plus, MessageSquare, Lightbulb, Eye, CheckCircle } from 'lucide-react';
 import { ListSkeleton } from '@/components/shared/ListSkeletons';
 import { toast } from 'sonner';
 import { validateAttachment } from '@/lib/validators';
+import { logAudit } from '@/lib/audit';
 
 const CATEGORIES = ['Facilities', 'Internet', 'Security', 'Cleanliness', 'Staff Services', 'Others'];
 const STATUS_FLOW = ['Submitted', 'Under Review', 'Resolved', 'Closed'];
@@ -87,6 +88,7 @@ export default function Complaints() {
       room_number: student?.room_number || '',
     };
     await base44.entities.Complaint.create(payload);
+    await logAudit(user, 'COMPLAINT_SUBMITTED', 'Complaints', { type: form.type, title: form.title });
     toast.success(`${form.type} submitted successfully`);
     setShowForm(false);
     setForm({ type: 'Complaint', category: 'Facilities', title: '', description: '', is_anonymous: false, photo: null });
@@ -95,6 +97,7 @@ export default function Complaints() {
 
   async function updateStatus(id, status) {
     await base44.entities.Complaint.update(id, { status, resolved_by: user.full_name || user.email, resolved_at: new Date().toISOString() });
+    await logAudit(user, 'COMPLAINT_UPDATED', 'Complaints', { id, status });
     if (viewing?.id === id) setViewing(v => ({ ...v, status }));
     init();
   }
@@ -103,6 +106,7 @@ export default function Complaints() {
     const isWarden = user.role === 'warden';
     const update = isWarden ? { warden_response: response } : { admin_response: response };
     await base44.entities.Complaint.update(id, update);
+    await logAudit(user, 'COMPLAINT_RESPONDED', 'Complaints', { id });
     const item = items.find(i => i.id === id);
     if (item?.student_user_id && !item.is_anonymous) {
       await base44.entities.Notification.create({ user_id: item.student_user_id, title: 'Response on your submission', message: `Your ${item.type} has received a response.`, type: 'general', link: '/complaints' });

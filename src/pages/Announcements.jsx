@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Plus, Trash2, Megaphone, AlertTriangle, Info, Bell, CheckCircle, BarChart2, Image, X, Users, Calendar } from 'lucide-react';
 import { ListSkeleton } from '@/components/shared/ListSkeletons';
 import { computeEffectiveRole, fetchActiveJakmasAppointment } from '@/lib/jakmas';
+import { logAudit } from '@/lib/audit';
 
 const TYPE_CONFIG = {
   'General Notice': { icon: Info, bg: 'bg-blue-50 border-blue-200', badge: 'bg-blue-100 text-blue-700' },
@@ -153,6 +154,7 @@ export default function Announcements() {
     const needsApproval = isJakmas && OFFICIAL_TYPES.includes(finalForm.type);
     const approval_status = needsApproval ? 'pending_approval' : 'published';
     await base44.entities.Announcement.create({ ...finalForm, published_by: user?.full_name || user?.email, approval_status });
+    await logAudit(user, needsApproval ? 'ANNOUNCEMENT_SUBMITTED' : 'ANNOUNCEMENT_PUBLISHED', 'Announcements', { title: finalForm.title, type: finalForm.type });
     if (!needsApproval) {
       base44.functions.invoke('sendNotificationEmail', { type: 'announcement', title: finalForm.title, message: finalForm.content }).catch(() => {});
     }
@@ -174,6 +176,7 @@ export default function Announcements() {
   async function remove(id) {
     if (!confirm('Delete this announcement?')) return;
     await base44.entities.Announcement.delete(id);
+    await logAudit(user, 'ANNOUNCEMENT_DELETED', 'Announcements', { id });
     toast({ title: 'Deleted' });
     init();
   }
@@ -181,6 +184,7 @@ export default function Announcements() {
   async function approve(id) {
     const ann = announcements.find(a => a.id === id);
     await base44.entities.Announcement.update(id, { approval_status: 'published' });
+    await logAudit(user, 'ANNOUNCEMENT_APPROVED', 'Announcements', { id, title: ann?.title });
     base44.functions.invoke('sendNotificationEmail', { type: 'announcement', title: ann?.title, message: ann?.content }).catch(() => {});
     toast({ title: 'Approved & published' });
     init();
@@ -189,6 +193,7 @@ export default function Announcements() {
   async function reject(id) {
     const feedback = prompt('Sebab penolakan (pilihan):', '') || '';
     await base44.entities.Announcement.update(id, { approval_status: 'rejected', approval_feedback: feedback });
+    await logAudit(user, 'ANNOUNCEMENT_REJECTED', 'Announcements', { id, feedback });
     toast({ title: 'Notice ditolak' });
     init();
   }

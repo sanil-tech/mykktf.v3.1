@@ -16,6 +16,7 @@ import {
   ShieldAlert, ChevronDown, ChevronUp, User, RotateCcw, Edit2, Trash2
 } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
+import { logAudit } from '@/lib/audit';
 
 export default function Rooms() {
   const [searchParams] = useSearchParams();
@@ -174,6 +175,7 @@ export default function Rooms() {
 
       await Promise.all(syncTasks);
       await loadDataAndHeal();
+      await logAudit(currentUser, 'ROOM_SYNCED', 'Rooms', { rooms_updated: roomsUpdated });
       toast({ title: "Synchronization Complete", description: `${roomsUpdated} rooms verified and synced.` });
     } catch (err) {
       toast({ title: "Sync pipeline execution failed", description: err.message, variant: 'destructive' });
@@ -239,6 +241,7 @@ export default function Rooms() {
         status: form.status, // Terus menyimpan status pilihan (Reserved, dll.)
         gender_restriction: form.gender_restriction
       });
+      await logAudit(currentUser, 'ROOM_CREATED', 'Rooms', { room_number: form.room_number, block_name: form.block_name });
       toast({ title: 'Room registered successfully' });
       setOpenDialog(false);
       resetForm();
@@ -275,6 +278,7 @@ export default function Rooms() {
         current_occupancy: currentOccupants
       });
       
+      await logAudit(currentUser, 'ROOM_UPDATED', 'Rooms', { id: selectedRoomForEdit.id, room_number: form.room_number, reason: form.reason_for_correction });
       toast({ title: 'Correction Processed Successfully' });
       setOpenDialog(false);
       resetForm();
@@ -289,6 +293,7 @@ export default function Rooms() {
     if (!confirm('Are you certain you wish to delete this record permanently?')) return;
     try {
       await base44.entities.Room.delete(roomId);
+      await logAudit(currentUser, 'ROOM_DELETED', 'Rooms', { id: roomId });
       toast({ title: 'Room allocation purged successfully' });
       loadDataAndHeal();
     } catch (err) {

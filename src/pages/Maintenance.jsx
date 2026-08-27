@@ -12,6 +12,7 @@ import { Plus, Wrench } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 import { toast } from 'sonner';
 import { validateAttachment } from '@/lib/validators';
+import { logAudit } from '@/lib/audit';
 
 const statusBadge = { Submitted: 'bg-gray-100 text-gray-700', Assigned: 'bg-blue-100 text-blue-700', 'In Progress': 'bg-yellow-100 text-yellow-700', Completed: 'bg-green-100 text-green-700' };
 const STAFF_ROLES = ['warden', 'staff', 'admin'];
@@ -82,6 +83,7 @@ export default function Maintenance() {
       student_id: myStudent.id,
       student_name: myStudent.full_name,
     });
+    await logAudit(currentUser, 'MAINTENANCE_SUBMITTED', 'Maintenance', { student: myStudent.full_name, category: form.category, room: form.room_number });
     toast.success('Request submitted');
     setDialogOpen(false);
     init();
@@ -89,6 +91,7 @@ export default function Maintenance() {
 
   async function updateStatus(id, status) {
     await base44.entities.MaintenanceRequest.update(id, { status });
+    await logAudit(currentUser, 'MAINTENANCE_UPDATED', 'Maintenance', { id, status });
     toast.success(`Status updated to ${status}`);
     init();
   }

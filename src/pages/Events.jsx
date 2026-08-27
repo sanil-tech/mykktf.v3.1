@@ -10,6 +10,7 @@ import { toast } from '@/components/ui/use-toast';
 import { Plus, Calendar, MapPin, Users, UserCheck, Trash2, Eye } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 import { computeEffectiveRole, fetchActiveJakmasAppointment } from '@/lib/jakmas';
+import { logAudit } from '@/lib/audit';
 
 const MANAGE_ROLES = ['super_admin', 'college_admin', 'warden', 'staff', 'jakmas'];
 const STATUS_COLORS = {
@@ -57,7 +58,7 @@ export default function Events() {
       toast({ title: 'Fill required fields', variant: 'destructive' }); return;
     }
     await base44.entities.Event.create({ ...form, organizer_user_id: user.id, organizer: form.organizer || user.full_name || user.email });
-    await base44.entities.AuditLog.create({ user_id: user.id, user_name: user.full_name || user.email, action: 'Event Created', module: 'Events', details: form.event_name, timestamp: new Date().toISOString() });
+    await logAudit(user, 'EVENT_CREATED', 'Events', { name: form.event_name, venue: form.venue, date: form.event_date });
     base44.functions.invoke('sendNotificationEmail', { type: 'event', title: form.event_name, message: form.description || `${form.event_name} di ${form.venue} pada ${form.event_date}` }).catch(() => {});
     toast({ title: 'Event created' });
     setShowForm(false);
@@ -68,6 +69,7 @@ export default function Events() {
   async function deleteEvent(id) {
     if (!confirm('Delete this event?')) return;
     await base44.entities.Event.delete(id);
+    await logAudit(user, 'EVENT_DELETED', 'Events', { id });
     toast({ title: 'Event deleted' });
     init();
   }

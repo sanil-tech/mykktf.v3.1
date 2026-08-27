@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { logAudit } from '@/lib/audit';
 
 // Appointment statuses
 export const JAKMAS_STATUSES = ['pending', 'active', 'suspended', 'expired', 'ended'];
@@ -111,17 +112,5 @@ export async function fetchCurrentJakmasAppointment(userId) {
 }
 
 export async function logJakmasAudit(user, action, module, details) {
-  if (!user) return;
-  try {
-    await base44.entities.AuditLog.create({
-      user_id: user.id,
-      user_name: user.full_name || user.email,
-      action,
-      module,
-      details: typeof details === 'string' ? details : JSON.stringify(details || {}),
-      timestamp: new Date().toISOString(),
-    });
-  } catch (e) {
-    /* audit must never break the operation */
-  }
+  return logAudit(user, action, module, details);
 }
