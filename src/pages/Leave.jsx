@@ -29,7 +29,8 @@ import {
   Sparkles,
   ArrowRight,
   ShieldCheck,
-  Building
+  Building,
+  Camera
 } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 import { logAudit } from '@/lib/audit';
