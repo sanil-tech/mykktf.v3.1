@@ -255,26 +255,43 @@ export default function Events() {
                     <div className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-primary" />{ev.current_registrations || 0}{ev.registration_limit ? `/${ev.registration_limit}` : ''} Peserta</div>
                   </div>
 
-                  {/* FELO PENYELARAS SECTION */}
-                  <div className="p-2.5 bg-indigo-50/20 dark:bg-indigo-950/20 rounded-xl border border-indigo-200 dark:border-indigo-900/60 text-xs space-y-1">
+                  {/* FELO PENYELARAS SECTION (CADANGAN JAKMAS -> PENGESAHAN PENGETUA) */}
+                  <div className={`p-3 rounded-2xl border text-xs space-y-1.5 transition-all ${
+                    feloApproved 
+                      ? 'bg-emerald-50/20 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/60'
+                      : 'bg-amber-50/30 dark:bg-amber-950/30 border-amber-300 dark:border-amber-900/60'
+                  }`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1">
-                        <UserCog className="w-3 h-3" /> Felo Penyelaras Program:
+                      <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 text-foreground">
+                        <UserCog className="w-3.5 h-3.5 text-primary" /> Felo Penyelaras Program:
                       </span>
-                      <Badge className={`text-[9px] font-bold ${feloApproved ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-400/40' : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400/40'}`}>
-                        {feloApproved ? '✓ Diluluskan Pengetua' : '⏳ Menunggu Kelulusan'}
+                      <Badge className={`text-[9px] font-bold ${
+                        feloApproved 
+                          ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-400/40' 
+                          : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400/40 animate-pulse'
+                      }`}>
+                        {feloApproved ? '✓ Disahkan Pengetua' : '⏳ Cadangan JAKMAS (Menunggu Pengetua)'}
                       </Badge>
                     </div>
-                    <p className="font-bold text-xs text-foreground">{ev.felo_coordinator_name || 'Dr. Zulkifli (Felo Penasihat)'}</p>
 
-                    {/* Pengetua 1-Click Approval Action */}
+                    <p className="font-bold text-xs text-foreground">
+                      {ev.felo_coordinator_name || 'Dr. Zulkifli (Felo Penasihat)'}
+                    </p>
+
+                    {!feloApproved && (
+                      <p className="text-[10px] text-amber-800/80 dark:text-amber-300/80 leading-tight">
+                        *Lantikan ini adalah cadangan penganjur/JAKMAS. Pengesahan merit AJK hanya sah selepas disahkan Pengetua.
+                      </p>
+                    )}
+
+                    {/* Pengetua Official Confirmation Button */}
                     {!feloApproved && isPrincipalOrAdmin && (
                       <Button
                         size="sm"
                         onClick={() => approveFeloCoordinator(ev.id)}
-                        className="w-full h-6 text-[10px] font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg mt-1 gap-1"
+                        className="w-full h-7 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl mt-1.5 gap-1.5 shadow-xs"
                       >
-                        <CheckCircle className="w-3 h-3" /> Luluskan Felo Penyelaras (Pengetua)
+                        <CheckCircle className="w-3.5 h-3.5" /> Sahkan Lantikan Felo Penyelaras (Pengetua)
                       </Button>
                     )}
                   </div>
