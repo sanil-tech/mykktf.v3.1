@@ -265,7 +265,218 @@ export default function Leave() {
   };
 
   const getQrImageUrl = (url) => {
-    return `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(url)}`;
+    return `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(url)}&margin=10`;
+  };
+
+  const handlePrintPoster = (blockName) => {
+    const qrUrl = getReturnUrl(blockName);
+    const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(qrUrl)}&margin=10`;
+    
+    const printWindow = window.open('', '_blank', 'width=900,height=1100');
+    if (!printWindow) {
+      window.print();
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="ms">
+      <head>
+        <meta charset="UTF-8">
+        <title>Poster Rasmi Kod QR E-Leave - ${blockName}</title>
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 12mm;
+          }
+          * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          }
+          body {
+            background: #ffffff;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 10px;
+          }
+          .poster-card {
+            width: 100%;
+            max-width: 680px;
+            border: 4px solid #0f1e36;
+            border-radius: 28px;
+            padding: 36px 32px;
+            text-align: center;
+            background: #ffffff;
+          }
+          .badge-header {
+            display: inline-block;
+            background: #0f1e36;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 8px 24px;
+            border-radius: 999px;
+            margin-bottom: 16px;
+          }
+          .inst-title {
+            font-size: 22px;
+            font-weight: 900;
+            color: #0f1e36;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+          }
+          .inst-sub {
+            font-size: 13px;
+            color: #64748b;
+            font-weight: 600;
+            margin-bottom: 24px;
+          }
+          .location-box {
+            background: #f8fafc;
+            border: 2px dashed #cbd5e1;
+            border-radius: 18px;
+            padding: 14px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+          }
+          .location-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: #1e293b;
+          }
+          .qr-frame {
+            background: #ffffff;
+            border: 3px solid #e2e8f0;
+            border-radius: 24px;
+            padding: 20px;
+            display: inline-block;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 24px rgba(15, 30, 54, 0.08);
+          }
+          .qr-frame img {
+            width: 270px;
+            height: 270px;
+            display: block;
+            margin: 0 auto;
+          }
+          .scan-cta {
+            font-size: 16px;
+            font-weight: 800;
+            color: #047857;
+            margin-bottom: 24px;
+          }
+          .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+            text-align: left;
+          }
+          .step-item {
+            background: #f1f5f9;
+            border-radius: 14px;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+          }
+          .step-num {
+            display: inline-block;
+            width: 22px;
+            height: 22px;
+            background: #0f1e36;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 800;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 22px;
+            margin-bottom: 6px;
+          }
+          .step-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 2px;
+          }
+          .step-desc {
+            font-size: 10px;
+            color: #64748b;
+            line-height: 1.3;
+          }
+          .security-footer {
+            border-top: 1px solid #e2e8f0;
+            padding-top: 16px;
+            font-size: 10px;
+            color: #94a3b8;
+            line-height: 1.4;
+          }
+          .security-footer strong {
+            color: #64748b;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="poster-card">
+          <div class="badge-header">SISTEM E-LEAVE KKTF</div>
+          <h1 class="inst-title">UNIVERSITI MALAYSIA SABAH</h1>
+          <p class="inst-sub">Kolej Kediaman Tun Fuad &bull; Pengesahan Kehadiran Kembali ke Kolej</p>
+          
+          <div class="location-box">
+            <span class="location-title">📍 LOKASI IMBASAN: ${blockName}</span>
+          </div>
+
+          <div class="qr-frame">
+            <img src="${qrImg}" alt="QR Kod E-Leave ${blockName}">
+          </div>
+
+          <div class="scan-cta">
+            📷 IMBAS KOD QR INI DENGAN KAMERA TELEFON
+          </div>
+
+          <div class="steps-grid">
+            <div class="step-item">
+              <span class="step-num">1</span>
+              <p class="step-title">Buka Kamera</p>
+              <p class="step-desc">Buka aplikasi MyKKTF atau kamera telefon pintar anda.</p>
+            </div>
+            <div class="step-item">
+              <span class="step-num">2</span>
+              <p class="step-title">Imbas Kod QR</p>
+              <p class="step-desc">Halakan kamera tepat pada kod QR fizikal di atas.</p>
+            </div>
+            <div class="step-item">
+              <span class="step-num">3</span>
+              <p class="step-title">Sahkan Kehadiran</p>
+              <p class="step-desc">Status cuti anda automatik bertukar kepada TELAH KEMBALI.</p>
+            </div>
+          </div>
+
+          <div class="security-footer">
+            <p><strong>Peringatan Keselamatan:</strong> Pengesahan kembali dilindungi dengan pengesahan Geofence GPS KKTF. Penipuan kehadiran adalah satu kesalahan tatatertib kolej.</p>
+            <p style="margin-top: 4px; font-weight: 600;">Pejabat Pentadbiran & Felo Kolej Kediaman Tun Fuad, Universiti Malaysia Sabah</p>
+          </div>
+        </div>
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   if (loading) {
@@ -624,10 +835,10 @@ export default function Leave() {
               </Button>
               <Button 
                 size="sm" 
-                onClick={() => window.print()}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold gap-1.5"
+                onClick={() => handlePrintPoster(selectedBlockQr)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold gap-1.5 shadow-sm"
               >
-                <Printer className="w-3.5 h-3.5" /> Cetak Poster
+                <Printer className="w-3.5 h-3.5" /> Cetak Poster A4 Rasmi
               </Button>
             </div>
           </div>
