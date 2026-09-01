@@ -6,7 +6,7 @@ import {
   Wrench, Building2,
   Megaphone, FileBarChart, ScrollText, X, ChevronLeft,
   MessageSquare, MessagesSquare, CalendarCheck, Star, UserCog,
-  CalendarDays, Users, ClipboardList, Sparkles
+  CalendarDays, Users, ClipboardList, Sparkles, ScanLine
 } from 'lucide-react';
 
 const iconMap = {
@@ -14,7 +14,7 @@ const iconMap = {
   Wrench, Building2,
   Megaphone, FileBarChart, ScrollText,
   MessageSquare, MessagesSquare, CalendarCheck, Star, UserCog,
-  CalendarDays, Users, ClipboardList, Sparkles
+  CalendarDays, Users, ClipboardList, Sparkles, ScanLine
 };
 
 export default function Sidebar({ userRole, hasJakmas, open, onClose, collapsed, onToggleCollapse }) {

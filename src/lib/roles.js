@@ -24,6 +24,7 @@ export function hasAccess(userRole, allowedRoles) {
 export function getNavItems(role, hasJakmas = false) {
   const all = [
     { label: 'Dashboard', path: '/', icon: 'LayoutDashboard', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
+    { label: 'Imbas Pas Residen', path: '/scan-resident', icon: 'ScanLine', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS] },
     { label: 'Students', path: '/students', icon: 'GraduationCap', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.WARDEN] },
     { label: 'Resident Directory', path: '/directory', icon: 'Users', roles: [] },
     { label: 'Rooms', path: '/rooms', icon: 'DoorOpen', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },

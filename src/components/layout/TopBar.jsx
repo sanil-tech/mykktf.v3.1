@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, Bell, LogOut, User, UserCog } from 'lucide-react';
+import { Menu, Bell, LogOut, User, UserCog, ScanLine } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { ROLE_LABELS } from '@/lib/roles';
@@ -40,6 +40,20 @@ export default function TopBar({ onMenuClick, user }) {
         </div>
       </div>
       <div className="flex items-center gap-2">
+        {user?.role && user.role !== 'student' && user.role !== 'user' && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            asChild 
+            className="h-8 text-xs font-bold gap-1.5 border-lime-500/40 text-lime-600 dark:text-lime-400 bg-lime-500/10 hover:bg-lime-500/20 rounded-xl"
+          >
+            <Link to="/scan-resident">
+              <ScanLine className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Imbas Pas QR</span>
+            </Link>
+          </Button>
+        )}
+
         <Button variant="ghost" size="icon" className="relative" asChild>
           <a href="/announcements">
             <Bell className="w-[18px] h-[18px]" />
