@@ -1308,6 +1308,10 @@ export default function MeritDemerit() {
             <Button size="sm" variant="destructive" onClick={handleAddDemerit} className="font-bold rounded-xl">
               Rekodkan Dimerit
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* MODAL: QUOTA CONFIGURATION & RESTRICTION CRITERIA (PENGETUA & PANEL) */}
       <Dialog open={showQuotaConfigModal} onOpenChange={setShowQuotaConfigModal}>
         <DialogContent className="max-w-lg p-6 bg-card border-border rounded-3xl shadow-xl space-y-4">
