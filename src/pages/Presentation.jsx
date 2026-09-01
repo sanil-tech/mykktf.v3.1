@@ -7,29 +7,30 @@ import {
   MessagesSquare, FileBarChart, Star, UserCog, Sparkles, ScrollText,
   CalendarCheck, Users, ClipboardList, BookOpen, Search, Printer, Smartphone,
   ShieldCheck, MapPin, QrCode, CheckCircle2, AlertCircle, HeartHandshake,
-  Download, FileText, ChevronDown, ChevronUp, Share2, HelpCircle
+  Download, FileText, ChevronDown, ChevronUp, Share2, HelpCircle, Filter, Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ICONS = {
   LayoutDashboard, GraduationCap, DoorOpen, ArrowLeftRight, CalendarOff,
   Wrench, Building2, ClipboardCheck, Megaphone, CalendarDays, MessageSquare,
   MessagesSquare, FileBarChart, Star, UserCog, Sparkles, ScrollText,
   CalendarCheck, Users, ClipboardList, BookOpen, Smartphone, ShieldCheck,
-  MapPin, QrCode, HeartHandshake
+  MapPin, QrCode, HeartHandshake, UserCog
 };
 
-// HANDBOOK CHAPTERS FOR READER MODE
+// HANDBOOK CHAPTERS WITH STRICT ROLE-BASED ACCESS
 const MANUAL_CHAPTERS = [
   {
     id: 'ch-intro',
     number: 'Bab 1',
     title: 'Pengenalan & Pemasangan Aplikasi PWA Telefon',
-    role: 'Semua Pengguna',
+    roleLabel: 'Semua Pengguna',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
     icon: 'Smartphone',
     summary: 'Mengenali ekosistem MyKKTF dan cara memasang aplikasi pada telefon pintar tanpa melalui Google Play atau App Store.',
     sections: [
@@ -46,171 +47,215 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '1.3 Log Masuk & Peranan Pengguna',
-        content: 'Log masuk dilakukan menggunakan e-mel rasmi universiti. Antara muka dashboard disesuaikan secara automatik mengikut peranan: Pelajar, Felo/Warden Blok, EXCO JAKMAS, Staf Pentadbiran, atau Pentadbir Utama (Super Admin).'
+        title: '1.3 Log Masuk & Notifikasi Telefon',
+        content: 'Log masuk dilakukan menggunakan e-mel rasmi universiti. Pengguna digalakkan membenarkan kebenaran "Push Notifications" pada telefon untuk menerima makluman status cuti dan kerosakan secara langsung.'
       }
     ]
   },
   {
-    id: 'ch-eleave',
+    id: 'ch-eleave-student',
     number: 'Bab 2',
-    title: 'Modul E-Leave & Pengesahan Kembali Ber-Geofence',
-    role: 'Pelajar & Warden',
+    title: 'Panduan Pelajar: Permohonan E-Leave & Pengesahan QR + GPS',
+    roleLabel: 'Pelajar',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
     icon: 'CalendarOff',
-    summary: 'Aliran lengkap permohonan kebenaran bermalam di luar kolej, kelulusan warden, dan pengesahan kembali secara dwi-faktor (Kamera QR + GPS).',
+    summary: 'Aliran lengkap permohonan kebenaran bermalam di luar kolej dan pengesahan kembali menggunakan kamera telefon serta GPS Geofencing.',
     sections: [
       {
-        title: '2.1 Aliran Permohonan Cuti Pelajar',
+        title: '2.1 Mengisi Permohonan Cuti Pelajar',
         steps: [
-          'Pelajar membuka modul E-Leave → Klik "Mohon Cuti / Keluar Bermalam".',
+          'Buka menu E-Leave → Klik butang "Mohon Cuti / Keluar Bermalam".',
           'Pilih Jenis Cuti (Hujung Minggu, Cuti Semester, Urusan Keluarga, Rasmi UMS, Perubatan).',
-          'Isi Destinasi, Sebab Permohonan, Tarikh/Masa Keluar, dan Tarikh/Masa Pulang yang dijangka.',
-          'Permohonan dihantar serta-merta ke dashboard Warden bagi blok kediaman pelajar.'
+          'Isi Destinasi, Sebab Permohonan, Tarikh Keluar & Tarikh Pulang yang dijangka.',
+          'Permohonan akan dihantar terus kepada Felo/Warden blok kediaman anda untuk kelulusan.'
         ]
       },
       {
-        title: '2.2 Kelulusan oleh Warden Blok',
-        content: 'Warden blok menilai alasan dan rekod disiplin sebelum menekan butang "Luluskan" atau "Tolak". Notifikasi tolak telefon automatik dihantar kepada pelajar setelah keputusan dibuat.'
-      },
-      {
-        title: '2.3 Pengesahan Kembali ke Kolej (Dwi-Faktor: QR + GPS)',
+        title: '2.2 Pengesahan Kembali ke Kolej (Wajib)',
         steps: [
-          'Pelajar tiba di Kolej Kediaman Tun Fuad (UMS).',
-          'Buka aplikasi MyKKTF pada telefon → Klik "Imbas QR Kembali" (atau buka kamera telefon biasa).',
-          'GPS telefon mengesahkan pelajar berada dalam lingkungan radius 1.0km dari koordinat pusat KKTF (6.035400, 116.121500).',
-          'Kamera mengimbas kod QR fizikal pada poster rasmi di pintu masuk blok kediaman atau pondok pengawal.',
-          'Status cuti pelajar automatik bertukar kepada "TELAH KEMBALI" dan rekod audit disimpan.'
+          'Setibanya di KKTF, buka aplikasi MyKKTF pada telefon anda.',
+          'Tekan "Imbas QR Kembali" pada halaman E-Leave.',
+          'Pastikan GPS telefon dihidupkan (sistem mengesahkan kedudukan dalam lingkungan 1.0km dari kolej).',
+          'Halakan kamera pada poster kod QR fizikal yang ditampal di pintu masuk blok kediaman anda.',
+          'Status cuti anda automatik bertukar kepada "TELAH KEMBALI".'
         ]
       },
       {
-        title: '2.4 Status Terlewat (Overdue Monitoring)',
-        content: 'Jika pelajar gagal mengimbas kod QR kembali selepas tarikh pulang yang diluluskan berlalu, status rekod akan bertukar kepada AMARAN TERLEWAT (OVERDUE). Warden boleh menghubungi pelajar atau waris kecemasan yang tertera pada profil.'
+        title: '2.3 Peringatan Status Terlewat (Overdue)',
+        content: 'Kegagalan mengimbas kod QR kembali selepas tarikh pulang yang diluluskan akan menyebabkan sistem mengaktifkan status "AMARAN TERLEWAT (OVERDUE)" dan direkodkan dalam laporan warden.'
       }
     ]
   },
   {
     id: 'ch-maintenance',
     number: 'Bab 3',
-    title: 'Laporan Kerosakan & Integrasi MyServ UMS',
-    role: 'Pelajar, Warden & Staf',
+    title: 'Panduan Pelajar: Laporan Kerosakan & Pautan No. MyServ UMS',
+    roleLabel: 'Pelajar & Staf',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
     icon: 'Wrench',
-    summary: 'Panduan membuat aduan kerosakan bilik, pematuhan SLA pembaikan, dan peringatan harian pautan MyServ.',
+    summary: 'Tatacara membuat aduan kerosakan fasiliti bilik dan cara memautkan nombor rujukan MyServ UMS untuk penjejakan SLA.',
     sections: [
       {
         title: '3.1 Melaporkan Kerosakan',
         steps: [
           'Buka modul Damage Reports (Kerosakan).',
           'Pilih Lokasi Kerosakan (Bilik Sendiri atau Ruang Awam Blok).',
-          'Pilih Kategori (Elektrik, Paip, Perabot/Pintu, Kebersihan, Awam).',
-          'Tulis deskripsi kerosakan dan lampirkan gambar bukti jika perlu.'
+          'Pilih Kategori Kerosakan (Elektrik, Paip/Air, Perabot/Pintu, Kebersihan, Awam).',
+          'Tulis deskripsi ringkas kerosakan dan lampirkan gambar bukti.'
         ]
       },
       {
-        title: '3.2 Pautan No. Rujukan UMS MyServ & Penjejakan SLA',
-        content: 'Pelajar perlu membuat laporan pada portal MyServ UMS dan memasukkan No. Rujukan MyServ (cth: REQ-2026-8812) ke dalam MyKKTF. Sistem akan mengira jam penyelesaian (SLA Resolution Duration) secara automatik dari masa aduan dibuka hingga pengesahan siap kerja.'
-      },
-      {
-        title: '3.3 Peringatan Harian Automatik',
-        content: 'Sistem menyertakan penyekat peringatan (Throttler 1x sehari) yang memaparkan spanduk peringatan mesra di papan pemuka jika pelajar belum memautkan No. MyServ.'
+        title: '3.2 Pautan No. Rujukan MyServ UMS',
+        content: 'Setelah membuat laporan rasmi di portal MyServ UMS, masukkan No. Rujukan MyServ (cth: REQ-2026-8812) ke dalam laporan MyKKTF anda. Sistem akan menjejak tempoh pembaikan sehingga siap.'
       }
     ]
   },
   {
     id: 'ch-welfare',
     number: 'Bab 4',
-    title: 'Suara Mahasiswa & Kebajikan (Feedback & Welfare)',
-    role: 'Pelajar & Pentadbir',
+    title: 'Panduan Pelajar: Suara Mahasiswa & Whistleblowing',
+    roleLabel: 'Pelajar',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
     icon: 'HeartHandshake',
-    summary: 'Saluran aduan bukan fizikal, keselesaan rakan sebilik, perkhidmatan kafeteria, dan whistleblowing tanpa nama.',
+    summary: 'Saluran rasmi menyuarakan isu kebajikan, keselesaan rakan sebilik, kafeteria, dan aduan tanpa nama.',
     sections: [
       {
-        title: '4.1 Kategori Aduan & Cadangan Kebajikan',
-        content: 'Modul ini dikhaskan untuk isu bukan kerosakan fizikal seperti: Kebajikan & Keselamatan Pelajar, Rakan Sebilik & Waktu Senyap, Perkhidmatan Makanan & Kafeteria, Layanan Kaunter/Staf, dan Idea Penambahbaikan Kolej.'
+        title: '4.1 Saluran Aduan & Kebajikan Residen',
+        content: 'Modul Feedback & Welfare dikhaskan untuk isu bukan fizikal seperti: Isu Rakan Sebilik / Waktu Senyap, Kualiti Makanan Kafeteria, Keselamatan Blok, dan Cadangan Aktiviti Pelajar.'
       },
       {
-        title: '4.2 Fungsi Identiti Dirahsiakan (Whistleblowing)',
-        content: 'Pelajar boleh menandakan kotak "Hantar Tanpa Nama (Anonymous Whistleblower)". Nama dan maklumat matrik pelajar akan disembunyikan daripada paparan umum demi melindungi privasi dan keselamatan pengadu.'
+        title: '4.2 Fungsi Identiti Dirahsiakan (Whistleblower)',
+        content: 'Tandakan pilihan "Hantar Tanpa Nama (Anonymous)" sekiranya anda ingin melindungi identiti anda daripada paparan umum. Pihak Felo/Warden tetap akan menerima dan menyiasat isu tersebut.'
+      }
+    ]
+  },
+  {
+    id: 'ch-events',
+    number: 'Bab 5',
+    title: 'Panduan Pelajar: Tempahan Fasiliti, Acara & Kehadiran QR',
+    roleLabel: 'Pelajar & JAKMAS',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
+    icon: 'Building2',
+    summary: 'Panduan menempah dewan/gelanggang kolej, mendaftar aktiviti JAKMAS, dan mengimbas QR kehadiran.',
+    sections: [
+      {
+        title: '5.1 Tempahan Fasiliti Kolej',
+        content: 'Pilih tarikh, masa, dan kemudahan yang ingin digunakan (Dewan Serbaguna, Bilik Diskusi, Gelanggang Sukan). Sistem mengelakkan pertembungan tempahan berganda secara automatik.'
+      },
+      {
+        title: '5.2 Pendaftaran Acara & Kehadiran Kod QR',
+        content: 'Semak senarai acara kolej pada modul Events. Semasa hari kejadian, imbas kod QR yang disediakan oleh pihak penganjur untuk merekodkan mata kehadiran merit kolej anda.'
       }
     ]
   },
   {
     id: 'ch-ai',
-    number: 'Bab 5',
-    title: 'KKTF Assistant AI & Pangkalan Pengetahuan',
-    role: 'Semua Pengguna & Admin',
+    number: 'Bab 6',
+    title: 'KKTF Assistant AI: Panduan Pembantu Maya Pintar',
+    roleLabel: 'Semua Pengguna',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
     icon: 'Sparkles',
-    summary: 'Penggunaan pembantu kecerdasan buatan dan cara pentadbir memuat naik dokumen rujukan rasmi.',
+    summary: 'Cara menggunakan pembantu kecerdasan buatan untuk mendapatkan maklumat pantas mengenai kolej 24/7.',
     sections: [
       {
-        title: '5.1 Berinteraksi dengan KKTF Assistant',
-        content: 'Klik ikon robot pintar di penjuru kanan bawah pada mana-mana halaman. Anda boleh bertanya soalan dalam Bahasa Melayu atau Bahasa Inggeris mengenai peraturan kolej, prosedur kemasukan, waktu pejabat, atau program terkini.'
-      },
-      {
-        title: '5.2 Memuat Naik Dokumen Sumber (Pentadbir Sahaja)',
-        steps: [
-          'Masuk ke halaman Pengetahuan AI (AI Knowledge).',
-          'Tekan "Muat Naik Dokumen" untuk mengimport fail teks, SOP, atau buku peraturan kolej (.txt, .md, .doc).',
-          'Sistem mengekstrak kandungan dokumen dan menyuntiknya ke dalam memori model AI (Gemini RAG).',
-          'AI akan menjawab soalan berpandukan dokumen rasmi tersebut secara berautoriti.'
-        ]
+        title: '6.1 Cara Bertanya kepada KKTF Assistant',
+        content: 'Tekan butang ikon robot pintar di penjuru kanan bawah pada bila-bila masa. Anda boleh bertanya apa sahaja seperti: "Apakah peraturan jam malam?", "Berapa hari SLA baiki lampu?", atau "Siapa felo blok G?".'
       }
     ]
   },
   {
     id: 'ch-warden',
-    number: 'Bab 6',
-    title: 'Panduan Operasi Felo & Warden Blok',
-    role: 'Warden & Felo',
+    number: 'Bab 7',
+    title: 'Panduan Felo & Warden: Kelulusan E-Leave, Poster QR & Direktori',
+    roleLabel: 'Warden & Pentadbir Sahaja',
+    allowedRoles: ['warden', 'staff', 'college_admin', 'super_admin'],
     icon: 'ShieldCheck',
-    summary: 'Hak akses khusus warden, sekatan paparan sahaja (view-only), dan penjanaan poster kod QR blok.',
+    summary: 'Aliran kerja felo: kelulusan cuti blok, pemantauan status terlewat, penjanaan poster QR A4, dan direktori residen (view-only).',
     sections: [
       {
-        title: '6.1 Skop Akses Blok Kediaman',
-        content: 'Warden hanya mempunyai akses terhadap data residen dan permohonan cuti bagi blok yang ditugaskan di bawah entiti WardenBlock (cth: Warden Blok G hanya melihat Blok G).'
+        title: '7.1 Skop Blok Jagaan Felo',
+        content: 'Warden hanya mempunyai akses terhadap data residen dan permohonan cuti bagi blok yang ditugaskan di bawah entiti WardenBlock. Privasi pelajar blok lain adalah dilindungi.'
       },
       {
-        title: '6.2 Direktori Residen (Akses Paparan Sahaja)',
-        content: 'Direktori pelajar bagi warden beroperasi secara View-Only (Lihat Butiran). Butang Tambah, Edit, dan Padam pelajar disembunyikan untuk mengekalkan integriti rekod pendaftaran kolej.'
+        title: '7.2 Direktori Residen (Akses Paparan Sahaja)',
+        content: 'Warden boleh mencari dan melihat butiran kontak/waris residen bilik bagi blok jagaan sendiri secara View-Only. Butang Tambah, Edit, dan Padam disekat demi keselamatan integriti rekod kolej.'
       },
       {
-        title: '6.3 Penjanaan & Cetakan Poster Kod QR A4',
-        content: 'Di halaman E-Leave, warden boleh menekan "Poster QR Blok" → "Cetak Poster A4 Rasmi" untuk menghasilkan poster bersaiz A4 yang lengkap dengan jata UMS, arahan 3 langkah pelajar, dan kod QR beresolusi tinggi.'
+        title: '7.3 Menjana & Mencetak Poster Kod QR A4',
+        steps: [
+          'Buka modul E-Leave → Klik butang "Poster QR Blok".',
+          'Pilih blok jagaan anda (hanya blok yang dibenarkan akan terpapar).',
+          'Tekan butang "Cetak Poster A4 Rasmi" untuk membuka tetingkap cetakan resolusi tinggi berserta jata UMS dan arahan pelajar.',
+          'Tampal poster fizikal di pintu masuk aras bawah blok kediaman atau pondok pengawal.'
+        ]
+      },
+      {
+        title: '7.4 Pengesahan Kembali Manual (Rondaan Blok)',
+        content: 'Sekiranya pelajar mengalami masalah telefon atau ketiadaan bateri semasa tiba di kolej, warden boleh mengesahkan kepulangan pelajar secara manual semasa rondaan blok dengan butang "Sahkan Kembali Manual".'
+      }
+    ]
+  },
+  {
+    id: 'ch-jakmas',
+    number: 'Bab 8',
+    title: 'Panduan EXCO JAKMAS: Pengurusan Acara, Notis & Tugasan',
+    roleLabel: 'JAKMAS & Pentadbir Sahaja',
+    allowedRoles: ['jakmas', 'staff', 'college_admin', 'super_admin'],
+    icon: 'ClipboardList',
+    summary: 'Panduan barisan EXCO Jawatankuasa Kebajikan Mahasiswa mengurus aktiviti kolej, draf pengumuman rasmi, dan kemajuan portfolio.',
+    sections: [
+      {
+        title: '8.1 Pengurusan Acara & Kehadiran Pelajar',
+        content: 'EXCO JAKMAS boleh mencipta program kolej, menetapkan had kuota peserta, dan menjana token / kod QR kehadiran program untuk diimbas oleh peserta.'
+      },
+      {
+        title: '8.2 Draf Pengumuman Rasmi Kolej',
+        content: 'JAKMAS boleh merangka notis pengumuman rasmi. Pengumuman akan melalui semakan pentadbiran kolej sebelum disiarkan secara umum kepada semua residen.'
+      },
+      {
+        title: '8.3 Penyerahan Bukti Tugasan EXCO',
+        content: 'Pada halaman "My JAKMAS Tasks", EXCO boleh mengemas kini status tugasan daripada "Ditugaskan" kepada "Sedang Dijalankan" dan memuat naik bukti kemajuan (evidence) kepada pihak penasihat kolej.'
       }
     ]
   },
   {
     id: 'ch-admin',
-    number: 'Bab 7',
-    title: 'Tadbir Urus Kolej & Pengauditan (Admin & Audit)',
-    role: 'Super Admin & College Admin',
+    number: 'Bab 9',
+    title: 'Panduan Pentadbir & Staf: Penyelarasan Bilik, AI Knowledge & Audit',
+    roleLabel: 'Pentadbir Utama & Staf Sahaja',
+    allowedRoles: ['staff', 'college_admin', 'super_admin'],
     icon: 'ScrollText',
-    summary: 'Penyelarasan bilik, pengurusan EXCO JAKMAS, arkib semester, dan pengawasan Audit Log.',
+    summary: 'Pengurusan inventori bilik, penyelarasan kapasiti katil, pelantikan EXCO, muat naik dokumen AI, dan Audit Log forensik.',
     sections: [
       {
-        title: '7.1 Pengurusan Bilik & Penyelarasan Katil (Sync)',
-        content: 'Admin mengawal inventori bilik (Single, Double, Triple, Quad). Butang "Penyelarasan Kapasiti" memastikan bilangan penghuni sebenar sentiasa selari dengan status bilik (Available, Occupied, Full).'
+        title: '9.1 Penyelarasan Kapasiti Bilik (Bed Sync)',
+        content: 'Pentadbir mengurus status bilik (Available, Occupied, Full, Maintenance). Menggunakan fungsi "Penyelarasan Kapasiti", sistem akan mengira semula bilangan katil terisi secara automatik mengikut rekod residen aktif.'
       },
       {
-        title: '7.2 Pengurusan Pelantikan EXCO JAKMAS',
-        content: 'Pentadbiran melantik barisan EXCO Jawatankuasa Kebajikan Mahasiswa (JAKMAS), menetapkan portfolio, serta memantau penyerahan tugasan dan bukti pelaksanaan aktiviti kolej.'
+        title: '9.2 Pengurusan Pangkalan Pengetahuan AI (AI Knowledge Base)',
+        content: 'Pentadbir boleh memuat naik fail dokumen (.txt, .doc, .md) mengandungi buku peraturan kolej atau SOP kemasukan. Kandungan dokumen akan disuntik terus ke memori Gemini AI untuk rujukan KKTF Assistant.'
       },
       {
-        title: '7.3 Jejak Audit Log Forensik (Black Box)',
-        content: 'Setiap operasi kritikal (kemas kini pelajar, penghunian bilik, kelulusan cuti, verifikasi geofence) direkodkan dalam Audit Log dengan cap masa milisaat dan identiti pelaku untuk tujuan akauntabiliti tatakelola.'
+        title: '9.3 Jejak Audit Log Forensik Data (Kotak Hitam)',
+        content: 'Semua tindakan pendaftaran, kemas kini, pemadaman rekod, kelulusan cuti, dan pengesahan geofence GPS direkodkan bersama ID pengguna, alamat IP/metadata dan cap masa rasmi untuk kawalan tatakelola kolej.'
       }
     ]
   }
 ];
 
-// PRESENTATION SLIDES DECK
-const SLIDES = [
+// ROLE-FILTERED SLIDES FOR PRESENTATION DECK
+const ALL_SLIDES = [
   {
     kind: 'cover',
     title: 'MyKKTF v3.1',
     subtitle: 'Sistem Pengurusan Digital Kolej Kediaman Tun Fuad, Universiti Malaysia Sabah',
     meta: 'Buku Panduan & Slaid Pembentangan Rasmi',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
   },
-  { kind: 'section', label: 'Modul 1', title: 'Pemasangan Aplikasi & Pengalaman Pengguna', icon: 'Smartphone' },
+  { 
+    kind: 'section', label: 'Modul 1', title: 'Pemasangan Aplikasi & Pengalaman Pengguna', icon: 'Smartphone',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
+  },
   {
     kind: 'feature', icon: 'Smartphone', tone: 'indigo',
     title: 'Aplikasi Web Progresif (PWA)',
@@ -221,9 +266,13 @@ const SLIDES = [
       'Sokongan notifikasi tolak telefon asli (Native Web Push Notifications)',
       'Akses kamera lancar untuk imbasan QR dan penentu lokasi GPS Geofencing'
     ],
-    roles: ['Semua Pengguna']
+    roles: ['Semua Pengguna'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
   },
-  { kind: 'section', label: 'Modul 2', title: 'E-Leave & Keselamatan Residen', icon: 'CalendarOff' },
+  { 
+    kind: 'section', label: 'Modul 2', title: 'E-Leave & Keselamatan Residen', icon: 'CalendarOff',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
+  },
   {
     kind: 'feature', icon: 'CalendarOff', tone: 'emerald',
     title: 'E-Leave Dwi-Faktor (QR + GPS)',
@@ -235,7 +284,8 @@ const SLIDES = [
       'Geofence GPS mengesahkan kedudukan pelajar berada dalam 1.0km kampus KKTF UMS',
       'Amaran automatik bagi status terlewat kembali (Overdue Leave)'
     ],
-    roles: ['Pelajar', 'Warden', 'Admin']
+    roles: ['Pelajar', 'Warden', 'Admin'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
   },
   {
     kind: 'feature', icon: 'QrCode', tone: 'indigo',
@@ -247,9 +297,13 @@ const SLIDES = [
       'Dilengkapi panduan bergambar 3 langkah imbasan bagi memudahkan pelajar',
       'Format cetakan bersih tanpa elemen navigasi pelayar web'
     ],
-    roles: ['Warden', 'Admin']
+    roles: ['Warden', 'Admin'],
+    allowedRoles: ['warden', 'staff', 'college_admin', 'super_admin']
   },
-  { kind: 'section', label: 'Modul 3', title: 'Penyelenggaraan & SLA Kerosakan', icon: 'Wrench' },
+  { 
+    kind: 'section', label: 'Modul 3', title: 'Penyelenggaraan & SLA Kerosakan', icon: 'Wrench',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
+  },
   {
     kind: 'feature', icon: 'Wrench', tone: 'amber',
     title: 'Laporan Kerosakan & MyServ UMS',
@@ -260,30 +314,25 @@ const SLIDES = [
       'Pengiraan automatik jam penyelesaian pembaikan (SLA Resolution Duration)',
       'Spanduk peringatan harian pintar di papan pemuka pelajar'
     ],
-    roles: ['Pelajar', 'Warden', 'Staf']
+    roles: ['Pelajar', 'Warden', 'Staf'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
   },
-  { kind: 'section', label: 'Modul 4', title: 'Kebajikan & Kecerdasan Buatan AI', icon: 'HeartHandshake' },
-  {
-    kind: 'feature', icon: 'HeartHandshake', tone: 'rose',
-    title: 'Suara Mahasiswa & Kebajikan',
-    tagline: 'Saluran maklum balas & whistleblowing tanpa nama.',
-    does: [
-      'Pengasingan isu kebajikan, rakan sebilik, dan kafeteria daripada isu kerosakan',
-      'Pilihan hantar tanpa nama (Anonymous Whistleblowing) untuk keselamatan pengadu',
-      'Maklum balas rasmi daripada warden dan pihak kolej dengan notifikasi segera'
-    ],
-    roles: ['Pelajar', 'Warden', 'Admin']
+  { 
+    kind: 'section', label: 'Modul 4', title: 'Tadbir Urus & Audit Forensik', icon: 'ScrollText',
+    allowedRoles: ['staff', 'college_admin', 'super_admin']
   },
   {
-    kind: 'feature', icon: 'Sparkles', tone: 'sky',
-    title: 'KKTF Assistant AI & Pengetahuan',
-    tagline: 'Pembantu pintar berasaskan dokumen peraturan kolej.',
+    kind: 'feature', icon: 'ScrollText', tone: 'indigo',
+    title: 'Pengurusan Bilik & Audit Log Forensik',
+    tagline: 'Penyelarasan kapasiti katil & jejak akauntabiliti data.',
     does: [
-      'AI menjawab soalan peraturan kolej, jam malam, dan kemudahan 24/7',
-      'Pentadbir boleh import fail dokumen/SOP (.txt, .doc, .md) terus ke pangkalan pengetahuan',
-      'Suntikan konteks masa nyata (RAG) menjamin ketepatan jawapan mengikut dokumen rasmi'
+      'Penyelarasan automatik kapasiti bilik dengan bilangan katil sebenar',
+      'Rekod Audit Log milisaat bagi setiap tindakan data (Cipta/Kemas kini/Padam)',
+      'Pengurusan pelantikan EXCO JAKMAS dan tugasan portfolio',
+      'Pangkalan Pengetahuan AI dengan fungsi import dokumen rasmi (.doc/.txt)'
     ],
-    roles: ['Semua Pengguna']
+    roles: ['Pentadbir Utama', 'Staf'],
+    allowedRoles: ['staff', 'college_admin', 'super_admin']
   }
 ];
 
@@ -295,17 +344,54 @@ export default function PresentationPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeChapter, setActiveChapter] = useState('ch-intro');
 
+  // Determine user's effective role
+  const userRole = user?.role || 'student';
+  const isJakmas = Boolean(user?.jakmasAppointment);
+  const effectiveRole = isJakmas ? 'jakmas' : userRole;
+  const isAdmin = userRole === 'super_admin' || userRole === 'college_admin';
+
+  // Role filter preview (Admins can toggle view perspective)
+  const [rolePerspective, setRolePerspective] = useState('auto');
+
+  const activePerspective = rolePerspective === 'auto' ? effectiveRole : rolePerspective;
+
+  // Filter chapters based on role perspective
+  const roleFilteredChapters = MANUAL_CHAPTERS.filter(ch => {
+    if (activePerspective === 'all') return true;
+    return ch.allowedRoles.includes(activePerspective);
+  });
+
+  // Further filter by search query
+  const displayChapters = roleFilteredChapters.filter(ch => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return ch.title.toLowerCase().includes(q) || 
+           ch.summary.toLowerCase().includes(q) ||
+           ch.sections.some(s => s.title.toLowerCase().includes(q) || (s.content && s.content.toLowerCase().includes(q)));
+  });
+
+  // Filter slides based on active perspective
+  const displaySlides = ALL_SLIDES.filter(sl => {
+    if (activePerspective === 'all') return true;
+    return sl.allowedRoles.includes(activePerspective);
+  });
+
+  // Ensure currentSlide is within bounds when switching perspective
+  useEffect(() => {
+    setCurrentSlide(0);
+  }, [activePerspective]);
+
   // Keyboard navigation for slide deck
   const handleKeyDown = useCallback((e) => {
     if (viewMode !== 'slides') return;
     if (e.key === 'ArrowRight' || e.key === ' ') {
-      setCurrentSlide(prev => Math.min(prev + 1, SLIDES.length - 1));
+      setCurrentSlide(prev => Math.min(prev + 1, displaySlides.length - 1));
     } else if (e.key === 'ArrowLeft') {
       setCurrentSlide(prev => Math.max(prev - 1, 0));
     } else if (e.key === 'f' || e.key === 'F') {
       toggleFullscreen();
     }
-  }, [viewMode]);
+  }, [viewMode, displaySlides.length]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -326,21 +412,13 @@ export default function PresentationPage() {
     window.print();
   }
 
-  const filteredChapters = MANUAL_CHAPTERS.filter(ch => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return ch.title.toLowerCase().includes(q) || 
-           ch.summary.toLowerCase().includes(q) ||
-           ch.sections.some(s => s.title.toLowerCase().includes(q) || (s.content && s.content.toLowerCase().includes(q)));
-  });
-
-  const slide = SLIDES[currentSlide];
+  const slide = displaySlides[currentSlide] || displaySlides[0];
   const Icon = slide?.icon ? (ICONS[slide.icon] || PresentationIcon) : PresentationIcon;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* TOP ACTION BAR */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-border pb-4">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl lg:text-2xl font-bold text-slate-900 flex items-center gap-2">
@@ -351,11 +429,32 @@ export default function PresentationPage() {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Manual Pengguna Rasmi, Aliran Operasi & Slaid Taklimat Kolej Kediaman Tun Fuad, UMS
+            Kandungan panduan disesuaikan secara khusus mengikut peranan anda ({userRole === 'student' ? 'Pelajar Residen' : userRole === 'warden' ? 'Felo / Warden' : userRole})
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* PERSPECTIVE FILTER FOR ADMINS */}
+          {isAdmin && (
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-xl">
+              <Eye className="w-3.5 h-3.5 text-slate-500" />
+              <span className="text-[11px] font-semibold text-slate-600">Panduan:</span>
+              <Select value={rolePerspective} onValueChange={setRolePerspective}>
+                <SelectTrigger className="h-7 text-xs border-none bg-transparent shadow-none px-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Peranan Saya ({userRole})</SelectItem>
+                  <SelectItem value="all">Semua Bab (Master Guide)</SelectItem>
+                  <SelectItem value="student">Pandangan Pelajar</SelectItem>
+                  <SelectItem value="warden">Pandangan Warden</SelectItem>
+                  <SelectItem value="jakmas">Pandangan JAKMAS</SelectItem>
+                  <SelectItem value="staff">Pandangan Pentadbir</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200">
             <Button
               size="sm"
@@ -402,10 +501,16 @@ export default function PresentationPage() {
             </div>
 
             <div className="bg-card border border-border rounded-2xl p-3 shadow-xs space-y-1">
-              <p className="text-[11px] font-bold text-muted-foreground uppercase px-2 py-1 tracking-wider">
-                Isi Kandungan Panduan
-              </p>
-              {MANUAL_CHAPTERS.map(ch => {
+              <div className="flex items-center justify-between px-2 py-1">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Bab Panduan ({displayChapters.length})
+                </p>
+                {activePerspective === 'student' && (
+                  <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">Pelajar</span>
+                )}
+              </div>
+
+              {displayChapters.map(ch => {
                 const ChIcon = ICONS[ch.icon] || BookOpen;
                 const isActive = activeChapter === ch.id;
                 return (
@@ -447,7 +552,7 @@ export default function PresentationPage() {
 
           {/* MAIN HANDBOOK CHAPTER CONTENT */}
           <div className="lg:col-span-3 space-y-8">
-            {filteredChapters.map(ch => {
+            {displayChapters.map(ch => {
               const ChIcon = ICONS[ch.icon] || BookOpen;
               return (
                 <div 
@@ -461,7 +566,7 @@ export default function PresentationPage() {
                         {ch.number}
                       </span>
                       <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-700">
-                        Sasaran: {ch.role}
+                        Sasaran: {ch.roleLabel}
                       </Badge>
                     </div>
                     <h2 className="text-lg lg:text-xl font-bold text-slate-900 flex items-center gap-2.5">
@@ -514,7 +619,7 @@ export default function PresentationPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <span className="text-xs font-medium text-muted-foreground">
-              Slaid {currentSlide + 1} daripada {SLIDES.length}
+              Slaid {currentSlide + 1} daripada {displaySlides.length}
             </span>
             <div className="flex items-center gap-2">
               <Button 
@@ -608,7 +713,7 @@ export default function PresentationPage() {
 
               {/* DOTS INDICATOR */}
               <div className="flex items-center gap-1.5">
-                {SLIDES.map((_, i) => (
+                {displaySlides.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setCurrentSlide(i)}
@@ -622,8 +727,8 @@ export default function PresentationPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                disabled={currentSlide === SLIDES.length - 1}
-                onClick={() => setCurrentSlide(prev => Math.min(prev + 1, SLIDES.length - 1))}
+                disabled={currentSlide === displaySlides.length - 1}
+                onClick={() => setCurrentSlide(prev => Math.min(prev + 1, displaySlides.length - 1))}
                 className="text-slate-300 hover:text-white hover:bg-white/10 text-xs gap-1"
               >
                 Seterusnya <ChevronRight className="w-4 h-4" />
