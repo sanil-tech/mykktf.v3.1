@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
-import { Html5Qrcode } from 'html5-qrcode';
 
 export default function LeaveReturn() {
   const [searchParams] = useSearchParams();
@@ -83,33 +82,59 @@ export default function LeaveReturn() {
     }
   }
 
-  // Start live HTML5 QR Camera Scanner
+  // Dynamic CDN loader for Html5Qrcode without npm dependency
+  const loadHtml5Qrcode = () => {
+    return new Promise((resolve, reject) => {
+      if (window.Html5Qrcode) {
+        resolve(window.Html5Qrcode);
+        return;
+      }
+      const existingScript = document.getElementById('html5-qrcode-cdn');
+      if (existingScript) {
+        existingScript.onload = () => resolve(window.Html5Qrcode);
+        return;
+      }
+      const script = document.createElement('script');
+      script.id = 'html5-qrcode-cdn';
+      script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+      script.async = true;
+      script.onload = () => resolve(window.Html5Qrcode);
+      script.onerror = () => reject(new Error('Gagal memuatkan modul pengimbas kamera'));
+      document.head.appendChild(script);
+    });
+  };
+
+  // Start live QR Camera Scanner
   async function startScanner() {
     setScannerActive(true);
     setCameraError(null);
 
-    setTimeout(async () => {
-      try {
-        const qrCode = new Html5Qrcode("reader");
-        html5QrCodeRef.current = qrCode;
+    try {
+      const Html5QrcodeClass = await loadHtml5Qrcode();
+      setTimeout(async () => {
+        try {
+          const qrCode = new Html5QrcodeClass("reader");
+          html5QrCodeRef.current = qrCode;
 
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+          const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-        await qrCode.start(
-          { facingMode: "environment" },
-          config,
-          (decodedText) => {
-            handleQrDecoded(decodedText);
-          },
-          (errorMessage) => {
-            // Scanning frame error - ignored during search
-          }
-        );
-      } catch (err) {
-        console.error("Camera start error:", err);
-        setCameraError("Tidak dapat mengakses kamera. Sila pastikan kebenaran kamera (camera permission) dibenarkan atau gunakan Kod Pengesahan Manual.");
-      }
-    }, 200);
+          await qrCode.start(
+            { facingMode: "environment" },
+            config,
+            (decodedText) => {
+              handleQrDecoded(decodedText);
+            },
+            () => {}
+          );
+        } catch (err) {
+          console.error("Camera start error:", err);
+          setCameraError("Tidak dapat mengakses kamera. Sila pastikan kebenaran kamera (camera permission) dibenarkan atau gunakan Kod Pengesahan Manual.");
+        }
+      }, 250);
+    } catch (err) {
+      console.error("Library load error:", err);
+      setCameraError("Gagal memulakan pengimbas kamera. Sila gunakan Kod Pengesahan Manual di bawah.");
+    }
   }
 
   async function stopScanner() {
