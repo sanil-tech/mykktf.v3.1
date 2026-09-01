@@ -75,8 +75,22 @@ export default function MeritDemerit() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTier, setFilterTier] = useState('all');
   const [filterBlock, setFilterBlock] = useState('all');
+  const [filterQuotaStatus, setFilterQuotaStatus] = useState('all');
   const [wardenBlocks, setWardenBlocks] = useState([]);
   const [allBlocks, setAllBlocks] = useState([]);
+
+  // Quota & Selection Simulation Engine State
+  const [quotaSettings, setQuotaSettings] = useState({
+    maleQuota: 250,
+    femaleQuota: 350,
+    includeJakmasBlockHead: true,
+    includeDapurSiswaAthletes: true,
+    includeProgramCommittees: true,
+    excludeDemerits: true
+  });
+  const [simulationStatus, setSimulationStatus] = useState('idle'); // 'idle' | 'simulated' | 'finalized'
+  const [manualAdjustments, setManualAdjustments] = useState({}); // { [studentId]: 'approved' | 'waiting' | 'rejected' }
+  const [showQuotaConfigModal, setShowQuotaConfigModal] = useState(false);
 
   // Modals for Committee & Demerit
   const [committeeModalOpen, setCommitteeModalOpen] = useState(false);
@@ -203,6 +217,25 @@ export default function MeritDemerit() {
       qualification = 'Senarai Menunggu (Kekosongan Bersyarat)';
     }
 
+    // Priority Category Detection
+    let priorityCategory = 'Residen Umum (Merit)';
+    let priorityTier = 4;
+
+    const isJakmasOrLeader = st.is_jakmas || (st.roles && st.roles.includes('jakmas')) || extraMerit >= 35;
+    const isVolunteerOrAthlete = st.is_volunteer || st.is_athlete || (st.programme && st.programme.toLowerCase().includes('sukan'));
+    const isCommittee = extraMerit >= 20;
+
+    if (isJakmasOrLeader) {
+      priorityCategory = '👑 JAKMAS / Ketua Blok';
+      priorityTier = 1;
+    } else if (isVolunteerOrAthlete) {
+      priorityCategory = '🍲 Dapur Siswa / Atlit';
+      priorityTier = 2;
+    } else if (isCommittee) {
+      priorityCategory = '👥 Urusetia & AJK Program';
+      priorityTier = 3;
+    }
+
     return {
       ...st,
       attendedCount,
@@ -213,14 +246,83 @@ export default function MeritDemerit() {
       tier,
       tierLabel,
       tierBadgeClass,
-      qualification
+      qualification,
+      priorityCategory,
+      priorityTier
     };
   });
 
-  // Filter matrix with Warden Block scoping
+  // Calculate Quota Simulation allocation by Gender
+  const simulatedStudentScores = useMemo(() => {
+    if (simulationStatus === 'idle') {
+      return studentScores.map(s => ({
+        ...s,
+        simulatedDecision: manualAdjustments[s.id] || (s.tier === 'gold' ? 'Layak Dipertimbangkan' : s.tier === 'silver' ? 'Senarai Menunggu' : 'Perlu Rayuan'),
+        simulatedDecisionType: manualAdjustments[s.id] || (s.tier === 'gold' ? 'approved' : s.tier === 'silver' ? 'waiting' : 'rejected')
+      }));
+    }
+
+    // Sort candidates by priority tier first, then by net merit score descending
+    const males = studentScores.filter(s => (s.gender || 'Male').toLowerCase() === 'male')
+      .sort((a, b) => (a.priorityTier - b.priorityTier) || (b.netScore - a.netScore));
+
+    const females = studentScores.filter(s => (s.gender || 'Male').toLowerCase() === 'female')
+      .sort((a, b) => (a.priorityTier - b.priorityTier) || (b.netScore - a.netScore));
+
+    const processGenderList = (list, quota) => {
+      let allocatedCount = 0;
+      return list.map((cand, idx) => {
+        // Check manual override first
+        if (manualAdjustments[cand.id]) {
+          const manualType = manualAdjustments[cand.id];
+          return {
+            ...cand,
+            simulatedDecision: manualType === 'approved' ? '✓ Layak (Budi Bicara Panel)' : manualType === 'waiting' ? '⏳ Senarai Menunggu (Panel)' : '✕ Ditolak (Panel)',
+            simulatedDecisionType: manualType,
+            quotaRank: idx + 1
+          };
+        }
+
+        // Check demerit disqualification rule
+        if (quotaSettings.excludeDemerits && cand.demerit > 0) {
+          return {
+            ...cand,
+            simulatedDecision: '✕ Ditolak (Sekatan Dimerit)',
+            simulatedDecisionType: 'rejected',
+            quotaRank: idx + 1
+          };
+        }
+
+        // Check if within allotted quota
+        if (allocatedCount < quota && (cand.netScore >= 50 || cand.priorityTier <= 2)) {
+          allocatedCount++;
+          return {
+            ...cand,
+            simulatedDecision: `✓ Layak (Dalam Kuota #${allocatedCount})`,
+            simulatedDecisionType: 'approved',
+            quotaRank: allocatedCount
+          };
+        } else {
+          return {
+            ...cand,
+            simulatedDecision: cand.netScore >= 40 ? `⏳ Senarai Menunggu (WL #${idx - allocatedCount + 1})` : '✕ Luar Kuota (Perlu Rayuan)',
+            simulatedDecisionType: cand.netScore >= 40 ? 'waiting' : 'rejected',
+            quotaRank: idx + 1
+          };
+        }
+      });
+    };
+
+    const simulatedMales = processGenderList(males, quotaSettings.maleQuota);
+    const simulatedFemales = processGenderList(females, quotaSettings.femaleQuota);
+
+    return [...simulatedMales, ...simulatedFemales];
+  }, [studentScores, simulationStatus, quotaSettings, manualAdjustments]);
+
+  // Filter matrix with Warden Block scoping & Quota Status filter
   const myBlockNames = wardenBlocks.map(wb => wb.block_name);
 
-  const filteredStudents = studentScores.filter(s => {
+  const filteredStudents = simulatedStudentScores.filter(s => {
     const matchesSearch = !searchQuery || 
       (s.full_name && s.full_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (s.student_id && s.student_id.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -234,8 +336,31 @@ export default function MeritDemerit() {
       matchesBlock = s.block_name === filterBlock;
     }
 
-    return matchesSearch && matchesTier && matchesBlock;
-  }).sort((a, b) => b.netScore - a.netScore);
+    let matchesQuotaStatus = true;
+    if (filterQuotaStatus !== 'all') {
+      matchesQuotaStatus = s.simulatedDecisionType === filterQuotaStatus;
+    }
+
+    return matchesSearch && matchesTier && matchesBlock && matchesQuotaStatus;
+  }).sort((a, b) => (a.priorityTier - b.priorityTier) || (b.netScore - a.netScore));
+
+  const handleRunSimulation = () => {
+    setSimulationStatus('simulated');
+    toast.success('Draf simulasi pemilihan automatik berjaya dijana! Sila semak keputusan dan buat pelarasan panel jika perlu.');
+  };
+
+  const handleManualAdjust = (studentId, decisionType) => {
+    setManualAdjustments(prev => ({
+      ...prev,
+      [studentId]: decisionType
+    }));
+    toast.success('Pelarasan keputusan panel disimpan untuk calon ini.');
+  };
+
+  const handleFinalizeSelection = () => {
+    setSimulationStatus('finalized');
+    toast.success('Keputusan Jawatankuasa Pemilih Residen telah dimuktamadkan secara rasmi!');
+  };
 
   // Student's own score
   const myStudentProfile = studentScores.find(s => s.email === currentUser?.email || s.user_id === currentUser?.id) || studentScores[0];
@@ -517,25 +642,96 @@ export default function MeritDemerit() {
 
       {/* TAB 1: SELECTION COMMITTEE MATRIX (PENGETUA & FELO SAHAJA) */}
       {activeTab === 'matrix' && isStaff && (
-        <div className="bg-card border border-border rounded-3xl p-5 shadow-sm space-y-4">
+        <div className="bg-card border border-border rounded-3xl p-5 shadow-sm space-y-5">
+          {/* HEADER & BASIC SEARCH */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
             <div>
-              <h3 className="text-base font-bold font-heading text-foreground">
-                Papan Penilaian Kelayakan Penempatan Residen Sesi 2026/2027
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Disusun mengikut skor merit bersih tertinggi untuk rujukan Jawatankuasa Pemilih Kolej & Pengetua.
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold font-heading text-foreground">
+                  Papan Penilaian Kelayakan Penempatan Residen Sesi 2026/2027
+                </h3>
+                {simulationStatus === 'simulated' && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-400 animate-pulse">
+                    ⚠️ Draf Simulasi Sedang Disemak
+                  </span>
+                )}
+                {simulationStatus === 'finalized' && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-400">
+                    🏛️ Keputusan Dimuktamadkan
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Sistem simulasi kuota katil berperingkat & semakan budi bicara Jawatankuasa Pemilih Kolej & Pengetua.
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => setShowQuotaConfigModal(true)}
+                variant="outline"
+                className="h-9 text-xs font-bold rounded-xl gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+              >
+                <Sliders className="w-3.5 h-3.5" /> Tetapan Kuota Katil & Kriteria
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={handleRunSimulation}
+                className="h-9 text-xs font-bold rounded-xl gap-1.5 bg-gradient-to-r from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white shadow-xs"
+              >
+                <Sparkles className="w-3.5 h-3.5" /> Jalankan Simulasi Automatik
+              </Button>
+
+              {simulationStatus !== 'idle' && (
+                <Button
+                  size="sm"
+                  onClick={handleFinalizeSelection}
+                  className="h-9 text-xs font-bold rounded-xl gap-1.5 bg-[#132644] hover:bg-[#1a335c] text-white shadow-xs"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" /> Muktamadkan Panel
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* SIMULATION SUMMARY & REVIEW BANNER */}
+          {simulationStatus !== 'idle' && (
+            <div className="p-4 bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-primary/10 border border-amber-300 dark:border-amber-900/60 rounded-2xl space-y-2 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1">
+                    <Sparkles className="w-4 h-4" /> Status Simulasi:
+                  </span>
+                  <span className="font-bold text-foreground">
+                    {simulationStatus === 'finalized' 
+                      ? 'Keputusan Rasmi Telah Dimuktamadkan oleh Jawatankuasa Pemilih.' 
+                      : 'Draf Simulasi Kuota Telah Dijana. Sila semak dan buat pelarasan panel mengikut budi bicara sebelum memuktamadkan.'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 font-mono text-[11px] font-bold">
+                  <span className="px-2.5 py-1 bg-background rounded-lg border border-border">
+                    🚹 Kuota Lelaki: {quotaSettings.maleQuota} Katil
+                  </span>
+                  <span className="px-2.5 py-1 bg-background rounded-lg border border-border">
+                    🚺 Kuota Perempuan: {quotaSettings.femaleQuota} Katil
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* FILTER CONTROLS BAR */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="flex flex-wrap items-center gap-2 flex-1">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Cari Nama / No. Matrik..."
-                  className="h-9 text-xs pl-8 w-40 sm:w-48 bg-background"
+                  className="h-9 text-xs pl-8 w-44 sm:w-56 bg-background"
                 />
               </div>
 
@@ -558,6 +754,21 @@ export default function MeritDemerit() {
                 </SelectContent>
               </Select>
 
+              {/* PENAPIS STATUS SIMULASI PANEL */}
+              {simulationStatus !== 'idle' && (
+                <Select value={filterQuotaStatus} onValueChange={setFilterQuotaStatus}>
+                  <SelectTrigger className="h-9 text-xs w-44 bg-background font-bold">
+                    <SelectValue placeholder="Semua Status Panel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Keputusan Panel</SelectItem>
+                    <SelectItem value="approved">🟢 Layak (Dalam Kuota / Budi Bicara)</SelectItem>
+                    <SelectItem value="waiting">🟡 Senarai Menunggu</SelectItem>
+                    <SelectItem value="rejected">🔴 Ditolak / Sekatan Dimerit</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+
               {/* PENAPIS TIER KELAYAKAN */}
               <Select value={filterTier} onValueChange={setFilterTier}>
                 <SelectTrigger className="h-9 text-xs w-36 bg-background">
@@ -571,6 +782,11 @@ export default function MeritDemerit() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* TOTAL MATCHES */}
+            <span className="text-[11px] font-bold text-muted-foreground">
+              {filteredStudents.length} orang calon ditemui
+            </span>
           </div>
 
           {/* QUICK WARDEN FILTER BANNER IF APPLICABLE */}
@@ -578,7 +794,7 @@ export default function MeritDemerit() {
             <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-indigo-50/30 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/60 rounded-2xl text-xs">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-1">
-                  <Building2 className="w-3.5 h-3.5 text-indigo-600" /> Penapis Felo:
+                  <Building2 className="w-3.5 h-3.5 text-indigo-600" /> Penapis Felo Bertugas:
                 </span>
                 <span className="text-muted-foreground text-[11px]">
                   {filterBlock === 'my_blocks' 
@@ -606,25 +822,27 @@ export default function MeritDemerit() {
                     filterBlock === 'all' ? 'bg-[#132644] text-white' : ''
                   }`}
                 >
-                  Semua Blok
+                  Semua Blok Kolej
                 </Button>
               </div>
             </div>
           )}
 
-          {/* TABLE OF CANDIDATES */}
+          {/* TABLE OF CANDIDATES WITH COMMITTEE REVIEW & MANUAL ADJUSTMENTS */}
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border bg-muted/40 text-muted-foreground text-left">
                   <th className="p-3 font-bold">Kedudukan</th>
                   <th className="p-3 font-bold">Maklumat Residen</th>
-                  <th className="p-3 font-bold">Blok & Bilik</th>
+                  <th className="p-3 font-bold">Blok / Jantina</th>
+                  <th className="p-3 font-bold">Kategori Keutamaan</th>
                   <th className="p-3 font-bold text-center">Aktiviti (+10)</th>
                   <th className="p-3 font-bold text-center">AJK (+20/35)</th>
                   <th className="p-3 font-bold text-center">Dimerit (-)</th>
                   <th className="p-3 font-bold text-center">Skor Bersih</th>
-                  <th className="p-3 font-bold">Status Kelayakan</th>
+                  <th className="p-3 font-bold">Keputusan Panel Pemilih</th>
+                  <th className="p-3 font-bold text-right">Pelarasan Panel</th>
                 </tr>
               </thead>
               <tbody>
@@ -634,11 +852,17 @@ export default function MeritDemerit() {
                       #{idx + 1}
                     </td>
                     <td className="p-3">
-                      <p className="font-bold text-foreground truncate max-w-[200px]">{s.full_name}</p>
+                      <p className="font-bold text-foreground truncate max-w-[180px]">{s.full_name}</p>
                       <p className="font-mono text-[10px] text-muted-foreground">{s.student_id} &bull; {s.programme || 'Sarjana Muda'}</p>
                     </td>
                     <td className="p-3 font-mono">
-                      <span className="text-foreground font-semibold">{s.block_name || '-'}</span> - {s.room_number || '-'}
+                      <p className="text-foreground font-semibold">{s.block_name || '-'}</p>
+                      <p className="text-[10px] text-muted-foreground">{s.gender === 'Female' ? '🚺 Perempuan' : '🚹 Lelaki'}</p>
+                    </td>
+                    <td className="p-3">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                        {s.priorityCategory}
+                      </span>
                     </td>
                     <td className="p-3 text-center font-mono font-bold text-indigo-600 dark:text-indigo-400">
                       +{s.attendanceMerit || 0}
@@ -653,9 +877,30 @@ export default function MeritDemerit() {
                       {s.netScore}
                     </td>
                     <td className="p-3">
-                      <Badge className={`text-[10px] font-bold border ${s.tierBadgeClass}`}>
-                        {s.qualification}
+                      <Badge className={`text-[10px] font-bold border ${
+                        s.simulatedDecisionType === 'approved' 
+                          ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-400' 
+                          : s.simulatedDecisionType === 'waiting'
+                          ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400'
+                          : 'bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-400'
+                      }`}>
+                        {s.simulatedDecision}
                       </Badge>
+                    </td>
+                    <td className="p-3 text-right">
+                      <Select 
+                        value={manualAdjustments[s.id] || (s.simulatedDecisionType || 'approved')} 
+                        onValueChange={(val) => handleManualAdjust(s.id, val)}
+                      >
+                        <SelectTrigger className="h-7 text-[10px] w-28 font-bold bg-background ml-auto">
+                          <SelectValue placeholder="Laraskan" />
+                        </SelectTrigger>
+                        <SelectContent align="end">
+                          <SelectItem value="approved" className="text-emerald-600 font-bold">✓ Layak (Budi Bicara)</SelectItem>
+                          <SelectItem value="waiting" className="text-amber-600 font-bold">⏳ Senarai Menunggu</SelectItem>
+                          <SelectItem value="rejected" className="text-rose-600 font-bold">✕ Tolak Permohonan</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </td>
                   </tr>
                 ))}
@@ -1062,6 +1307,122 @@ export default function MeritDemerit() {
             </Button>
             <Button size="sm" variant="destructive" onClick={handleAddDemerit} className="font-bold rounded-xl">
               Rekodkan Dimerit
+            </Button>
+      {/* MODAL: QUOTA CONFIGURATION & RESTRICTION CRITERIA (PENGETUA & PANEL) */}
+      <Dialog open={showQuotaConfigModal} onOpenChange={setShowQuotaConfigModal}>
+        <DialogContent className="max-w-lg p-6 bg-card border-border rounded-3xl shadow-xl space-y-4">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold font-heading text-foreground flex items-center gap-2">
+              <Sliders className="w-5 h-5 text-primary" /> Tetapan Kuota Katil & Kriteria Sekatan Penempatan
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Konfigurasikan had muatan katil fizikal kolej dan syarat keutamaan bagi sesi penempatan hadapan.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 text-xs">
+            {/* KAPASITI KUOTA KATIL */}
+            <div className="p-3 bg-muted/40 rounded-2xl border border-border space-y-3">
+              <h4 className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-primary" /> Kapasiti Kuota Katil Kolej
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-[11px] font-bold text-muted-foreground">🚹 Kuota Siswa (Lelaki)</Label>
+                  <Input 
+                    type="number"
+                    value={quotaSettings.maleQuota}
+                    onChange={(e) => setQuotaSettings(q => ({ ...q, maleQuota: Number(e.target.value) || 0 }))}
+                    className="h-9 text-xs font-mono font-bold mt-1 bg-background"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] font-bold text-muted-foreground">🚺 Kuota Siswi (Perempuan)</Label>
+                  <Input 
+                    type="number"
+                    value={quotaSettings.femaleQuota}
+                    onChange={(e) => setQuotaSettings(q => ({ ...q, femaleQuota: Number(e.target.value) || 0 }))}
+                    className="h-9 text-xs font-mono font-bold mt-1 bg-background"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* HIERARKI KEUTAMAAN PENEMPATAN */}
+            <div className="p-3 bg-indigo-50/25 dark:bg-indigo-950/25 rounded-2xl border border-indigo-200 dark:border-indigo-900/60 space-y-2.5">
+              <h4 className="font-bold text-xs text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-indigo-600" /> Kriteria Keutamaan Bertingkat (Priority Buckets)
+              </h4>
+              
+              <div className="space-y-2">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={quotaSettings.includeJakmasBlockHead}
+                    onChange={(e) => setQuotaSettings(q => ({ ...q, includeJakmasBlockHead: e.target.checked }))}
+                    className="rounded text-indigo-600 w-4 h-4"
+                  />
+                  <div>
+                    <p className="font-bold text-foreground">👑 Tier 1: EXCO JAKMAS & Ketua Blok Kediaman</p>
+                    <p className="text-[10px] text-muted-foreground">Keutamaan pengurusan operasi dan kebajikan blok kolej.</p>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={quotaSettings.includeDapurSiswaAthletes}
+                    onChange={(e) => setQuotaSettings(q => ({ ...q, includeDapurSiswaAthletes: e.target.checked }))}
+                    className="rounded text-indigo-600 w-4 h-4"
+                  />
+                  <div>
+                    <p className="font-bold text-foreground">🍲 Tier 2: Sukarelawan Dapur Siswa & Atlit Sukan</p>
+                    <p className="text-[10px] text-muted-foreground">Khidmat kebajikan makanan mahasiswa dan wakil sukan UMS/Kolej.</p>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={quotaSettings.includeProgramCommittees}
+                    onChange={(e) => setQuotaSettings(q => ({ ...q, includeProgramCommittees: e.target.checked }))}
+                    className="rounded text-indigo-600 w-4 h-4"
+                  />
+                  <div>
+                    <p className="font-bold text-foreground">👥 Tier 3: Pengarah, Setiausaha & AJK Program</p>
+                    <p className="text-[10px] text-muted-foreground">Penggerak aktiviti pembangunan insaniah kolej.</p>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2.5 cursor-pointer pt-1 border-t border-indigo-200/50 dark:border-indigo-900/50">
+                  <input 
+                    type="checkbox" 
+                    checked={quotaSettings.excludeDemerits}
+                    onChange={(e) => setQuotaSettings(q => ({ ...q, excludeDemerits: e.target.checked }))}
+                    className="rounded text-rose-600 w-4 h-4"
+                  />
+                  <div>
+                    <p className="font-bold text-rose-600 dark:text-rose-400">🚫 Sekatan Tatatertib: Tolak Pelajar dengan Rekod Dimerit</p>
+                    <p className="text-[10px] text-muted-foreground">Menyingkirkan calon yang ada kesalahan jam malam/tatatertib dari kuota automatik.</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4 flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowQuotaConfigModal(false)} className="rounded-xl">
+              Tutup
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={() => {
+                setShowQuotaConfigModal(false);
+                handleRunSimulation();
+              }}
+              className="bg-indigo-700 hover:bg-indigo-800 text-white font-bold rounded-xl gap-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5" /> Simpan & Jalankan Simulasi
             </Button>
           </DialogFooter>
         </DialogContent>
