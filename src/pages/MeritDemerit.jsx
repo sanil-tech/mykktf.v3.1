@@ -73,10 +73,12 @@ export default function MeritDemerit() {
 
   // Filters for Selection Matrix
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterTier, setFilterTier] = useState('all'); // 'all' | 'gold' | 'silver' | 'bronze'
+  const [filterTier, setFilterTier] = useState('all');
   const [filterBlock, setFilterBlock] = useState('all');
+  const [wardenBlocks, setWardenBlocks] = useState([]);
+  const [allBlocks, setAllBlocks] = useState([]);
 
-  // Committee Modal
+  // Modals for Committee & Demerit
   const [committeeModalOpen, setCommitteeModalOpen] = useState(false);
   const [committeeForm, setCommitteeForm] = useState({
     event_name: '',
@@ -105,16 +107,29 @@ export default function MeritDemerit() {
     async function loadData() {
       setLoading(true);
       try {
-        const [u, sList, eList, aList, mList] = await Promise.all([
+        const [u, sList, eList, aList, mList, bList, waList] = await Promise.all([
           base44.auth.me(),
           base44.entities.Student.list(),
           base44.entities.Attendance.list('-created_date'),
           base44.entities.Attendance.list('-created_date'),
-          base44.entities.DisciplineRecord.list('-created_date')
+          base44.entities.DisciplineRecord.list('-created_date'),
+          base44.entities.Block.list(),
+          base44.entities.WardenBlock.list()
         ]);
         setCurrentUser(u);
         setStudents(sList || []);
         setAttendanceRecords(aList || []);
+        setAllBlocks(bList || []);
+
+        // Filter warden blocks for the logged-in fellow/warden
+        if (u) {
+          const myWa = (waList || []).filter(w => w.warden_user_id === u.id || w.warden_email === u.email || (u.full_name && w.warden_name?.toLowerCase().includes(u.full_name.toLowerCase())));
+          setWardenBlocks(myWa);
+          // If the user is a fellow/warden with assigned blocks, default to their blocks for quick focus
+          if (u.role === 'warden' && myWa.length > 0) {
+            setFilterBlock('my_blocks');
+          }
+        }
 
         // Derive distinct event names
         const distinct = Array.from(new Set(aList.map(a => a.event_name).filter(Boolean)));
@@ -202,14 +217,22 @@ export default function MeritDemerit() {
     };
   });
 
-  // Filter matrix
+  // Filter matrix with Warden Block scoping
+  const myBlockNames = wardenBlocks.map(wb => wb.block_name);
+
   const filteredStudents = studentScores.filter(s => {
     const matchesSearch = !searchQuery || 
       (s.full_name && s.full_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (s.student_id && s.student_id.toLowerCase().includes(searchQuery.toLowerCase()));
     
     const matchesTier = filterTier === 'all' || s.tier === filterTier;
-    const matchesBlock = filterBlock === 'all' || s.block_name === filterBlock;
+    
+    let matchesBlock = true;
+    if (filterBlock === 'my_blocks') {
+      matchesBlock = s.block_name && myBlockNames.includes(s.block_name);
+    } else if (filterBlock !== 'all') {
+      matchesBlock = s.block_name === filterBlock;
+    }
 
     return matchesSearch && matchesTier && matchesBlock;
   }).sort((a, b) => b.netScore - a.netScore);
@@ -512,12 +535,32 @@ export default function MeritDemerit() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Cari Nama / No. Matrik..."
-                  className="h-9 text-xs pl-8 w-44 sm:w-56"
+                  className="h-9 text-xs pl-8 w-40 sm:w-48 bg-background"
                 />
               </div>
 
+              {/* PENAPIS BLOK (TERMASUK BLOK KAWALAN WARDEN/FELO) */}
+              <Select value={filterBlock} onValueChange={setFilterBlock}>
+                <SelectTrigger className="h-9 text-xs w-44 bg-background font-bold">
+                  <Building2 className="w-3.5 h-3.5 mr-1 text-primary shrink-0" />
+                  <SelectValue placeholder="Pilih Blok" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">🏢 Semua Blok Kolej</SelectItem>
+                  {wardenBlocks.length > 0 && (
+                    <SelectItem value="my_blocks" className="font-bold text-indigo-600 dark:text-indigo-400">
+                      ⭐ Blok Kawalan Saya ({myBlockNames.join(', ')})
+                    </SelectItem>
+                  )}
+                  {allBlocks.map(b => (
+                    <SelectItem key={b.id} value={b.block_name}>{b.block_name} ({b.gender_restriction})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* PENAPIS TIER KELAYAKAN */}
               <Select value={filterTier} onValueChange={setFilterTier}>
-                <SelectTrigger className="h-9 text-xs w-36">
+                <SelectTrigger className="h-9 text-xs w-36 bg-background">
                   <SelectValue placeholder="Semua Tier" />
                 </SelectTrigger>
                 <SelectContent>
@@ -529,6 +572,45 @@ export default function MeritDemerit() {
               </Select>
             </div>
           </div>
+
+          {/* QUICK WARDEN FILTER BANNER IF APPLICABLE */}
+          {wardenBlocks.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-indigo-50/30 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/60 rounded-2xl text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-1">
+                  <Building2 className="w-3.5 h-3.5 text-indigo-600" /> Penapis Felo:
+                </span>
+                <span className="text-muted-foreground text-[11px]">
+                  {filterBlock === 'my_blocks' 
+                    ? `Sedang menapis pelajar di ${myBlockNames.join(' & ')} (${filteredStudents.length} orang)` 
+                    : `Menunjukkan semua pelajar kolej (${filteredStudents.length} orang)`}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <Button
+                  size="sm"
+                  variant={filterBlock === 'my_blocks' ? 'default' : 'outline'}
+                  onClick={() => setFilterBlock('my_blocks')}
+                  className={`h-7 text-[11px] font-bold rounded-xl gap-1 ${
+                    filterBlock === 'my_blocks' ? 'bg-indigo-700 hover:bg-indigo-800 text-white' : ''
+                  }`}
+                >
+                  ⭐ Blok Saya ({myBlockNames.join(', ')})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filterBlock === 'all' ? 'default' : 'outline'}
+                  onClick={() => setFilterBlock('all')}
+                  className={`h-7 text-[11px] font-bold rounded-xl ${
+                    filterBlock === 'all' ? 'bg-[#132644] text-white' : ''
+                  }`}
+                >
+                  Semua Blok
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* TABLE OF CANDIDATES */}
           <div className="overflow-x-auto">
