@@ -284,43 +284,36 @@ export default function MyProfile() {
             </div>
           </div>
 
-          {/* JIKA FELO / WARDEN: KAWAL SELIA BLOK KEDIAMAN */}
+          {/* JIKA FELO / WARDEN: KAWAL SELIA BLOK KEDIAMAN (BACA SAHAJA / READ-ONLY) */}
           {currentUser?.role === 'warden' && (
-            <div className="p-4 bg-indigo-50/20 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900 rounded-2xl space-y-3 text-xs">
+            <div className="p-4 bg-indigo-50/25 dark:bg-indigo-950/25 border border-indigo-200 dark:border-indigo-900/60 rounded-2xl space-y-2.5 text-xs">
               <div className="flex items-center justify-between">
                 <h4 className="font-bold text-xs text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
-                  <Building2 className="w-4 h-4" /> Blok Kediaman Di Bawah Kawal Selia Anda
+                  <Building2 className="w-4 h-4 text-indigo-600" /> Blok Kediaman Di Bawah Kawal Selia Anda (Read-Only)
                 </h4>
-                <span className="text-[10px] text-muted-foreground font-medium">Bagi kelulusan E-Leave & Rondaan</span>
+                <span className="text-[10px] text-muted-foreground font-semibold">Bagi kelulusan E-Leave & Rondaan</span>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {wardenAssignments.length === 0 && (
-                  <p className="text-xs text-muted-foreground italic">Tiada blok ditetapkan lagi. Sila pilih blok di bawah.</p>
+                {wardenAssignments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic py-1">
+                    Tiada blok yang ditetapkan oleh pentadbiran kolej setakat ini.
+                  </p>
+                ) : (
+                  wardenAssignments.map(a => (
+                    <span 
+                      key={a.id} 
+                      className="flex items-center gap-1.5 bg-indigo-100/80 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 px-3.5 py-1.5 rounded-xl text-xs font-bold border border-indigo-200 dark:border-indigo-800 shadow-xs"
+                    >
+                      <Building2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> {a.block_name}
+                    </span>
+                  ))
                 )}
-                {wardenAssignments.map(a => (
-                  <span key={a.id} className="flex items-center gap-1.5 bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 px-3 py-1 rounded-xl text-xs font-bold border border-indigo-200 dark:border-indigo-800">
-                    <Building2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> {a.block_name}
-                    <button onClick={() => removeWardenBlock(a.id)} className="hover:text-red-500 transition-colors ml-1">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </span>
-                ))}
               </div>
 
-              <div className="flex gap-2 pt-1">
-                <Select value={selectedBlock} onValueChange={setSelectedBlock}>
-                  <SelectTrigger className="h-8 text-xs flex-1 bg-background"><SelectValue placeholder="Pilih Blok Tambahan" /></SelectTrigger>
-                  <SelectContent>
-                    {blocks.filter(b => !wardenAssignments.find(a => a.block_id === b.id)).map(b => (
-                      <SelectItem key={b.id} value={b.id}>{b.block_name} ({b.gender_restriction})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button size="sm" onClick={addWardenBlock} disabled={!selectedBlock || savingBlock} className="h-8 text-xs font-bold bg-indigo-700 hover:bg-indigo-800 text-white rounded-xl">
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Tambah Blok
-                </Button>
-              </div>
+              <p className="text-[10px] text-muted-foreground pt-1 border-t border-indigo-200/50 dark:border-indigo-900/50 leading-relaxed">
+                ℹ️ <em>Nota: Penetapan blok kediaman diuruskan sepenuhnya oleh <strong>Ketua Pentadbiran</strong> atau <strong>Pengetua Kolej</strong> melalui modul <strong>Block Assignments</strong>. Felo hanya boleh membaca maklumat ini.</em>
+              </p>
             </div>
           )}
 
