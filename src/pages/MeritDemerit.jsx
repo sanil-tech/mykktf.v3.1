@@ -171,20 +171,20 @@ export default function MeritDemerit() {
     const netScore = Math.max(0, (attendanceMerit + extraMerit) - demerit);
 
     let tier = 'bronze';
-    let tierLabel = 'Tier Gangsa (Tidak Layak)';
+    let tierLabel = 'Tier Gangsa (Belum Capai Syarat)';
     let tierBadgeClass = 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-300';
-    let qualification = 'Perlu Rayuan';
+    let qualification = 'Belum Mencapai Syarat Minimum (Perlu Rayuan)';
 
     if (netScore >= 80 && demerit === 0) {
       tier = 'gold';
-      tierLabel = 'Tier Emas (Layak Prioriti)';
+      tierLabel = 'Tier Emas (Keutamaan Panel)';
       tierBadgeClass = 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400 shadow-xs';
-      qualification = 'Layak Menginap (Automatik)';
+      qualification = 'Layak Dipertimbangkan (Keutamaan Panel)';
     } else if (netScore >= 50) {
       tier = 'silver';
       tierLabel = 'Tier Perak (Senarai Menunggu)';
       tierBadgeClass = 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-400';
-      qualification = 'Pertimbangan Felo';
+      qualification = 'Senarai Menunggu (Kekosongan Bersyarat)';
     }
 
     return {
@@ -807,7 +807,7 @@ export default function MeritDemerit() {
                 style={{ width: `${Math.min(100, ((myStudentProfile?.netScore || 0) / 100) * 100)}%` }}
               />
             </div>
-            <p className="text-[10px] text-slate-400 font-mono mt-1">Sasaran 80/100 Mata untuk Kelayakan Tawaran Bilik Prioriti</p>
+            <p className="text-[10px] text-slate-400 font-mono mt-1">Sasaran 80/100 Mata untuk Kelayakan Dipertimbangkan (Keutamaan Panel)</p>
           </div>
 
           {/* BREAKDOWN */}
@@ -828,6 +828,17 @@ export default function MeritDemerit() {
               <span>Potongan Dimerit Disiplin</span>
               <span className="font-mono font-bold">-{myStudentProfile?.demerit || 0} Mata</span>
             </div>
+          </div>
+
+          {/* OFFICIAL ADMINISTRATIVE DISCLAIMER */}
+          <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-1.5 text-xs text-amber-900 dark:text-amber-200">
+            <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>Nota Penafian Rasmi Pentadbiran Kolej:</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-amber-900/80 dark:text-amber-200/80">
+              Skor merit merupakan skor penilaian kelayakan asas. Penawaran sebenar penempatan bilik kolej bagi sesi hadapan adalah tertakluk sepenuhnya kepada <strong>kapasiti katil fizikal yang terhad, kuota penginapan tahun pengajian/fakulti, serta keputusan muktamad Jawatankuasa Pemilih Penempatan Residen KKTF (UMS)</strong>.
+            </p>
           </div>
         </div>
       )}

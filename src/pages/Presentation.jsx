@@ -283,7 +283,7 @@ const MANUAL_CHAPTERS = [
     sections: [
       {
         title: '7.1 Matriks Kelayakan Penempatan Residen Sesi Hadapan',
-        content: 'Bagi memastikan penempatan bilik kolej diagihkan secara adil dan telus, MyKKTF mengkategorikan penghuni kepada 3 Tier Kelayakan: 🥇 Tier Emas (≥80 Mata & 0 Dimerit - Layak Prioriti Automatik), 🥈 Tier Perak (50-79 Mata - Senarai Menunggu / Budi Bicara Felo), dan 🥉 Tier Gangsa (<50 Mata - Perlu Rayuan).'
+        content: 'Bagi memastikan penempatan bilik kolej dinilai secara adil dan telus, MyKKTF mengkategorikan penghuni kepada 3 Tier Penilaian: 🥇 Tier Emas (≥80 Mata & 0 Dimerit - Layak Dipertimbangkan: Keutamaan Panel), 🥈 Tier Perak (50-79 Mata - Senarai Menunggu: Kekosongan Bersyarat), dan 🥉 Tier Gangsa (<50 Mata - Belum Mencapai Syarat Minimum: Perlu Rayuan). Nota: Penawaran muktamad bilik tertakluk kepada kapasiti katil fizikal, kuota kolej, dan keputusan rasmi Jawatankuasa Pemilih Residen (Pengetua & Felo).'
       },
       {
         title: '7.2 Tangga Skala Merit Lantikan AJK JAKMAS & Urusetia',
