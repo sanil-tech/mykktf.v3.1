@@ -348,7 +348,7 @@ const MANUAL_CHAPTERS = [
         steps: [
           'Letterhead Rasmi: Gandingan Logo Universiti Malaysia Sabah (UMS) di sebelah kiri dan Logo Kolej Kediaman Tun Fuad (KKTF) di sebelah kanan berserta Nombor Siri Rujukan Rasmi Kolej.',
           'Penilaian Bertingkat (Tiering): Pengiktirafan 🥇 Tier Emas (≥80 Mata), 🥈 Tier Perak (50-79 Mata), dan 🥉 Tier Gangsa (<50 Mata).',
-          'Perakuan Rasmi Pengetua: Ditandatangani secara digital oleh PROFESOR MADYA TS. DR. NUR FADILAH BINTI DARMANSAH, Pengetua Kolej Kediaman Tun Fuad (Profesor Madya DS14, Fakulti Kejuruteraan, Universiti Malaysia Sabah).',
+          'Perakuan Rasmi Pengetua: Ditandatangani secara digital dengan tandatangan dan cop rasmi Pengetua Kolej Kediaman Tun Fuad, Universiti Malaysia Sabah.',
           'Kod QR Pengesahan Ketulenan Sijil: Mengandungi pautan pengesahan keselamatan terus ke portal MyKKTF bagi rujukan majikan temuduga kerja atau penaja biasiswa.'
         ]
       },
@@ -379,7 +379,7 @@ const MANUAL_CHAPTERS = [
       {
         title: '9.2 Kad Pintar Felo Blok Jagaan Mahasiswa (WhatsApp 1-Klik)',
         steps: [
-          'Sistem secara pintar mengesan blok kediaman pelajar yang sedang log masuk (contoh: Pelajar Blok G ➔ memaparkan maklumat Felo Blok G, Puan Norazilah binti Tuman).',
+          'Sistem secara pintar mengesan blok kediaman pelajar yang sedang log masuk (contoh: Pelajar Blok G ➔ memaparkan maklumat Felo Blok G yang bertugas).',
           'Tekan butang "💬 WhatsApp Felo (1-Klik)": Aplikasi membuka WhatsApp dengan templat mesej rasmi yang siap diisi dengan Nama Penuh, No. Matrik, Blok dan No. Bilik pelajar.',
           'Pelajar juga boleh menekan "Chat Dalam App" untuk berhubung terus melalui saluran sembang dalaman kolej.'
         ]
@@ -389,7 +389,7 @@ const MANUAL_CHAPTERS = [
         steps: [
           '🚨 Pondok Keselamatan KKTF (Pos Jaga 24 Jam): Panggilan telefon terus dan WhatsApp kecemasan kepada pengawal bertugas di pos masuk.',
           '🚑 Pusat Kesihatan Universiti (PKU UMS): Talian ambulans dan rawatan kecemasan kampus 24 jam.',
-          '✉️ Kaunter Pejabat Pentadbiran KKTF: E-mel rasmi kktf@ums.edu.my dan waktu operasi perkhidmatan kaunter pentadbiran.',
+          '✉️ Kaunter Pejabat Pentadbiran KKTF: Saluran e-mel rasmi pentadbiran kolej dan waktu operasi perkhidmatan kaunter pentadbiran.',
           '💜 Biro Kebajikan JAKMAS: Saluran aduan kebajikan pelajar dan inisiatif Dapur Siswa.'
         ]
       },
@@ -410,7 +410,7 @@ const MANUAL_CHAPTERS = [
     sections: [
       {
         title: '10.1 Papan Pemuka Suite Eksekutif Pengetua',
-        content: 'Suite Eksekutif Pengetua di papan pemuka pentadbir menyediakan visualisasi berprestij tinggi khusus untuk Pengurus Eksekutif Kolej (Puan Nurfadilah Darmansah). Papan ini menggabungkan tindakan berkepentingan tinggi dengan pemantauan strategik kolej.'
+        content: 'Suite Eksekutif Pengetua di papan pemuka pentadbir menyediakan visualisasi berprestij tinggi khusus untuk Pengurusan Eksekutif Kolej. Papan ini menggabungkan tindakan berkepentingan tinggi dengan pemantauan strategik kolej.'
       },
       {
         title: '10.2 Pengesahan Lantikan Felo Penyelaras Program (1-Klik Kelulusan)',
@@ -425,7 +425,7 @@ const MANUAL_CHAPTERS = [
         steps: [
           'Penetapan Blok Berpusat: Pengetua dan Ketua Pentadbiran menetapkan blok kawalan felo di modul Block Assignment (`/block-assignment`).',
           'Paparan Profil Felo: Di halaman My Profile, felo mempunyai paparan baca-sahaja (Read-Only) bagi blok jagaan mereka demi mengekalkan integriti arahan pentadbiran.',
-          'Jadual Komunikasi Felo: Pengetua boleh menyemak senarai lengkap semua felo, e-mel, blok jagaan, dan pautan WhatsApp terus pegawai.'
+          'Jadual Komunikasi Felo: Pengetua boleh menyemak senarai lengkap semua felo, e-mel, blok jagaan, dan pautan komunikasi terus pegawai.'
         ]
       },
       {
@@ -776,7 +776,7 @@ const ALL_SLIDES = [
       'Pusat Tindakan Eksekutif: 1-klik sahkan permohonan pelantikan Felo Penyelaras Program',
       'Matriks Tadbir Urus Felo: Kawalan penugasan blok berpusat & paparan read-only bagi felo',
       'Indeks Prestasi Strategik (KPI Pulse): Kadar penghunian, merit, kebajikan & demografi 100% masa nyata',
-      'Papan pemuka eksklusif direka khas untuk Pengurus Eksekutif Kolej (Puan Nurfadilah Darmansah)'
+      'Papan pemuka eksklusif direka khas untuk Pengurusan Eksekutif Kolej'
     ],
     roles: ['Pengetua', 'Pentadbir Utama'],
     allowedRoles: ['principal', 'super_admin', 'college_admin']
@@ -806,7 +806,7 @@ const ALL_SLIDES = [
       'Kepala surat rasmi dengan gandingan Logo Universiti Malaysia Sabah (UMS) & Logo KKTF',
       'Rumusan markah aktiviti, lantikan AJK kepimpinan, penalti dimerit & skor bersih sahsiah',
       'Pengiktirafan rasmi bertingkat: 🥇 Tier Emas (≥80), 🥈 Tier Perak (50-79), 🥉 Tier Gangsa (<50)',
-      'Perakuan rasmi ditandatangani oleh PROF. MADYA TS. DR. NUR FADILAH BINTI DARMANSAH',
+      'Perakuan rasmi ditandatangani secara digital oleh Pengetua Kolej Kediaman Tun Fuad',
       'Kod QR Pengesahan Keselamatan digital yang boleh diimbas oleh majikan temuduga'
     ],
     roles: ['Semua Pengguna'],
