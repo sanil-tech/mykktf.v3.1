@@ -68,6 +68,7 @@ export default function Leave() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [selectedBlockQr, setSelectedBlockQr] = useState('Pondok Pengawal (Pintu Utama)');
+  const [accessibleQrBlocks, setAccessibleQrBlocks] = useState(BLOCKS);
   const [currentUser, setCurrentUser] = useState(null);
   const [myStudent, setMyStudent] = useState(null);
   const [filter, setFilter] = useState('all');
@@ -148,6 +149,21 @@ export default function Leave() {
         if (!students.length) students = await base44.entities.Student.filter({ email: user.email });
         studentProfile = students[0] || null;
         setMyStudent(studentProfile);
+      }
+
+      if (user?.role === 'warden') {
+        const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
+        if (wb.length > 0) {
+          const wardenBlockNames = wb.map(w => w.block_name);
+          setAccessibleQrBlocks(wardenBlockNames);
+          setSelectedBlockQr(wardenBlockNames[0]);
+        } else {
+          setAccessibleQrBlocks(['Pondok Pengawal (Pintu Utama)']);
+          setSelectedBlockQr('Pondok Pengawal (Pintu Utama)');
+        }
+      } else {
+        setAccessibleQrBlocks(BLOCKS);
+        setSelectedBlockQr(BLOCKS[0]);
       }
 
       await fetchLeaveData(user, studentProfile);
@@ -793,13 +809,20 @@ export default function Leave() {
 
           <div className="space-y-4 mt-2">
             <div>
-              <Label className="text-xs font-semibold text-slate-700 text-left block mb-1">Pilih Lokasi Blok / Pintu Masuk</Label>
+              <div className="flex items-center justify-between mb-1">
+                <Label className="text-xs font-semibold text-slate-700">Pilih Lokasi Blok / Pintu Masuk</Label>
+                {currentUser?.role === 'warden' && (
+                  <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200">
+                    Akses Warden: {accessibleQrBlocks.join(', ')}
+                  </Badge>
+                )}
+              </div>
               <Select value={selectedBlockQr} onValueChange={setSelectedBlockQr}>
                 <SelectTrigger className="h-10 text-xs bg-slate-50">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {BLOCKS.map(b => (
+                  {accessibleQrBlocks.map(b => (
                     <SelectItem key={b} value={b}>{b}</SelectItem>
                   ))}
                 </SelectContent>
