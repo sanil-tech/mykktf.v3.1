@@ -52,7 +52,8 @@
       "enum": [
         "Pending",
         "Approved",
-        "Rejected"
+        "Rejected",
+        "Returned"
       ],
       "default": "Pending"
     },
@@ -60,6 +61,36 @@
       "type": "string"
     },
     "remarks": {
+      "type": "string"
+    },
+    "returned_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "returned_date": {
+      "type": "string"
+    },
+    "returned_time": {
+      "type": "string"
+    },
+    "return_method": {
+      "type": "string",
+      "enum": [
+        "QR_BLOCK_SCAN",
+        "QR_GUARDHOUSE",
+        "MANUAL_WARDEN",
+        "SELF_CHECKIN"
+      ]
+    },
+    "return_status": {
+      "type": "string",
+      "enum": [
+        "On-Time",
+        "Late",
+        "Early"
+      ]
+    },
+    "return_scanned_block": {
       "type": "string"
     }
   },

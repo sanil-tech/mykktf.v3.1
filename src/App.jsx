@@ -20,6 +20,7 @@ import Students from '@/pages/Students';
 import Rooms from '@/pages/Rooms';
 import CheckInOut from '@/pages/CheckInOut';
 import Leave from '@/pages/Leave';
+import LeaveReturn from '@/pages/LeaveReturn';
 import Maintenance from '@/pages/Maintenance';
 
 import Facilities from '@/pages/Facilities';
@@ -99,6 +100,8 @@ const AuthenticatedApp = () => {
           <Route path="/rooms" element={<Rooms />} />
           <Route path="/check-in-out" element={<CheckInOut />} />
           <Route path="/leave" element={<Leave />} />
+          <Route path="/leave-return" element={<LeaveReturn />} />
+          <Route path="/return-leave" element={<LeaveReturn />} />
           <Route path="/maintenance" element={<Maintenance />} />
           <Route path="/facilities" element={<Facilities />} />
           <Route path="/attendance" element={<AttendancePage />} />

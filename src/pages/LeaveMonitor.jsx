@@ -23,7 +23,7 @@ export default function LeaveMonitor() {
     const [b, s, l] = await Promise.all([
       base44.entities.Block.list(),
       base44.entities.Student.filter({ status: 'Active' }),
-      base44.entities.LeaveApplication.filter({ status: 'Approved' }),
+      base44.entities.LeaveApplication.list('-created_date'),
     ]);
     setBlocks(b);
     setStudents(s);
@@ -37,7 +37,12 @@ export default function LeaveMonitor() {
 
   const date = moment(selectedDate);
   const onLeaveSet = new Set(
-    leaves.filter(l => moment(l.departure_date).isSameOrBefore(date, 'day') && moment(l.return_date).isSameOrAfter(date, 'day')).map(l => l.student_id)
+    leaves.filter(l => 
+      l.status === 'Approved' && 
+      !l.returned_at && 
+      moment(l.departure_date).isSameOrBefore(date, 'day') && 
+      moment(l.return_date).isSameOrAfter(date, 'day')
+    ).map(l => l.student_id)
   );
 
   const accessibleBlocks = user?.role === 'warden' && wardenBlocks.length > 0 ? blocks.filter(b => wardenBlocks.includes(b.block_name)) : blocks;
