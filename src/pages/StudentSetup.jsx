@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { GraduationCap, User, Phone, BookOpen, Users, CheckCircle2, ChevronRight, ChevronLeft, Loader2, Info } from 'lucide-react';
+import { GraduationCap, User, Phone, BookOpen, Users, CheckCircle2, ChevronRight, ChevronLeft, Loader2, Info, Sparkles, Building, ShieldCheck } from 'lucide-react';
 
 const FACULTIES = [
   'Fakulti Sains dan Sumber Alam (FSSA)',
@@ -20,9 +20,9 @@ const FACULTIES = [
 ];
 
 const STEPS = [
-  { id: 1, title: 'Personal Info', icon: User, description: 'Your basic personal details' },
-  { id: 2, title: 'Academic Info', icon: BookOpen, description: 'Your university & programme details' },
-  { id: 3, title: 'Room & Contact', icon: Phone, description: 'Room assignment and emergency information' },
+  { id: 1, title: 'Maklumat Peribadi', icon: User, description: 'Maklumat asas pengenalan diri anda' },
+  { id: 2, title: 'Akademik UMS', icon: BookOpen, description: 'Fakulti, program pengajian & No. Matrik' },
+  { id: 3, title: 'Kontak & Waris', icon: Phone, description: 'No. telefon & maklumat waris kecemasan' },
 ];
 
 export default function StudentSetup({ user, onComplete }) {
@@ -36,7 +36,7 @@ export default function StudentSetup({ user, onComplete }) {
     date_of_birth: '',
     faculty: '',
     programme: '',
-    year_of_study: '',
+    year_of_study: '1',
     phone: '',
     email: user?.email || '',
     parent_name: '',
@@ -58,22 +58,22 @@ export default function StudentSetup({ user, onComplete }) {
   function validateStep(s) {
     const errs = {};
     if (s === 1) {
-      if (!form.full_name) errs.full_name = 'Required';
-      if (!form.ic_passport) errs.ic_passport = 'Required';
-      if (!form.gender) errs.gender = 'Required';
-      if (!form.date_of_birth) errs.date_of_birth = 'Required';
+      if (!form.full_name?.trim()) errs.full_name = 'Sila masukkan nama penuh';
+      if (!form.ic_passport?.trim()) errs.ic_passport = 'Sila masukkan No. Kad Pengenalan / Pasport';
+      if (!form.gender) errs.gender = 'Sila pilih jantina';
+      if (!form.date_of_birth) errs.date_of_birth = 'Sila pilih tarikh lahir';
     }
     if (s === 2) {
-      if (!form.student_id) errs.student_id = 'Required';
-      if (!form.faculty) errs.faculty = 'Required';
-      if (!form.programme) errs.programme = 'Required';
-      if (!form.year_of_study) errs.year_of_study = 'Required';
+      if (!form.student_id?.trim()) errs.student_id = 'Sila masukkan No. Matrik (cth: BP23110045)';
+      if (!form.faculty) errs.faculty = 'Sila pilih fakulti pengajian';
+      if (!form.programme?.trim()) errs.programme = 'Sila masukkan program pengajian';
+      if (!form.year_of_study) errs.year_of_study = 'Sila pilih tahun pengajian';
     }
     if (s === 3) {
-      if (!form.phone) errs.phone = 'Required';
-      if (!form.parent_name) errs.parent_name = 'Required';
-      if (!form.parent_phone) errs.parent_phone = 'Required';
-      if (!form.emergency_contact) errs.emergency_contact = 'Required';
+      if (!form.phone?.trim()) errs.phone = 'Sila masukkan nombor telefon pelajar';
+      if (!form.parent_name?.trim()) errs.parent_name = 'Sila masukkan nama ibu bapa / waris';
+      if (!form.parent_phone?.trim()) errs.parent_phone = 'Sila masukkan nombor telefon waris';
+      if (!form.emergency_contact?.trim()) errs.emergency_contact = 'Sila masukkan kontak kecemasan';
     }
     return errs;
   }
@@ -88,184 +88,287 @@ export default function StudentSetup({ user, onComplete }) {
     const errs = validateStep(3);
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setSaving(true);
-    await base44.entities.Student.create({ ...form, year_of_study: Number(form.year_of_study) });
-    await base44.auth.updateMe({ role: 'student' });
-    setSaving(false);
-    onComplete();
+    try {
+      await base44.entities.Student.create({ ...form, year_of_study: Number(form.year_of_study) });
+      await base44.auth.updateMe({ role: 'student' });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSaving(false);
+      onComplete();
+    }
   }
 
-  const progress = ((step - 1) / (STEPS.length - 1)) * 100;
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[hsl(222,47%,15%)] to-[hsl(222,47%,28%)] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#0f1e36] via-[#132644] to-[#1e3a63] flex items-center justify-center p-4 py-8">
       <div className="w-full max-w-xl">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center mx-auto mb-4">
-            <GraduationCap className="w-7 h-7 text-white" />
+        {/* TOP INSTITUTIONAL HEADER */}
+        <div className="text-center mb-6">
+          <div className="w-16 h-16 rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center mx-auto mb-3 shadow-lg">
+            <GraduationCap className="w-8 h-8 text-indigo-300" />
           </div>
-          <h1 className="text-2xl font-heading font-bold text-white">Complete Your Profile</h1>
-          <p className="text-sm text-white/70 mt-1">Fill in your resident profile to access all features</p>
+          <div className="inline-block bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 px-3 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider mb-2">
+            Pendaftaran Residen Baharu (Onboarding)
+          </div>
+          <h1 className="text-2xl font-bold text-white">Selamat Datang ke Kolej Kediaman Tun Fuad</h1>
+          <p className="text-xs text-slate-300 mt-1 max-w-md mx-auto leading-relaxed">
+            Lengkapkan profil residen anda dalam 3 langkah mudah untuk mengaktifkan akses bilik, permohonan E-Leave, dan perkhidmatan kolej.
+          </p>
         </div>
 
-        {/* Step indicators */}
+        {/* STEP INDICATORS */}
         <div className="flex items-center justify-center gap-2 mb-6">
           {STEPS.map((s, i) => (
             <React.Fragment key={s.id}>
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${step === s.id ? 'bg-white text-[hsl(222,47%,21%)]' : step > s.id ? 'bg-white/30 text-white' : 'bg-white/10 text-white/50'}`}>
-                {step > s.id ? <CheckCircle2 className="w-3.5 h-3.5" /> : <s.icon className="w-3.5 h-3.5" />}
-                {s.title}
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                step === s.id 
+                  ? 'bg-white text-[#0f1e36] shadow-md' 
+                  : step > s.id 
+                  ? 'bg-emerald-500/30 text-emerald-200 border border-emerald-400/40' 
+                  : 'bg-white/10 text-white/50'
+              }`}>
+                {step > s.id ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <s.icon className="w-3.5 h-3.5" />}
+                <span>{s.title}</span>
               </div>
-              {i < STEPS.length - 1 && <div className={`w-6 h-px ${step > s.id ? 'bg-white/60' : 'bg-white/20'}`} />}
+              {i < STEPS.length - 1 && <div className={`w-4 h-0.5 ${step > s.id ? 'bg-emerald-400/60' : 'bg-white/20'}`} />}
             </React.Fragment>
           ))}
         </div>
 
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-2xl p-6">
-          <div className="mb-5">
-            <h2 className="font-heading font-semibold text-foreground">{STEPS[step - 1].title}</h2>
-            <p className="text-xs text-muted-foreground">{STEPS[step - 1].description}</p>
-            {/* Progress bar */}
-            <div className="mt-3 h-1.5 bg-muted rounded-full overflow-hidden">
-              <div className="h-full bg-[hsl(222,47%,21%)] rounded-full transition-all duration-500" style={{ width: `${((step) / STEPS.length) * 100}%` }} />
+        {/* MAIN FORM CARD */}
+        <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-8 border border-slate-100">
+          <div className="mb-5 pb-3 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold flex items-center justify-center">
+                  {step}
+                </span>
+                {STEPS[step - 1].title}
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">{STEPS[step - 1].description}</p>
             </div>
+            <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">
+              Langkah {step} / 3
+            </span>
           </div>
 
-          {/* Step 1: Personal Info */}
+          {/* STEP 1: PERSONAL INFO */}
           {step === 1 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2">
-                <Label className="text-xs font-medium">Full Name <span className="text-red-500">*</span></Label>
-                <Input value={form.full_name} onChange={e => set('full_name', e.target.value)} placeholder="As per IC/Passport" className={`mt-1 h-10 text-sm ${errors.full_name ? 'border-red-400' : ''}`} />
-                {errors.full_name && <p className="text-xs text-red-500 mt-0.5">{errors.full_name}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="sm:col-span-2 space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Nama Penuh (Mengikut MyKad / Pasport) *</Label>
+                <Input 
+                  value={form.full_name} 
+                  onChange={e => set('full_name', e.target.value)} 
+                  placeholder="Cth: SANIYIL BIN BANSAI" 
+                  className={`h-10 text-xs ${errors.full_name ? 'border-red-500 bg-red-50/30' : ''}`} 
+                />
+                {errors.full_name && <p className="text-[11px] text-red-500">{errors.full_name}</p>}
               </div>
-              <div>
-                <Label className="text-xs font-medium">IC / Passport No. <span className="text-red-500">*</span></Label>
-                <Input value={form.ic_passport} onChange={e => set('ic_passport', e.target.value)} placeholder="e.g. 010523-01-1234" className={`mt-1 h-10 text-sm ${errors.ic_passport ? 'border-red-400' : ''}`} />
-                {errors.ic_passport && <p className="text-xs text-red-500 mt-0.5">{errors.ic_passport}</p>}
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">No. Kad Pengenalan / Pasport *</Label>
+                <Input 
+                  value={form.ic_passport} 
+                  onChange={e => set('ic_passport', e.target.value)} 
+                  placeholder="Cth: 030514-12-5541" 
+                  className={`h-10 text-xs ${errors.ic_passport ? 'border-red-500 bg-red-50/30' : ''}`} 
+                />
+                {errors.ic_passport && <p className="text-[11px] text-red-500">{errors.ic_passport}</p>}
               </div>
-              <div>
-                <Label className="text-xs font-medium">Gender <span className="text-red-500">*</span></Label>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Jantina *</Label>
                 <Select value={form.gender} onValueChange={v => set('gender', v)}>
-                  <SelectTrigger className={`mt-1 h-10 text-sm ${errors.gender ? 'border-red-400' : ''}`}><SelectValue placeholder="Select gender" /></SelectTrigger>
+                  <SelectTrigger className={`h-10 text-xs ${errors.gender ? 'border-red-500 bg-red-50/30' : ''}`}>
+                    <SelectValue placeholder="Pilih Jantina" />
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Male">Male</SelectItem>
-                    <SelectItem value="Female">Female</SelectItem>
+                    <SelectItem value="Male">Lelaki (Male)</SelectItem>
+                    <SelectItem value="Female">Perempuan (Female)</SelectItem>
                   </SelectContent>
                 </Select>
-                {errors.gender && <p className="text-xs text-red-500 mt-0.5">{errors.gender}</p>}
+                {errors.gender && <p className="text-[11px] text-red-500">{errors.gender}</p>}
               </div>
-              <div>
-                <Label className="text-xs font-medium">Date of Birth <span className="text-red-500">*</span></Label>
-                <Input type="date" value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)} className={`mt-1 h-10 text-sm ${errors.date_of_birth ? 'border-red-400' : ''}`} />
-                {errors.date_of_birth && <p className="text-xs text-red-500 mt-0.5">{errors.date_of_birth}</p>}
-              </div>
-              <div>
-                <Label className="text-xs font-medium">Email</Label>
-                <Input value={form.email} disabled className="mt-1 h-10 text-sm bg-muted/50" />
-                <p className="text-xs text-muted-foreground mt-0.5">From your account</p>
+
+              <div className="sm:col-span-2 space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Tarikh Lahir *</Label>
+                <Input 
+                  type="date"
+                  value={form.date_of_birth} 
+                  onChange={e => set('date_of_birth', e.target.value)} 
+                  className={`h-10 text-xs ${errors.date_of_birth ? 'border-red-500 bg-red-50/30' : ''}`} 
+                />
+                {errors.date_of_birth && <p className="text-[11px] text-red-500">{errors.date_of_birth}</p>}
               </div>
             </div>
           )}
 
-          {/* Step 2: Academic Info */}
+          {/* STEP 2: ACADEMIC INFO */}
           {step === 2 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label className="text-xs font-medium">Student ID <span className="text-red-500">*</span></Label>
-                <Input value={form.student_id} onChange={e => set('student_id', e.target.value)} placeholder="e.g. A21CS0101" className={`mt-1 h-10 text-sm ${errors.student_id ? 'border-red-400' : ''}`} />
-                {errors.student_id && <p className="text-xs text-red-500 mt-0.5">{errors.student_id}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="sm:col-span-2 space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">No. Matrik Pelajar UMS *</Label>
+                <Input 
+                  value={form.student_id} 
+                  onChange={e => set('student_id', e.target.value.toUpperCase())} 
+                  placeholder="Cth: BP23110045" 
+                  className={`h-10 text-xs uppercase font-mono font-semibold ${errors.student_id ? 'border-red-500 bg-red-50/30' : ''}`} 
+                />
+                {errors.student_id && <p className="text-[11px] text-red-500">{errors.student_id}</p>}
               </div>
-              <div>
-                <Label className="text-xs font-medium">Faculty <span className="text-red-500">*</span></Label>
+
+              <div className="sm:col-span-2 space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Fakulti Pengajian UMS *</Label>
                 <Select value={form.faculty} onValueChange={v => set('faculty', v)}>
-                  <SelectTrigger className={`mt-1 h-10 text-sm ${errors.faculty ? 'border-red-400' : ''}`}><SelectValue placeholder="Select faculty" /></SelectTrigger>
-                  <SelectContent>{FACULTIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+                  <SelectTrigger className={`h-10 text-xs ${errors.faculty ? 'border-red-500 bg-red-50/30' : ''}`}>
+                    <SelectValue placeholder="Pilih Fakulti Anda" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FACULTIES.map(f => (
+                      <SelectItem key={f} value={f}>{f}</SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
-                {errors.faculty && <p className="text-xs text-red-500 mt-0.5">{errors.faculty}</p>}
+                {errors.faculty && <p className="text-[11px] text-red-500">{errors.faculty}</p>}
               </div>
-              <div>
-                <Label className="text-xs font-medium">Programme / Course <span className="text-red-500">*</span></Label>
-                <Input value={form.programme} onChange={e => set('programme', e.target.value)} placeholder="e.g. Computer Science" className={`mt-1 h-10 text-sm ${errors.programme ? 'border-red-400' : ''}`} />
-                {errors.programme && <p className="text-xs text-red-500 mt-0.5">{errors.programme}</p>}
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Program Pengajian *</Label>
+                <Input 
+                  value={form.programme} 
+                  onChange={e => set('programme', e.target.value)} 
+                  placeholder="Cth: Ijazah Sarjana Muda Sains Komputer" 
+                  className={`h-10 text-xs ${errors.programme ? 'border-red-500 bg-red-50/30' : ''}`} 
+                />
+                {errors.programme && <p className="text-[11px] text-red-500">{errors.programme}</p>}
               </div>
-              <div>
-                <Label className="text-xs font-medium">Year of Study <span className="text-red-500">*</span></Label>
-                <Select value={String(form.year_of_study)} onValueChange={v => set('year_of_study', v)}>
-                  <SelectTrigger className={`mt-1 h-10 text-sm ${errors.year_of_study ? 'border-red-400' : ''}`}><SelectValue placeholder="Select year" /></SelectTrigger>
-                  <SelectContent>{[1,2,3,4,5].map(y => <SelectItem key={y} value={String(y)}>Year {y}</SelectItem>)}</SelectContent>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Tahun Pengajian *</Label>
+                <Select value={form.year_of_study} onValueChange={v => set('year_of_study', v)}>
+                  <SelectTrigger className="h-10 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Tahun 1 (Tahun Pertama)</SelectItem>
+                    <SelectItem value="2">Tahun 2</SelectItem>
+                    <SelectItem value="3">Tahun 3</SelectItem>
+                    <SelectItem value="4">Tahun 4</SelectItem>
+                  </SelectContent>
                 </Select>
-                {errors.year_of_study && <p className="text-xs text-red-500 mt-0.5">{errors.year_of_study}</p>}
-              </div>
-              <div>
-                <Label className="text-xs font-medium">Vehicle Registration No.</Label>
-                <Input value={form.vehicle_reg} onChange={e => set('vehicle_reg', e.target.value)} placeholder="e.g. SAB1234 (optional)" className="mt-1 h-10 text-sm" />
               </div>
             </div>
           )}
 
-          {/* Step 3: Room & Contact */}
+          {/* STEP 3: CONTACT & EMERGENCY INFO */}
           {step === 3 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2 bg-blue-50/50 p-3 rounded-md border border-blue-100 flex items-start gap-2 mb-2">
-                <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-                <p className="text-xs text-blue-700 leading-relaxed">
-                  <strong>Room Assignment:</strong> Your block and room number will be assigned later by the KKTF office. You can view it in your dashboard once assigned.
-                </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">No. Telefon Pelajar *</Label>
+                <Input 
+                  value={form.phone} 
+                  onChange={e => set('phone', e.target.value)} 
+                  placeholder="Cth: 011-23456789" 
+                  className={`h-10 text-xs ${errors.phone ? 'border-red-500 bg-red-50/30' : ''}`} 
+                />
+                {errors.phone && <p className="text-[11px] text-red-500">{errors.phone}</p>}
               </div>
-              <div>
-                <Label className="text-xs font-medium text-slate-500">Block Name</Label>
-                <Input value={form.block_name} disabled placeholder="Pending KKTF assignment" className="mt-1 h-10 text-sm bg-slate-50 cursor-not-allowed" />
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">No. Pendaftaran Kenderaan (Pilihan)</Label>
+                <Input 
+                  value={form.vehicle_reg} 
+                  onChange={e => set('vehicle_reg', e.target.value.toUpperCase())} 
+                  placeholder="Cth: SAB 1234 A (Jika bawa kereta/motor)" 
+                  className="h-10 text-xs uppercase" 
+                />
               </div>
-              <div>
-                <Label className="text-xs font-medium text-slate-500">Room Number</Label>
-                <Input value={form.room_number} disabled placeholder="Pending KKTF assignment" className="mt-1 h-10 text-sm bg-slate-50 cursor-not-allowed" />
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Nama Ibu Bapa / Penjaga *</Label>
+                <Input 
+                  value={form.parent_name} 
+                  onChange={e => set('parent_name', e.target.value)} 
+                  placeholder="Cth: BANSAI BIN MAT" 
+                  className={`h-10 text-xs ${errors.parent_name ? 'border-red-500 bg-red-50/30' : ''}`} 
+                />
+                {errors.parent_name && <p className="text-[11px] text-red-500">{errors.parent_name}</p>}
               </div>
-              <div>
-                <Label className="text-xs font-medium">Phone Number <span className="text-red-500">*</span></Label>
-                <Input value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="e.g. 011-1234567" className={`mt-1 h-10 text-sm ${errors.phone ? 'border-red-400' : ''}`} />
-                {errors.phone && <p className="text-xs text-red-500 mt-0.5">{errors.phone}</p>}
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">No. Telefon Waris / Penjaga *</Label>
+                <Input 
+                  value={form.parent_phone} 
+                  onChange={e => set('parent_phone', e.target.value)} 
+                  placeholder="Cth: 019-8765432" 
+                  className={`h-10 text-xs ${errors.parent_phone ? 'border-red-500 bg-red-50/30' : ''}`} 
+                />
+                {errors.parent_phone && <p className="text-[11px] text-red-500">{errors.parent_phone}</p>}
               </div>
-              <div className="sm:col-span-2 border-t pt-3 mt-1">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> Parent / Guardian</p>
-              </div>
-              <div>
-                <Label className="text-xs font-medium">Parent / Guardian Name <span className="text-red-500">*</span></Label>
-                <Input value={form.parent_name} onChange={e => set('parent_name', e.target.value)} placeholder="Full name" className={`mt-1 h-10 text-sm ${errors.parent_name ? 'border-red-400' : ''}`} />
-                {errors.parent_name && <p className="text-xs text-red-500 mt-0.5">{errors.parent_name}</p>}
-              </div>
-              <div>
-                <Label className="text-xs font-medium">Parent Phone <span className="text-red-500">*</span></Label>
-                <Input value={form.parent_phone} onChange={e => set('parent_phone', e.target.value)} placeholder="e.g. 019-9876543" className={`mt-1 h-10 text-sm ${errors.parent_phone ? 'border-red-400' : ''}`} />
-                {errors.parent_phone && <p className="text-xs text-red-500 mt-0.5">{errors.parent_phone}</p>}
-              </div>
-              <div className="sm:col-span-2">
-                <Label className="text-xs font-medium">Emergency Contact (name & phone) <span className="text-red-500">*</span></Label>
-                <Input value={form.emergency_contact} onChange={e => set('emergency_contact', e.target.value)} placeholder="e.g. Razak bin Ali - 019-5556677" className={`mt-1 h-10 text-sm ${errors.emergency_contact ? 'border-red-400' : ''}`} />
-                {errors.emergency_contact && <p className="text-xs text-red-500 mt-0.5">{errors.emergency_contact}</p>}
+
+              <div className="sm:col-span-2 space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Kontak / Talian Kecemasan Tambahan *</Label>
+                <Input 
+                  value={form.emergency_contact} 
+                  onChange={e => set('emergency_contact', e.target.value)} 
+                  placeholder="Cth: Abang Kandung (013-5551234)" 
+                  className={`h-10 text-xs ${errors.emergency_contact ? 'border-red-500 bg-red-50/30' : ''}`} 
+                />
+                {errors.emergency_contact && <p className="text-[11px] text-red-500">{errors.emergency_contact}</p>}
               </div>
             </div>
           )}
 
-          {/* Navigation */}
-          <div className="flex justify-between mt-6 pt-4 border-t border-border">
+          {/* ACTION BUTTONS */}
+          <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-6">
             {step > 1 ? (
-              <Button variant="outline" size="sm" onClick={() => setStep(s => s - 1)}>
-                <ChevronLeft className="w-4 h-4 mr-1" /> Back
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setStep(s => s - 1)}
+                className="gap-1.5 text-xs"
+              >
+                <ChevronLeft className="w-4 h-4" /> Kembali
               </Button>
             ) : <div />}
-            {step < STEPS.length ? (
-              <Button size="sm" onClick={nextStep} className="bg-[hsl(222,47%,21%)] hover:bg-[hsl(222,47%,28%)]">
-                Next <ChevronRight className="w-4 h-4 ml-1" />
+
+            {step < 3 ? (
+              <Button 
+                type="button" 
+                size="sm" 
+                onClick={nextStep}
+                className="bg-[#132644] hover:bg-[#1e385f] text-white gap-1.5 text-xs font-semibold shadow-sm"
+              >
+                Seterusnya <ChevronRight className="w-4 h-4" />
               </Button>
             ) : (
-              <Button size="sm" onClick={handleSubmit} disabled={saving} className="bg-[hsl(162,63%,41%)] hover:bg-[hsl(162,63%,35%)]">
-                {saving ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Saving...</> : <><CheckCircle2 className="w-4 h-4 mr-1.5" /> Complete Setup</>}
+              <Button 
+                type="button" 
+                size="sm" 
+                disabled={saving}
+                onClick={handleSubmit}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-xs font-semibold shadow-md px-5"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Menyimpan Profil...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" /> Lengkapkan Pendaftaran & Masuk
+                  </>
+                )}
               </Button>
             )}
           </div>
         </div>
+
+        {/* FOOTER NOTICE */}
+        <p className="text-center text-[11px] text-slate-400 mt-4">
+          Hak Cipta Terpelihara &bull; Kolej Kediaman Tun Fuad, Universiti Malaysia Sabah
+        </p>
       </div>
     </div>
   );

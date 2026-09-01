@@ -66,6 +66,15 @@ const MANUAL_CHAPTERS = [
           'Kebenaran Kamera: Wajib dibenarkan semasa kali pertama membuka modul imbasan kod QR E-Leave / Kehadiran Acara.',
           'Kebenaran Lokasi (GPS): Wajib dibenarkan untuk membolehkan sistem mengesahkan anda berada dalam lingkungan 1.0km kampus KKTF semasa pulang dari cuti.'
         ]
+      },
+      {
+        title: '1.5 Pendaftaran Kali Pertama Pelajar (First-Time Onboarding Wizard)',
+        steps: [
+          'Langkah 1 (Persediaan): Sediakan maklumat asas sebelum mula: No. Kad Pengenalan/Pasport, No. Matrik Pelajar UMS (cth: BP23110045), Fakulti & Program Pengajian, serta Nombor Telefon Waris/Ibu Bapa.',
+          'Langkah 2 (Log Masuk): Log masuk kali pertama menggunakan e-mel rasmi universiti. Sistem akan mengunci paparan dan memaparkan "Wisel Pendaftaran Residen Baharu (3 Langkah)".',
+          'Langkah 3 (Lengkapkan 3 Langkah): Isi Maklumat Peribadi → Maklumat Akademik UMS → Kontak Waris Kecemasan.',
+          'Langkah 4 (Selesai & Masuk): Tekan "Lengkapkan Pendaftaran & Masuk". Akaun anda akan aktif serta-merta dan anda dibawa terus ke Student Dashboard untuk menyemak bilik dan memohon cuti.'
+        ]
       }
     ]
   },
