@@ -8,7 +8,8 @@ import {
   CalendarCheck, Users, ClipboardList, BookOpen, Search, Printer, Smartphone,
   ShieldCheck, MapPin, QrCode, CheckCircle2, AlertCircle, HeartHandshake,
   Download, FileText, ChevronDown, ChevronUp, Share2, HelpCircle, Filter, Eye,
-  Camera, Compass, Bell, Lock, KeyRound, Wrench as WrenchIcon
+  Camera, Compass, Bell, Lock, KeyRound, Wrench as WrenchIcon, Award, Trophy,
+  PhoneCall, Phone, BadgeCheck, FileCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +22,8 @@ const ICONS = {
   Wrench, Building2, ClipboardCheck, Megaphone, CalendarDays, MessageSquare,
   MessagesSquare, FileBarChart, Star, UserCog, Sparkles, ScrollText,
   CalendarCheck, Users, ClipboardList, BookOpen, Smartphone, ShieldCheck,
-  MapPin, QrCode, HeartHandshake, KeyRound, Camera, Compass, Bell, HelpCircle
+  MapPin, QrCode, HeartHandshake, KeyRound, Camera, Compass, Bell, HelpCircle,
+  Award, Trophy, PhoneCall, Phone, BadgeCheck, FileCheck
 };
 
 // COMPREHENSIVE STEP-BY-STEP HANDBOOK CHAPTERS WITH ROLE FILTERING
@@ -275,18 +277,44 @@ const MANUAL_CHAPTERS = [
   {
     id: 'ch-merit-demerit',
     number: 'Bab 7',
-    title: 'Sistem Merit & Dimerit: Skala Pemarkahan, Lantikan AJK & Kelayakan Penempatan',
+    title: 'Sistem Merit, Lantikan AJK & Matriks Jawatankuasa Pemilih Residen (Pengetua & Felo)',
     roleLabel: 'Semua Pengguna (Pelajar, JAKMAS, Felo & Pentadbir)',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
-    icon: 'Award',
-    summary: 'Panduan lengkap pengumpulan merit aktiviti, tangga mata jawatan AJK JAKMAS, pemotongan dimerit disiplin, dan matriks pemilihan penempatan bilik sesi hadapan.',
+    icon: 'Trophy',
+    summary: 'Panduan lengkap pengumpulan merit aktiviti, tangga mata jawatan AJK JAKMAS, penapis blok jagaan felo, simulator kuota penempatan, dan semakan jawatankuasa pemilih residen.',
     sections: [
       {
-        title: '7.1 Matriks Kelayakan Penempatan Residen Sesi Hadapan',
-        content: 'Bagi memastikan penempatan bilik kolej dinilai secara adil dan telus, MyKKTF mengkategorikan penghuni kepada 3 Tier Penilaian: 🥇 Tier Emas (≥80 Mata & 0 Dimerit - Layak Dipertimbangkan: Keutamaan Panel), 🥈 Tier Perak (50-79 Mata - Senarai Menunggu: Kekosongan Bersyarat), dan 🥉 Tier Gangsa (<50 Mata - Belum Mencapai Syarat Minimum: Perlu Rayuan). Nota: Penawaran muktamad bilik tertakluk kepada kapasiti katil fizikal, kuota kolej, dan keputusan rasmi Jawatankuasa Pemilih Residen (Pengetua & Felo).'
+        title: '7.1 Matriks Jawatankuasa Pemilih Residen (Pengetua & Felo)',
+        content: 'Matriks Pemilih Residen (`/merit-demerit`) adalah papan kawalan strategi kolej untuk menentukan kelayakan penghunian bilik sesi hadapan secara adil dan telus. Sistem ini menggabungkan kehadiran aktiviti rasmi, markah pelantikan kepimpinan JAKMAS/AJK, inisiatif sukarelawan Dapur Siswa, atlit sukan kolej, serta penalti pemotongan dimerit tatatertib.'
       },
       {
-        title: '7.2 Tangga Skala Merit Lantikan AJK JAKMAS & Urusetia',
+        title: '7.2 Penapis Blok Jagaan Felo (1-Klik Fokus)',
+        steps: [
+          'Langkah 1: Felo/Warden log masuk ke dalam sistem.',
+          'Langkah 2: Pada bahagian atas jadual matriks, tekan butang "⭐ Blok Saya (Block B, Block G)".',
+          'Langkah 3: Sistem secara automatik menapis senarai hanya kepada mahasiswa yang mendiami blok di bawah kawal selia felo berkenaan.',
+          'Langkah 4: Felo boleh menyemak rekod setiap pelajar dan membuat pelarasan status pemohon.'
+        ]
+      },
+      {
+        title: '7.3 Simulator Kuota Katil & Kriteria Keutamaan Bertingkat (Priority Buckets)',
+        steps: [
+          'Langkah 1: Pengetua atau Pentadbir membuka tetingkap "Tetapan Kuota & Simulasi".',
+          'Langkah 2: Masukkan had kuota fizikal katil (Lelaki & Perempuan).',
+          'Langkah 3: Tetapkan hierarki kriteria keutamaan: Tier 1 (EXCO JAKMAS & Ketua Blok), Tier 2 (Sukarelawan Dapur Siswa & Atlit), Tier 3 (Pengarah, Setiausaha & AJK Program), dan Sekatan Automatik Dimerit Disiplin.',
+          'Langkah 4: Tekan "⚡ Jalankan Simulasi Automatik". Sistem akan menjana status Draf Simulasi Sedang Disemak mengikut urutan merit merit bersih tanpa mengubah keputusan muktamad secara melulu.'
+        ]
+      },
+      {
+        title: '7.4 Semakan Jawatankuasa Pemilih & Pelarasan Budi Bicara Felo',
+        steps: [
+          'Langkah 1: Felo dan Pengetua menyemak setiap baris calon dalam jadual matriks.',
+          'Langkah 2: Pada lajur "Pelarasan Panel", felo boleh menggunakan budi bicara untuk melaraskan status individu: "✓ Layak (Budi Bicara)", "⏳ Senarai Menunggu", atau "✕ Tolak Permohonan".',
+          'Langkah 3: Selepas persetujuan penuh mesyuarat jawatankuasa dicapai, Pengetua menekan butang "🏛️ Muktamadkan Panel".'
+        ]
+      },
+      {
+        title: '7.5 Skala Markah Lantikan AJK JAKMAS & Urusetia',
         steps: [
           'Pengarah / Timbalan Pengarah Program Kolej: +35 Mata',
           'Setiausaha / Bendahari Acara: +30 Mata',
@@ -297,27 +325,118 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '7.3 Aliran Tadbir Urus: Felo Penyelaras Program & Lantikan AJK JAKMAS',
+        title: '7.6 Kategori Potongan Dimerit Disiplin & Jam Malam',
+        content: 'Pemotongan markah dikenakan oleh felo bertugas: Lewat Jam Malam / Curfew (-10 Mata), Membawa Pelawat Tanpa Kebenaran (-20 Mata), Merokok / Vape (-30 Mata), Bising Waktu Senyap (-10 Mata), dan Bilik Kotor Semasa Spot-Check (-10 Mata).'
+      }
+    ]
+  },
+  {
+    id: 'ch-transcript',
+    number: 'Bab 8',
+    title: 'Transkrip Sahsiah & Merit Rasmi Kolej (Print & PDF-Ready dengan Kod QR)',
+    roleLabel: 'Semua Pengguna',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
+    icon: 'Award',
+    summary: 'Pengenalan kepada dokumen rasmi Transkrip Sahsiah & Merit KKTF UMS, kepala surat berlogo rasmi, rumusan markah, perakuan Pengetua, dan kod QR verifikasi sijil.',
+    sections: [
+      {
+        title: '8.1 Apa itu Transkrip Sahsiah & Merit KKTF?',
+        content: 'Transkrip Sahsiah & Rekod Merit Residen ialah dokumen rasmi universiti yang memperakui penglibatan kokurikulum, aktiviti pembangunan sahsiah, jawatan kepimpinan, dan rekod tatatertib mahasiswa sepanjang menetap di Kolej Kediaman Tun Fuad, Universiti Malaysia Sabah.'
+      },
+      {
+        title: '8.2 Ciri Keselamatan & Pengesahan Digital Pengetua',
         steps: [
-          'Langkah 1 (Cadangan Program & Felo): Penganjur/JAKMAS mencipta acara di modul Events dan mencadangkan nama Felo Penyelaras Program.',
-          'Langkah 2 (Kelulusan Pengetua): Pengetua/Pentadbir Kolej menyemak dan menekan "Luluskan Felo Penyelaras".',
-          'Langkah 3 (Kunci Masuk AJK oleh JAKMAS): EXCO JAKMAS menekan butang pintas "👥 AJK & Merit" pada kad acara untuk mendaftarkan senarai AJK (Pengarah, Setiausaha, Biro, Urusetia).',
-          'Langkah 4 (Pengesahan Felo Penyelaras): Felo Penyelaras yang sah menyemak senarai dan menekan "Sahkan & Kreditkan Merit AJK" untuk memasukkan mata merit ke dalam profil pelajar secara automatik.'
+          'Letterhead Rasmi: Gandingan Logo Universiti Malaysia Sabah (UMS) di sebelah kiri dan Logo Kolej Kediaman Tun Fuad (KKTF) di sebelah kanan berserta Nombor Siri Rujukan Rasmi Kolej.',
+          'Penilaian Bertingkat (Tiering): Pengiktirafan 🥇 Tier Emas (≥80 Mata), 🥈 Tier Perak (50-79 Mata), dan 🥉 Tier Gangsa (<50 Mata).',
+          'Perakuan Rasmi Pengetua: Ditandatangani secara digital oleh PROFESOR MADYA TS. DR. NUR FADILAH BINTI DARMANSAH, Pengetua Kolej Kediaman Tun Fuad (Profesor Madya DS14, Fakulti Kejuruteraan, Universiti Malaysia Sabah).',
+          'Kod QR Pengesahan Ketulenan Sijil: Mengandungi pautan pengesahan keselamatan terus ke portal MyKKTF bagi rujukan majikan temuduga kerja atau penaja biasiswa.'
         ]
       },
       {
-        title: '7.4 Kategori Potongan Dimerit Disiplin & Keselamatan',
-        content: 'Pemotongan markah dikenakan bagi pelanggaran peraturan: Lewat Jam Malam / Curfew (-10 Mata), Membawa Pelawat Tanpa Kebenaran (-20 Mata), Merokok / Vape (-30 Mata), Bising Waktu Senyap (-10 Mata), dan Bilik Kotor Semasa Spot-Check (-10 Mata).'
+        title: '8.3 Cara Menjana & Mencetak Transkrip (Format A4 PDF)',
+        steps: [
+          'Langkah 1 (Pelajar): Buka halaman "My Profile" atau tab "Buku Log Merit Saya" pada menu Merit & Dimerit.',
+          'Langkah 2: Tekan butang "📄 Jana & Cetak Transkrip Sahsiah & Merit Rasmi KKTF (PDF)".',
+          'Langkah 3: Tetingkap dokumen beresolusi tinggi akan dipaparkan berserta jadual perincian semua program dan peranan AJK anda.',
+          'Langkah 4: Tekan butang "Cetak / Muat Turun PDF" untuk mencetak terus atau menyimpan sebagai fail PDF rasmi pada telefon/komputer anda.'
+        ]
+      }
+    ]
+  },
+  {
+    id: 'ch-contact',
+    number: 'Bab 9',
+    title: 'Hab Perhubungan & Talian Bantuan Hotline 24 Jam KKTF (/contact)',
+    roleLabel: 'Semua Pengguna',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
+    icon: 'PhoneCall',
+    summary: 'Saluran perhubungan rasmi: Felo Blok Jagaan Anda (Templat WhatsApp 1-Klik), Pos Jaga 24 Jam, Ambulans PKU UMS, Pejabat Pentadbiran dan Borang Bantuan Sehenti.',
+    sections: [
+      {
+        title: '9.1 Hab Perhubungan Sehenti (/contact)',
+        content: 'Bagi memastikan kebajikan dan keselamatan mahasiswa sentiasa terpelihara, MyKKTF menyediakan Hab Perhubungan & Hotline 24 Jam yang memusatkan semua saluran bantuan penting universiti dalam satu skrin.'
       },
       {
-        title: '7.5 1-Klik Eksport Format SMP UMS (Untuk Jawatankuasa Pemilih)',
-        content: 'Pentadbir kolej boleh memuat turun fail CSV/Excel sedia format Sistem Maklumat Pelajar (SMP) UMS dengan menekan butang "1-Klik Eksport Format SMP UMS" untuk terus dimuat naik ke portal pusat universiti tanpa perlu menaip manual.'
+        title: '9.2 Kad Pintar Felo Blok Jagaan Mahasiswa (WhatsApp 1-Klik)',
+        steps: [
+          'Sistem secara pintar mengesan blok kediaman pelajar yang sedang log masuk (contoh: Pelajar Blok G ➔ memaparkan maklumat Felo Blok G, Puan Norazilah binti Tuman).',
+          'Tekan butang "💬 WhatsApp Felo (1-Klik)": Aplikasi membuka WhatsApp dengan templat mesej rasmi yang siap diisi dengan Nama Penuh, No. Matrik, Blok dan No. Bilik pelajar.',
+          'Pelajar juga boleh menekan "Chat Dalam App" untuk berhubung terus melalui saluran sembang dalaman kolej.'
+        ]
+      },
+      {
+        title: '9.3 Talian Kecemasan & Hotline 24 Jam',
+        steps: [
+          '🚨 Pondok Keselamatan KKTF (Pos Jaga 24 Jam): Panggilan telefon terus dan WhatsApp kecemasan kepada pengawal bertugas di pos masuk.',
+          '🚑 Pusat Kesihatan Universiti (PKU UMS): Talian ambulans dan rawatan kecemasan kampus 24 jam.',
+          '✉️ Kaunter Pejabat Pentadbiran KKTF: E-mel rasmi kktf@ums.edu.my dan waktu operasi perkhidmatan kaunter pentadbiran.',
+          '💜 Biro Kebajikan JAKMAS: Saluran aduan kebajikan pelajar dan inisiatif Dapur Siswa.'
+        ]
+      },
+      {
+        title: '9.4 Borang Pertanyaan & Aduan Sehenti',
+        content: 'Mahasiswa boleh mengisi borang terus dalam talian dengan memilih kategori (Kebajikan, Fasiliti, E-Leave, Merit, Pertanyaan Umum) untuk dihantar terus ke peti masuk urus setia pentadbiran kolej.'
+      }
+    ]
+  },
+  {
+    id: 'ch-principal',
+    number: 'Bab 10',
+    title: 'Suite Eksekutif Pengetua & Matriks Tadbir Urus Felo Kolej',
+    roleLabel: 'Pengetua & Pentadbir Utama Sahaja',
+    allowedRoles: ['principal', 'super_admin', 'college_admin'],
+    icon: 'ShieldCheck',
+    summary: 'Pusat kawalan strategik Pengetua Kolej: pengesahan lantikan Felo Penyelaras Acara, kawalan penugasan blok felo berpusat, dan KPI masa nyata pangkalan data.',
+    sections: [
+      {
+        title: '10.1 Papan Pemuka Suite Eksekutif Pengetua',
+        content: 'Suite Eksekutif Pengetua di papan pemuka pentadbir menyediakan visualisasi berprestij tinggi khusus untuk Pengurus Eksekutif Kolej (Puan Nurfadilah Darmansah). Papan ini menggabungkan tindakan berkepentingan tinggi dengan pemantauan strategik kolej.'
+      },
+      {
+        title: '10.2 Pengesahan Lantikan Felo Penyelaras Program (1-Klik Kelulusan)',
+        steps: [
+          'Langkah 1: Acara yang dicadangkan oleh JAKMAS dengan cadangan nama Felo Penyelaras akan muncul di Pusat Tindakan Eksekutif Pengetua.',
+          'Langkah 2: Pengetua menyemak nama program dan felo yang dicadangkan.',
+          'Langkah 3: Tekan butang "Sahkan Lantikan (Pengetua)". Felo berkenaan diberi kuasa rasmi untuk mengesahkan dan mengkreditkan mata merit AJK program tersebut.'
+        ]
+      },
+      {
+        title: '10.3 Matriks Tadbir Urus Felo & Kawalan Blok Berpusat',
+        steps: [
+          'Penetapan Blok Berpusat: Pengetua dan Ketua Pentadbiran menetapkan blok kawalan felo di modul Block Assignment (`/block-assignment`).',
+          'Paparan Profil Felo: Di halaman My Profile, felo mempunyai paparan baca-sahaja (Read-Only) bagi blok jagaan mereka demi mengekalkan integriti arahan pentadbiran.',
+          'Jadual Komunikasi Felo: Pengetua boleh menyemak senarai lengkap semua felo, e-mel, blok jagaan, dan pautan WhatsApp terus pegawai.'
+        ]
+      },
+      {
+        title: '10.4 Indeks Prestasi Strategik Kolej (KPI Pulse Dinamik Sebenar)',
+        content: 'Semua angka pada KPI Pengetua dijana 100% secara masa nyata dari pangkalan data: Kadar Penghunian Katil (%), Program Aktif & Kehadiran Mahasiswa, Sukarelawan Kebajikan Dapur Siswa Berdaftar, dan Demografi Jantina Siswa/Siswi.'
       }
     ]
   },
   {
     id: 'ch-welfare',
-    number: 'Bab 8',
+    number: 'Bab 11',
     title: 'Panduan Pelajar: Suara Mahasiswa & Whistleblowing Sulit',
     roleLabel: 'Pelajar',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
@@ -325,11 +444,11 @@ const MANUAL_CHAPTERS = [
     summary: 'Saluran rasmi menyuarakan isu kebajikan, keselesaan rakan sebilik, perkhidmatan kafeteria, dan aduan sulit tanpa nama.',
     sections: [
       {
-        title: '7.1 Kategori Aduan Kebajikan',
+        title: '11.1 Kategori Aduan Kebajikan',
         content: 'Modul Feedback & Welfare diasingkan daripada kerosakan fizikal. Gunakan saluran ini untuk: Isu Kebajikan & Keselamatan Residen, Rakan Sebilik & Waktu Senyap (Quiet Hours), Kualiti Makanan & Kebersihan Kafeteria, Layanan Kaunter Staf/Penyelia, dan Cadangan Program/Kemudahan Baharu.'
       },
       {
-        title: '7.2 Langkah Menghantar Aduan Sulit (Anonymous Whistleblower)',
+        title: '11.2 Langkah Menghantar Aduan Sulit (Anonymous Whistleblower)',
         steps: [
           'Langkah 1: Buka modul "Feedback & Welfare" → Tekan "Hantar Maklum Balas / Aduan".',
           'Langkah 2: Pilih Kategori yang bersesuaian.',
@@ -342,7 +461,7 @@ const MANUAL_CHAPTERS = [
   },
   {
     id: 'ch-facilities-events',
-    number: 'Bab 8',
+    number: 'Bab 12',
     title: 'Panduan Pelajar: Tempahan Fasiliti, Acara Kolej & Kehadiran QR',
     roleLabel: 'Pelajar & JAKMAS',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
@@ -350,7 +469,7 @@ const MANUAL_CHAPTERS = [
     summary: 'Panduan menempah dewan dan gelanggang kolej, mendaftar aktiviti anjuran JAKMAS, serta mengimbas kod QR kehadiran merit.',
     sections: [
       {
-        title: '8.1 Langkah Menempah Kemudahan Kolej (Facilities)',
+        title: '12.1 Langkah Menempah Kemudahan Kolej (Facilities)',
         steps: [
           'Langkah 1: Buka modul "Facilities" pada menu sisi.',
           'Langkah 2: Pilih fasiliti yang diingini: Dewan Serbaguna, Bilik Diskusi/Seminar, Gelanggang Futsal, atau Gelanggang Badminton.',
@@ -359,7 +478,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '8.2 Langkah Mendaftar Acara & Mengimbas Kehadiran Kod QR',
+        title: '12.2 Langkah Mendaftar Acara & Mengimbas Kehadiran Kod QR',
         steps: [
           'Langkah 1: Buka modul "Events" untuk melihat senarai aktiviti anjuran JAKMAS dan pihak kolej.',
           'Langkah 2: Tekan "Daftar Acara" untuk menempah tempat anda sebelum kuota penuh.',
@@ -372,7 +491,7 @@ const MANUAL_CHAPTERS = [
   },
   {
     id: 'ch-ai',
-    number: 'Bab 9',
+    number: 'Bab 13',
     title: 'KKTF Assistant AI: Panduan Pembantu Maya Pintar Kolej 24/7',
     roleLabel: 'Semua Pengguna',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
@@ -380,7 +499,7 @@ const MANUAL_CHAPTERS = [
     summary: 'Cara memanfaatkan pembantu kecerdasan buatan untuk mendapatkan rujukan peraturan, panduan kolej, dan bantuan segera.',
     sections: [
       {
-        title: '9.1 Berinteraksi dengan KKTF Assistant',
+        title: '13.1 Berinteraksi dengan KKTF Assistant',
         steps: [
           'Langkah 1: Tekan butang ikon robot biru di penjuru kanan bawah pada mana-mana halaman aplikasi.',
           'Langkah 2: Taip soalan anda dalam Bahasa Melayu atau Bahasa Inggeris ringkas.',
@@ -392,7 +511,7 @@ const MANUAL_CHAPTERS = [
   },
   {
     id: 'ch-warden',
-    number: 'Bab 10',
+    number: 'Bab 14',
     title: 'Panduan Felo & Warden: Kelulusan Cuti, Poster QR A4 & Direktori Blok',
     roleLabel: 'Warden & Pentadbir Sahaja',
     allowedRoles: ['warden', 'staff', 'college_admin', 'super_admin'],
@@ -400,11 +519,11 @@ const MANUAL_CHAPTERS = [
     summary: 'Aliran kerja khusus felo: kelulusan cuti blok, pemantauan status terlewat (overdue), cetakan poster QR rasmi, dan semakan residen (view-only).',
     sections: [
       {
-        title: '10.1 Skop Kuasa & Privasi Mengikut Blok',
+        title: '14.1 Skop Kuasa & Privasi Mengikut Blok',
         content: 'Felo/Warden hanya boleh melihat permohonan cuti, laporan kerosakan, dan rekod residen bagi blok yang ditugaskan kepada mereka di bawah entiti WardenBlock (cth: Felo Blok G hanya melihat residen Blok G).'
       },
       {
-        title: '10.2 Langkah Memproses Kelulusan E-Leave',
+        title: '14.2 Langkah Memproses Kelulusan E-Leave',
         steps: [
           'Langkah 1: Buka modul "E-Leave" atau "Leave Monitor".',
           'Langkah 2: Semak senarai permohonan berstatus "Pending Approval".',
@@ -413,7 +532,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '10.3 Langkah Menjana & Mencetak Poster Kod QR A4 Rasmi',
+        title: '14.3 Langkah Menjana & Mencetak Poster Kod QR A4 Rasmi',
         steps: [
           'Langkah 1: Di modul E-Leave, tekan butang "Poster QR Blok".',
           'Langkah 2: Pilih blok jagaan anda daripada menu pilihan lokasi (cth: Blok G).',
@@ -423,7 +542,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '10.4 Langkah Pengesahan Kepulangan Manual (Rondaan Blok)',
+        title: '14.4 Langkah Pengesahan Kepulangan Manual (Rondaan Blok)',
         steps: [
           'Langkah 1: Jika terdapat pelajar yang terlupa mengimbas atau kehabisan bateri, buka kad permohonan pelajar tersebut.',
           'Langkah 2: Tekan butang "Sahkan Kepulangan Pelajar (Manual Clearance)".',
@@ -431,14 +550,14 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '10.5 Direktori Residen (Akses Paparan Sahaja / View-Only)',
+        title: '14.5 Direktori Residen (Akses Paparan Sahaja / View-Only)',
         content: 'Warden boleh mencari nama, no. bilik, dan kontak waris kecemasan pelajar di halaman Student Management melalui butang mata (👁️). Butang Tambah, Edit, dan Padam pelajar disembunyikan sepenuhnya demi mengekalkan integriti rekod pendaftaran kolej.'
       }
     ]
   },
   {
     id: 'ch-jakmas',
-    number: 'Bab 11',
+    number: 'Bab 15',
     title: 'Panduan EXCO JAKMAS: Pengurusan Acara, Notis & Portfolio',
     roleLabel: 'JAKMAS & Pentadbir Sahaja',
     allowedRoles: ['jakmas', 'staff', 'college_admin', 'super_admin'],
@@ -446,7 +565,7 @@ const MANUAL_CHAPTERS = [
     summary: 'Panduan barisan EXCO Jawatankuasa Kebajikan Mahasiswa mengurus aktiviti kolej, draf pengumuman rasmi, dan kemajuan portfolio.',
     sections: [
       {
-        title: '11.1 Langkah Mencipta Program / Acara Kolej',
+        title: '15.1 Langkah Mencipta Program / Acara Kolej',
         steps: [
           'Langkah 1: Buka modul "Events" → Tekan "Tambah Acara".',
           'Langkah 2: Masukkan Nama Acara, Tarikh, Masa Mula/Tamat, Tempat (Venue), dan Had Peserta.',
@@ -455,7 +574,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '11.2 Langkah Merangka Draf Pengumuman Rasmi',
+        title: '15.2 Langkah Merangka Draf Pengumuman Rasmi',
         steps: [
           'Langkah 1: Buka modul "Announcements" → Tekan "Draf Pengumuman".',
           'Langkah 2: Pilih Kategori: Acara, Sukan, Aktiviti Pelajar, atau Umum.',
@@ -464,7 +583,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '11.3 Langkah Mengemaskini Tugasan Portfolio (JAKMAS Tasks)',
+        title: '15.3 Langkah Mengemaskini Tugasan Portfolio (JAKMAS Tasks)',
         steps: [
           'Langkah 1: Buka modul "My JAKMAS Tasks".',
           'Langkah 2: Semak tugasan yang diagihkan oleh penasihat kolej/pentadbir.',
@@ -476,7 +595,7 @@ const MANUAL_CHAPTERS = [
   },
   {
     id: 'ch-admin',
-    number: 'Bab 12',
+    number: 'Bab 16',
     title: 'Panduan Pentadbir & Staf: Penyelarasan Bilik, AI Knowledge & Audit',
     roleLabel: 'Pentadbir Utama & Staf Sahaja',
     allowedRoles: ['staff', 'college_admin', 'super_admin'],
@@ -484,7 +603,7 @@ const MANUAL_CHAPTERS = [
     summary: 'Pengurusan inventori bilik, penyelarasan kapasiti katil, pelantikan EXCO, muat naik dokumen AI, dan Audit Log forensik.',
     sections: [
       {
-        title: '12.1 Penyelarasan Kapasiti Bilik & Katil (Room Sync)',
+        title: '16.1 Penyelarasan Kapasiti Bilik & Katil (Room Sync)',
         steps: [
           'Langkah 1: Buka modul "Rooms" (Pengurusan Bilik).',
           'Langkah 2: Klik butang "Penyelarasan Kapasiti (Sync Beds)".',
@@ -492,7 +611,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '12.2 Pangkalan Pengetahuan AI (AI Knowledge Base) & Muat Naik Dokumen',
+        title: '16.2 Pangkalan Pengetahuan AI (AI Knowledge Base) & Muat Naik Dokumen',
         steps: [
           'Langkah 1: Buka modul "AI Knowledge" (Pengetahuan AI).',
           'Langkah 2: Tekan butang "Muat Naik Dokumen" untuk mengimport fail dokumen peraturan atau SOP kemasukan (.txt, .doc, .md).',
@@ -501,18 +620,18 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '12.3 Pengurusan Pelantikan EXCO JAKMAS',
+        title: '16.3 Pengurusan Pelantikan EXCO JAKMAS',
         content: 'Pada modul "JAKMAS Management", pentadbir boleh melantik pelajar menjadi barisan pimpinan kolej, menetapkan jawatan (Yang Dipertua, Setiausaha, Bendahari, EXCO Kebajikan, dll), serta mengagihkan tugasan mengikut portfolio.'
       },
       {
-        title: '12.4 Jejak Audit Log Forensik Data (Kotak Hitam Keselamatan)',
+        title: '16.4 Jejak Audit Log Forensik Data (Kotak Hitam Keselamatan)',
         content: 'Buka modul "Audit Log" untuk menyiasat sebarang aktiviti penambahan, kemaskini, atau pemadaman data merentas semua modul. Setiap tindakan direkodkan dengan identiti pengguna dan cap masa milisaat yang tidak boleh dimanipulasi.'
       }
     ]
   },
   {
     id: 'ch-faq',
-    number: 'Bab 13',
+    number: 'Bab 17',
     title: 'Soalan Lazim (FAQ) & Penyelesaian Masalah (Troubleshooting)',
     roleLabel: 'Semua Pengguna',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
@@ -533,7 +652,7 @@ const MANUAL_CHAPTERS = [
       },
       {
         title: 'S4: Siapa yang perlu saya hubungi jika menghadapi masalah akaun?',
-        content: 'Penyelesaian: Sila hubungi Kaunter Pentadbiran Kolej Kediaman Tun Fuad (UMS) pada waktu pejabat atau ajukan soalan anda terus kepada KKTF Assistant AI.'
+        content: 'Penyelesaian: Sila hubungi Kaunter Pentadbiran Kolej Kediaman Tun Fuad (UMS) pada waktu pejabat atau ajukan soalan anda terus melalui modul Hab Perhubungan (/contact) atau KKTF Assistant AI.'
       }
     ]
   }
@@ -646,7 +765,68 @@ const ALL_SLIDES = [
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
   },
   { 
-    kind: 'section', label: 'Modul 4', title: 'Tadbir Urus & Audit Forensik', icon: 'ScrollText',
+    kind: 'section', label: 'Modul 5', title: 'Suite Eksekutif Pengetua & Matriks Pemilih Residen', icon: 'Trophy',
+    allowedRoles: ['principal', 'super_admin', 'college_admin', 'warden', 'staff']
+  },
+  {
+    kind: 'feature', icon: 'ShieldCheck', tone: 'indigo',
+    title: 'Suite Eksekutif Pengetua & Tadbir Urus Felo',
+    tagline: 'Pusat kelulusan lantikan felo acara, kawalan blok berpusat & KPI dinamik.',
+    does: [
+      'Pusat Tindakan Eksekutif: 1-klik sahkan permohonan pelantikan Felo Penyelaras Program',
+      'Matriks Tadbir Urus Felo: Kawalan penugasan blok berpusat & paparan read-only bagi felo',
+      'Indeks Prestasi Strategik (KPI Pulse): Kadar penghunian, merit, kebajikan & demografi 100% masa nyata',
+      'Papan pemuka eksklusif direka khas untuk Pengurus Eksekutif Kolej (Puan Nurfadilah Darmansah)'
+    ],
+    roles: ['Pengetua', 'Pentadbir Utama'],
+    allowedRoles: ['principal', 'super_admin', 'college_admin']
+  },
+  {
+    kind: 'feature', icon: 'Trophy', tone: 'amber',
+    title: 'Matriks Pemilihan Residen & Simulator Kuota SMP',
+    tagline: 'Simulator agihan kuota bertingkat & pelarasan budi bicara jawatankuasa pemilih.',
+    does: [
+      'Penapis Blok Jagaan Felo: 1-klik fokus kepada mahasiswa dalam blok kawalan felo bertugas',
+      'Simulator Kuota Bertingkat: Agihan katil mengikut Tier 1 (JAKMAS), Tier 2 (Dapur Siswa), Tier 3 (AJK) & Merit',
+      'Sekatan Tatatertib: Penolakan automatik calon yang mempunyai rekod dimerit jam malam/tatatertib',
+      'Pelarasan Budi Bicara Felo (Layak/Menunggu/Tolak) sebelum dimuktamadkan rasmi oleh Pengetua Kolej'
+    ],
+    roles: ['Pengetua', 'Felo', 'Admin'],
+    allowedRoles: ['principal', 'super_admin', 'college_admin', 'warden']
+  },
+  { 
+    kind: 'section', label: 'Modul 6', title: 'Transkrip Sahsiah Digital & Hab Perhubungan 24 Jam', icon: 'Award',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas']
+  },
+  {
+    kind: 'feature', icon: 'Award', tone: 'purple',
+    title: 'Transkrip Sahsiah & Merit Rasmi Kolej (PDF)',
+    tagline: 'Format cetakan A4 rasmi dengan kod QR pengesahan ketulenan & perakuan Pengetua.',
+    does: [
+      'Kepala surat rasmi dengan gandingan Logo Universiti Malaysia Sabah (UMS) & Logo KKTF',
+      'Rumusan markah aktiviti, lantikan AJK kepimpinan, penalti dimerit & skor bersih sahsiah',
+      'Pengiktirafan rasmi bertingkat: 🥇 Tier Emas (≥80), 🥈 Tier Perak (50-79), 🥉 Tier Gangsa (<50)',
+      'Perakuan rasmi ditandatangani oleh PROF. MADYA TS. DR. NUR FADILAH BINTI DARMANSAH',
+      'Kod QR Pengesahan Keselamatan digital yang boleh diimbas oleh majikan temuduga'
+    ],
+    roles: ['Semua Pengguna'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas']
+  },
+  {
+    kind: 'feature', icon: 'PhoneCall', tone: 'emerald',
+    title: 'Hab Perhubungan & Hotline 24 Jam KKTF (/contact)',
+    tagline: 'Saluran bantuan kecemasan sehenti & templat WhatsApp 1-klik felo blok.',
+    does: [
+      'Kad Pintar Felo Blok: Pengesanan automatik blok residen berserta pautan templat WhatsApp 1-klik',
+      'Hotline Pos Jaga 24 Jam: Bantuan kecemasan terus kepada pengawal keselamatan bertugas',
+      'Pusat Kesihatan UMS (PKU): Talian rawatan kecemasan & panggilan ambulans kampus 24 jam',
+      'Borang Maklum Balas Sehenti: Hantar pertanyaan dan aduan kebajikan terus ke peti urus setia'
+    ],
+    roles: ['Semua Pengguna'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas']
+  },
+  { 
+    kind: 'section', label: 'Modul 7', title: 'Tadbir Urus & Audit Forensik', icon: 'ScrollText',
     allowedRoles: ['staff', 'college_admin', 'super_admin']
   },
   {
