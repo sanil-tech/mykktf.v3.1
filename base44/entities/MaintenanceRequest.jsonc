@@ -52,6 +52,16 @@
     "remarks": {
       "type": "string"
     },
+    "completion_remarks": {
+      "type": "string"
+    },
+    "completion_photo": {
+      "type": "string",
+      "format": "uri"
+    },
+    "verified_by": {
+      "type": "string"
+    },
     "location_type": {
       "type": "string",
       "enum": [

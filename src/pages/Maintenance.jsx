@@ -21,7 +21,10 @@ import {
   ArrowRight, 
   AlertCircle, 
   FileEdit,
-  Sparkles
+  Sparkles,
+  CheckCircle,
+  ThumbsUp,
+  Image as ImageIcon
 } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 import { toast } from 'sonner';
@@ -65,6 +68,13 @@ export default function Maintenance() {
   const [selectedReqForRef, setSelectedReqForRef] = useState(null);
   const [inputRefNumber, setInputRefNumber] = useState('');
   const [updatingRef, setUpdatingRef] = useState(false);
+
+  // Student Self-Verification Modal States
+  const [completeModalOpen, setCompleteModalOpen] = useState(false);
+  const [selectedReqForComplete, setSelectedReqForComplete] = useState(null);
+  const [completeRemarks, setCompleteRemarks] = useState('Kerosakan telah dibaiki dan diuji dengan baik oleh juruteknik JPP.');
+  const [completePhoto, setCompletePhoto] = useState(null);
+  const [completing, setCompleting] = useState(false);
 
   // New Request Form
   const [form, setForm] = useState({
@@ -136,6 +146,25 @@ export default function Maintenance() {
     const reader = new FileReader();
     reader.onload = (event) => {
       setForm(f => ({ ...f, photo: event.target.result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCompletePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const validation = validateAttachment(file);
+    if (!validation.valid) {
+      toast.error(validation.error);
+      e.target.value = '';
+      setCompletePhoto(null);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setCompletePhoto(event.target.result);
     };
     reader.readAsDataURL(file);
   };
@@ -222,6 +251,43 @@ export default function Maintenance() {
     }
   }
 
+  // STUDENT SELF-CONFIRMATION OF COMPLETION
+  async function handleConfirmCompletion() {
+    if (!selectedReqForComplete) return;
+
+    setCompleting(true);
+    try {
+      const verifierName = myStudent?.full_name || currentUser?.full_name || currentUser?.email;
+      const todayDate = new Date().toISOString().split('T')[0];
+
+      await base44.entities.MaintenanceRequest.update(selectedReqForComplete.id, {
+        status: 'Completed',
+        completion_date: todayDate,
+        completion_remarks: completeRemarks.trim() || 'Pembaikan telah disahkan siap oleh residen.',
+        completion_photo: completePhoto || null,
+        verified_by: isStaff ? `Staf/Warden: ${verifierName}` : `Residen: ${verifierName}`
+      });
+
+      await logAudit(currentUser, 'MAINTENANCE_VERIFIED_COMPLETED', 'Maintenance', {
+        id: selectedReqForComplete.id,
+        verified_by: verifierName,
+        remarks: completeRemarks
+      });
+
+      toast.success('Pengesahan pembaikan berjaya direkodkan! Terima kasih atas kerjasama anda.');
+      setCompleteModalOpen(false);
+      setSelectedReqForComplete(null);
+      setCompleteRemarks('Kerosakan telah dibaiki dan diuji dengan baik oleh juruteknik JPP.');
+      setCompletePhoto(null);
+      init();
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal merekod pengesahan pembaikan');
+    } finally {
+      setCompleting(false);
+    }
+  }
+
   async function updateStatus(id, status) {
     await base44.entities.MaintenanceRequest.update(id, { status });
     await logAudit(currentUser, 'MAINTENANCE_UPDATED', 'Maintenance', { id, status });
@@ -266,14 +332,14 @@ export default function Maintenance() {
               <span className="text-xs text-indigo-200 font-mono">aset.ums.edu.my/myserv</span>
             </div>
             <h3 className="text-sm sm:text-base font-heading font-bold text-white">
-              3 Langkah Mudah Laporan Kerosakan Kolej
+              3 Langkah Mudah Laporan Kerosakan & Pengesahan Pembaikan
             </h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs w-full lg:w-auto">
             <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">1</span>
-              <span>Isi maklumat di MyKKTF</span>
+              <span>Isi info di MyKKTF</span>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">2</span>
@@ -281,7 +347,7 @@ export default function Maintenance() {
             </div>
             <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-emerald-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">3</span>
-              <span>Kemaskini No. Rujukan (REQ)</span>
+              <span>Kemas No. REQ & Sahkan</span>
             </div>
           </div>
         </div>
@@ -315,8 +381,10 @@ export default function Maintenance() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(r => {
             const hasRef = Boolean(r.myserv_ticket_no);
+            const isCompleted = r.status === 'Completed';
+
             return (
-              <div key={r.id} className="bg-card border border-border rounded-2xl p-4 shadow-sm hover:border-indigo-200 transition-all flex flex-col justify-between space-y-3">
+              <div key={r.id} className={`bg-card border rounded-2xl p-4 shadow-sm transition-all flex flex-col justify-between space-y-3 ${isCompleted ? 'border-emerald-200 bg-emerald-50/10' : 'border-border hover:border-indigo-200'}`}>
                 <div>
                   {/* Top Location & Status Header */}
                   <div className="flex items-start justify-between gap-2 mb-2">
@@ -411,28 +479,85 @@ export default function Maintenance() {
                       </div>
                     )}
                   </div>
+
+                  {/* IF COMPLETED: DISPLAY VERIFICATION DETAILS */}
+                  {isCompleted && (
+                    <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5 text-xs text-emerald-950">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold flex items-center gap-1 text-emerald-800">
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Pembaikan Selesai
+                        </span>
+                        {r.completion_date && (
+                          <span className="text-[11px] text-emerald-700 font-medium">{r.completion_date}</span>
+                        )}
+                      </div>
+                      {r.verified_by && (
+                        <p className="text-[11px] text-emerald-800">
+                          Disahkan oleh: <span className="font-semibold">{r.verified_by}</span>
+                        </p>
+                      )}
+                      {r.completion_remarks && (
+                        <p className="text-[11px] text-emerald-900 bg-white/70 p-2 rounded-lg border border-emerald-200/60 mt-1 italic">
+                          "{r.completion_remarks}"
+                        </p>
+                      )}
+                      {r.completion_photo && (
+                        <div className="mt-2 rounded-lg overflow-hidden border border-emerald-200">
+                          <img src={r.completion_photo} alt="Foto Selepas Pembaikan" className="w-full h-24 object-cover" />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                {/* Staff Actions */}
-                {isStaff && (
-                  <div className="pt-2 border-t border-border flex gap-1.5 flex-wrap">
-                    {r.status === 'Submitted' && (
-                      <Button size="sm" variant="outline" className="text-xs h-7 text-blue-700 border-blue-200 hover:bg-blue-50" onClick={() => updateStatus(r.id, 'Assigned')}>
-                        Tugaskan Staf
-                      </Button>
-                    )}
-                    {r.status === 'Assigned' && (
-                      <Button size="sm" variant="outline" className="text-xs h-7 text-amber-700 border-amber-200 hover:bg-amber-50" onClick={() => updateStatus(r.id, 'In Progress')}>
-                        Mula Kerja
-                      </Button>
-                    )}
-                    {r.status === 'In Progress' && (
-                      <Button size="sm" className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => updateStatus(r.id, 'Completed')}>
-                        <CheckCircle2 className="w-3 h-3 mr-1" /> Selesai
-                      </Button>
-                    )}
-                  </div>
-                )}
+                {/* BOTTOM ACTION BUTTONS */}
+                <div className="pt-2 border-t border-border flex flex-col gap-2">
+                  {/* STUDENT SELF-CONFIRMATION BUTTON */}
+                  {!isCompleted && !isStaff && (
+                    <Button 
+                      size="sm" 
+                      onClick={() => {
+                        setSelectedReqForComplete(r);
+                        setCompleteRemarks('Kerosakan telah dibaiki dan diuji dengan baik oleh juruteknik JPP.');
+                        setCompletePhoto(null);
+                        setCompleteModalOpen(true);
+                      }}
+                      className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-1.5 shadow-sm rounded-xl"
+                    >
+                      <ThumbsUp className="w-3.5 h-3.5" /> Sahkan Pembaikan Selesai (JPP)
+                    </Button>
+                  )}
+
+                  {/* STAFF CONTROLS */}
+                  {isStaff && (
+                    <div className="flex gap-1.5 flex-wrap">
+                      {r.status === 'Submitted' && (
+                        <Button size="sm" variant="outline" className="text-xs h-7 text-blue-700 border-blue-200 hover:bg-blue-50" onClick={() => updateStatus(r.id, 'Assigned')}>
+                          Tugaskan Staf
+                        </Button>
+                      )}
+                      {r.status === 'Assigned' && (
+                        <Button size="sm" variant="outline" className="text-xs h-7 text-amber-700 border-amber-200 hover:bg-amber-50" onClick={() => updateStatus(r.id, 'In Progress')}>
+                          Mula Kerja
+                        </Button>
+                      )}
+                      {!isCompleted && (
+                        <Button 
+                          size="sm" 
+                          className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white" 
+                          onClick={() => {
+                            setSelectedReqForComplete(r);
+                            setCompleteRemarks('Kerosakan disahkan siap oleh staf/warden kolej.');
+                            setCompletePhoto(null);
+                            setCompleteModalOpen(true);
+                          }}
+                        >
+                          <CheckCircle2 className="w-3 h-3 mr-1" /> Sahkan Selesai
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -672,6 +797,69 @@ export default function Maintenance() {
                 {updatingRef ? 'Menyimpan...' : 'Simpan No. Rujukan'}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL PENGESAHAN PEMBAIKAN SELESAI (PELAJAR / STAF) */}
+      <Dialog open={completeModalOpen} onOpenChange={setCompleteModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-heading font-bold flex items-center gap-2 text-emerald-800">
+              <CheckCircle className="w-5 h-5 text-emerald-600" /> Pengesahan Pembaikan Kerosakan
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Sahkan bahawa pihak juruteknik/kontraktor JPP telah menyelesaikan kerja pembaikan di lokasi anda.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 mt-2">
+            <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200/80 text-xs space-y-1 text-emerald-950">
+              <p className="font-semibold text-slate-900">
+                Lokasi: {selectedReqForComplete?.specific_location || selectedReqForComplete?.room_number}
+              </p>
+              <p className="text-slate-600 line-clamp-2">{selectedReqForComplete?.description}</p>
+              {selectedReqForComplete?.myserv_ticket_no && (
+                <p className="font-mono text-emerald-800 font-bold pt-1">
+                  No. Rujukan MyServ: {selectedReqForComplete.myserv_ticket_no}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium text-slate-700">Catatan Pengesahan *</Label>
+              <Textarea 
+                value={completeRemarks} 
+                onChange={e => setCompleteRemarks(e.target.value)} 
+                className="text-xs mt-1" 
+                rows={2} 
+                placeholder="cth: Lampu dan tombol pintu telah diganti dan berfungsi dengan baik." 
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium text-slate-700">Foto Selepas Pembaikan (Pilihan)</Label>
+              <Input 
+                type="file" 
+                onChange={handleCompletePhotoChange} 
+                className="text-xs mt-1" 
+                accept=".jpg,.jpeg,.png,.webp" 
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t border-border mt-3">
+            <Button variant="outline" size="sm" onClick={() => setCompleteModalOpen(false)}>
+              Batal
+            </Button>
+            <Button 
+              size="sm" 
+              disabled={completing}
+              onClick={handleConfirmCompletion}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold gap-1.5"
+            >
+              <ThumbsUp className="w-3.5 h-3.5" /> {completing ? 'Mengesahkan...' : 'Sahkan Selesai Sekarang'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
