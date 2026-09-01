@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
-import { User, Save, Loader2, Building2, Plus, X } from 'lucide-react';
+import { User, Save, Loader2, Building2, Plus, X, ShieldCheck } from 'lucide-react';
+import DigitalResidentPass from '@/components/shared/DigitalResidentPass';
 
 const UMS_FACULTIES = [
   'Fakulti Sains dan Sumber Alam (FSSA)',
@@ -164,16 +165,20 @@ export default function MyProfile() {
       <PageHeader title="My Profile" description="View and update your personal information" />
 
       <div className="bg-card border border-border rounded-xl p-6 space-y-6">
-        {/* Avatar */}
-        <div className="flex items-center gap-4 pb-4 border-b border-border">
-          <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center">
-            <User className="w-7 h-7 text-primary-foreground" />
+        {/* Avatar & Digital Pass */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center">
+              <User className="w-7 h-7 text-primary-foreground" />
+            </div>
+            <div>
+              <p className="font-heading font-semibold text-base">{form?.full_name || currentUser?.full_name}</p>
+              <p className="text-xs text-muted-foreground">{currentUser?.email}</p>
+              <p className="text-xs text-muted-foreground capitalize">{currentUser?.role || 'student'}</p>
+            </div>
           </div>
-          <div>
-            <p className="font-heading font-semibold text-base">{form?.full_name || currentUser?.full_name}</p>
-            <p className="text-xs text-muted-foreground">{currentUser?.email}</p>
-            <p className="text-xs text-muted-foreground capitalize">{currentUser?.role || 'student'}</p>
-          </div>
+
+          <DigitalResidentPass student={student || form} user={currentUser} />
         </div>
 
         {/* Personal Info */}

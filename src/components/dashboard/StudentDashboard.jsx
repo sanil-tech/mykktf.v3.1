@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Wrench, CalendarOff, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import JakmasPanel from '@/components/dashboard/JakmasPanel';
+import DigitalResidentPass from '@/components/shared/DigitalResidentPass';
 
 const PRIORITY_BORDER = { 
   Critical: 'border-l-4 border-l-red-600 shadow-[0_0_15px_rgba(220,38,38,0.1)]', 
@@ -186,9 +187,13 @@ export default function StudentDashboard({ user, jakmasAppointment }) {
               return '🌙 Selamat Malam / Good evening';
             })()}
           </p>
-          <h1 className="text-2xl font-extrabold tracking-tight md:text-3xl capitalize">
-            {student?.full_name || user?.full_name || 'Resident'}
-          </h1>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h1 className="text-2xl font-extrabold tracking-tight md:text-3xl capitalize">
+              {student?.full_name || user?.full_name || 'Resident'}
+            </h1>
+
+            <DigitalResidentPass student={student} user={user} />
+          </div>
           
           {student ? (
             <div className="mt-4 pt-4 border-t border-white/10 flex flex-wrap gap-x-6 gap-y-2.5 text-xs font-medium text-slate-200">

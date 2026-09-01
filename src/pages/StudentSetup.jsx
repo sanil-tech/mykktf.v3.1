@@ -1,10 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { GraduationCap, User, Phone, BookOpen, Users, CheckCircle2, ChevronRight, ChevronLeft, Loader2, Info, Sparkles, Building, ShieldCheck } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { 
+  GraduationCap, 
+  User, 
+  Phone, 
+  BookOpen, 
+  Users, 
+  CheckCircle2, 
+  ChevronRight, 
+  ChevronLeft, 
+  Loader2, 
+  Info, 
+  Sparkles, 
+  Building2, 
+  ShieldCheck,
+  DoorClosed,
+  Home
+} from 'lucide-react';
 
 const FACULTIES = [
   'Fakulti Sains dan Sumber Alam (FSSA)',
@@ -20,19 +37,23 @@ const FACULTIES = [
 ];
 
 const STEPS = [
-  { id: 1, title: 'Maklumat Peribadi', icon: User, description: 'Maklumat asas pengenalan diri anda' },
+  { id: 1, title: 'Maklumat Peribadi & Kontak', icon: User, description: 'Pengenalan diri, no. telefon & waris' },
   { id: 2, title: 'Akademik UMS', icon: BookOpen, description: 'Fakulti, program pengajian & No. Matrik' },
-  { id: 3, title: 'Kontak & Waris', icon: Phone, description: 'No. telefon & maklumat waris kecemasan' },
+  { id: 3, title: 'Blok & Bilik KKTF', icon: Building2, description: 'Penetapan blok & bilik yang ditawarkan UMS' },
 ];
 
 export default function StudentSetup({ user, onComplete }) {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [blocks, setBlocks] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+
   const [form, setForm] = useState({
     student_id: '',
     full_name: user?.full_name || '',
     ic_passport: '',
-    gender: '',
+    gender: 'Male',
     date_of_birth: '',
     faculty: '',
     programme: '',
@@ -45,15 +66,52 @@ export default function StudentSetup({ user, onComplete }) {
     vehicle_reg: '',
     block_name: '',
     room_number: '',
+    room_id: '',
+    room_status: 'Checked In',
+    resident_status: 'Active',
     status: 'Active',
     user_id: user?.id || '',
   });
   const [errors, setErrors] = useState({});
 
+  useEffect(() => {
+    async function fetchHostelData() {
+      setLoadingRooms(true);
+      try {
+        const [bList, rList] = await Promise.all([
+          base44.entities.Block.list(),
+          base44.entities.Room.list()
+        ]);
+        setBlocks(bList || []);
+        setRooms(rList || []);
+      } catch (err) {
+        console.error('Failed to load blocks and rooms:', err);
+      } finally {
+        setLoadingRooms(false);
+      }
+    }
+    fetchHostelData();
+  }, []);
+
   function set(field, value) {
     setForm(f => ({ ...f, [field]: value }));
     setErrors(e => ({ ...e, [field]: '' }));
   }
+
+  // Filter blocks by student gender
+  const availableBlocks = blocks.filter(b => {
+    const restriction = (b.gender_restriction || '').toLowerCase();
+    const studentGen = (form.gender || '').toLowerCase();
+    if (!restriction || restriction === 'mixed') return true;
+    if (studentGen === 'male' || studentGen === 'lelaki') return restriction === 'male' || restriction === 'lelaki';
+    if (studentGen === 'female' || studentGen === 'perempuan') return restriction === 'female' || restriction === 'perempuan';
+    return true;
+  });
+
+  // Filter rooms in selected block
+  const availableRooms = rooms.filter(r => 
+    r.block_name === form.block_name && r.status !== 'Maintenance'
+  ).sort((a, b) => String(a.room_number).localeCompare(String(b.room_number)));
 
   function validateStep(s) {
     const errs = {};
@@ -62,6 +120,8 @@ export default function StudentSetup({ user, onComplete }) {
       if (!form.ic_passport?.trim()) errs.ic_passport = 'Sila masukkan No. Kad Pengenalan / Pasport';
       if (!form.gender) errs.gender = 'Sila pilih jantina';
       if (!form.date_of_birth) errs.date_of_birth = 'Sila pilih tarikh lahir';
+      if (!form.phone?.trim()) errs.phone = 'Sila masukkan nombor telefon anda';
+      if (!form.parent_phone?.trim()) errs.parent_phone = 'Sila masukkan nombor telefon waris';
     }
     if (s === 2) {
       if (!form.student_id?.trim()) errs.student_id = 'Sila masukkan No. Matrik (cth: BP23110045)';
@@ -70,10 +130,8 @@ export default function StudentSetup({ user, onComplete }) {
       if (!form.year_of_study) errs.year_of_study = 'Sila pilih tahun pengajian';
     }
     if (s === 3) {
-      if (!form.phone?.trim()) errs.phone = 'Sila masukkan nombor telefon pelajar';
-      if (!form.parent_name?.trim()) errs.parent_name = 'Sila masukkan nama ibu bapa / waris';
-      if (!form.parent_phone?.trim()) errs.parent_phone = 'Sila masukkan nombor telefon waris';
-      if (!form.emergency_contact?.trim()) errs.emergency_contact = 'Sila masukkan kontak kecemasan';
+      if (!form.block_name) errs.block_name = 'Sila pilih blok kediaman yang telah ditawarkan';
+      if (!form.room_number) errs.room_number = 'Sila pilih nombor bilik anda';
     }
     return errs;
   }
@@ -89,10 +147,53 @@ export default function StudentSetup({ user, onComplete }) {
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setSaving(true);
     try {
-      await base44.entities.Student.create({ ...form, year_of_study: Number(form.year_of_study) });
+      const selectedRoom = rooms.find(r => r.room_number === form.room_number && r.block_name === form.block_name);
+      const roomId = selectedRoom?.id || form.room_id || '';
+      const nowIso = new Date().toISOString();
+      const todayDate = nowIso.split('T')[0];
+
+      // 1. Create Student Resident record
+      const studentData = {
+        ...form,
+        room_id: roomId,
+        year_of_study: Number(form.year_of_study),
+        check_in_date: todayDate,
+        room_status: 'Checked In',
+        resident_status: 'Active'
+      };
+
+      const createdStudent = await base44.entities.Student.create(studentData);
+
+      // 2. Update user role
       await base44.auth.updateMe({ role: 'student' });
+
+      // 3. Increment Room Occupancy if room found
+      if (selectedRoom) {
+        const nextOcc = (selectedRoom.current_occupancy || 0) + 1;
+        await base44.entities.Room.update(selectedRoom.id, {
+          current_occupancy: nextOcc,
+          status: nextOcc >= (selectedRoom.capacity || 4) ? 'Full' : 'Occupied'
+        });
+
+        // 4. Create audit CheckIn entry
+        try {
+          await base44.entities.CheckIn.create({
+            student_id: createdStudent.id,
+            student_name: form.full_name,
+            room_id: selectedRoom.id,
+            room_number: form.room_number,
+            block_name: form.block_name,
+            check_in_date: todayDate,
+            check_in_time: new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }),
+            semester: 'Sem1_2526',
+            notes: 'Pendaftaran kendiri residen baharu (Self-Service Onboarding)'
+          });
+        } catch (e) {
+          console.warn('CheckIn log note:', e);
+        }
+      }
     } catch (e) {
-      console.error(e);
+      console.error('Registration failed:', e);
     } finally {
       setSaving(false);
       onComplete();
@@ -105,14 +206,14 @@ export default function StudentSetup({ user, onComplete }) {
         {/* TOP INSTITUTIONAL HEADER */}
         <div className="text-center mb-6">
           <div className="w-16 h-16 rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center mx-auto mb-3 shadow-lg">
-            <GraduationCap className="w-8 h-8 text-indigo-300" />
+            <GraduationCap className="w-8 h-8 text-amber-300" />
           </div>
-          <div className="inline-block bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 px-3 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider mb-2">
-            Pendaftaran Residen Baharu (Onboarding)
+          <div className="inline-block bg-amber-500/20 text-amber-300 border border-amber-400/30 px-3 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider mb-2">
+            Pendaftaran Residen Baharu (Self-Service)
           </div>
           <h1 className="text-2xl font-bold text-white">Selamat Datang ke Kolej Kediaman Tun Fuad</h1>
           <p className="text-xs text-slate-300 mt-1 max-w-md mx-auto leading-relaxed">
-            Lengkapkan profil residen anda dalam 3 langkah mudah untuk mengaktifkan akses bilik, permohonan E-Leave, dan perkhidmatan kolej.
+            Lengkapkan maklumat dan sahkan bilik kediaman anda untuk mengaktifkan Pas Residen Digital, E-Leave QR, dan perkhidmatan kolej.
           </p>
         </div>
 
@@ -152,7 +253,7 @@ export default function StudentSetup({ user, onComplete }) {
             </span>
           </div>
 
-          {/* STEP 1: PERSONAL INFO */}
+          {/* STEP 1: PERSONAL & CONTACT INFO */}
           {step === 1 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="sm:col-span-2 space-y-1">
@@ -191,7 +292,7 @@ export default function StudentSetup({ user, onComplete }) {
                 {errors.gender && <p className="text-[11px] text-red-500">{errors.gender}</p>}
               </div>
 
-              <div className="sm:col-span-2 space-y-1">
+              <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-700">Tarikh Lahir *</Label>
                 <Input 
                   type="date"
@@ -201,10 +302,42 @@ export default function StudentSetup({ user, onComplete }) {
                 />
                 {errors.date_of_birth && <p className="text-[11px] text-red-500">{errors.date_of_birth}</p>}
               </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">No. Telefon Pelajar *</Label>
+                <Input 
+                  value={form.phone} 
+                  onChange={e => set('phone', e.target.value)} 
+                  placeholder="Cth: 011-23456789" 
+                  className={`h-10 text-xs ${errors.phone ? 'border-red-500 bg-red-50/30' : ''}`} 
+                />
+                {errors.phone && <p className="text-[11px] text-red-500">{errors.phone}</p>}
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Nama Ibu Bapa / Waris</Label>
+                <Input 
+                  value={form.parent_name} 
+                  onChange={e => set('parent_name', e.target.value)} 
+                  placeholder="Cth: MAT BIN ALI" 
+                  className="h-10 text-xs" 
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">No. Telefon Waris / Kecemasan *</Label>
+                <Input 
+                  value={form.parent_phone} 
+                  onChange={e => set('parent_phone', e.target.value)} 
+                  placeholder="Cth: 019-8765432" 
+                  className={`h-10 text-xs ${errors.parent_phone ? 'border-red-500 bg-red-50/30' : ''}`} 
+                />
+                {errors.parent_phone && <p className="text-[11px] text-red-500">{errors.parent_phone}</p>}
+              </div>
             </div>
           )}
 
-          {/* STEP 2: ACADEMIC INFO */}
+          {/* STEP 2: ACADEMIC & VEHICLE INFO */}
           {step === 2 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="sm:col-span-2 space-y-1">
@@ -258,65 +391,96 @@ export default function StudentSetup({ user, onComplete }) {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-          )}
 
-          {/* STEP 3: CONTACT & EMERGENCY INFO */}
-          {step === 3 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">No. Telefon Pelajar *</Label>
-                <Input 
-                  value={form.phone} 
-                  onChange={e => set('phone', e.target.value)} 
-                  placeholder="Cth: 011-23456789" 
-                  className={`h-10 text-xs ${errors.phone ? 'border-red-500 bg-red-50/30' : ''}`} 
-                />
-                {errors.phone && <p className="text-[11px] text-red-500">{errors.phone}</p>}
-              </div>
-
-              <div className="space-y-1">
+              <div className="sm:col-span-2 space-y-1">
                 <Label className="text-xs font-semibold text-slate-700">No. Pendaftaran Kenderaan (Pilihan)</Label>
                 <Input 
                   value={form.vehicle_reg} 
                   onChange={e => set('vehicle_reg', e.target.value.toUpperCase())} 
-                  placeholder="Cth: SAB 1234 A (Jika bawa kereta/motor)" 
+                  placeholder="Cth: SAB 1234 A (Jika membawa kenderaan ke kolej)" 
                   className="h-10 text-xs uppercase" 
                 />
               </div>
+            </div>
+          )}
 
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Nama Ibu Bapa / Penjaga *</Label>
-                <Input 
-                  value={form.parent_name} 
-                  onChange={e => set('parent_name', e.target.value)} 
-                  placeholder="Cth: BANSAI BIN MAT" 
-                  className={`h-10 text-xs ${errors.parent_name ? 'border-red-500 bg-red-50/30' : ''}`} 
-                />
-                {errors.parent_name && <p className="text-[11px] text-red-500">{errors.parent_name}</p>}
+          {/* STEP 3: ASSIGNED BLOCK & ROOM SELECTION */}
+          {step === 3 && (
+            <div className="space-y-4 text-xs">
+              <div className="p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-2xl flex items-start gap-3 text-indigo-950">
+                <Sparkles className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-0.5">
+                  <p className="font-bold">Penetapan Bilik Ditawarkan UMS</p>
+                  <p className="text-slate-600 leading-relaxed text-[11px]">
+                    Sila pilih blok dan bilik kediaman seperti yang tertera pada surat tawaran / portal e-Hostel UMS anda.
+                  </p>
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">No. Telefon Waris / Penjaga *</Label>
-                <Input 
-                  value={form.parent_phone} 
-                  onChange={e => set('parent_phone', e.target.value)} 
-                  placeholder="Cth: 019-8765432" 
-                  className={`h-10 text-xs ${errors.parent_phone ? 'border-red-500 bg-red-50/30' : ''}`} 
-                />
-                {errors.parent_phone && <p className="text-[11px] text-red-500">{errors.parent_phone}</p>}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700">Pilih Blok Kediaman *</Label>
+                  <Select 
+                    value={form.block_name} 
+                    onValueChange={v => {
+                      setForm(f => ({ ...f, block_name: v, room_number: '', room_id: '' }));
+                      setErrors(e => ({ ...e, block_name: '', room_number: '' }));
+                    }}
+                  >
+                    <SelectTrigger className={`h-10 text-xs ${errors.block_name ? 'border-red-500 bg-red-50/30' : ''}`}>
+                      <SelectValue placeholder="Pilih Blok Anda" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableBlocks.map(b => (
+                        <SelectItem key={b.id} value={b.block_name}>
+                          {b.block_name} ({b.gender_restriction || 'Semua'})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.block_name && <p className="text-[11px] text-red-500">{errors.block_name}</p>}
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700">Nombor Bilik *</Label>
+                  <Select 
+                    value={form.room_number} 
+                    disabled={!form.block_name}
+                    onValueChange={v => {
+                      const selRoom = availableRooms.find(r => r.room_number === v);
+                      setForm(f => ({ ...f, room_number: v, room_id: selRoom?.id || '' }));
+                      setErrors(e => ({ ...e, room_number: '' }));
+                    }}
+                  >
+                    <SelectTrigger className={`h-10 text-xs ${errors.room_number ? 'border-red-500 bg-red-50/30' : ''}`}>
+                      <SelectValue placeholder={form.block_name ? "Pilih Nombor Bilik" : "Pilih blok dahulu"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableRooms.map(r => (
+                        <SelectItem key={r.id} value={r.room_number}>
+                          Bilik {r.room_number} ({r.current_occupancy || 0}/{r.capacity || 4} orang)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.room_number && <p className="text-[11px] text-red-500">{errors.room_number}</p>}
+                </div>
               </div>
 
-              <div className="sm:col-span-2 space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Kontak / Talian Kecemasan Tambahan *</Label>
-                <Input 
-                  value={form.emergency_contact} 
-                  onChange={e => set('emergency_contact', e.target.value)} 
-                  placeholder="Cth: Abang Kandung (013-5551234)" 
-                  className={`h-10 text-xs ${errors.emergency_contact ? 'border-red-500 bg-red-50/30' : ''}`} 
-                />
-                {errors.emergency_contact && <p className="text-[11px] text-red-500">{errors.emergency_contact}</p>}
-              </div>
+              {form.block_name && form.room_number && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-emerald-950">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold">Bilik Dipilih: {form.block_name} - Bilik {form.room_number}</p>
+                      <p className="text-[10px] text-emerald-700">Pas Residen Digital & Kod E-Leave anda akan dijana secara automatik.</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-emerald-600 text-white text-[10px] px-2 py-0.5">
+                    Sah Ditawarkan
+                  </Badge>
+                </div>
+              )}
             </div>
           )}
 
@@ -353,11 +517,11 @@ export default function StudentSetup({ user, onComplete }) {
               >
                 {saving ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Menyimpan Profil...
+                    <Loader2 className="w-4 h-4 animate-spin" /> Mengaktifkan Residen & Pas...
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="w-4 h-4" /> Lengkapkan Pendaftaran & Masuk
+                    <ShieldCheck className="w-4 h-4" /> Sahkan & Aktifkan Pas Residen
                   </>
                 )}
               </Button>
