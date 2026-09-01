@@ -20,7 +20,7 @@ import {
   Calendar,
   Layers
 } from 'lucide-react';
-import { KKTFLogo, UMSLogo } from '@/components/shared/KKTFLogo';
+import { KKTFLogo, UMSLogo, InstitutionalDualLogo } from '@/components/shared/KKTFLogo';
 import { toast } from 'sonner';
 
 export default function DigitalResidentPass({ student, user, triggerButton }) {
@@ -107,20 +107,17 @@ export default function DigitalResidentPass({ student, user, triggerButton }) {
                 <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-lime-400/15 via-emerald-500/10 to-transparent rounded-full blur-3xl pointer-events-none" />
                 <div className="absolute bottom-0 left-0 w-40 h-40 bg-gradient-to-tr from-amber-500/10 via-blue-500/10 to-transparent rounded-full blur-3xl pointer-events-none" />
 
-                {/* 1. TOP DUAL LOGO BRANDING BAR */}
-                <div className="flex items-center justify-between border-b border-white/10 pb-3.5 mb-4 relative z-10 gap-2">
-                  {/* Official KKTF House Logo */}
-                  <div className="w-24 sm:w-28 h-10 shrink-0 bg-white/95 rounded-xl p-1 shadow-md border border-white/20">
-                    <KKTFLogo className="w-full h-full" />
-                  </div>
+                {/* 1. TOP PROTOCOL DUAL-LOGO BRANDING BAR */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/10 pb-3.5 mb-4 relative z-10 gap-2.5">
+                  {/* UMS FIRST, KKTF SECOND (GANDINGAN PROTOKOL) */}
+                  <InstitutionalDualLogo />
 
-                  {/* Right: UMS Crest & Live Active Badge */}
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <UMSLogo className="h-8" variant="light" />
-                    <Badge className={`text-[8.5px] font-mono font-bold px-2 py-0.5 mt-0.5 border ${
+                  {/* Status Badge */}
+                  <div className="flex items-center sm:self-center self-start">
+                    <Badge className={`text-[9px] font-mono font-bold px-2.5 py-1 rounded-full border shadow-sm ${
                       isCheckedIn 
-                        ? 'bg-lime-500/20 text-lime-300 border-lime-400/50 shadow-sm' 
-                        : 'bg-amber-500/20 text-amber-300 border-amber-400/50'
+                        ? 'bg-lime-500/25 text-lime-300 border-lime-400/50 shadow-lime-500/10' 
+                        : 'bg-amber-500/25 text-amber-300 border-amber-400/50'
                     }`}>
                       {isCheckedIn ? '● RESIDEN AKTIF' : '○ PENDING'}
                     </Badge>
@@ -203,14 +200,9 @@ export default function DigitalResidentPass({ student, user, triggerButton }) {
                 {/* Back Header with Small Logos */}
                 <div className="border-b border-slate-700/80 pb-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-12 h-6 bg-white/95 rounded-md p-0.5">
-                      <KKTFLogo className="w-full h-full" />
-                    </div>
-                    <span className="text-xs font-bold font-heading uppercase text-lime-400">
-                      Maklumat Waris & Keselamatan
-                    </span>
+                    <InstitutionalDualLogo />
                   </div>
-                  <span className="text-[9px] font-mono text-slate-400">KKTF SAFE</span>
+                  <span className="text-[9px] font-mono text-lime-400 font-bold bg-lime-500/10 px-2 py-0.5 rounded-full border border-lime-500/30">KKTF SAFE</span>
                 </div>
 
                 <div className="space-y-2.5 text-xs">
