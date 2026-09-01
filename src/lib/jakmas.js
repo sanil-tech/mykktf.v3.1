@@ -72,7 +72,14 @@ export function isTermStarted(appt, today = todayISO()) {
  * Only students (base_role student/user/none) can gain JAKMAS capability via
  * an active appointment. Wardens/staff/admins keep their base role.
  */
-export function computeEffectiveRole(baseRole, appointment) {
+export function computeEffectiveRole(baseRole, appointment, userOrEmail = '') {
+  const email = typeof userOrEmail === 'string' ? userOrEmail : userOrEmail?.email;
+  
+  // Specific Principal mapping for Kolej Kediaman Tun Fuad
+  if (baseRole === 'principal' || email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com') {
+    return 'principal';
+  }
+
   // JAKMAS is appointment-gated, not a permanent role. A user whose base role is
   // student/user/jakmas gains JAKMAS capability ONLY via an active appointment;
   // without one they behave as a normal student. Wardens/staff/admins keep their

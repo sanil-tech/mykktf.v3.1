@@ -107,7 +107,7 @@ export const AuthProvider = ({ children }) => {
       const enriched = {
         ...currentUser,
         jakmasAppointment: appt,
-        effectiveRole: computeEffectiveRole(currentUser.role, appt),
+        effectiveRole: computeEffectiveRole(currentUser.role, appt, currentUser),
       };
       setUser(enriched);
       setIsAuthenticated(true);
