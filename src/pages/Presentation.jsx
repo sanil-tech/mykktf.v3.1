@@ -273,8 +273,51 @@ const MANUAL_CHAPTERS = [
     ]
   },
   {
-    id: 'ch-welfare',
+    id: 'ch-merit-demerit',
     number: 'Bab 7',
+    title: 'Sistem Merit & Dimerit: Skala Pemarkahan, Lantikan AJK & Kelayakan Penempatan',
+    roleLabel: 'Semua Pengguna (Pelajar, JAKMAS, Felo & Pentadbir)',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
+    icon: 'Award',
+    summary: 'Panduan lengkap pengumpulan merit aktiviti, tangga mata jawatan AJK JAKMAS, pemotongan dimerit disiplin, dan matriks pemilihan penempatan bilik sesi hadapan.',
+    sections: [
+      {
+        title: '7.1 Matriks Kelayakan Penempatan Residen Sesi Hadapan',
+        content: 'Bagi memastikan penempatan bilik kolej diagihkan secara adil dan telus, MyKKTF mengkategorikan penghuni kepada 3 Tier Kelayakan: 🥇 Tier Emas (≥80 Mata & 0 Dimerit - Layak Prioriti Automatik), 🥈 Tier Perak (50-79 Mata - Senarai Menunggu / Budi Bicara Felo), dan 🥉 Tier Gangsa (<50 Mata - Perlu Rayuan).'
+      },
+      {
+        title: '7.2 Tangga Skala Merit Lantikan AJK JAKMAS & Urusetia',
+        steps: [
+          'Pengarah / Timbalan Pengarah Program Kolej: +35 Mata',
+          'Setiausaha / Bendahari Acara: +30 Mata',
+          'Ketua Biro (Protokol, Makanan, Teknikal, dll): +25 Mata',
+          'AJK Pelaksana / Sekretariat / Urusetia: +20 Mata',
+          'Peserta Program Kolej: +10 Mata (Melalui Imbasan QR Pas Residen)',
+          'Gotong-Royong Perdana / Khidmat Blok: +15 Mata'
+        ]
+      },
+      {
+        title: '7.3 Aliran Perakuan Lantikan AJK JAKMAS',
+        steps: [
+          'Langkah 1: Pengarah Program/JAKMAS membuka modul "Merit & Dimerit" → Tekan "Lantik AJK / Sekretariat".',
+          'Langkah 2: Pilih nama program, pilih pelajar dari senarai, dan tentukan jawatan lantikan.',
+          'Langkah 3: Felo penasihat program menyemak laporan program dan membuat perakuan (Endorsement).',
+          'Langkah 4: Pentadbiran kolej mengesahkan lantikan dan sistem mengkreditkan mata merit ke profil pelajar secara automatik.'
+        ]
+      },
+      {
+        title: '7.4 Kategori Potongan Dimerit Disiplin & Keselamatan',
+        content: 'Pemotongan markah dikenakan bagi pelanggaran peraturan: Lewat Jam Malam / Curfew (-10 Mata), Membawa Pelawat Tanpa Kebenaran (-20 Mata), Merokok / Vape (-30 Mata), Bising Waktu Senyap (-10 Mata), dan Bilik Kotor Semasa Spot-Check (-10 Mata).'
+      },
+      {
+        title: '7.5 1-Klik Eksport Format SMP UMS (Untuk Jawatankuasa Pemilih)',
+        content: 'Pentadbir kolej boleh memuat turun fail CSV/Excel sedia format Sistem Maklumat Pelajar (SMP) UMS dengan menekan butang "1-Klik Eksport Format SMP UMS" untuk terus dimuat naik ke portal pusat universiti tanpa perlu menaip manual.'
+      }
+    ]
+  },
+  {
+    id: 'ch-welfare',
+    number: 'Bab 8',
     title: 'Panduan Pelajar: Suara Mahasiswa & Whistleblowing Sulit',
     roleLabel: 'Pelajar',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],

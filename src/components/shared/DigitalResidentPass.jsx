@@ -170,8 +170,10 @@ export default function DigitalResidentPass({ student, user, triggerButton }) {
                   </div>
 
                   <div className="text-right border-l border-white/10 pl-3">
-                    <p className="text-[8.5px] uppercase tracking-wider text-slate-400 font-bold">Sesi Akademik</p>
-                    <p className="text-xs font-bold text-lime-400 font-mono mt-0.5">2025/2026</p>
+                    <p className="text-[8.5px] uppercase tracking-wider text-amber-300 font-bold flex items-center gap-1 justify-end">
+                      <Sparkles className="w-2.5 h-2.5 text-amber-400" /> Merit Kolej
+                    </p>
+                    <p className="text-xs font-bold text-amber-400 font-mono mt-0.5">⭐ Tier Emas</p>
                   </div>
                 </div>
 
