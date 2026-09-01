@@ -9,7 +9,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { User, Save, Loader2, Building2, Plus, X, ShieldCheck, Mail, Phone, BadgeCheck, Briefcase, Building } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import DigitalResidentPass from '@/components/shared/DigitalResidentPass';
+import CollegeTranscriptModal from '@/components/CollegeTranscriptModal';
 import { ROLE_LABELS } from '@/lib/roles';
+import { Printer } from 'lucide-react';
 
 const UMS_FACULTIES = [
   'Fakulti Sains dan Sumber Alam (FSSA)',
@@ -47,6 +49,9 @@ export default function MyProfile() {
   const [wardenAssignments, setWardenAssignments] = useState([]);
   const [selectedBlock, setSelectedBlock] = useState('');
   const [savingBlock, setSavingBlock] = useState(false);
+  const [attendances, setAttendances] = useState([]);
+  const [merits, setMerits] = useState([]);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => { init(); }, []);
@@ -86,12 +91,16 @@ export default function MyProfile() {
       });
     }
 
-    const [b, r] = await Promise.all([
+    const [b, r, attList, discList] = await Promise.all([
       base44.entities.Block.list(),
       base44.entities.Room.list(),
+      base44.entities.Attendance.list(),
+      base44.entities.DisciplineRecord.list()
     ]);
     setBlocks(b);
     setRooms(r);
+    setAttendances(attList || []);
+    setMerits(discList || []);
     
     if (user.role === 'warden') {
       const wa = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
@@ -349,7 +358,16 @@ export default function MyProfile() {
             </div>
           </div>
 
-          <DigitalResidentPass student={student || form} user={currentUser} />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button 
+              size="sm" 
+              onClick={() => setTranscriptOpen(true)}
+              className="bg-[#132644] hover:bg-[#1a335c] text-white font-bold text-xs rounded-xl gap-1.5 shadow-xs"
+            >
+              <Printer className="w-3.5 h-3.5 text-amber-400" /> Transkrip Merit (PDF)
+            </Button>
+            <DigitalResidentPass student={student || form} user={currentUser} />
+          </div>
         </div>
 
         {/* Maklumat Peribadi */}
@@ -444,6 +462,15 @@ export default function MyProfile() {
           </Button>
         </div>
       </div>
+
+      {/* MODAL TRANSKRIP MERIT DIGITAL RESIDEN */}
+      <CollegeTranscriptModal 
+        open={transcriptOpen} 
+        onOpenChange={setTranscriptOpen} 
+        student={student || form} 
+        attendanceRecords={attendances} 
+        meritTransactions={merits} 
+      />
     </div>
   );
 }

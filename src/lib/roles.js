@@ -52,6 +52,7 @@ export function getNavItems(role, hasJakmas = false) {
     { label: 'My JAKMAS Tasks', path: '/jakmas-tasks', icon: 'ClipboardList', roles: [], jakmasOnly: true },
     { label: 'Audit Log', path: '/audit-log', icon: 'ScrollText', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL] },
     { label: 'Buku Panduan MyKKTF', path: '/guide', icon: 'BookOpen', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
+    { label: 'Hab Perhubungan & Hotline', path: '/contact', icon: 'PhoneCall', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
   ];
   const base = all.filter(item => hasAccess(role, item.roles));
   if (!hasJakmas) return base;

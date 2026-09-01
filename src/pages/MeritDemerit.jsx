@@ -34,10 +34,12 @@ import {
   FileCheck2,
   Lock,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Printer
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
+import CollegeTranscriptModal from '@/components/CollegeTranscriptModal';
 
 // DEFAULT SCORING RUBRIC (Can be modified dynamically by College Administrator)
 const DEFAULT_RUBRIC = {
@@ -92,6 +94,8 @@ export default function MeritDemerit() {
   const [simulationStatus, setSimulationStatus] = useState('idle'); // 'idle' | 'simulated' | 'finalized'
   const [manualAdjustments, setManualAdjustments] = useState({}); // { [studentId]: 'approved' | 'waiting' | 'rejected' }
   const [showQuotaConfigModal, setShowQuotaConfigModal] = useState(false);
+  const [transcriptModalOpen, setTranscriptModalOpen] = useState(false);
+  const [selectedStudentForTranscript, setSelectedStudentForTranscript] = useState(null);
 
   // Modals for Committee & Demerit
   const [committeeModalOpen, setCommitteeModalOpen] = useState(false);
@@ -856,8 +860,24 @@ export default function MeritDemerit() {
                       #{idx + 1}
                     </td>
                     <td className="p-3">
-                      <p className="font-bold text-foreground truncate max-w-[180px]">{s.full_name}</p>
-                      <p className="font-mono text-[10px] text-muted-foreground">{s.student_id} &bull; {s.programme || 'Sarjana Muda'}</p>
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div>
+                          <p className="font-bold text-foreground truncate max-w-[170px]">{s.full_name}</p>
+                          <p className="font-mono text-[10px] text-muted-foreground">{s.student_id} &bull; {s.programme || 'Sarjana Muda'}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setSelectedStudentForTranscript(s);
+                            setTranscriptModalOpen(true);
+                          }}
+                          className="h-6 w-6 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg shrink-0"
+                          title="Lihat Transkrip Sahsiah & Merit (PDF)"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </td>
                     <td className="p-3 font-mono">
                       <p className="text-foreground font-semibold">{s.block_name || '-'}</p>
@@ -1172,6 +1192,19 @@ export default function MeritDemerit() {
             </div>
           </div>
 
+          {/* CETAK TRANSKRIP BUTTON */}
+          <Button
+            size="sm"
+            onClick={() => {
+              const myTarget = myStudentProfile || students.find(s => s.email === currentUser?.email) || students[0];
+              setSelectedStudentForTranscript(myTarget);
+              setTranscriptModalOpen(true);
+            }}
+            className="w-full bg-[#132644] hover:bg-[#1a335c] text-white font-bold text-xs rounded-2xl gap-2 shadow-xs py-5"
+          >
+            <Printer className="w-4 h-4 text-amber-400" /> 📄 Jana & Cetak Transkrip Sahsiah & Merit Rasmi KKTF (PDF)
+          </Button>
+
           {/* OFFICIAL ADMINISTRATIVE DISCLAIMER */}
           <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-1.5 text-xs text-amber-900 dark:text-amber-200">
             <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300">
@@ -1435,6 +1468,15 @@ export default function MeritDemerit() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* MODAL: OFFICIAL COLLEGE MERIT & CHARACTER TRANSCRIPT */}
+      <CollegeTranscriptModal 
+        open={transcriptModalOpen} 
+        onOpenChange={setTranscriptModalOpen} 
+        student={selectedStudentForTranscript} 
+        attendanceRecords={attendanceRecords} 
+        meritTransactions={meritTransactions} 
+      />
     </div>
   );
 }

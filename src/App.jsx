@@ -43,6 +43,7 @@ import AiKnowledge from '@/pages/AiKnowledge';
 import Presentation from '@/pages/Presentation';
 import ResidentScanner from '@/pages/ResidentScanner';
 import MeritDemerit from '@/pages/MeritDemerit';
+import Contact from '@/pages/Contact';
 import { useState, useEffect } from 'react';
 
 const AuthenticatedApp = () => {
@@ -128,6 +129,8 @@ const AuthenticatedApp = () => {
           <Route path="/presentation" element={<Presentation />} />
           <Route path="/guide" element={<Presentation />} />
           <Route path="/buku-panduan" element={<Presentation />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/hotline" element={<Contact />} />
         </Route>
       </Route>
 
