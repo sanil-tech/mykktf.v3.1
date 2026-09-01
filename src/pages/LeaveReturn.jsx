@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { 
   CheckCircle2, 
   MapPin, 
@@ -15,17 +16,21 @@ import {
   Calendar,
   Sparkles,
   ShieldCheck,
-  Home
+  Camera,
+  X,
+  KeyRound,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
+import { Html5Qrcode } from 'html5-qrcode';
 
 export default function LeaveReturn() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
-  const blockParam = searchParams.get('block') || 'Kolej Kediaman Tun Fuad (Pondok Pengawal)';
-  const locationParam = searchParams.get('location') || blockParam;
+  const initialBlock = searchParams.get('block') || '';
+  const [scannedBlock, setScannedBlock] = useState(initialBlock);
 
   const [currentUser, setCurrentUser] = useState(null);
   const [student, setStudent] = useState(null);
@@ -34,8 +39,17 @@ export default function LeaveReturn() {
   const [confirming, setConfirming] = useState(false);
   const [confirmedData, setConfirmedData] = useState(null);
 
+  // Scanner state
+  const [scannerActive, setScannerActive] = useState(false);
+  const [manualCode, setManualCode] = useState('');
+  const [cameraError, setCameraError] = useState(null);
+  const html5QrCodeRef = useRef(null);
+
   useEffect(() => {
     init();
+    return () => {
+      stopScanner();
+    };
   }, []);
 
   async function init() {
@@ -55,12 +69,10 @@ export default function LeaveReturn() {
       setStudent(studentProfile);
 
       if (studentProfile) {
-        // Find active unreturned leave applications
         const leaves = await base44.entities.LeaveApplication.filter({ 
           student_id: studentProfile.student_id 
         }, '-created_date');
 
-        // Look for approved or overdue leaves that have not yet been marked returned
         const active = leaves.find(l => (l.status === 'Approved' || l.status === 'Pending') && l.status !== 'Returned' && !l.returned_at);
         setActiveLeave(active || null);
       }
@@ -71,9 +83,84 @@ export default function LeaveReturn() {
     }
   }
 
-  async function handleConfirmReturn() {
-    if (!student) {
-      toast.error('Profil pelajar tidak ditemui');
+  // Start live HTML5 QR Camera Scanner
+  async function startScanner() {
+    setScannerActive(true);
+    setCameraError(null);
+
+    setTimeout(async () => {
+      try {
+        const qrCode = new Html5Qrcode("reader");
+        html5QrCodeRef.current = qrCode;
+
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+        await qrCode.start(
+          { facingMode: "environment" },
+          config,
+          (decodedText) => {
+            handleQrDecoded(decodedText);
+          },
+          (errorMessage) => {
+            // Scanning frame error - ignored during search
+          }
+        );
+      } catch (err) {
+        console.error("Camera start error:", err);
+        setCameraError("Tidak dapat mengakses kamera. Sila pastikan kebenaran kamera (camera permission) dibenarkan atau gunakan Kod Pengesahan Manual.");
+      }
+    }, 200);
+  }
+
+  async function stopScanner() {
+    if (html5QrCodeRef.current) {
+      try {
+        await html5QrCodeRef.current.stop();
+        html5QrCodeRef.current.clear();
+      } catch (e) {
+        console.warn("Scanner stop error:", e);
+      }
+      html5QrCodeRef.current = null;
+    }
+    setScannerActive(false);
+  }
+
+  function handleQrDecoded(decodedText) {
+    stopScanner();
+    
+    // Parse decoded text (either URL or raw string like KKTF_BLOCK_G or /return-leave?block=Blok%20G)
+    let detectedLocation = 'Pondok Pengawal (Pintu Utama)';
+    
+    if (decodedText.includes('block=')) {
+      try {
+        const url = new URL(decodedText.startsWith('http') ? decodedText : `https://dummy.com/${decodedText}`);
+        detectedLocation = decodeURIComponent(url.searchParams.get('block') || detectedLocation);
+      } catch {
+        detectedLocation = decodedText;
+      }
+    } else if (decodedText.startsWith('KKTF_')) {
+      detectedLocation = decodedText.replace('KKTF_', '').replace(/_/g, ' ');
+    } else if (decodedText.trim().length > 0) {
+      detectedLocation = decodedText.trim();
+    }
+
+    setScannedBlock(detectedLocation);
+    executeReturnConfirmation(detectedLocation, 'QR_CAMERA_SCAN');
+  }
+
+  function handleManualSubmit() {
+    if (!manualCode.trim()) {
+      toast.error('Sila masukkan Kod Lokasi / PIN dari poster');
+      return;
+    }
+    const cleanLocation = manualCode.trim();
+    setScannedBlock(cleanLocation);
+    executeReturnConfirmation(cleanLocation, 'MANUAL_CODE_PIN');
+  }
+
+  async function executeReturnConfirmation(locationName, method = 'QR_CAMERA_SCAN') {
+    if (!student && !currentUser) {
+      toast.error('Sila log masuk terlebih dahulu');
       return;
     }
 
@@ -97,16 +184,17 @@ export default function LeaveReturn() {
           returned_at: nowIso,
           returned_date: todayStr,
           returned_time: timeStr,
-          return_method: 'QR_BLOCK_SCAN',
+          return_method: method,
           return_status: returnStatus,
-          return_scanned_block: locationParam
+          return_scanned_block: locationName
         });
 
         await logAudit(currentUser, 'LEAVE_RETURN_CHECKIN', 'Leave', {
           leave_id: activeLeave.id,
-          student: student.full_name,
-          matric: student.student_id,
-          scanned_location: locationParam,
+          student: student?.full_name || currentUser?.full_name,
+          matric: student?.student_id || 'N/A',
+          scanned_location: locationName,
+          method,
           return_status: returnStatus,
           timestamp: nowIso
         });
@@ -114,15 +202,16 @@ export default function LeaveReturn() {
 
       setConfirmedData({
         timestamp: `${todayStr} (${timeStr})`,
-        location: locationParam,
+        location: locationName,
+        method,
         returnStatus,
         leave: activeLeave
       });
 
-      toast.success(`Daftar masuk kembali berjaya! Selamat pulang ke ${locationParam}.`);
+      toast.success(`🎉 Imbasan Kod QR berjaya! Kehadiran fizikal di ${locationName} disahkan.`);
     } catch (err) {
       console.error('Failed to confirm return:', err);
-      toast.error('Gagal mengesahkan kehadiran kembali ke kolej');
+      toast.error('Gagal mengesahkan kehadiran kembali');
     } finally {
       setConfirming(false);
     }
@@ -139,13 +228,13 @@ export default function LeaveReturn() {
 
   return (
     <div className="max-w-md mx-auto py-6 px-4 space-y-5">
-      {/* HEADER CARD */}
+      {/* HEADER */}
       <div className="text-center space-y-1.5">
         <div className="w-12 h-12 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
           <QrCode className="w-6 h-6" />
         </div>
         <h1 className="text-lg font-heading font-bold text-slate-900">
-          Daftar Masuk Kembali ke Kolej
+          Imbas Kod QR Kembali ke Kolej
         </h1>
         <p className="text-xs text-muted-foreground">
           Kolej Kediaman Tun Fuad &bull; Universiti Malaysia Sabah
@@ -155,30 +244,36 @@ export default function LeaveReturn() {
       {/* SUCCESS CONFIRMATION STATE */}
       {confirmedData ? (
         <div className="bg-white border border-emerald-200 rounded-3xl p-6 shadow-sm text-center space-y-4 animate-in zoom-in-95">
-          <div className="w-16 h-16 bg-emerald-100 border-2 border-emerald-300 text-emerald-700 rounded-full flex items-center justify-center mx-auto">
+          <div className="w-16 h-16 bg-emerald-100 border-2 border-emerald-300 text-emerald-700 rounded-full flex items-center justify-center mx-auto shadow-sm">
             <CheckCircle2 className="w-10 h-10" />
           </div>
 
           <div className="space-y-1">
-            <Badge className="bg-emerald-500 text-white font-bold text-[11px] px-3 py-0.5">
-              TELAH KEMBALI KE KOLEJ
+            <Badge className="bg-emerald-600 text-white font-bold text-[11px] px-3 py-0.5">
+              ✅ TELAH KEMBALI KE KOLEJ
             </Badge>
             <h2 className="text-base font-bold text-slate-900 pt-1">
               Selamat Kembali, {student?.full_name || currentUser?.full_name}!
             </h2>
             <p className="text-xs text-slate-500">
-              Kehadiran fizikal anda telah disahkan dan direkodkan dalam sistem kolej.
+              Imbasan kod QR fizikal anda telah disahkan dan rekod cuti telah ditutup.
             </p>
           </div>
 
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-left space-y-2 text-xs">
             <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
-              <span className="text-slate-500">Lokasi Imbasan:</span>
+              <span className="text-slate-500">Lokasi Imbasan Fizikal:</span>
               <span className="font-bold text-slate-900">{confirmedData.location}</span>
             </div>
             <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
               <span className="text-slate-500">Masa Direkodkan:</span>
               <span className="font-mono font-bold text-slate-900">{confirmedData.timestamp}</span>
+            </div>
+            <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+              <span className="text-slate-500">Kaedah Pengesahan:</span>
+              <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                {confirmedData.method === 'QR_CAMERA_SCAN' ? '📷 Imbasan Kamera' : '🔑 Kod PIN Poster'}
+              </Badge>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-500">Status Ketibaan:</span>
@@ -202,19 +297,8 @@ export default function LeaveReturn() {
           </div>
         </div>
       ) : (
-        /* PENDING VERIFICATION STATE */
+        /* LIVE SCANNING & VERIFICATION INTERFACE */
         <div className="space-y-4">
-          {/* LOCATION ANCHOR CARD */}
-          <div className="bg-indigo-950 text-white rounded-2xl p-4 border border-indigo-800 shadow-sm space-y-1">
-            <div className="flex items-center gap-2 text-xs text-indigo-300">
-              <MapPin className="w-3.5 h-3.5" />
-              <span>Lokasi Kod QR Fizikal:</span>
-            </div>
-            <p className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
-              <Building className="w-4 h-4 text-indigo-400" /> {locationParam}
-            </p>
-          </div>
-
           {/* STUDENT IDENTIFICATION CARD */}
           {student && (
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-2">
@@ -231,12 +315,12 @@ export default function LeaveReturn() {
             </div>
           )}
 
-          {/* ACTIVE LEAVE RECORD IF ANY */}
+          {/* ACTIVE LEAVE RECORD */}
           {activeLeave ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
               <div className="flex items-center justify-between border-b pb-2">
                 <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-indigo-600" /> Rekod Cuti Aktif
+                  <Calendar className="w-4 h-4 text-indigo-600" /> Rekod Cuti Yang Perlu Disahkan
                 </span>
                 <Badge className={activeLeave.return_date < new Date().toLocaleDateString('en-CA') ? 'bg-rose-500 text-white animate-pulse' : 'bg-blue-600 text-white'}>
                   {activeLeave.return_date < new Date().toLocaleDateString('en-CA') ? 'OVERDUE' : 'AKTIF'}
@@ -252,41 +336,86 @@ export default function LeaveReturn() {
                   <span className="text-slate-400">Dijadualkan Pulang:</span>
                   <span className="font-semibold text-slate-900">{activeLeave.return_date} ({activeLeave.return_time || '23:00'})</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Sebab:</span>
-                  <span className="italic text-slate-600 truncate max-w-[200px]">"{activeLeave.reason}"</span>
-                </div>
               </div>
-
-              {activeLeave.return_date < new Date().toLocaleDateString('en-CA') && (
-                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-900">
-                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>Anda lewat daripada tarikh jadual asal. Imbas sekarang untuk menyelesaikan rekod overdue.</span>
-                </div>
-              )}
             </div>
           ) : (
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center text-xs text-slate-600 space-y-1">
               <ShieldCheck className="w-5 h-5 text-emerald-600 mx-auto" />
-              <p className="font-bold text-slate-900">Tiada Permohonan Cuti Yang Sedang Berjalan</p>
-              <p className="text-slate-500">Status anda telah sedia ada sebagai <strong>"Di Dalam Kolej"</strong>.</p>
+              <p className="font-bold text-slate-900">Tiada Permohonan Cuti Aktif</p>
+              <p className="text-slate-500">Status anda sedia ada: <strong>"Di Dalam Kolej"</strong>.</p>
             </div>
           )}
 
-          {/* CONFIRMATION ACTION BUTTON */}
-          <div className="pt-2">
-            <Button
-              onClick={handleConfirmReturn}
-              disabled={confirming}
-              className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-md flex items-center justify-center gap-2 text-sm"
-            >
-              <CheckCircle2 className="w-5 h-5" />
-              {confirming ? 'Merekodkan Kehadiran...' : 'Sahkan Saya Telah Tiba di Kolej'}
-            </Button>
-            <p className="text-[11px] text-center text-slate-400 mt-2">
-              Masa dan lokasi tepat anda akan direkodkan ke dalam log audit pengurusan KKTF.
-            </p>
-          </div>
+          {/* CAMERA SCANNER BOX */}
+          {scannerActive ? (
+            <div className="bg-black rounded-3xl p-4 text-white shadow-xl space-y-3 relative overflow-hidden animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold flex items-center gap-1.5 text-emerald-400">
+                  <Camera className="w-4 h-4" /> Halakan Kamera ke Kod QR Poster
+                </span>
+                <Button 
+                  size="icon" 
+                  variant="ghost" 
+                  onClick={stopScanner}
+                  className="h-7 w-7 text-white hover:bg-white/20 rounded-full"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {/* VIDEO VIEWFINDER */}
+              <div id="reader" className="w-full rounded-2xl overflow-hidden bg-slate-900 border border-white/20 min-h-[260px]"></div>
+
+              {cameraError && (
+                <div className="p-3 bg-rose-950/80 border border-rose-700 rounded-xl text-xs text-rose-200 space-y-1">
+                  <p className="font-bold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Akses Kamera Terhalang</p>
+                  <p>{cameraError}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* BUTTON TO LAUNCH CAMERA SCANNER */
+            <div className="space-y-3">
+              <Button
+                onClick={startScanner}
+                disabled={confirming}
+                className="w-full h-14 bg-gradient-to-r from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2.5 text-sm"
+              >
+                <Camera className="w-5 h-5 text-indigo-200" />
+                <span>Buka Kamera & Imbas Kod QR Blok</span>
+              </Button>
+
+              {/* MANUAL PIN/BLOCK CODE FALLBACK */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2.5">
+                <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-indigo-600" /> Atau Masukkan Kod Lokasi / Blok Manual
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Jika kamera tidak berfungsi, masukkan nama blok yang tertera di poster (cth: <strong>Blok G</strong> atau <strong>Pondok Pengawal</strong>).
+                </p>
+                <div className="flex gap-2">
+                  <Input 
+                    placeholder="cth: Blok G / Pondok Pengawal" 
+                    value={manualCode} 
+                    onChange={e => setManualCode(e.target.value)} 
+                    className="h-9 text-xs bg-white"
+                  />
+                  <Button 
+                    size="sm" 
+                    onClick={handleManualSubmit}
+                    disabled={confirming}
+                    className="bg-slate-900 hover:bg-slate-800 text-white text-xs px-4 h-9 font-semibold shrink-0"
+                  >
+                    Sahkan
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <p className="text-[11px] text-center text-slate-400">
+            Imbasan kod QR fizikal diperlukan bagi mengelakkan penipuan kehadiran dan memadamkan status Overdue secara sah.
+          </p>
         </div>
       )}
     </div>

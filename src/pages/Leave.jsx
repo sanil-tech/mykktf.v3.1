@@ -464,9 +464,9 @@ export default function Leave() {
                 <div className="border-t border-border pt-3 mt-4 space-y-2">
                   {/* STUDENT ACTION: RETURN CHECK-IN BUTTON */}
                   {!isReviewer && !isReturned && (a.status === 'Approved' || isOverdue) && (
-                    <Link to={`/return-leave?block=${encodeURIComponent(myStudent?.block_name || 'Blok Kediaman')}`}>
-                      <Button className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1.5 shadow-sm">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Sahkan Saya Telah Tiba di Kolej
+                    <Link to="/return-leave">
+                      <Button className="w-full h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl gap-1.5 shadow-sm">
+                        <Camera className="w-3.5 h-3.5" /> Buka Kamera & Imbas QR Blok
                       </Button>
                     </Link>
                   )}
