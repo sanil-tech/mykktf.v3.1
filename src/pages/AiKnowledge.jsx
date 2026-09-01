@@ -1,16 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
-import { ShieldAlert } from 'lucide-react';
 import { ROLES } from '@/lib/roles';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from '@/components/ui/dialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
@@ -20,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import { TableSkeleton } from '@/components/shared/ListSkeletons';
-import { Plus, Pencil, Trash2, BookOpen, Search, Sparkles } from 'lucide-react';
+import { Plus, Pencil, Trash2, BookOpen, Search, Sparkles, Upload, FileText, CheckCircle2, Info } from 'lucide-react';
 
 const CATEGORIES = ['Rule', 'Process', 'Event', 'Announcement', 'FAQ', 'General'];
 const CATEGORY_COLOR = {
@@ -38,9 +37,8 @@ export default function AiKnowledge() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user, isLoadingAuth } = useAuth();
+  const fileInputRef = useRef(null);
 
-  // Restrict to administrators (Super Admin / College Admin). RLS already blocks
-  // data access at the backend, but this gives a clean UX for direct-URL visits.
   const isAdmin = user?.role === ROLES.SUPER_ADMIN || user?.role === ROLES.ADMIN;
   useEffect(() => {
     if (!isLoadingAuth && user && !isAdmin) {
@@ -57,6 +55,7 @@ export default function AiKnowledge() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState('');
 
   async function load() {
     setLoading(true);
@@ -75,16 +74,52 @@ export default function AiKnowledge() {
   function openCreate() {
     setEditing(null);
     setForm(EMPTY);
+    setUploadedFileName('');
     setDialogOpen(true);
   }
+
   function openEdit(item) {
     setEditing(item);
+    setUploadedFileName('');
     setForm({
-      title: item.title || '', content: item.content || '', category: item.category || 'General',
-      tags: item.tags || '', effective_date: item.effective_date || '', expiry_date: item.expiry_date || '',
+      title: item.title || '', 
+      content: item.content || '', 
+      category: item.category || 'General',
+      tags: item.tags || '', 
+      effective_date: item.effective_date || '', 
+      expiry_date: item.expiry_date || '',
       status: item.status || 'active',
     });
     setDialogOpen(true);
+  }
+
+  function handleFileUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadedFileName(file.name);
+    const cleanTitle = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (typeof text === 'string') {
+        setForm(prev => ({
+          ...prev,
+          title: prev.title || cleanTitle,
+          content: text.trim(),
+          category: prev.category === 'General' && cleanTitle.toLowerCase().includes('peraturan') ? 'Rule' : prev.category
+        }));
+        toast({ title: 'Dokumen Dimuat Naik', description: `Teks daripada ${file.name} berjaya diekstrak.` });
+        if (!dialogOpen) setDialogOpen(true);
+      }
+    };
+    reader.onerror = () => {
+      toast({ title: 'Ralat Membaca Fail', description: 'Gagal membaca kandungan dokumen.', variant: 'destructive' });
+    };
+
+    reader.readAsText(file);
+    e.target.value = '';
   }
 
   async function save() {
@@ -100,7 +135,7 @@ export default function AiKnowledge() {
         toast({ title: 'Pengetahuan dikemas kini' });
       } else {
         await base44.entities.KnowledgeArticle.create(payload);
-        toast({ title: 'Pengetahuan baharu ditambah' });
+        toast({ title: 'Pengetahuan baharu ditambah ke KKTF Assistant' });
       }
       setDialogOpen(false);
       load();
@@ -133,35 +168,60 @@ export default function AiKnowledge() {
 
   return (
     <div className="space-y-6">
+      {/* HIDDEN FILE INPUT FOR IMPORT */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileUpload} 
+        accept=".txt,.md,.doc,.docx,.json,.csv,.text" 
+        className="hidden" 
+      />
+
       <PageHeader
         title="Pengetahuan AI"
-        description="Urus pengetahuan yang dirujuk KKTF Assistant — peraturan, proses, acara & makluman."
-        action={
-          <Button onClick={openCreate} className="gap-2">
-            <Plus className="w-4 h-4" /> Tambah Pengetahuan
-          </Button>
+        description="Urus dokumen, peraturan dan SOP yang dirujuk oleh KKTF Assistant AI secara langsung."
+        actions={
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => fileInputRef.current?.click()} 
+              className="gap-1.5 text-xs font-semibold"
+            >
+              <Upload className="w-4 h-4 text-indigo-600" /> Muat Naik Dokumen
+            </Button>
+            <Button 
+              onClick={openCreate} 
+              className="gap-1.5 text-xs font-semibold bg-[#132644] hover:bg-[#1e385f] text-white"
+            >
+              <Plus className="w-4 h-4" /> Tambah Pengetahuan
+            </Button>
+          </div>
         }
       />
 
-      <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
+      <Card className="bg-gradient-to-br from-indigo-50/50 via-slate-50 to-amber-50/30 border-indigo-100 shadow-xs">
         <CardContent className="flex items-start gap-3 py-4">
-          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <Sparkles className="w-5 h-5 text-primary" />
+          <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <Sparkles className="w-5 h-5" />
           </div>
-          <p className="text-sm text-muted-foreground">
-            Entri <b>aktif</b> di sini disuntik automatik ke dalam konteks KKTF Assistant bagi setiap soalan.
-            Acara akan datang & pengumuman terbaru juga disertakan secara langsung — tidak perlu salin semula ke sini.
-          </p>
+          <div className="space-y-1 text-xs text-slate-700">
+            <p className="font-semibold text-slate-900">
+              Bagaimana KKTF Assistant Merujuk Dokumen Sumber Ini?
+            </p>
+            <p className="text-slate-600 leading-relaxed">
+              Semua entri berstatus <b>Aktif</b> di sini disuntik secara automatik ke dalam memori model AI (Gemini LLM) setiap kali pelajar atau warden bertanya soalan (RAG Knowledge Context). Acara kolej, pengumuman rasmi, dan peraturan bermalam di luar juga disegerakkan secara langsung.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Cari tajuk / kandungan / tag..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input className="pl-9 text-xs" placeholder="Cari tajuk, peraturan, prosedur, tag..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <Select value={filterCat} onValueChange={setFilterCat}>
-          <SelectTrigger className="sm:w-44"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="sm:w-44 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua Kategori</SelectItem>
             {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -172,93 +232,176 @@ export default function AiKnowledge() {
       {loading ? (
         <TableSkeleton rows={5} cols={4} />
       ) : filtered.length === 0 ? (
-        <EmptyState icon={BookOpen} title="Tiada pengetahuan" description="Tambah entri pertama untuk KKTF Assistant." />
+        <EmptyState 
+          icon={BookOpen} 
+          title="Tiada pengetahuan AI ditemui" 
+          description="Klik 'Tambah Pengetahuan' atau 'Muat Naik Dokumen' untuk memasukkan peraturan dan maklumat kolej ke dalam KKTF Assistant." 
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map(it => (
-            <Card key={it.id} className="hover:shadow-md transition-shadow">
+            <Card key={it.id} className="hover:shadow-md transition-shadow border-slate-200">
               <CardHeader className="flex flex-row items-start justify-between gap-2 pb-2">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge className={CATEGORY_COLOR[it.category]}>{it.category}</Badge>
-                    <Badge variant={it.status === 'active' ? 'default' : 'secondary'}>
-                      {it.status === 'active' ? 'Aktif' : 'Diarkib'}
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CATEGORY_COLOR[it.category] || CATEGORY_COLOR.General}`}>
+                      {it.category}
+                    </span>
+                    <Badge variant={it.status === 'active' ? 'default' : 'secondary'} className="text-[10px]">
+                      {it.status === 'active' ? 'Aktif' : 'Draf'}
                     </Badge>
                   </div>
-                  <CardTitle className="text-base">{it.title}</CardTitle>
+                  <CardTitle className="text-sm font-bold text-slate-900 leading-snug">
+                    {it.title}
+                  </CardTitle>
                 </div>
-                <div className="flex gap-1 shrink-0">
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(it)}><Pencil className="w-4 h-4" /></Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => remove(it)}><Trash2 className="w-4 h-4" /></Button>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(it)}>
+                    <Pencil className="w-3.5 h-3.5 text-slate-600" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => remove(it)}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <p className="text-sm text-muted-foreground line-clamp-4 whitespace-pre-line">{it.content}</p>
-                {it.tags && <p className="text-xs text-muted-foreground/70">Tag: {it.tags}</p>}
-                {(it.effective_date || it.expiry_date) && (
-                  <p className="text-xs text-muted-foreground/70">
-                    {it.effective_date && `Berkuat kuasa: ${it.effective_date}`}
-                    {it.effective_date && it.expiry_date && ' · '}
-                    {it.expiry_date && `Tamat: ${it.expiry_date}`}
-                  </p>
+              <CardContent className="space-y-2 text-xs">
+                <p className="text-slate-600 line-clamp-3 leading-relaxed">
+                  {it.content}
+                </p>
+                {it.tags && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {it.tags.split(',').map((t, idx) => (
+                      <span key={idx} className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                        #{t.trim()}
+                      </span>
+                    ))}
+                  </div>
                 )}
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span>Ditambah oleh: {it.created_by_name || 'Admin'}</span>
+                  {it.effective_date && <span>Kuat kuasa: {it.effective_date}</span>}
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
+      {/* DIALOG ADD / EDIT KNOWLEDGE */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editing ? 'Edit Pengetahuan' : 'Tambah Pengetahuan'}</DialogTitle>
+            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-indigo-600" />
+              {editing ? 'Kemaskini Pengetahuan AI' : 'Tambah Pengetahuan untuk KKTF Assistant'}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Maklumat ini akan dijadikan sumber rujukan pintar semasa menjawab soalan pelajar.
+            </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Tajuk *</Label>
-              <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="cth: Peraturan baru kawalan bunyi 10pm" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Kategori</Label>
-                <Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                </Select>
+            {/* FILE UPLOAD SHORTCUT INSIDE MODAL */}
+            <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-3 text-center">
+              <div className="flex items-center justify-center gap-2">
+                <Upload className="w-4 h-4 text-indigo-600" />
+                <span className="text-xs font-semibold text-slate-700">Import daripada fail teks / dokumen</span>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 text-[11px] ml-2" 
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Pilih Fail (.txt, .md, .doc)
+                </Button>
               </div>
-              <div className="space-y-1.5">
-                <Label>Status</Label>
-                <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+              {uploadedFileName && (
+                <p className="text-[11px] text-emerald-600 font-medium mt-1.5 flex items-center justify-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Fail dimuat naik: {uploadedFileName}
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2 space-y-1">
+                <Label className="text-xs font-semibold">Tajuk Pengetahuan / Topik *</Label>
+                <Input 
+                  placeholder="Cth: Peraturan Jam Malam & Senyap di Kolej" 
+                  value={form.title} 
+                  onChange={e => setForm({ ...form, title: e.target.value })} 
+                  className="text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Kategori *</Label>
+                <Select value={form.category} onValueChange={v => setForm({ ...form, category: v })}>
+                  <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="active">Aktif</SelectItem>
-                    <SelectItem value="archived">Diarkib</SelectItem>
+                    {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Kandungan *</Label>
-              <Textarea rows={6} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder="Tulis pengetahuan penuh yang AI patut tahu..." />
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Kandungan Terperinci / Dokumen Sumber *</Label>
+              <Textarea 
+                rows={8}
+                placeholder="Tulis atau tampal teks dokumen, perenggan peraturan, SOP pendaftaran bilik, atau waktu perkhidmatan kolej..." 
+                value={form.content} 
+                onChange={e => setForm({ ...form, content: e.target.value })} 
+                className="text-xs font-sans leading-relaxed"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                AI akan membaca seluruh perenggan ini untuk merangka jawapan berautoriti kepada pengguna.
+              </p>
             </div>
-            <div className="space-y-1.5">
-              <Label>Tag (pilihan)</Label>
-              <Input value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} placeholder="cth: bunyi, kurfew, denda" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Berkuat Kuasa (pilihan)</Label>
-                <Input type="date" value={form.effective_date} onChange={e => setForm(f => ({ ...f, effective_date: e.target.value }))} />
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Kata Kunci / Tags</Label>
+                <Input 
+                  placeholder="jam malam, bilik, denda" 
+                  value={form.tags} 
+                  onChange={e => setForm({ ...form, tags: e.target.value })} 
+                  className="text-xs"
+                />
               </div>
-              <div className="space-y-1.5">
-                <Label>Tamat Kuat Kuasa (pilihan)</Label>
-                <Input type="date" value={form.expiry_date} onChange={e => setForm(f => ({ ...f, expiry_date: e.target.value }))} />
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Tarikh Kuat Kuasa</Label>
+                <Input 
+                  type="date"
+                  value={form.effective_date} 
+                  onChange={e => setForm({ ...form, effective_date: e.target.value })} 
+                  className="text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Status</Label>
+                <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
+                  <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Aktif (Dirujuk AI)</SelectItem>
+                    <SelectItem value="draft">Draf (Disembunyikan)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button>
-            <Button onClick={save} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan'}</Button>
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} className="text-xs">
+              Batal
+            </Button>
+            <Button 
+              onClick={save} 
+              disabled={saving} 
+              size="sm" 
+              className="bg-[#132644] hover:bg-[#1e385f] text-white text-xs font-semibold"
+            >
+              {saving ? 'Menyimpan...' : (editing ? 'Kemaskini Pengetahuan' : 'Simpan ke Memori AI')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
