@@ -92,6 +92,19 @@
     },
     "return_scanned_block": {
       "type": "string"
+    },
+    "geofence_verified": {
+      "type": "boolean",
+      "default": false
+    },
+    "return_distance_meters": {
+      "type": "number"
+    },
+    "return_lat": {
+      "type": "number"
+    },
+    "return_lng": {
+      "type": "number"
     }
   },
   "required": [

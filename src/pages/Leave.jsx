@@ -451,11 +451,18 @@ export default function Leave() {
                             Lokasi: <span className="font-semibold">{a.return_scanned_block}</span>
                           </p>
                         )}
-                        {a.return_status && (
-                          <Badge variant="outline" className={`text-[10px] mt-1 ${a.return_status === 'On-Time' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-100 text-rose-800 border-rose-300'}`}>
-                            {a.return_status === 'On-Time' ? 'Tepat Pada Masa' : 'Lewat'}
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                          {a.return_status && (
+                            <Badge variant="outline" className={`text-[10px] ${a.return_status === 'On-Time' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-100 text-rose-800 border-rose-300'}`}>
+                              {a.return_status === 'On-Time' ? 'Tepat Pada Masa' : 'Lewat'}
+                            </Badge>
+                          )}
+                          {a.geofence_verified && (
+                            <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-800 border-blue-200">
+                              📍 Geofence GPS ({a.return_distance_meters || 0}m)
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

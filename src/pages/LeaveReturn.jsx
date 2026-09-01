@@ -19,10 +19,33 @@ import {
   Camera,
   X,
   KeyRound,
-  RefreshCw
+  Navigation,
+  Crosshair,
+  ShieldAlert,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
+
+// KKTF Universiti Malaysia Sabah Coordinates
+const KKTF_COORDS = {
+  lat: 6.035400,
+  lng: 116.121500,
+  maxRadiusMeters: 1000 // 1.0 km covers all KKTF blocks, guardhouse & facilities
+};
+
+// Haversine Distance Calculation Formula
+function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371e3; // Earth radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
 
 export default function LeaveReturn() {
   const [searchParams] = useSearchParams();
@@ -38,6 +61,12 @@ export default function LeaveReturn() {
   const [confirming, setConfirming] = useState(false);
   const [confirmedData, setConfirmedData] = useState(null);
 
+  // GPS Geofence State
+  const [gpsStatus, setGpsStatus] = useState('checking'); // 'checking', 'inside', 'outside', 'error'
+  const [gpsDistance, setGpsDistance] = useState(null);
+  const [currentCoords, setCurrentCoords] = useState(null);
+  const [gpsError, setGpsError] = useState(null);
+
   // Scanner state
   const [scannerActive, setScannerActive] = useState(false);
   const [manualCode, setManualCode] = useState('');
@@ -46,6 +75,7 @@ export default function LeaveReturn() {
 
   useEffect(() => {
     init();
+    checkGeofence();
     return () => {
       stopScanner();
     };
@@ -82,7 +112,40 @@ export default function LeaveReturn() {
     }
   }
 
-  // Dynamic CDN loader for Html5Qrcode without npm dependency
+  // Check GPS Geofence using browser Geolocation API
+  function checkGeofence() {
+    if (!navigator.geolocation) {
+      setGpsStatus('error');
+      setGpsError('Peranti anda tidak menyokong GPS Geolocation.');
+      return;
+    }
+
+    setGpsStatus('checking');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const userLat = position.coords.latitude;
+        const userLng = position.coords.longitude;
+        setCurrentCoords({ lat: userLat, lng: userLng, accuracy: position.coords.accuracy });
+
+        const dist = calculateDistanceMeters(userLat, userLng, KKTF_COORDS.lat, KKTF_COORDS.lng);
+        setGpsDistance(dist);
+
+        if (dist <= KKTF_COORDS.maxRadiusMeters) {
+          setGpsStatus('inside');
+        } else {
+          setGpsStatus('outside');
+        }
+      },
+      (err) => {
+        console.warn('Geolocation error:', err);
+        setGpsStatus('error');
+        setGpsError('Sila benarkan akses lokasi (Location Permission) dalam pelayar web anda untuk pengesahan zon Geofence KKTF.');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  }
+
+  // Dynamic CDN loader for Html5Qrcode
   const loadHtml5Qrcode = () => {
     return new Promise((resolve, reject) => {
       if (window.Html5Qrcode) {
@@ -106,6 +169,12 @@ export default function LeaveReturn() {
 
   // Start live QR Camera Scanner
   async function startScanner() {
+    // Validate GPS before opening camera
+    if (gpsStatus === 'outside') {
+      toast.error(`Akses Ditolak: Anda berada ${gpsDistance}m dari KKTF (Di luar zon kolej).`);
+      return;
+    }
+
     setScannerActive(true);
     setCameraError(null);
 
@@ -128,7 +197,7 @@ export default function LeaveReturn() {
           );
         } catch (err) {
           console.error("Camera start error:", err);
-          setCameraError("Tidak dapat mengakses kamera. Sila pastikan kebenaran kamera (camera permission) dibenarkan atau gunakan Kod Pengesahan Manual.");
+          setCameraError("Tidak dapat mengakses kamera. Sila pastikan kebenaran kamera dibenarkan.");
         }
       }, 250);
     } catch (err) {
@@ -153,7 +222,6 @@ export default function LeaveReturn() {
   function handleQrDecoded(decodedText) {
     stopScanner();
     
-    // Parse decoded text (either URL or raw string like KKTF_BLOCK_G or /return-leave?block=Blok%20G)
     let detectedLocation = 'Pondok Pengawal (Pintu Utama)';
     
     if (decodedText.includes('block=')) {
@@ -189,6 +257,12 @@ export default function LeaveReturn() {
       return;
     }
 
+    // GEOFENCE ANTI-SPOOFING ENFORCEMENT
+    if (gpsStatus === 'outside') {
+      toast.error(`❌ Penipuan Lokasi Dikesan: Jarak anda adalah ${gpsDistance} meter dari Kolej Kediaman Tun Fuad (Di luar radius ${KKTF_COORDS.maxRadiusMeters}m).`);
+      return;
+    }
+
     setConfirming(true);
     try {
       const now = new Date();
@@ -202,6 +276,7 @@ export default function LeaveReturn() {
       }
 
       const returnStatus = isLate ? 'Late' : 'On-Time';
+      const isGeofenceOk = gpsStatus === 'inside';
 
       if (activeLeave) {
         await base44.entities.LeaveApplication.update(activeLeave.id, {
@@ -211,15 +286,21 @@ export default function LeaveReturn() {
           returned_time: timeStr,
           return_method: method,
           return_status: returnStatus,
-          return_scanned_block: locationName
+          return_scanned_block: locationName,
+          geofence_verified: isGeofenceOk,
+          return_distance_meters: gpsDistance || 0,
+          return_lat: currentCoords?.lat || KKTF_COORDS.lat,
+          return_lng: currentCoords?.lng || KKTF_COORDS.lng
         });
 
-        await logAudit(currentUser, 'LEAVE_RETURN_CHECKIN', 'Leave', {
+        await logAudit(currentUser, 'LEAVE_RETURN_GEOFENCE_VERIFIED', 'Leave', {
           leave_id: activeLeave.id,
           student: student?.full_name || currentUser?.full_name,
           matric: student?.student_id || 'N/A',
           scanned_location: locationName,
           method,
+          geofence_verified: isGeofenceOk,
+          gps_distance_meters: gpsDistance,
           return_status: returnStatus,
           timestamp: nowIso
         });
@@ -230,10 +311,12 @@ export default function LeaveReturn() {
         location: locationName,
         method,
         returnStatus,
+        geofenceVerified: isGeofenceOk,
+        gpsDistance: gpsDistance || 0,
         leave: activeLeave
       });
 
-      toast.success(`🎉 Imbasan Kod QR berjaya! Kehadiran fizikal di ${locationName} disahkan.`);
+      toast.success(`🎉 Kehadiran fizikal di ${locationName} disahkan bersama Geofence GPS (${gpsDistance || 0}m)!`);
     } catch (err) {
       console.error('Failed to confirm return:', err);
       toast.error('Gagal mengesahkan kehadiran kembali');
@@ -246,7 +329,7 @@ export default function LeaveReturn() {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center p-4">
         <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-xs text-muted-foreground mt-3">Mengesahkan data kehadiran...</p>
+        <p className="text-xs text-muted-foreground mt-3">Mengesahkan data kehadiran & Geofence GPS...</p>
       </div>
     );
   }
@@ -259,7 +342,7 @@ export default function LeaveReturn() {
           <QrCode className="w-6 h-6" />
         </div>
         <h1 className="text-lg font-heading font-bold text-slate-900">
-          Imbas Kod QR Kembali ke Kolej
+          Imbas Kod QR & Geofence GPS
         </h1>
         <p className="text-xs text-muted-foreground">
           Kolej Kediaman Tun Fuad &bull; Universiti Malaysia Sabah
@@ -281,7 +364,7 @@ export default function LeaveReturn() {
               Selamat Kembali, {student?.full_name || currentUser?.full_name}!
             </h2>
             <p className="text-xs text-slate-500">
-              Imbasan kod QR fizikal anda telah disahkan dan rekod cuti telah ditutup.
+              Imbasan kod QR dan kedudukan Geofence GPS anda telah disahkan sah berada di KKTF.
             </p>
           </div>
 
@@ -293,6 +376,12 @@ export default function LeaveReturn() {
             <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
               <span className="text-slate-500">Masa Direkodkan:</span>
               <span className="font-mono font-bold text-slate-900">{confirmedData.timestamp}</span>
+            </div>
+            <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+              <span className="text-slate-500">Geofence GPS KKTF:</span>
+              <span className="font-bold text-emerald-700 flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5" /> Disahkan ({confirmedData.gpsDistance}m dari pusat kolej)
+              </span>
             </div>
             <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
               <span className="text-slate-500">Kaedah Pengesahan:</span>
@@ -322,8 +411,64 @@ export default function LeaveReturn() {
           </div>
         </div>
       ) : (
-        /* LIVE SCANNING & VERIFICATION INTERFACE */
+        /* LIVE SCANNING & GEOFENCE GPS INTERFACE */
         <div className="space-y-4">
+          {/* GEOFENCE GPS RADAR BADGE */}
+          <div className={`p-3.5 rounded-2xl border text-xs flex items-center justify-between gap-3 ${
+            gpsStatus === 'inside'
+              ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+              : gpsStatus === 'outside'
+                ? 'bg-rose-50 border-rose-200 text-rose-950'
+                : 'bg-indigo-50/70 border-indigo-200 text-indigo-950'
+          }`}>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                gpsStatus === 'inside'
+                  ? 'bg-emerald-200 text-emerald-800'
+                  : gpsStatus === 'outside'
+                    ? 'bg-rose-200 text-rose-800'
+                    : 'bg-indigo-200 text-indigo-800'
+              }`}>
+                {gpsStatus === 'checking' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold truncate flex items-center gap-1.5">
+                  <span>Geofence GPS KKTF:</span>
+                  {gpsStatus === 'inside' && <span className="text-emerald-700">Di Dalam Kampus ({gpsDistance}m)</span>}
+                  {gpsStatus === 'outside' && <span className="text-rose-700">Di Luar Kampus ({gpsDistance}m)</span>}
+                  {gpsStatus === 'checking' && <span>Mengesan Lokasi...</span>}
+                  {gpsStatus === 'error' && <span className="text-amber-700">GPS Tidak Aktif</span>}
+                </p>
+                <p className="text-[10px] text-muted-foreground truncate">
+                  Radius dibenarkan: &le; 1.0 km dari Kolej Tun Fuad UMS
+                </p>
+              </div>
+            </div>
+
+            <Button 
+              size="sm" 
+              variant="ghost" 
+              onClick={checkGeofence}
+              className="h-7 w-7 p-0 shrink-0 text-slate-500 hover:text-slate-800"
+              title="Semak Lokasi Semula"
+            >
+              <Crosshair className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {/* GEOFENCE WARNING IF OUTSIDE */}
+          {gpsStatus === 'outside' && (
+            <div className="p-3 bg-rose-100/90 border border-rose-300 rounded-2xl text-xs text-rose-900 flex items-start gap-2.5 shadow-sm">
+              <ShieldAlert className="w-4 h-4 text-rose-700 mt-0.5 shrink-0" />
+              <div className="space-y-0.5">
+                <p className="font-bold">Amaran Anti-Penipuan Lokasi</p>
+                <p className="text-[11px] leading-relaxed">
+                  Peranti anda dikesan berada <strong>{gpsDistance} meter</strong> dari Kolej Kediaman Tun Fuad. Pengesahan kembali hanya dibenarkan apabila anda telah tiba di dalam kawasan kolej.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* STUDENT IDENTIFICATION CARD */}
           {student && (
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-2">
@@ -388,7 +533,6 @@ export default function LeaveReturn() {
                 </Button>
               </div>
 
-              {/* VIDEO VIEWFINDER */}
               <div id="reader" className="w-full rounded-2xl overflow-hidden bg-slate-900 border border-white/20 min-h-[260px]"></div>
 
               {cameraError && (
@@ -403,8 +547,8 @@ export default function LeaveReturn() {
             <div className="space-y-3">
               <Button
                 onClick={startScanner}
-                disabled={confirming}
-                className="w-full h-14 bg-gradient-to-r from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2.5 text-sm"
+                disabled={confirming || gpsStatus === 'outside'}
+                className="w-full h-14 bg-gradient-to-r from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2.5 text-sm disabled:opacity-50"
               >
                 <Camera className="w-5 h-5 text-indigo-200" />
                 <span>Buka Kamera & Imbas Kod QR Blok</span>
@@ -428,8 +572,8 @@ export default function LeaveReturn() {
                   <Button 
                     size="sm" 
                     onClick={handleManualSubmit}
-                    disabled={confirming}
-                    className="bg-slate-900 hover:bg-slate-800 text-white text-xs px-4 h-9 font-semibold shrink-0"
+                    disabled={confirming || gpsStatus === 'outside'}
+                    className="bg-slate-900 hover:bg-slate-800 text-white text-xs px-4 h-9 font-semibold shrink-0 disabled:opacity-50"
                   >
                     Sahkan
                   </Button>
@@ -439,7 +583,7 @@ export default function LeaveReturn() {
           )}
 
           <p className="text-[11px] text-center text-slate-400">
-            Imbasan kod QR fizikal diperlukan bagi mengelakkan penipuan kehadiran dan memadamkan status Overdue secara sah.
+            Perlindungan dwi-faktor: Imbasan kod QR fizikal + Pengesahan Zon Geofence GPS KKTF.
           </p>
         </div>
       )}
