@@ -133,8 +133,19 @@ export default function MeritDemerit() {
         }));
         setMeritTransactions(txs);
 
-        // Default tab based on role
-        if (isStudent && !isStaff && !isJakmas) {
+        // Set default tab strictly according to role:
+        // Pengetua, Felo & Admin -> Selection Matrix
+        // JAKMAS -> Committee & Program Roster
+        // Student -> My Personal Merit Record
+        const role = u?.role;
+        const isOfficialStaff = ['super_admin', 'college_admin', 'warden', 'staff'].includes(role);
+        const isOfficialJakmas = role === 'jakmas' || !!u?.jakmasAppointment;
+
+        if (isOfficialStaff) {
+          setActiveTab('matrix');
+        } else if (isOfficialJakmas) {
+          setActiveTab('committee');
+        } else {
           setActiveTab('my_record');
         }
       } catch (err) {
@@ -330,92 +341,145 @@ export default function MeritDemerit() {
       />
 
       {/* TOP OVERVIEW STATS CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-card border border-border rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Jumlah Residen</span>
-            <Users className="w-4 h-4 text-primary" />
+      {isStaff ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-card border border-border rounded-2xl p-4 shadow-xs">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Jumlah Residen</span>
+              <Users className="w-4 h-4 text-primary" />
+            </div>
+            <p className="text-2xl font-black font-heading text-foreground mt-1">{students.length}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Penghuni Dinilai Panel</p>
           </div>
-          <p className="text-2xl font-black font-heading text-foreground mt-1">{students.length}</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">Penghuni Aktif KKTF</p>
-        </div>
 
-        <div className="bg-card border border-amber-300 dark:border-amber-900/50 bg-amber-50/20 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-amber-700 dark:text-amber-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Layak Prioriti (Tier Emas)</span>
-            <Trophy className="w-4 h-4 text-amber-500" />
+          <div className="bg-card border border-amber-300 dark:border-amber-900/50 bg-amber-50/20 rounded-2xl p-4 shadow-xs">
+            <div className="flex items-center justify-between text-amber-700 dark:text-amber-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Layak Prioriti (Tier Emas)</span>
+              <Trophy className="w-4 h-4 text-amber-500" />
+            </div>
+            <p className="text-2xl font-black font-heading text-amber-600 dark:text-amber-400 mt-1">
+              {studentScores.filter(s => s.tier === 'gold').length}
+            </p>
+            <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-0.5">&ge; 80 Mata (Layak Bilik Sesi Depan)</p>
           </div>
-          <p className="text-2xl font-black font-heading text-amber-600 dark:text-amber-400 mt-1">
-            {studentScores.filter(s => s.tier === 'gold').length}
-          </p>
-          <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-0.5">&ge; 80 Mata (Layak Bilik Sesi Depan)</p>
-        </div>
 
-        <div className="bg-card border border-slate-300 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Senarai Menunggu (Tier Perak)</span>
-            <TrendingUp className="w-4 h-4 text-slate-500" />
+          <div className="bg-card border border-slate-300 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+            <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Senarai Menunggu (Tier Perak)</span>
+              <TrendingUp className="w-4 h-4 text-slate-500" />
+            </div>
+            <p className="text-2xl font-black font-heading text-foreground mt-1">
+              {studentScores.filter(s => s.tier === 'silver').length}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">50 – 79 Mata (Budi Bicara Felo)</p>
           </div>
-          <p className="text-2xl font-black font-heading text-foreground mt-1">
-            {studentScores.filter(s => s.tier === 'silver').length}
-          </p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">50 – 79 Mata (Budi Bicara Felo)</p>
-        </div>
 
-        <div className="bg-card border border-rose-200 dark:border-rose-950 bg-rose-50/20 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-rose-700 dark:text-rose-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Perlu Rayuan (Tier Gangsa)</span>
-            <AlertTriangle className="w-4 h-4 text-rose-500" />
+          <div className="bg-card border border-rose-200 dark:border-rose-950 bg-rose-50/20 rounded-2xl p-4 shadow-xs">
+            <div className="flex items-center justify-between text-rose-700 dark:text-rose-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Perlu Rayuan (Tier Gangsa)</span>
+              <AlertTriangle className="w-4 h-4 text-rose-500" />
+            </div>
+            <p className="text-2xl font-black font-heading text-rose-600 dark:text-rose-400 mt-1">
+              {studentScores.filter(s => s.tier === 'bronze').length}
+            </p>
+            <p className="text-[11px] text-rose-700/80 dark:text-rose-400/80 mt-0.5">&lt; 50 Mata / Ada Dimerit</p>
           </div>
-          <p className="text-2xl font-black font-heading text-rose-600 dark:text-rose-400 mt-1">
-            {studentScores.filter(s => s.tier === 'bronze').length}
-          </p>
-          <p className="text-[11px] text-rose-700/80 dark:text-rose-400/80 mt-0.5">&lt; 50 Mata / Ada Dimerit</p>
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-card border border-lime-300 dark:border-lime-900/50 bg-lime-50/20 rounded-2xl p-4 shadow-xs">
+            <div className="flex items-center justify-between text-lime-700 dark:text-lime-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Skor Merit Bersih Saya</span>
+              <Award className="w-4 h-4 text-lime-600" />
+            </div>
+            <p className="text-2xl font-black font-heading text-foreground mt-1">{myStudentProfile?.netScore || 0} Mata</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{myStudentProfile?.qualification}</p>
+          </div>
 
-      {/* TABS NAVIGATION */}
+          <div className="bg-card border border-border rounded-2xl p-4 shadow-xs">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Tier Kelayakan</span>
+              <Trophy className="w-4 h-4 text-amber-500" />
+            </div>
+            <p className="text-sm font-bold font-heading text-foreground mt-2">{myStudentProfile?.tierLabel}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Sesi Akademik 2026/2027</p>
+          </div>
+
+          <div className="bg-card border border-border rounded-2xl p-4 shadow-xs">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Kehadiran Program</span>
+              <CheckCircle2 className="w-4 h-4 text-indigo-500" />
+            </div>
+            <p className="text-2xl font-black font-heading text-foreground mt-1">{myStudentProfile?.attendedCount || 0}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Program Rasmi KKTF</p>
+          </div>
+
+          <div className="bg-card border border-border rounded-2xl p-4 shadow-xs">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Dimerit Disiplin</span>
+              <ShieldAlert className="w-4 h-4 text-rose-500" />
+            </div>
+            <p className="text-2xl font-black font-heading text-rose-600 dark:text-rose-400 mt-1">-{myStudentProfile?.demerit || 0}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Mata Dipotong</p>
+          </div>
+        </div>
+      )}
+
+      {/* TABS NAVIGATION (ROLE-BASED VISIBILITY) */}
       <div className="flex flex-wrap gap-1 bg-muted/60 p-1.5 rounded-2xl border border-border w-fit">
-        <button
-          onClick={() => setActiveTab('matrix')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'matrix' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Trophy className="w-4 h-4 text-amber-500" />
-          <span>1. Matriks Jawatankuasa Pemilih Residen</span>
-        </button>
+        {/* TAB 1: SELECTION COMMITTEE (PENGETUA & FELO SAHAJA) */}
+        {isStaff && (
+          <button
+            onClick={() => setActiveTab('matrix')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'matrix' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Trophy className="w-4 h-4 text-amber-500" />
+            <span>1. Matriks Jawatankuasa Pemilih Residen (Pengetua & Felo)</span>
+          </button>
+        )}
 
-        <button
-          onClick={() => setActiveTab('committee')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'committee' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Users className="w-4 h-4 text-indigo-500" />
-          <span>2. Lantikan AJK & Urusetia Program</span>
-        </button>
+        {/* TAB 2: COMMITTEE ROSTER (JAKMAS & FELO) */}
+        {(isStaff || isJakmas) && (
+          <button
+            onClick={() => setActiveTab('committee')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'committee' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Users className="w-4 h-4 text-indigo-500" />
+            <span>2. Lantikan AJK & Urusetia Program</span>
+          </button>
+        )}
 
-        <button
-          onClick={() => setActiveTab('demerit')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'demerit' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <ShieldAlert className="w-4 h-4 text-rose-500" />
-          <span>3. Rekod Dimerit Disiplin</span>
-        </button>
+        {/* TAB 3: DEMERIT DISCIPLINARY LOGS (FELO & PENTADBIR SAHAJA) */}
+        {isStaff && (
+          <button
+            onClick={() => setActiveTab('demerit')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'demerit' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4 text-rose-500" />
+            <span>3. Rekod Dimerit Disiplin</span>
+          </button>
+        )}
 
-        <button
-          onClick={() => setActiveTab('rubric')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'rubric' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Sliders className="w-4 h-4 text-primary" />
-          <span>4. Skala Pemarkahan Rasmi (Rubric)</span>
-        </button>
+        {/* TAB 4: RUBRIC SETTINGS (PENTADBIR & FELO SAHAJA) */}
+        {isStaff && (
+          <button
+            onClick={() => setActiveTab('rubric')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'rubric' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Sliders className="w-4 h-4 text-primary" />
+            <span>4. Skala Pemarkahan Rasmi (Rubric)</span>
+          </button>
+        )}
 
+        {/* TAB 5: MY PERSONAL MERIT RECORD (SEMUA PENGGUNA) */}
         <button
           onClick={() => setActiveTab('my_record')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
@@ -423,12 +487,12 @@ export default function MeritDemerit() {
           }`}
         >
           <Award className="w-4 h-4 text-lime-500" />
-          <span>5. Rekod Merit Saya</span>
+          <span>{isStaff ? '5. Rekod Merit Saya' : isJakmas ? '3. Rekod Merit Saya' : 'Rekod Merit & Kelayakan Saya'}</span>
         </button>
       </div>
 
-      {/* TAB 1: SELECTION COMMITTEE MATRIX */}
-      {activeTab === 'matrix' && (
+      {/* TAB 1: SELECTION COMMITTEE MATRIX (PENGETUA & FELO SAHAJA) */}
+      {activeTab === 'matrix' && isStaff && (
         <div className="bg-card border border-border rounded-3xl p-5 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
             <div>
