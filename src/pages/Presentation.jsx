@@ -83,7 +83,7 @@ const MANUAL_CHAPTERS = [
     number: 'Bab 2',
     title: 'Pas Residen Digital KKTF: Kad Pengenalan Digital & Pengesahan QR',
     roleLabel: 'Semua Pengguna',
-    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
     icon: 'ShieldCheck',
     summary: 'Pengenalan kepada Pas Residen Digital rasmi KKTF, gandingan protokol logo UMS & KKTF, kod QR pengesahan, dan maklumat waris 2 muka.',
     sections: [
@@ -169,7 +169,7 @@ const MANUAL_CHAPTERS = [
     number: 'Bab 4',
     title: 'Pendaftaran Residen Baharu (Self-Service) & Penetapan Bilik Ditawarkan',
     roleLabel: 'Pelajar & Pentadbir',
-    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
     icon: 'KeyRound',
     summary: 'Aliran pendaftaran masuk kendiri 100% tanpa beban kerja staf kolej: pengesahan bilik, pengaktifan pas automatik, dan pendaftaran keluar.',
     sections: [
@@ -204,7 +204,7 @@ const MANUAL_CHAPTERS = [
     number: 'Bab 5',
     title: 'Panduan Pelajar: Permohonan E-Leave & Pengesahan Kembali (QR + GPS)',
     roleLabel: 'Pelajar',
-    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
     icon: 'CalendarOff',
     summary: 'Aliran lengkap permohonan keluar bermalam di luar kolej, pemantauan kelulusan warden, dan pengesahan kembali secara dwi-faktor.',
     sections: [
@@ -244,7 +244,7 @@ const MANUAL_CHAPTERS = [
     number: 'Bab 6',
     title: 'Aliran Aduan Kerosakan & Pemantauan WhatsApp Group Penyelenggaraan JPP',
     roleLabel: 'Pelajar, Felo & Staf',
-    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
     icon: 'Wrench',
     summary: 'Aliran pemantauan kerosakan baharu: integrasi portal MyServ UMS dan pemajuan aduan ke WhatsApp Group Penyelenggaraan KKTF bersama PIC JPP & Kontraktor.',
     sections: [
@@ -277,7 +277,7 @@ const MANUAL_CHAPTERS = [
     number: 'Bab 7',
     title: 'Sistem Merit & Dimerit: Skala Pemarkahan, Lantikan AJK & Kelayakan Penempatan',
     roleLabel: 'Semua Pengguna (Pelajar, JAKMAS, Felo & Pentadbir)',
-    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
     icon: 'Award',
     summary: 'Panduan lengkap pengumpulan merit aktiviti, tangga mata jawatan AJK JAKMAS, pemotongan dimerit disiplin, dan matriks pemilihan penempatan bilik sesi hadapan.',
     sections: [
@@ -320,7 +320,7 @@ const MANUAL_CHAPTERS = [
     number: 'Bab 8',
     title: 'Panduan Pelajar: Suara Mahasiswa & Whistleblowing Sulit',
     roleLabel: 'Pelajar',
-    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
     icon: 'HeartHandshake',
     summary: 'Saluran rasmi menyuarakan isu kebajikan, keselesaan rakan sebilik, perkhidmatan kafeteria, dan aduan sulit tanpa nama.',
     sections: [
@@ -345,7 +345,7 @@ const MANUAL_CHAPTERS = [
     number: 'Bab 8',
     title: 'Panduan Pelajar: Tempahan Fasiliti, Acara Kolej & Kehadiran QR',
     roleLabel: 'Pelajar & JAKMAS',
-    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
     icon: 'Building2',
     summary: 'Panduan menempah dewan dan gelanggang kolej, mendaftar aktiviti anjuran JAKMAS, serta mengimbas kod QR kehadiran merit.',
     sections: [
@@ -375,7 +375,7 @@ const MANUAL_CHAPTERS = [
     number: 'Bab 9',
     title: 'KKTF Assistant AI: Panduan Pembantu Maya Pintar Kolej 24/7',
     roleLabel: 'Semua Pengguna',
-    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
     icon: 'Sparkles',
     summary: 'Cara memanfaatkan pembantu kecerdasan buatan untuk mendapatkan rujukan peraturan, panduan kolej, dan bantuan segera.',
     sections: [
@@ -515,7 +515,7 @@ const MANUAL_CHAPTERS = [
     number: 'Bab 13',
     title: 'Soalan Lazim (FAQ) & Penyelesaian Masalah (Troubleshooting)',
     roleLabel: 'Semua Pengguna',
-    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
     icon: 'HelpCircle',
     summary: 'Panduan pantas mengatasi isu teknikal seperti kamera tidak menyala, masalah GPS, atau notifikasi tidak masuk.',
     sections: [
@@ -546,11 +546,11 @@ const ALL_SLIDES = [
     title: 'MyKKTF v3.1',
     subtitle: 'Sistem Pengurusan Digital Kolej Kediaman Tun Fuad, Universiti Malaysia Sabah',
     meta: 'Buku Panduan & Slaid Pembentangan Rasmi',
-    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas']
   },
   { 
     kind: 'section', label: 'Modul 1', title: 'Pemasangan Aplikasi & Pengalaman Pengguna', icon: 'Smartphone',
-    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas']
   },
   {
     kind: 'feature', icon: 'Smartphone', tone: 'indigo',
@@ -563,11 +563,11 @@ const ALL_SLIDES = [
       'Akses kamera lancar untuk imbasan QR dan penentu lokasi GPS Geofencing'
     ],
     roles: ['Semua Pengguna'],
-    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas']
   },
   { 
     kind: 'section', label: 'Modul 2', title: 'Pas Residen Digital & Pengimbas Keselamatan', icon: 'ShieldCheck',
-    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas']
   },
   {
     kind: 'feature', icon: 'ShieldCheck', tone: 'lime',
@@ -581,7 +581,7 @@ const ALL_SLIDES = [
       'Boleh diakses pantas dari Student Dashboard atau My Profile pada bila-bila masa'
     ],
     roles: ['Semua Pengguna'],
-    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas']
   },
   {
     kind: 'feature', icon: 'ScanLine', tone: 'emerald',

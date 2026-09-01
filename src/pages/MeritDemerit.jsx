@@ -96,7 +96,8 @@ export default function MeritDemerit() {
     notes: ''
   });
 
-  const isStaff = currentUser && ['super_admin', 'college_admin', 'warden', 'staff'].includes(currentUser.role);
+  const isStaff = currentUser && ['super_admin', 'principal', 'college_admin', 'warden', 'staff'].includes(currentUser.role);
+  const isPrincipal = currentUser && ['super_admin', 'principal'].includes(currentUser.role);
   const isJakmas = currentUser && (currentUser.role === 'jakmas' || currentUser.jakmasAppointment);
   const isStudent = currentUser && (currentUser.role === 'student' || currentUser.role === 'user');
 

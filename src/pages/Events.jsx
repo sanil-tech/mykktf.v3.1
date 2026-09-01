@@ -13,7 +13,7 @@ import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 import { computeEffectiveRole, fetchActiveJakmasAppointment } from '@/lib/jakmas';
 import { logAudit } from '@/lib/audit';
 
-const MANAGE_ROLES = ['super_admin', 'college_admin', 'warden', 'staff', 'jakmas'];
+const MANAGE_ROLES = ['super_admin', 'principal', 'college_admin', 'warden', 'staff', 'jakmas'];
 const STATUS_COLORS = {
   Upcoming: 'bg-blue-100 text-blue-700',
   Ongoing: 'bg-green-100 text-green-700',
@@ -209,7 +209,8 @@ export default function Events() {
 
   const role = user?.effectiveRole;
   const canManage = user && MANAGE_ROLES.includes(role);
-  const isPrincipalOrAdmin = user && ['super_admin', 'college_admin'].includes(user.role);
+  const isPrincipalOrAdmin = user && ['super_admin', 'principal', 'college_admin'].includes(user.role);
+  const isPrincipalOnly = user && ['super_admin', 'principal'].includes(user.role);
   const isStudent = role === 'student';
 
   if (loading) return <div><PageHeader title="Events & Activities" description="Memuatkan senarai acara..." /><CardGridSkeleton count={6} /></div>;
