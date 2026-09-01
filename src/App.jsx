@@ -120,6 +120,8 @@ const AuthenticatedApp = () => {
           <Route path="/jakmas-tasks" element={<JakmasTasks />} />
           <Route path="/ai-knowledge" element={<AiKnowledge />} />
           <Route path="/presentation" element={<Presentation />} />
+          <Route path="/guide" element={<Presentation />} />
+          <Route path="/buku-panduan" element={<Presentation />} />
         </Route>
       </Route>
 
