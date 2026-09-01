@@ -56,12 +56,15 @@ export default function CollegeTranscriptModal({ open, onOpenChange, student, at
 
         {/* PRINTABLE TRANSCRIPT DOCUMENT BODY */}
         <div className="p-8 overflow-y-auto bg-white text-slate-900 font-sans space-y-6 print:p-0 print:m-0">
-          {/* UMS & KKTF OFFICIAL LETTERHEAD */}
+          {/* UMS & KKTF OFFICIAL LETTERHEAD WITH LOGOS */}
           <div className="flex items-center justify-between pb-5 border-b-2 border-slate-900 gap-4">
+            {/* LOGO UMS (LEFT) */}
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-[#132644] text-amber-400 font-black text-xl flex items-center justify-center border-2 border-amber-400 shrink-0 shadow-xs">
-                UMS
-              </div>
+              <img 
+                src="/logos/ums-logo.png" 
+                alt="Logo Universiti Malaysia Sabah" 
+                className="h-16 w-auto object-contain shrink-0"
+              />
               <div>
                 <h2 className="text-base font-extrabold uppercase tracking-wide text-slate-950">
                   UNIVERSITI MALAYSIA SABAH
@@ -75,11 +78,21 @@ export default function CollegeTranscriptModal({ open, onOpenChange, student, at
               </div>
             </div>
 
-            <div className="text-right shrink-0">
-              <span className="inline-block px-2.5 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-100 border border-slate-300 text-slate-800">
-                KKTF/MERIT/2026/089
-              </span>
-              <p className="text-[9px] text-slate-500 mt-1">Tarikh Cetakan: {new Date().toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            {/* LOGO KKTF (RIGHT) & REF NUMBER */}
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="text-right">
+                <span className="inline-block px-2.5 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-100 border border-slate-300 text-slate-800">
+                  KKTF/MERIT/2026/089
+                </span>
+                <p className="text-[9px] text-slate-500 mt-1">
+                  Tarikh Cetakan: {new Date().toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+              <img 
+                src="/logos/kktf-logo.jpg" 
+                alt="Logo Kolej Kediaman Tun Fuad" 
+                className="h-16 w-16 object-contain rounded-2xl border border-slate-200 shadow-2xs"
+              />
             </div>
           </div>
 
@@ -220,11 +233,17 @@ export default function CollegeTranscriptModal({ open, onOpenChange, student, at
 
             {/* PRINCIPAL SIGNATURE */}
             <div className="text-right space-y-1">
-              <p className="font-serif italic text-sm font-bold text-slate-900">Nurfadilah Darmansah</p>
-              <div className="w-36 h-0.5 bg-slate-900 ml-auto" />
-              <p className="font-extrabold text-[10px] text-slate-950">PUAN NURFADILAH DARMANSAH</p>
-              <p className="text-[9px] text-slate-600">Pengetua Kolej Kediaman Tun Fuad</p>
-              <p className="text-[8px] text-slate-500">Universiti Malaysia Sabah</p>
+              <p className="font-serif italic text-sm font-bold text-slate-900">Prof. Madya Ts. Dr. Nur Fadilah binti Darmansah</p>
+              <div className="w-48 h-0.5 bg-slate-900 ml-auto" />
+              <p className="font-black text-[10px] text-slate-950 leading-tight">
+                PROFESOR MADYA TS. DR. NUR FADILAH BINTI DARMANSAH
+              </p>
+              <p className="text-[9px] font-bold text-slate-800">
+                Pengetua Kolej Kediaman Tun Fuad
+              </p>
+              <p className="text-[8px] text-slate-600">
+                Profesor Madya (DS14), Fakulti Kejuruteraan &bull; Universiti Malaysia Sabah
+              </p>
             </div>
           </div>
         </div>
