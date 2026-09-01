@@ -200,10 +200,15 @@ export default function AdminDashboard({ user }) {
               {(() => { const h = new Date().getHours(); if (h<12) return '🌅 Selamat Pagi'; if (h<18) return '☀️ Selamat Tengahari'; return '🌙 Selamat Malam'; })()}
             </p>
             <h1 className="text-2xl font-extrabold tracking-tight flex items-center gap-2">
-              <Building className="w-6 h-6 text-amber-400" /> Panel Pentadbiran KKTF
+              {user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.role === 'principal' || user?.effectiveRole === 'principal' ? (
+                <>🏛️ Panel Eksekutif Pengetua KKTF</>
+              ) : (
+                <><Building className="w-6 h-6 text-amber-400" /> Panel Pentadbiran KKTF</>
+              )}
             </h1>
             <p className="text-sm text-slate-200 mt-1">
-              Selamat kembali, <span className="font-semibold text-white">{user?.full_name || 'Pentadbir'}</span>. Kawalan penempatan Kolej Kediaman Tun Fuad.
+              Selamat kembali, <span className="font-semibold text-white">{user?.full_name || 'Pentadbir'}</span>
+              {(user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.role === 'principal' || user?.effectiveRole === 'principal') ? ' (Pengetua Kolej)' : ''}. Kawalan pengurusan & penempatan Kolej Kediaman Tun Fuad.
             </p>
           </div>
           <button 

@@ -76,8 +76,15 @@ export default function TopBar({ onMenuClick, user }) {
                   {user?.jakmasAppointment && (
                     <Badge className="bg-emerald-100 text-emerald-700 text-[9px] px-1 py-0 leading-none">JAKMAS</Badge>
                   )}
+                  {(user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.effectiveRole === 'principal' || user?.role === 'principal') && (
+                    <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400 text-[9px] px-1 py-0 leading-none font-bold">👑 PENGETUA</Badge>
+                  )}
                 </p>
-                <p className="text-[10px] text-muted-foreground leading-none mt-0.5">{ROLE_LABELS[user?.effectiveRole] || ROLE_LABELS[user?.role] || user?.role}</p>
+                <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
+                  {user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.effectiveRole === 'principal' || user?.role === 'principal'
+                    ? 'Pengetua Kolej'
+                    : (ROLE_LABELS[user?.effectiveRole] || ROLE_LABELS[user?.role] || user?.role)}
+                </p>
               </div>
             </Button>
           </DropdownMenuTrigger>
