@@ -297,12 +297,12 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '7.3 Aliran Perakuan Lantikan AJK JAKMAS',
+        title: '7.3 Aliran Tadbir Urus: Felo Penyelaras Program & Lantikan AJK JAKMAS',
         steps: [
-          'Langkah 1: Pengarah Program/JAKMAS membuka modul "Merit & Dimerit" → Tekan "Lantik AJK / Sekretariat".',
-          'Langkah 2: Pilih nama program, pilih pelajar dari senarai, dan tentukan jawatan lantikan.',
-          'Langkah 3: Felo penasihat program menyemak laporan program dan membuat perakuan (Endorsement).',
-          'Langkah 4: Pentadbiran kolej mengesahkan lantikan dan sistem mengkreditkan mata merit ke profil pelajar secara automatik.'
+          'Langkah 1 (Cadangan Program & Felo): Penganjur/JAKMAS mencipta acara di modul Events dan mencadangkan nama Felo Penyelaras Program.',
+          'Langkah 2 (Kelulusan Pengetua): Pengetua/Pentadbir Kolej menyemak dan menekan "Luluskan Felo Penyelaras".',
+          'Langkah 3 (Kunci Masuk AJK oleh JAKMAS): EXCO JAKMAS menekan butang pintas "👥 AJK & Merit" pada kad acara untuk mendaftarkan senarai AJK (Pengarah, Setiausaha, Biro, Urusetia).',
+          'Langkah 4 (Pengesahan Felo Penyelaras): Felo Penyelaras yang sah menyemak senarai dan menekan "Sahkan & Kreditkan Merit AJK" untuk memasukkan mata merit ke dalam profil pelajar secara automatik.'
         ]
       },
       {

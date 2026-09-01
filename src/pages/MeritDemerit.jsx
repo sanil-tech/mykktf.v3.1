@@ -588,10 +588,10 @@ export default function MeritDemerit() {
           <div className="flex items-center justify-between pb-3 border-b border-border">
             <div>
               <h3 className="text-base font-bold font-heading text-foreground">
-                Pengurusan Jawatankuasa & Sekretariat Program (JAKMAS)
+                Pengurusan Jawatankuasa & Urusetia Program (JAKMAS & Felo)
               </h3>
               <p className="text-xs text-muted-foreground">
-                Senarai lantikan AJK yang menerima mata merit kepimpinan rasmi selepas disahkan Felo/Pentadbir.
+                Senarai lantikan AJK yang menerima mata merit kepimpinan rasmi selepas disahkan oleh Felo Penyelaras Program (yang diluluskan Pengetua).
               </p>
             </div>
 
@@ -602,6 +602,16 @@ export default function MeritDemerit() {
             >
               <Plus className="w-3.5 h-3.5" /> Lantik AJK Baharu
             </Button>
+          </div>
+
+          {/* WORKFLOW PROTOCOL INFO BANNER */}
+          <div className="p-3.5 bg-indigo-50/25 dark:bg-indigo-950/25 border border-indigo-200 dark:border-indigo-900/60 rounded-2xl text-xs space-y-1">
+            <p className="font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-indigo-600" /> Aliran Kuasa Lantikan & Pengesahan Merit:
+            </p>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              1. Cipta Acara & Pilih Felo Penyelaras $\rightarrow$ 2. Pengetua Luluskan Lantikan Felo Penyelaras $\rightarrow$ 3. JAKMAS Kunci Masuk Senarai AJK $\rightarrow$ 4. Felo Penyelaras Program Sahkan & Kreditkan Merit.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
