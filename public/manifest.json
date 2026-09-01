@@ -1,0 +1,22 @@
+{
+  "short_name": "MyKKTF",
+  "name": "MyKKTF — Kolej Kediaman Tun Fuad (UMS)",
+  "description": "Sistem Pengurusan & Kebajikan Pelajar Kolej Kediaman Tun Fuad, Universiti Malaysia Sabah",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/color/192/university.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://img.icons8.com/color/512/university.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f1e36",
+  "theme_color": "#0f1e36",
+  "display": "standalone",
+  "orientation": "portrait"
+}
