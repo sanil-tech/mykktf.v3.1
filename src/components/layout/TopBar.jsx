@@ -7,14 +7,25 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
+import { requestNotificationPermission, showPhoneNotification } from '@/lib/pushNotifications';
+
 export default function TopBar({ onMenuClick, user }) {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     if (user?.id) {
       base44.entities.Notification.filter({ user_id: user.id, is_read: false }).
-      then((notifs) => setUnreadCount(notifs.length)).
+      then((notifs) => {
+        setUnreadCount(notifs.length);
+      }).
       catch(() => {});
+
+      // Auto-prompt permission on supported browsers if not yet requested
+      if ('Notification' in window && Notification.permission === 'default') {
+        setTimeout(() => {
+          requestNotificationPermission().catch(() => {});
+        }, 3000);
+      }
     }
   }, [user?.id]);
 
