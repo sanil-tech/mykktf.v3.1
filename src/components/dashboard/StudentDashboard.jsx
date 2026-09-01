@@ -92,6 +92,32 @@ export default function StudentDashboard({ user, jakmasAppointment }) {
         setMyLeave(leave);
         setMyMaint(maint);
 
+        // Daily Reminder Dispatcher for active Damage Reports (>24h without completion)
+        const now = Date.now();
+        const todayDateStr = new Date().toISOString().split('T')[0];
+        maint.filter(m => m.status !== 'Completed').forEach(async (m) => {
+          const createTime = m.submitted_at ? new Date(m.submitted_at).getTime() : (m.created_date ? new Date(m.created_date).getTime() : now);
+          const hoursPassed = (now - createTime) / (1000 * 60 * 60);
+          const lastRemDate = m.last_reminder_sent_at ? m.last_reminder_sent_at.split('T')[0] : null;
+
+          if (hoursPassed >= 24 && lastRemDate !== todayDateStr) {
+            try {
+              await base44.entities.Notification.create({
+                user_id: user.id,
+                title: `🔔 Peringatan: Semakan Pembaikan [${m.myserv_ticket_no || m.specific_location}]`,
+                message: `Adakah kerosakan di ${m.specific_location || 'bilik anda'} telah siap dibaiki oleh JPP? Sila sahkan di menu Damage Reports.`,
+                type: 'general',
+                link: '/maintenance'
+              });
+              await base44.entities.MaintenanceRequest.update(m.id, {
+                last_reminder_sent_at: new Date().toISOString()
+              });
+            } catch (e) {
+              console.error('Student reminder error:', e);
+            }
+          }
+        });
+
         const map = {};
         reads.forEach(r => { map[r.announcement_id] = r; });
         setReadMap(map);
@@ -185,6 +211,46 @@ export default function StudentDashboard({ user, jakmasAppointment }) {
       </div>
 
       {jakmasAppointment && <JakmasPanel user={user} appointment={jakmasAppointment} />}
+
+      {/* Active Damage Report Verification Reminder */}
+      {(() => {
+        const unconfirmedReports = myMaint.filter(m => m.status !== 'Completed');
+        if (unconfirmedReports.length === 0) return null;
+        const mainReport = unconfirmedReports[0];
+        return (
+          <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-300/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+                <Wrench className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wide">Peringatan Status Pembaikan</span>
+                  {mainReport.myserv_ticket_no && (
+                    <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full border border-amber-200">
+                      {mainReport.myserv_ticket_no}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-semibold text-slate-800">
+                  {mainReport.specific_location || `Bilik ${mainReport.room_number}`} &bull; <span className="font-normal text-slate-600">{mainReport.category}</span>
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Adakah juruteknik JPP telah hadir dan menyelesaikan kerja pembaikan ini?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+              <Link to="/maintenance">
+                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold h-8 gap-1.5 shadow-sm">
+                  <CheckCircle className="w-3.5 h-3.5" /> Sahkan Siap Sekarang
+                </Button>
+              </Link>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 2. Urgent Unread Notices Box */}
       {unreadAnn.length > 0 && (

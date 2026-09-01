@@ -24,7 +24,8 @@ import {
   Sparkles,
   CheckCircle,
   ThumbsUp,
-  Image as ImageIcon
+  Timer,
+  CalendarCheck
 } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 import { toast } from 'sonner';
@@ -54,6 +55,36 @@ const COMMON_FACILITIES = [
 ];
 
 const STAFF_ROLES = ['warden', 'staff', 'college_admin', 'super_admin'];
+
+function formatResolutionTime(hours) {
+  if (!hours || isNaN(hours)) return null;
+  if (hours < 1) {
+    const mins = Math.max(1, Math.round(hours * 60));
+    return `${mins} Minit`;
+  }
+  if (hours < 24) {
+    return `${hours.toFixed(1)} Jam`;
+  }
+  const days = Math.floor(hours / 24);
+  const remainingHours = Math.round(hours % 24);
+  return remainingHours > 0 ? `${days} Hari ${remainingHours} Jam (${hours.toFixed(1)} Jam)` : `${days} Hari`;
+}
+
+function formatDateTime(isoStr) {
+  if (!isoStr) return null;
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleDateString('ms-MY', { 
+      day: '2-digit', 
+      month: 'short', 
+      year: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  } catch {
+    return isoStr;
+  }
+}
 
 export default function Maintenance() {
   const [requests, setRequests] = useState([]);
@@ -113,6 +144,32 @@ export default function Maintenance() {
       reqs = student
         ? await base44.entities.MaintenanceRequest.filter({ student_id: student.id })
         : [];
+      
+      // Auto-dispatch daily reminder notification to student if active unconfirmed report > 24 hours
+      const now = Date.now();
+      const todayDateStr = new Date().toISOString().split('T')[0];
+      reqs.filter(r => r.status !== 'Completed').forEach(async (r) => {
+        const createTime = r.submitted_at ? new Date(r.submitted_at).getTime() : (r.created_date ? new Date(r.created_date).getTime() : now);
+        const hoursPassed = (now - createTime) / (1000 * 60 * 60);
+        const lastRemDate = r.last_reminder_sent_at ? r.last_reminder_sent_at.split('T')[0] : null;
+
+        if (hoursPassed >= 24 && lastRemDate !== todayDateStr) {
+          try {
+            await base44.entities.Notification.create({
+              user_id: user.id,
+              title: `🔔 Peringatan Harian: Semakan Pembaikan [${r.myserv_ticket_no || r.specific_location}]`,
+              message: `Adakah kerosakan di ${r.specific_location || 'bilik anda'} telah siap dibaiki oleh JPP? Sila sahkan di menu Damage Reports jika telah selesai.`,
+              type: 'general',
+              link: '/maintenance'
+            });
+            await base44.entities.MaintenanceRequest.update(r.id, {
+              last_reminder_sent_at: new Date().toISOString()
+            });
+          } catch (e) {
+            console.error('Reminder notification error:', e);
+          }
+        }
+      });
     }
     setRequests(reqs);
     setLoading(false);
@@ -169,7 +226,7 @@ export default function Maintenance() {
     reader.readAsDataURL(file);
   };
 
-  // STEP 1 & 2: Save to MyKKTF and Launch MyServ
+  // STEP 1 & 2: Save to MyKKTF with exact timestamp and Launch MyServ
   async function handleSubmitAndLaunchMyServ() {
     if (!form.description) { 
       toast.error('Sila isi penerangan kerosakan'); 
@@ -184,6 +241,8 @@ export default function Maintenance() {
       ? (myStudent?.room_number ? `Bilik ${myStudent.room_number} (${myStudent.block_name})` : form.specific_location || 'Bilik Sendiri')
       : (form.specific_location || form.location_type);
 
+    const nowIso = new Date().toISOString();
+
     const payload = {
       student_id: studentId,
       student_name: `${studentName} [${studentMicroAddress}]`,
@@ -195,14 +254,16 @@ export default function Maintenance() {
       description: form.description,
       myserv_ticket_no: '',
       photo: form.photo || null,
-      status: 'Submitted'
+      status: 'Submitted',
+      submitted_at: nowIso
     };
 
     const newRecord = await base44.entities.MaintenanceRequest.create(payload);
     await logAudit(currentUser, 'MAINTENANCE_SUBMITTED', 'Maintenance', { 
       student: studentName, 
       category: form.category, 
-      location: locationDisplay
+      location: locationDisplay,
+      submitted_at: nowIso
     });
 
     toast.success('Laporan asas disimpan! Membuka portal UMS MyServ...');
@@ -218,7 +279,7 @@ export default function Maintenance() {
     init();
   }
 
-  // STEP 3: Save No Rujukan (e.g. REQ-2026-3938)
+  // STEP 3: Save No Rujukan with Timestamp
   async function handleSaveRefNumber() {
     if (!selectedReqForRef) return;
     if (!inputRefNumber.trim()) {
@@ -229,13 +290,17 @@ export default function Maintenance() {
     setUpdatingRef(true);
     try {
       const cleanRef = inputRefNumber.trim().toUpperCase();
+      const nowIso = new Date().toISOString();
+
       await base44.entities.MaintenanceRequest.update(selectedReqForRef.id, {
-        myserv_ticket_no: cleanRef
+        myserv_ticket_no: cleanRef,
+        myserv_linked_at: nowIso
       });
 
       await logAudit(currentUser, 'MAINTENANCE_REF_UPDATED', 'Maintenance', { 
         id: selectedReqForRef.id, 
-        myserv_ticket_no: cleanRef 
+        myserv_ticket_no: cleanRef,
+        myserv_linked_at: nowIso
       });
 
       toast.success(`No. Rujukan ${cleanRef} berjaya dikemaskini!`);
@@ -251,18 +316,29 @@ export default function Maintenance() {
     }
   }
 
-  // STUDENT SELF-CONFIRMATION OF COMPLETION
+  // STUDENT SELF-CONFIRMATION OF COMPLETION WITH DURATION SLA CALCULATION
   async function handleConfirmCompletion() {
     if (!selectedReqForComplete) return;
 
     setCompleting(true);
     try {
       const verifierName = myStudent?.full_name || currentUser?.full_name || currentUser?.email;
-      const todayDate = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const nowIso = now.toISOString();
+      const todayDate = nowIso.split('T')[0];
+
+      // Calculate exact resolution SLA duration in hours
+      const startTime = selectedReqForComplete.submitted_at 
+        ? new Date(selectedReqForComplete.submitted_at).getTime()
+        : (selectedReqForComplete.created_date ? new Date(selectedReqForComplete.created_date).getTime() : now.getTime());
+      
+      const durationHours = Math.max(0.1, Number(((now.getTime() - startTime) / (1000 * 60 * 60)).toFixed(1)));
 
       await base44.entities.MaintenanceRequest.update(selectedReqForComplete.id, {
         status: 'Completed',
         completion_date: todayDate,
+        completed_at: nowIso,
+        resolution_duration_hours: durationHours,
         completion_remarks: completeRemarks.trim() || 'Pembaikan telah disahkan siap oleh residen.',
         completion_photo: completePhoto || null,
         verified_by: isStaff ? `Staf/Warden: ${verifierName}` : `Residen: ${verifierName}`
@@ -271,10 +347,11 @@ export default function Maintenance() {
       await logAudit(currentUser, 'MAINTENANCE_VERIFIED_COMPLETED', 'Maintenance', {
         id: selectedReqForComplete.id,
         verified_by: verifierName,
+        duration_hours: durationHours,
         remarks: completeRemarks
       });
 
-      toast.success('Pengesahan pembaikan berjaya direkodkan! Terima kasih atas kerjasama anda.');
+      toast.success(`Pengesahan pembaikan berjaya direkodkan! Tempoh penyelesaian: ${formatResolutionTime(durationHours)}`);
       setCompleteModalOpen(false);
       setSelectedReqForComplete(null);
       setCompleteRemarks('Kerosakan telah dibaiki dan diuji dengan baik oleh juruteknik JPP.');
@@ -289,7 +366,13 @@ export default function Maintenance() {
   }
 
   async function updateStatus(id, status) {
-    await base44.entities.MaintenanceRequest.update(id, { status });
+    const nowIso = new Date().toISOString();
+    const updatePayload = { status };
+    if (status === 'Completed') {
+      updatePayload.completed_at = nowIso;
+      updatePayload.completion_date = nowIso.split('T')[0];
+    }
+    await base44.entities.MaintenanceRequest.update(id, updatePayload);
     await logAudit(currentUser, 'MAINTENANCE_UPDATED', 'Maintenance', { id, status });
     toast.success(`Status dikemaskini kepada: ${status}`);
     init();
@@ -403,13 +486,18 @@ export default function Maintenance() {
                   </div>
 
                   {/* Category & Location Badges */}
-                  <div className="flex items-center gap-1.5 flex-wrap mb-2.5">
+                  <div className="flex items-center gap-1.5 flex-wrap mb-2">
                     <span className="px-2 py-0.5 rounded-md bg-muted text-[11px] font-medium text-muted-foreground">
                       {r.category}
                     </span>
                     {r.location_type && (
                       <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-[10px] font-medium text-indigo-700 border border-indigo-100">
                         {r.location_type}
+                      </span>
+                    )}
+                    {r.submitted_at && (
+                      <span className="text-[10px] text-slate-400 flex items-center gap-1 ml-auto font-mono">
+                        <Clock className="w-3 h-3 text-slate-400" /> {formatDateTime(r.submitted_at)}
                       </span>
                     )}
                   </div>
@@ -480,24 +568,37 @@ export default function Maintenance() {
                     )}
                   </div>
 
-                  {/* IF COMPLETED: DISPLAY VERIFICATION DETAILS */}
+                  {/* IF COMPLETED: DISPLAY TIMESTAMP & RESOLUTION SLA & DETAILS */}
                   {isCompleted && (
                     <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5 text-xs text-emerald-950">
                       <div className="flex items-center justify-between">
                         <span className="font-bold flex items-center gap-1 text-emerald-800">
                           <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Pembaikan Selesai
                         </span>
-                        {r.completion_date && (
+                        {r.completed_at ? (
+                          <span className="text-[10px] text-emerald-800 font-mono font-medium flex items-center gap-1">
+                            <CalendarCheck className="w-3 h-3 text-emerald-600" /> {formatDateTime(r.completed_at)}
+                          </span>
+                        ) : r.completion_date ? (
                           <span className="text-[11px] text-emerald-700 font-medium">{r.completion_date}</span>
-                        )}
+                        ) : null}
                       </div>
+
+                      {/* RESOLUTION SLA DURATION */}
+                      {r.resolution_duration_hours && (
+                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-900 bg-emerald-100/70 px-2 py-1 rounded-md">
+                          <Timer className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                          <span>Tempoh Selesai: <strong>{formatResolutionTime(r.resolution_duration_hours)}</strong></span>
+                        </div>
+                      )}
+
                       {r.verified_by && (
-                        <p className="text-[11px] text-emerald-800">
+                        <p className="text-[11px] text-emerald-800 pt-0.5">
                           Disahkan oleh: <span className="font-semibold">{r.verified_by}</span>
                         </p>
                       )}
                       {r.completion_remarks && (
-                        <p className="text-[11px] text-emerald-900 bg-white/70 p-2 rounded-lg border border-emerald-200/60 mt-1 italic">
+                        <p className="text-[11px] text-emerald-900 bg-white/80 p-2 rounded-lg border border-emerald-200/60 mt-1 italic">
                           "{r.completion_remarks}"
                         </p>
                       )}
