@@ -146,21 +146,24 @@ export default function MeritDemerit() {
           }
         }
 
-        // Derive distinct event names
-        const distinct = Array.from(new Set(aList.map(a => a.event_name).filter(Boolean)));
-        setEvents(distinct.length > 0 ? distinct : ['Majlis Makan Malam KKTF', 'Perhimpunan Kolej', 'Gotong-Royong Perdana', 'Sukan Antara Blok']);
+        // Derive distinct event names directly from real attendance records & events
+        const distinct = Array.from(new Set([
+          ...(eList || []).map(e => e.event_name),
+          ...(aList || []).map(a => a.event_name)
+        ].filter(Boolean)));
+        setEvents(distinct);
 
-        // Mock/Map initial merit transactions
+        // Map real merit/demerit transactions from database
         const txs = (mList || []).map(m => ({
           id: m.id,
           student_id: m.student_id,
           student_name: m.student_name,
           type: 'Demerit',
           title: m.offence_category || 'Kesalahan Disiplin',
-          points: -15,
-          date: m.incident_date || m.created_date?.split('T')[0] || '2026-02-15',
-          status: 'Approved',
-          officer: 'Felo Bertugas'
+          points: m.demerit_points ? -Math.abs(m.demerit_points) : -15,
+          date: m.incident_date || m.created_date?.split('T')[0] || new Date().toISOString().split('T')[0],
+          status: m.status || 'Approved',
+          officer: m.recorded_by || 'Felo Bertugas'
         }));
         setMeritTransactions(txs);
 
