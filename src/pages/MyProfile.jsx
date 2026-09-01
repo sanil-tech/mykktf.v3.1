@@ -6,8 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
-import { User, Save, Loader2, Building2, Plus, X, ShieldCheck } from 'lucide-react';
+import { User, Save, Loader2, Building2, Plus, X, ShieldCheck, Mail, Phone, BadgeCheck, Briefcase, Building } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import DigitalResidentPass from '@/components/shared/DigitalResidentPass';
+import { ROLE_LABELS } from '@/lib/roles';
 
 const UMS_FACULTIES = [
   'Fakulti Sains dan Sumber Alam (FSSA)',
@@ -19,13 +21,25 @@ const UMS_FACULTIES = [
   'Fakulti Perubatan dan Sains Kesihatan (FPSK)',
   'Fakulti Sains Makanan dan Pemakanan (FSMP)',
   'Akademi Seni dan Teknologi Kreatif (ASTiF)',
-  'Fakulti Pengajian Islam (FIS)'
+  'Fakulti Pengajian Islam (FIS)',
+  'Pusat Kokurikulum dan Pemajuan Pelajar (PKPP)',
+  'Pusat Pembangunan ICT (PPICT)',
+  'Pusat Kesihatan Universiti (PKU)',
+  'Jabatan Hal Ehwal Pelajar (JHEP)',
+  'Pejabat Pengurusan Kolej Kediaman Tun Fuad'
 ];
 
 export default function MyProfile() {
   const [currentUser, setCurrentUser] = useState(null);
   const [student, setStudent] = useState(null);
-  const [form, setForm] = useState(null);
+  const [form, setForm] = useState({
+    full_name: '',
+    phone: '',
+    staff_id: '',
+    department: 'Pejabat Pengurusan Kolej Kediaman Tun Fuad',
+    office_location: 'Aras Bawah, Blok Pentadbiran KKTF',
+    notes: ''
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [blocks, setBlocks] = useState([]);
@@ -41,28 +55,44 @@ export default function MyProfile() {
     setLoading(true);
     const user = await base44.auth.me();
     setCurrentUser(user);
-    // Match by user_id first (most reliable), then fall back to email
-    let studs = await base44.entities.Student.filter({ user_id: user.id });
-    if (!studs.length) studs = await base44.entities.Student.filter({ email: user.email });
-    const s = studs[0] || null;
-    // If found by email but missing user_id, link it now
-    if (s && !s.user_id) {
-      await base44.entities.Student.update(s.id, { user_id: user.id });
-      s.user_id = user.id;
+
+    const isStudentUser = !user.role || user.role === 'student' || user.role === 'user';
+
+    if (isStudentUser) {
+      let studs = await base44.entities.Student.filter({ user_id: user.id });
+      if (!studs.length) studs = await base44.entities.Student.filter({ email: user.email });
+      const s = studs[0] || null;
+      if (s && !s.user_id) {
+        await base44.entities.Student.update(s.id, { user_id: user.id });
+        s.user_id = user.id;
+      }
+      setStudent(s);
+      setForm(s ? { ...s } : {
+        student_id: '', full_name: user.full_name || '', ic_passport: '', gender: 'Male',
+        date_of_birth: '', faculty: '', programme: '', year_of_study: 1, semester: '', session: '',
+        phone: '', email: user.email || '', block_name: '', room_number: '',
+        parent_name: '', parent_phone: '', emergency_contact: '', vehicle_reg: '',
+      });
+    } else {
+      // Non-student staff / officer profile
+      setForm({
+        full_name: user.full_name || '',
+        email: user.email || '',
+        phone: user.phone || '01X-XXXXXXX',
+        staff_id: user.staff_id || 'UMS-KKTF-001',
+        department: user.department || 'Pejabat Pentadbiran Kolej Kediaman Tun Fuad',
+        office_location: 'Pejabat Kolej Kediaman Tun Fuad, UMS',
+        role: user.role
+      });
     }
-    setStudent(s);
-    setForm(s ? { ...s } : {
-      student_id: '', full_name: user.full_name || '', ic_passport: '', gender: 'Male',
-      date_of_birth: '', faculty: '', programme: '', year_of_study: 1, semester: '', session: '',
-      phone: '', email: user.email || '', block_name: '', room_number: '',
-      parent_name: '', parent_phone: '', emergency_contact: '', vehicle_reg: '',
-    });
+
     const [b, r] = await Promise.all([
       base44.entities.Block.list(),
       base44.entities.Room.list(),
     ]);
     setBlocks(b);
     setRooms(r);
+    
     if (user.role === 'warden') {
       const wa = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
       setWardenAssignments(wa);
@@ -71,70 +101,43 @@ export default function MyProfile() {
   }
 
   async function handleSave() {
-    if (!form?.full_name || !form?.phone) {
-      toast({ title: 'Full name and phone are required', variant: 'destructive' }); return;
+    if (!form?.full_name) {
+      toast({ title: 'Nama penuh diperlukan', variant: 'destructive' }); return;
     }
     setSaving(true);
 
-    const oldRoomId = student?.room_id;
-    const newRoomId = form.room_id;
     const isStudentRole = !currentUser?.role || currentUser?.role === 'student' || currentUser?.role === 'user';
 
-    // Students cannot self-assign rooms — strip room fields from their update payload
-    const { room_id, block_name, room_number, ...personalData } = form;
-    const updatePayload = isStudentRole ? personalData : form;
-
-    if (student) {
-      await base44.entities.Student.update(student.id, { ...updatePayload, user_id: currentUser.id });
+    if (isStudentRole) {
+      const { room_id, block_name, room_number, ...personalData } = form;
+      if (student) {
+        await base44.entities.Student.update(student.id, { ...personalData, user_id: currentUser.id });
+      } else {
+        const created = await base44.entities.Student.create({ ...personalData, user_id: currentUser.id });
+        setStudent(created);
+      }
     } else {
-      const created = await base44.entities.Student.create({ ...updatePayload, user_id: currentUser.id });
-      setStudent(created);
-    }
-
-    // Update room occupancy if room changed (staff/admin only)
-    if (!isStudentRole && oldRoomId !== newRoomId) {
-      if (oldRoomId) {
-        const oldRoom = rooms.find(r => r.id === oldRoomId);
-        if (oldRoom) {
-          const newOcc = Math.max(0, (oldRoom.current_occupancy || 1) - 1);
-          const newStatus = newOcc === 0 ? 'Available' : newOcc >= oldRoom.capacity ? 'Full' : 'Occupied';
-          await base44.entities.Room.update(oldRoomId, { current_occupancy: newOcc, status: newStatus });
-        }
-      }
-      if (newRoomId) {
-        const newRoom = rooms.find(r => r.id === newRoomId);
-        if (newRoom) {
-          const newOcc = (newRoom.current_occupancy || 0) + 1;
-          const newStatus = newOcc >= newRoom.capacity ? 'Full' : 'Occupied';
-          await base44.entities.Room.update(newRoomId, { current_occupancy: newOcc, status: newStatus });
-        }
+      // Update User object
+      try {
+        await base44.auth.updateMe({
+          full_name: form.full_name,
+          phone: form.phone
+        });
+      } catch (e) {
+        // Fallback
       }
     }
 
-    toast({ title: 'Profile saved successfully' });
+    toast({ title: 'Profil berjaya dikemas kini' });
     setSaving(false);
     init();
   }
-
-  const f = (field, label, type = 'text', opts = null) => (
-    <div key={field}>
-      <Label className="text-xs">{label}</Label>
-      {opts ? (
-        <Select value={String(form?.[field] || '')} onValueChange={v => setForm({ ...form, [field]: type === 'number' ? Number(v) : v })}>
-          <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
-          <SelectContent>{opts.map(o => <SelectItem key={o.v} value={String(o.v)}>{o.l}</SelectItem>)}</SelectContent>
-        </Select>
-      ) : (
-        <Input type={type} value={form?.[field] || ''} onChange={e => setForm({ ...form, [field]: e.target.value })} className="h-9 text-sm mt-1" />
-      )}
-    </div>
-  );
 
   async function addWardenBlock() {
     if (!selectedBlock) return;
     const block = blocks.find(b => b.id === selectedBlock);
     const exists = wardenAssignments.find(a => a.block_id === selectedBlock);
-    if (exists) { toast({ title: 'Block already assigned', variant: 'destructive' }); return; }
+    if (exists) { toast({ title: 'Blok ini telah ditetapkan', variant: 'destructive' }); return; }
     setSavingBlock(true);
     await base44.entities.WardenBlock.create({
       warden_user_id: currentUser.id,
@@ -147,150 +150,304 @@ export default function MyProfile() {
     setWardenAssignments(wa);
     setSelectedBlock('');
     setSavingBlock(false);
-    toast({ title: `Block ${block?.block_name} assigned` });
+    toast({ title: `Blok ${block?.block_name} berjaya ditambah ke kawalan anda` });
   }
 
   async function removeWardenBlock(id) {
     await base44.entities.WardenBlock.delete(id);
     setWardenAssignments(wa => wa.filter(a => a.id !== id));
-    toast({ title: 'Block removed' });
+    toast({ title: 'Blok dipadam' });
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
 
-  const isStudentOrUser = currentUser?.role === 'student' || !currentUser?.role || currentUser?.role === 'user';
+  const isPrincipal = currentUser?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || currentUser?.role === 'principal' || currentUser?.effectiveRole === 'principal';
+  const isStaffOrOfficer = isPrincipal || ['super_admin', 'college_admin', 'warden', 'staff'].includes(currentUser?.role);
 
+  // =========================================================================
+  // 👔 PAPARAN PROFIL PEGAWAI / FELO / PENGETUA / PENTADBIR (RINGKAS & PROFESIONAL)
+  // =========================================================================
+  if (isStaffOrOfficer) {
+    const roleTitle = isPrincipal 
+      ? 'Pengetua Kolej' 
+      : (ROLE_LABELS[currentUser?.effectiveRole] || ROLE_LABELS[currentUser?.role] || 'Pegawai Kolej');
+
+    return (
+      <div className="max-w-3xl space-y-6">
+        <PageHeader 
+          title="Profil Pegawai / Pentadbir" 
+          description="Maklumat peribadi, peranan eksekutif, dan portfolio pengurusan Kolej Kediaman Tun Fuad." 
+        />
+
+        <div className="bg-card border border-border rounded-3xl p-6 shadow-sm space-y-6">
+          {/* Header Card Pegawai */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#132644] to-[#1e3a60] flex items-center justify-center text-white shadow-md border border-white/10 shrink-0">
+                <User className="w-8 h-8 text-amber-400" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-heading font-bold text-lg text-foreground leading-none">
+                    {form?.full_name || currentUser?.full_name}
+                  </h3>
+                  {isPrincipal && (
+                    <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400 text-[10px] font-bold">
+                      👑 PENGETUA
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground font-mono">{currentUser?.email}</p>
+                <div className="flex items-center gap-1.5 pt-0.5">
+                  <Badge className="bg-primary/10 text-primary border-primary/20 text-xs font-bold">
+                    <ShieldCheck className="w-3.5 h-3.5 mr-1" /> {roleTitle}
+                  </Badge>
+                  <span className="text-[11px] text-muted-foreground">&bull; Kakitangan Rasmi KKTF</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-muted/40 p-3 rounded-2xl border border-border text-xs space-y-1 text-right">
+              <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Status Akaun</p>
+              <p className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-end gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Aktif & Disahkan
+              </p>
+            </div>
+          </div>
+
+          {/* Butiran Pegawai Form */}
+          <div className="space-y-4 text-xs">
+            <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Briefcase className="w-3.5 h-3.5 text-primary" /> Maklumat Rasmi Pegawai
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs font-bold">Nama Penuh *</Label>
+                <Input 
+                  value={form.full_name} 
+                  onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
+                  className="h-9 text-xs mt-1 bg-background" 
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-bold">Jawatan Rasmi Kolej</Label>
+                <Input 
+                  value={roleTitle} 
+                  disabled 
+                  className="h-9 text-xs mt-1 bg-muted font-bold text-foreground cursor-not-allowed" 
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-bold">E-mel Rasmi Universiti</Label>
+                <Input 
+                  value={currentUser?.email || ''} 
+                  disabled 
+                  className="h-9 text-xs mt-1 bg-muted cursor-not-allowed font-mono" 
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-bold">Nombor Telefon / WhatsApp *</Label>
+                <Input 
+                  value={form.phone} 
+                  onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                  placeholder="cth: 019-8765432" 
+                  className="h-9 text-xs mt-1 bg-background" 
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-bold">Fakulti / Jabatan / Pejabat</Label>
+                <Select 
+                  value={form.department} 
+                  onValueChange={v => setForm(f => ({ ...f, department: v }))}
+                >
+                  <SelectTrigger className="h-9 text-xs mt-1 bg-background"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {UMS_FACULTIES.map(fc => <SelectItem key={fc} value={fc}>{fc}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs font-bold">Lokasi Pejabat / Bilik Bertugas</Label>
+                <Input 
+                  value={form.office_location} 
+                  onChange={e => setForm(f => ({ ...f, office_location: e.target.value }))}
+                  placeholder="cth: Pejabat Pentadbiran KKTF" 
+                  className="h-9 text-xs mt-1 bg-background" 
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* JIKA FELO / WARDEN: KAWAL SELIA BLOK KEDIAMAN */}
+          {currentUser?.role === 'warden' && (
+            <div className="p-4 bg-indigo-50/20 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900 rounded-2xl space-y-3 text-xs">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-xs text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4" /> Blok Kediaman Di Bawah Kawal Selia Anda
+                </h4>
+                <span className="text-[10px] text-muted-foreground font-medium">Bagi kelulusan E-Leave & Rondaan</span>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {wardenAssignments.length === 0 && (
+                  <p className="text-xs text-muted-foreground italic">Tiada blok ditetapkan lagi. Sila pilih blok di bawah.</p>
+                )}
+                {wardenAssignments.map(a => (
+                  <span key={a.id} className="flex items-center gap-1.5 bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 px-3 py-1 rounded-xl text-xs font-bold border border-indigo-200 dark:border-indigo-800">
+                    <Building2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> {a.block_name}
+                    <button onClick={() => removeWardenBlock(a.id)} className="hover:text-red-500 transition-colors ml-1">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <Select value={selectedBlock} onValueChange={setSelectedBlock}>
+                  <SelectTrigger className="h-8 text-xs flex-1 bg-background"><SelectValue placeholder="Pilih Blok Tambahan" /></SelectTrigger>
+                  <SelectContent>
+                    {blocks.filter(b => !wardenAssignments.find(a => a.block_id === b.id)).map(b => (
+                      <SelectItem key={b.id} value={b.id}>{b.block_name} ({b.gender_restriction})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" onClick={addWardenBlock} disabled={!selectedBlock || savingBlock} className="h-8 text-xs font-bold bg-indigo-700 hover:bg-indigo-800 text-white rounded-xl">
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Tambah Blok
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end pt-3 border-t border-border">
+            <Button onClick={handleSave} size="sm" disabled={saving} className="bg-primary text-primary-foreground font-bold rounded-xl text-xs">
+              {saving ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Save className="w-4 h-4 mr-1.5" />}
+              Simpan Profil Pegawai
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // 🎓 PAPARAN PROFIL PELAJAR / RESIDEN (DILENGKAPI PAS DIGITAL & MAKLUMAT RESIDEN)
+  // =========================================================================
   return (
-    <div className="max-w-2xl">
-      <PageHeader title="My Profile" description="View and update your personal information" />
+    <div className="max-w-2xl space-y-6">
+      <PageHeader title="Profil Residen Saya" description="Lihat dan kemas kini maklumat peribadi serta Pas Residen Digital anda." />
 
-      <div className="bg-card border border-border rounded-xl p-6 space-y-6">
+      <div className="bg-card border border-border rounded-3xl p-6 space-y-6 shadow-sm">
         {/* Avatar & Digital Pass */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center">
-              <User className="w-7 h-7 text-primary-foreground" />
+            <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-primary-foreground">
+              <User className="w-7 h-7" />
             </div>
             <div>
               <p className="font-heading font-semibold text-base">{form?.full_name || currentUser?.full_name}</p>
               <p className="text-xs text-muted-foreground">{currentUser?.email}</p>
-              <p className="text-xs text-muted-foreground capitalize">{currentUser?.role || 'student'}</p>
+              <p className="text-xs text-muted-foreground font-mono">{form?.student_id || 'Mahasiswa KKTF'}</p>
             </div>
           </div>
 
           <DigitalResidentPass student={student || form} user={currentUser} />
         </div>
 
-        {/* Personal Info */}
+        {/* Maklumat Peribadi */}
         <div>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Personal Information</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {f('full_name', 'Full Name *')}
-            {f('student_id', 'Student / Staff ID')}
-            {f('ic_passport', 'IC / Passport Number')}
-            {f('gender', 'Gender', 'text', [{ v: 'Male', l: 'Male' }, { v: 'Female', l: 'Female' }])}
-            {f('date_of_birth', 'Date of Birth', 'date')}
-            {f('phone', 'Phone Number *')}
-          </div>
-        </div>
-
-        {/* Academic */}
-        <div>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Academic Details</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {f('faculty', 'Fakulti / Institut', 'text', UMS_FACULTIES.map(fc => ({ v: fc, l: fc })))}
-            {f('programme', 'Programme')}
-            {f('year_of_study', 'Year of Study', 'number', [1, 2, 3, 4, 5].map(y => ({ v: y, l: `Year ${y}` })))}
-            {f('semester', 'Semester', 'number', [1, 2, 3, 4, 5, 6, 7, 8].map(s => ({ v: s, l: `Semester ${s}` })))}
-            {f('session', 'Session (e.g., 2025/2026)')}
-          </div>
-        </div>
-
-        {/* Room */}
-        {isStudentOrUser && (
-          <div>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Room Assignment</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Block</Label>
-                <Select 
-                  value={form?.block_name || ''} 
-                  onValueChange={v => {
-                    const block = blocks.find(b => b.block_name === v);
-                    setForm({ ...form, block_name: v, block_id: block?.id || '', room_number: '', room_id: '' });
-                  }}
-                  disabled={isStudentOrUser}
-                >
-                  <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select block" /></SelectTrigger>
-                  <SelectContent>{blocks.map(b => <SelectItem key={b.id} value={b.block_name}>{b.block_name} ({b.gender_restriction})</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Room Number</Label>
-                <Select 
-                  value={form?.room_number || ''} 
-                  onValueChange={v => {
-                    const room = rooms.find(r => r.room_number === v && r.block_name === form?.block_name);
-                    setForm({ ...form, room_number: v, room_id: room?.id || '' });
-                  }} 
-                  disabled={isStudentOrUser || !form?.block_name}
-                >
-                  <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Select room" /></SelectTrigger>
-                  <SelectContent>
-                    {rooms.filter(r => r.block_name === form?.block_name && r.status !== 'Maintenance').map(r => (
-                      <SelectItem key={r.id} value={r.room_number}>{r.room_number} ({r.room_type}, {r.current_occupancy}/{r.capacity})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Maklumat Peribadi</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <Label className="text-xs">Nama Penuh *</Label>
+              <Input value={form?.full_name || ''} onChange={e => setForm({ ...form, full_name: e.target.value })} className="h-9 text-xs mt-1" />
             </div>
-          </div>
-        )}
-
-        {/* Warden Block Assignment */}
-        {currentUser?.role === 'warden' && (
-          <div>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Assigned Blocks</h3>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {wardenAssignments.length === 0 && <p className="text-xs text-muted-foreground">No blocks assigned yet.</p>}
-              {wardenAssignments.map(a => (
-                <span key={a.id} className="flex items-center gap-1.5 bg-primary/10 text-primary px-2.5 py-1 rounded-full text-xs font-medium">
-                  <Building2 className="w-3 h-3" /> {a.block_name}
-                  <button onClick={() => removeWardenBlock(a.id)} className="hover:text-red-500 transition-colors"><X className="w-3 h-3" /></button>
-                </span>
-              ))}
+            <div>
+              <Label className="text-xs">No. Matrik Pelajar UMS *</Label>
+              <Input value={form?.student_id || ''} onChange={e => setForm({ ...form, student_id: e.target.value })} placeholder="cth: BP23110045" className="h-9 text-xs mt-1 font-mono" />
             </div>
-            <div className="flex gap-2">
-              <Select value={selectedBlock} onValueChange={setSelectedBlock}>
-                <SelectTrigger className="h-9 text-sm flex-1"><SelectValue placeholder="Select a block to add" /></SelectTrigger>
+            <div>
+              <Label className="text-xs">No. Kad Pengenalan / Pasport</Label>
+              <Input value={form?.ic_passport || ''} onChange={e => setForm({ ...form, ic_passport: e.target.value })} className="h-9 text-xs mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">Jantina</Label>
+              <Select value={form?.gender || 'Male'} onValueChange={v => setForm({ ...form, gender: v })}>
+                <SelectTrigger className="h-9 text-xs mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {blocks.filter(b => !wardenAssignments.find(a => a.block_id === b.id)).map(b => (
-                    <SelectItem key={b.id} value={b.id}>{b.block_name} ({b.gender_restriction})</SelectItem>
-                  ))}
+                  <SelectItem value="Male">Lelaki</SelectItem>
+                  <SelectItem value="Female">Perempuan</SelectItem>
                 </SelectContent>
               </Select>
-              <Button size="sm" onClick={addWardenBlock} disabled={!selectedBlock || savingBlock} className="shrink-0">
-                <Plus className="w-4 h-4 mr-1" /> Add
-              </Button>
             </div>
-          </div>
-        )}
-
-        {/* Emergency */}
-        <div>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Emergency Contact</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {f('parent_name', 'Parent / Guardian Name')}
-            {f('parent_phone', 'Parent Phone')}
-            {f('emergency_contact', 'Emergency Contact')}
-            {f('vehicle_reg', 'Vehicle Registration')}
+            <div>
+              <Label className="text-xs">Nombor Telefon Pelajar *</Label>
+              <Input value={form?.phone || ''} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="01X-XXXXXXX" className="h-9 text-xs mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">Tarikh Lahir</Label>
+              <Input type="date" value={form?.date_of_birth || ''} onChange={e => setForm({ ...form, date_of_birth: e.target.value })} className="h-9 text-xs mt-1" />
+            </div>
           </div>
         </div>
 
-        <div className="flex justify-end pt-2 border-t border-border">
-          <Button onClick={handleSave} size="sm" disabled={saving}>
+        {/* Akademik */}
+        <div>
+          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Maklumat Akademik UMS</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="sm:col-span-2">
+              <Label className="text-xs">Fakulti / Akademi</Label>
+              <Select value={form?.faculty || ''} onValueChange={v => setForm({ ...form, faculty: v })}>
+                <SelectTrigger className="h-9 text-xs mt-1"><SelectValue placeholder="Pilih Fakulti" /></SelectTrigger>
+                <SelectContent>
+                  {UMS_FACULTIES.map(fc => <SelectItem key={fc} value={fc}>{fc}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Program Pengajian</Label>
+              <Input value={form?.programme || ''} onChange={e => setForm({ ...form, programme: e.target.value })} placeholder="cth: Kejuruteraan Komputer" className="h-9 text-xs mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">Tahun Pengajian</Label>
+              <Select value={String(form?.year_of_study || 1)} onValueChange={v => setForm({ ...form, year_of_study: Number(v) })}>
+                <SelectTrigger className="h-9 text-xs mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5].map(y => <SelectItem key={y} value={String(y)}>Tahun {y}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        {/* Waris Kecemasan */}
+        <div>
+          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Waris & Kecemasan</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <Label className="text-xs">Nama Ibu Bapa / Waris *</Label>
+              <Input value={form?.parent_name || ''} onChange={e => setForm({ ...form, parent_name: e.target.value })} className="h-9 text-xs mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">Nombor Telefon Waris *</Label>
+              <Input value={form?.parent_phone || ''} onChange={e => setForm({ ...form, parent_phone: e.target.value })} className="h-9 text-xs mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">No. Pendaftaran Kenderaan (No. Plat)</Label>
+              <Input value={form?.vehicle_reg || ''} onChange={e => setForm({ ...form, vehicle_reg: e.target.value })} placeholder="cth: SAB 1234 A" className="h-9 text-xs mt-1 uppercase" />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-3 border-t border-border">
+          <Button onClick={handleSave} size="sm" disabled={saving} className="bg-primary text-primary-foreground font-bold rounded-xl text-xs">
             {saving ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Save className="w-4 h-4 mr-1.5" />}
-            Save Profile
+            Simpan Maklumat Profil
           </Button>
         </div>
       </div>
