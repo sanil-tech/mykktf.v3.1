@@ -5,18 +5,22 @@
     "type": {
       "type": "string",
       "enum": [
-        "Complaint",
-        "Suggestion"
-      ]
+        "Suggestion",
+        "Welfare Concern",
+        "General Feedback",
+        "Complaint"
+      ],
+      "default": "Suggestion"
     },
     "category": {
       "type": "string",
       "enum": [
-        "Facilities",
-        "Internet",
-        "Security",
-        "Cleanliness",
-        "Staff Services",
+        "Student Welfare & Safety",
+        "Roommate & Quiet Hours",
+        "Cafeteria & Food Services",
+        "Staff & Counter Service",
+        "College Activities & JAKMAS",
+        "General Idea & Suggestion",
         "Others"
       ]
     },

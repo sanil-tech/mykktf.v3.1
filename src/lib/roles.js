@@ -35,7 +35,7 @@ export function getNavItems(role, hasJakmas = false) {
     { label: 'Attendance', path: '/attendance', icon: 'ClipboardCheck', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.STAFF] },
     { label: 'Announcements', path: '/announcements', icon: 'Megaphone', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.WARDEN, ROLES.JAKMAS, ROLES.STUDENT] },
     { label: 'Events', path: '/events', icon: 'CalendarDays', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
-    { label: 'Complaints', path: '/complaints', icon: 'MessageSquare', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.STUDENT] },
+    { label: 'Feedback & Welfare', path: '/complaints', icon: 'HeartHandshake', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.STUDENT] },
     { label: 'Community Chat', path: '/chat', icon: 'MessagesSquare', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
     { label: 'Reports', path: '/reports', icon: 'FileBarChart', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
     { label: 'Survey Analytics', path: '/survey-analytics', icon: 'Star', roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
