@@ -7,7 +7,8 @@ import {
   MessagesSquare, FileBarChart, Star, UserCog, Sparkles, ScrollText,
   CalendarCheck, Users, ClipboardList, BookOpen, Search, Printer, Smartphone,
   ShieldCheck, MapPin, QrCode, CheckCircle2, AlertCircle, HeartHandshake,
-  Download, FileText, ChevronDown, ChevronUp, Share2, HelpCircle, Filter, Eye
+  Download, FileText, ChevronDown, ChevronUp, Share2, HelpCircle, Filter, Eye,
+  Camera, Compass, Bell, Lock, KeyRound, Wrench as WrenchIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,207 +21,333 @@ const ICONS = {
   Wrench, Building2, ClipboardCheck, Megaphone, CalendarDays, MessageSquare,
   MessagesSquare, FileBarChart, Star, UserCog, Sparkles, ScrollText,
   CalendarCheck, Users, ClipboardList, BookOpen, Smartphone, ShieldCheck,
-  MapPin, QrCode, HeartHandshake, UserCog
+  MapPin, QrCode, HeartHandshake, KeyRound, Camera, Compass, Bell, HelpCircle
 };
 
-// HANDBOOK CHAPTERS WITH STRICT ROLE-BASED ACCESS
+// COMPREHENSIVE STEP-BY-STEP HANDBOOK CHAPTERS WITH ROLE FILTERING
 const MANUAL_CHAPTERS = [
   {
     id: 'ch-intro',
     number: 'Bab 1',
-    title: 'Pengenalan & Pemasangan Aplikasi PWA Telefon',
+    title: 'Pengenalan & Pemasangan Aplikasi Telefon (PWA)',
     roleLabel: 'Semua Pengguna',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
     icon: 'Smartphone',
-    summary: 'Mengenali ekosistem MyKKTF dan cara memasang aplikasi pada telefon pintar tanpa melalui Google Play atau App Store.',
+    summary: 'Mengenali ekosistem MyKKTF, panduan pemasangan pada telefon pintar (Android/iPhone), serta kebenaran kamera, GPS dan notifikasi.',
     sections: [
       {
         title: '1.1 Apa itu MyKKTF?',
-        content: 'MyKKTF ialah Sistem Pengurusan Digital Rasmi Kolej Kediaman Tun Fuad, Universiti Malaysia Sabah (UMS). Sistem ini mengintegrasikan pengurusan penghunian, permohonan cuti (E-Leave) ber-geofence, aduan kerosakan bersepadu UMS MyServ, kebajikan pelajar, serta pembantu kecerdasan buatan (KKTF Assistant AI).'
+        content: 'MyKKTF ialah Sistem Pengurusan Digital Bersepadu Kolej Kediaman Tun Fuad, Universiti Malaysia Sabah (UMS). Sistem ini menghubungkan Pelajar, Felo/Warden, EXCO JAKMAS, dan Pentadbiran Kolej dalam satu platform digital untuk urusan penginapan, cuti E-Leave, kerosakan fasiliti, kebajikan, dan perkhidmatan pintar AI.'
       },
       {
-        title: '1.2 Cara Memasang Aplikasi pada Telefon Pintar (PWA)',
+        title: '1.2 Langkah Pemasangan pada iPhone / iPad (iOS Safari)',
         steps: [
-          'Pengguna iPhone (iOS Safari): Buka Safari → Layari pautan MyKKTF → Tekan ikon Kongsi (Share) di bawah → Pilih "Add to Home Screen" ➕ → Tekan "Add".',
-          'Pengguna Android (Google Chrome): Buka Chrome → Layari pautan MyKKTF → Tekan spanduk "Install MyKKTF" atau menu 3 titik ⋮ → Pilih "Add to Home screen" / "Install App".',
-          'Kelebihan: Ringan (<2MB), pantas, auto-update ke versi terkini tanpa perlu muat turun dari App Store.'
+          'Langkah 1: Buka pelayar Safari pada iPhone dan layari pautan rasmi aplikasi MyKKTF.',
+          'Langkah 2: Tekan ikon Kongsi (Share Button) 📤 di bar navigasi bawah pelayar.',
+          'Langkah 3: Skrol senarai menu ke bawah dan pilih "Add to Home Screen" (Tambah ke Skrin Utama) ➕.',
+          'Langkah 4: Tekan butang "Add" di penjuru kanan atas.',
+          'Hasil: Ikon rasmi MyKKTF akan muncul di skrin utama telefon anda dan sedia dibuka seperti aplikasi natif.'
         ]
       },
       {
-        title: '1.3 Log Masuk & Notifikasi Telefon',
-        content: 'Log masuk dilakukan menggunakan e-mel rasmi universiti. Pengguna digalakkan membenarkan kebenaran "Push Notifications" pada telefon untuk menerima makluman status cuti dan kerosakan secara langsung.'
+        title: '1.3 Langkah Pemasangan pada Telefon Android (Google Chrome)',
+        steps: [
+          'Langkah 1: Buka pelayar Google Chrome pada telefon dan layari pautan MyKKTF.',
+          'Langkah 2: Spanduk automatik "Add MyKKTF to Home Screen" akan muncul di bahagian bawah skrin. Tekan "Install" / "Pasang".',
+          'Langkah 3: Sekiranya spanduk tidak muncul, tekan menu Tiga Titik (⋮) di penjuru kanan atas pelayar.',
+          'Langkah 4: Pilih "Install app" atau "Add to Home screen".',
+          'Hasil: Aplikasi dipasang terus ke laci aplikasi telefon anda.'
+        ]
+      },
+      {
+        title: '1.4 Mengaktifkan Kebenaran Penting (Notifikasi, Kamera & GPS)',
+        steps: [
+          'Notifikasi Tolak (Push Notifications): Apabila tetingkap dialog muncul, tekan "Benarkan / Allow" untuk menerima makluman kelulusan cuti dan kerosakan serta-merta.',
+          'Kebenaran Kamera: Wajib dibenarkan semasa kali pertama membuka modul imbasan kod QR E-Leave / Kehadiran Acara.',
+          'Kebenaran Lokasi (GPS): Wajib dibenarkan untuk membolehkan sistem mengesahkan anda berada dalam lingkungan 1.0km kampus KKTF semasa pulang dari cuti.'
+        ]
+      }
+    ]
+  },
+  {
+    id: 'ch-checkin-student',
+    number: 'Bab 2',
+    title: 'Panduan Pelajar: Pendaftaran Masuk (Check-In) & Pemeriksaan Bilik',
+    roleLabel: 'Pelajar',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
+    icon: 'KeyRound',
+    summary: 'Tatacara mendaftar masuk bilik awal semester, melakukan pemeriksaan inventori fizikal bilik, dan pendaftaran keluar akhir semester.',
+    sections: [
+      {
+        title: '2.1 Langkah Pendaftaran Masuk Bilik (Check-In)',
+        steps: [
+          'Langkah 1: Log masuk ke MyKKTF dan buka modul "Check-In / Out".',
+          'Langkah 2: Semak maklumat blok kediaman dan nombor bilik yang ditugaskan kepada anda.',
+          'Langkah 3: Ambil kunci bilik fizikal daripada kaunter pejabat pentadbiran kolej.',
+          'Langkah 4: Tekan butang "Sahkan Daftar Masuk (Confirm Check-In)" untuk mengaktifkan status penghunian bilik anda.'
+        ]
+      },
+      {
+        title: '2.2 Pemeriksaan Keadaan Bilik (Room Inspection)',
+        steps: [
+          'Langkah 1: Buka modul "Room Inspections" dalam tempoh 48 jam selepas mendaftar masuk.',
+          'Langkah 2: Periksa suis lampu, soket elektrik, tombol pintu, tingkap, tilam, katil, almari, dan meja belajar.',
+          'Langkah 3: Tandakan status keadaan inventori (Baik / Perlu Pembaikan) dan muat naik gambar jika terdapat kerosakan sedia ada bagi mengelakkan pertikaian di akhir semester.'
+        ]
+      },
+      {
+        title: '2.3 Langkah Pendaftaran Keluar (Check-Out) Akhir Semester',
+        steps: [
+          'Langkah 1: Pastikan bilik telah dibersihkan dan barangan peribadi telah dikosongkan.',
+          'Langkah 2: Buka modul "Check-In / Out" → Tekan "Mohon Daftar Keluar (Check-Out)".',
+          'Langkah 3: Felo/Warden atau staf kolej akan membuat pemeriksaan fizikal bilik.',
+          'Langkah 4: Serahkan kunci bilik di kaunter kolej untuk melengkapkan proses check-out rasmi.'
+        ]
       }
     ]
   },
   {
     id: 'ch-eleave-student',
-    number: 'Bab 2',
-    title: 'Panduan Pelajar: Permohonan E-Leave & Pengesahan QR + GPS',
+    number: 'Bab 3',
+    title: 'Panduan Pelajar: Permohonan E-Leave & Pengesahan Kembali (QR + GPS)',
     roleLabel: 'Pelajar',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
     icon: 'CalendarOff',
-    summary: 'Aliran lengkap permohonan kebenaran bermalam di luar kolej dan pengesahan kembali menggunakan kamera telefon serta GPS Geofencing.',
+    summary: 'Aliran lengkap permohonan keluar bermalam di luar kolej, pemantauan kelulusan warden, dan pengesahan kembali secara dwi-faktor.',
     sections: [
       {
-        title: '2.1 Mengisi Permohonan Cuti Pelajar',
+        title: '3.1 Bila Pelajar Perlu Memohon E-Leave?',
+        content: 'Mengikut Peraturan Kolej Kediaman UMS (AUKU), mana-mana pelajar yang ingin bermalam di luar kawasan kolej (sama ada pulang ke kampung, bercuti hujung minggu, urusan rasmi universiti, atau hal kecemasan keluarga) WAJIB mengemukakan permohonan E-Leave selewat-lewatnya 24 jam sebelum waktu keluar.'
+      },
+      {
+        title: '3.2 Langkah Mengemukakan Permohonan E-Leave',
         steps: [
-          'Buka menu E-Leave → Klik butang "Mohon Cuti / Keluar Bermalam".',
-          'Pilih Jenis Cuti (Hujung Minggu, Cuti Semester, Urusan Keluarga, Rasmi UMS, Perubatan).',
-          'Isi Destinasi, Sebab Permohonan, Tarikh Keluar & Tarikh Pulang yang dijangka.',
-          'Permohonan akan dihantar terus kepada Felo/Warden blok kediaman anda untuk kelulusan.'
+          'Langkah 1: Buka menu "E-Leave" pada menu sisi atau papan pemuka.',
+          'Langkah 2: Klik butang "Mohon Cuti / Keluar Bermalam".',
+          'Langkah 3: Pilih Jenis Cuti: Hujung Minggu, Cuti Semester, Urusan Keluarga, Aktiviti Rasmi UMS, atau Perubatan.',
+          'Langkah 4: Masukkan Destinasi Cuti (cth: Ranau, Sandakan, Kota Kinabalu) dan Alasan Permohonan.',
+          'Langkah 5: Tetapkan Tarikh/Masa Keluar dan Tarikh/Masa Pulang yang dijangka.',
+          'Langkah 6: Tekan "Hantar Permohonan". Permohonan anda akan terus dipajukan ke dashboard Felo/Warden blok anda.'
         ]
       },
       {
-        title: '2.2 Pengesahan Kembali ke Kolej (Wajib)',
+        title: '3.3 Langkah Pengesahan Kembali ke Kolej (Dwi-Faktor QR + GPS)',
         steps: [
-          'Setibanya di KKTF, buka aplikasi MyKKTF pada telefon anda.',
-          'Tekan "Imbas QR Kembali" pada halaman E-Leave.',
-          'Pastikan GPS telefon dihidupkan (sistem mengesahkan kedudukan dalam lingkungan 1.0km dari kolej).',
-          'Halakan kamera pada poster kod QR fizikal yang ditampal di pintu masuk blok kediaman anda.',
-          'Status cuti anda automatik bertukar kepada "TELAH KEMBALI".'
+          'Langkah 1: Setibanya anda di KKTF, buka aplikasi MyKKTF pada telefon anda.',
+          'Langkah 2: Pergi ke menu E-Leave dan tekan butang hijau "Imbas QR Kembali" (atau buka kamera telefon biasa).',
+          'Langkah 3: Semakan Geofence GPS: Sistem radar automatik menyemak bahawa anda berada dalam lingkungan 1.0km kampus KKTF (Lampu radar bertukar hijau: 🟢 Di Dalam Kampus).',
+          'Langkah 4: Halakan kamera telefon pada Poster Kod QR Fizikal yang ditampal di pintu masuk blok kediaman anda atau pondok pengawal.',
+          'Langkah 5: Sistem memaparkan "Kehadiran Disahkan Berjaya!" dan status cuti anda bertukar automatik kepada "TELAH KEMBALI".'
         ]
       },
       {
-        title: '2.3 Peringatan Status Terlewat (Overdue)',
-        content: 'Kegagalan mengimbas kod QR kembali selepas tarikh pulang yang diluluskan akan menyebabkan sistem mengaktifkan status "AMARAN TERLEWAT (OVERDUE)" dan direkodkan dalam laporan warden.'
+        title: '3.4 Apa Nak Buat Jika Telefon Kehabisan Bateri / Tiada Data?',
+        content: 'Sekiranya telefon anda kehabisan bateri atau mengalami masalah rangkaian internet semasa tiba, sila berjumpa terus dengan Felo/Warden bertugas di blok anda. Warden boleh melakukan "Pengesahan Kepulangan Manual" bagi pihak anda.'
+      },
+      {
+        title: '3.5 Peringatan Status Terlewat (Overdue)',
+        content: 'Sekiranya anda tidak mengimbas kod QR kembali selepas tarikh pulang yang diluluskan tamat, status cuti bertukar kepada "AMARAN TERLEWAT (OVERDUE)". Warden akan dimaklumkan untuk menghubungi anda atau waris kecemasan anda.'
       }
     ]
   },
   {
     id: 'ch-maintenance',
-    number: 'Bab 3',
-    title: 'Panduan Pelajar: Laporan Kerosakan & Pautan No. MyServ UMS',
+    number: 'Bab 4',
+    title: 'Panduan Pelajar: Laporan Kerosakan & Pautan No. MyServ UMS (SLA)',
     roleLabel: 'Pelajar & Staf',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
     icon: 'Wrench',
-    summary: 'Tatacara membuat aduan kerosakan fasiliti bilik dan cara memautkan nombor rujukan MyServ UMS untuk penjejakan SLA.',
+    summary: 'Tatacara melaporkan kerosakan fasiliti bilik, cara mendapatkan nombor rujukan MyServ UMS, dan penjejakan jam SLA pembaikan.',
     sections: [
       {
-        title: '3.1 Melaporkan Kerosakan',
+        title: '4.1 Langkah Melaporkan Kerosakan di MyKKTF',
         steps: [
-          'Buka modul Damage Reports (Kerosakan).',
-          'Pilih Lokasi Kerosakan (Bilik Sendiri atau Ruang Awam Blok).',
-          'Pilih Kategori Kerosakan (Elektrik, Paip/Air, Perabot/Pintu, Kebersihan, Awam).',
-          'Tulis deskripsi ringkas kerosakan dan lampirkan gambar bukti.'
+          'Langkah 1: Buka modul "Damage Reports" (Laporan Kerosakan).',
+          'Langkah 2: Tekan butang "Lapor Kerosakan".',
+          'Langkah 3: Pilih Lokasi Kerosakan: Bilik Sendiri (cth: Bilik G-204) atau Kawasan Awam Blok (cth: Tandas Aras 2, Pantri).',
+          'Langkah 4: Pilih Kategori: Elektrik (Lampu/Kipas/Suis), Paip & Sanitari, Perabot/Katil/Almari, Pintu/Kunci, atau Kebersihan.',
+          'Langkah 5: Tulis huraian kerosakan dan lampirkan gambar foto kerosakan fizikal.',
+          'Langkah 6: Tekan "Hantar Laporan".'
         ]
       },
       {
-        title: '3.2 Pautan No. Rujukan MyServ UMS',
-        content: 'Setelah membuat laporan rasmi di portal MyServ UMS, masukkan No. Rujukan MyServ (cth: REQ-2026-8812) ke dalam laporan MyKKTF anda. Sistem akan menjejak tempoh pembaikan sehingga siap.'
+        title: '4.2 Langkah Memautkan No. Rujukan MyServ UMS',
+        steps: [
+          'Langkah 1: Layari portal Seksyen Penyelenggaraan UMS (portal MyServ rasmi).',
+          'Langkah 2: Buat aduan kerosakan rasmi dan salin No. Rujukan MyServ yang dijana (cth: REQ-2026-8812).',
+          'Langkah 3: Buka semula MyKKTF → Tekan "Pautkan No. MyServ" pada kad kerosakan anda.',
+          'Langkah 4: Masukkan No. Rujukan tersebut dan tekan Simpan.',
+          'Hasil: Penjejakan masa SLA kolej akan bermula secara automatik dan peringatan harian di papan pemuka akan dipadamkan.'
+        ]
+      },
+      {
+        title: '4.3 Pengesahan Siap Pembaikan (Verification)',
+        content: 'Apabila kontraktor/staf penyelenggaraan UMS siap membaiki kerosakan di bilik anda, tekan butang "Sahkan Siap Dibaiki". Sistem akan mengira jumlah jam sebenar pembaikan (cth: Tempoh Selesai: 2 Hari 4 Jam) bagi tujuan rekod SLA kolej.'
       }
     ]
   },
   {
     id: 'ch-welfare',
-    number: 'Bab 4',
-    title: 'Panduan Pelajar: Suara Mahasiswa & Whistleblowing',
+    number: 'Bab 5',
+    title: 'Panduan Pelajar: Suara Mahasiswa & Whistleblowing Sulit',
     roleLabel: 'Pelajar',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
     icon: 'HeartHandshake',
-    summary: 'Saluran rasmi menyuarakan isu kebajikan, keselesaan rakan sebilik, kafeteria, dan aduan tanpa nama.',
+    summary: 'Saluran rasmi menyuarakan isu kebajikan, keselesaan rakan sebilik, perkhidmatan kafeteria, dan aduan sulit tanpa nama.',
     sections: [
       {
-        title: '4.1 Saluran Aduan & Kebajikan Residen',
-        content: 'Modul Feedback & Welfare dikhaskan untuk isu bukan fizikal seperti: Isu Rakan Sebilik / Waktu Senyap, Kualiti Makanan Kafeteria, Keselamatan Blok, dan Cadangan Aktiviti Pelajar.'
+        title: '5.1 Kategori Aduan Kebajikan',
+        content: 'Modul Feedback & Welfare diasingkan daripada kerosakan fizikal. Gunakan saluran ini untuk: Isu Kebajikan & Keselamatan Residen, Rakan Sebilik & Waktu Senyap (Quiet Hours), Kualiti Makanan & Kebersihan Kafeteria, Layanan Kaunter Staf/Penyelia, dan Cadangan Program/Kemudahan Baharu.'
       },
       {
-        title: '4.2 Fungsi Identiti Dirahsiakan (Whistleblower)',
-        content: 'Tandakan pilihan "Hantar Tanpa Nama (Anonymous)" sekiranya anda ingin melindungi identiti anda daripada paparan umum. Pihak Felo/Warden tetap akan menerima dan menyiasat isu tersebut.'
+        title: '5.2 Langkah Menghantar Aduan Sulit (Anonymous Whistleblower)',
+        steps: [
+          'Langkah 1: Buka modul "Feedback & Welfare" → Tekan "Hantar Maklum Balas / Aduan".',
+          'Langkah 2: Pilih Kategori yang bersesuaian.',
+          'Langkah 3: Tulis keterangan isu atau cadangan anda secara terperinci.',
+          'Langkah 4: Tandakan kotak pilihan "🔒 Hantar Tanpa Nama (Anonymous Whistleblower)".',
+          'Langkah 5: Tekan "Hantar Maklum Balas". Nama dan nombor matrik anda akan dirahsiakan sepenuhnya daripada paparan awam.'
+        ]
       }
     ]
   },
   {
-    id: 'ch-events',
-    number: 'Bab 5',
-    title: 'Panduan Pelajar: Tempahan Fasiliti, Acara & Kehadiran QR',
+    id: 'ch-facilities-events',
+    number: 'Bab 6',
+    title: 'Panduan Pelajar: Tempahan Fasiliti, Acara Kolej & Kehadiran QR',
     roleLabel: 'Pelajar & JAKMAS',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
     icon: 'Building2',
-    summary: 'Panduan menempah dewan/gelanggang kolej, mendaftar aktiviti JAKMAS, dan mengimbas QR kehadiran.',
+    summary: 'Panduan menempah dewan dan gelanggang kolej, mendaftar aktiviti anjuran JAKMAS, serta mengimbas kod QR kehadiran merit.',
     sections: [
       {
-        title: '5.1 Tempahan Fasiliti Kolej',
-        content: 'Pilih tarikh, masa, dan kemudahan yang ingin digunakan (Dewan Serbaguna, Bilik Diskusi, Gelanggang Sukan). Sistem mengelakkan pertembungan tempahan berganda secara automatik.'
+        title: '6.1 Langkah Menempah Kemudahan Kolej (Facilities)',
+        steps: [
+          'Langkah 1: Buka modul "Facilities" pada menu sisi.',
+          'Langkah 2: Pilih fasiliti yang diingini: Dewan Serbaguna, Bilik Diskusi/Seminar, Gelanggang Futsal, atau Gelanggang Badminton.',
+          'Langkah 3: Pilih Tarikh dan Slot Masa (Pagi / Petang / Malam). Sistem akan menolak slot yang telah ditempah secara automatik.',
+          'Langkah 4: Nyatakan tujuan penggunaan (cth: Latihan Kebudayaan, Ulang Kaji Kumpulan) dan tekan "Hantar Tempahan".'
+        ]
       },
       {
-        title: '5.2 Pendaftaran Acara & Kehadiran Kod QR',
-        content: 'Semak senarai acara kolej pada modul Events. Semasa hari kejadian, imbas kod QR yang disediakan oleh pihak penganjur untuk merekodkan mata kehadiran merit kolej anda.'
+        title: '6.2 Langkah Mendaftar Acara & Mengimbas Kehadiran Kod QR',
+        steps: [
+          'Langkah 1: Buka modul "Events" untuk melihat senarai aktiviti anjuran JAKMAS dan pihak kolej.',
+          'Langkah 2: Tekan "Daftar Acara" untuk menempah tempat anda sebelum kuota penuh.',
+          'Langkah 3: Pada hari acara berlangsung, buka modul "Attendance" pada telefon anda.',
+          'Langkah 4: Imbas Kod QR Acara yang dipaparkan di pintu masuk dewan oleh penganjur.',
+          'Langkah 5: Kehadiran anda akan disahkan dan direkodkan ke dalam profil merit penginapan kolej anda.'
+        ]
       }
     ]
   },
   {
     id: 'ch-ai',
-    number: 'Bab 6',
-    title: 'KKTF Assistant AI: Panduan Pembantu Maya Pintar',
+    number: 'Bab 7',
+    title: 'KKTF Assistant AI: Panduan Pembantu Maya Pintar Kolej 24/7',
     roleLabel: 'Semua Pengguna',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
     icon: 'Sparkles',
-    summary: 'Cara menggunakan pembantu kecerdasan buatan untuk mendapatkan maklumat pantas mengenai kolej 24/7.',
+    summary: 'Cara memanfaatkan pembantu kecerdasan buatan untuk mendapatkan rujukan peraturan, panduan kolej, dan bantuan segera.',
     sections: [
       {
-        title: '6.1 Cara Bertanya kepada KKTF Assistant',
-        content: 'Tekan butang ikon robot pintar di penjuru kanan bawah pada bila-bila masa. Anda boleh bertanya apa sahaja seperti: "Apakah peraturan jam malam?", "Berapa hari SLA baiki lampu?", atau "Siapa felo blok G?".'
+        title: '7.1 Berinteraksi dengan KKTF Assistant',
+        steps: [
+          'Langkah 1: Tekan butang ikon robot biru di penjuru kanan bawah pada mana-mana halaman aplikasi.',
+          'Langkah 2: Taip soalan anda dalam Bahasa Melayu atau Bahasa Inggeris ringkas.',
+          'Contoh Soalan: "Bila waktu senyap kolej bermula?", "Macam mana nak mohon cuti bermalam?", "Berapa lama tempoh baiki kipas rosak?", atau "Tunjuk panduan sistem".',
+          'Langkah 3: AI akan merujuk pangkalan dokumen rasmi kolej dan menjawab soalan anda dengan tepat serta-merta.'
+        ]
       }
     ]
   },
   {
     id: 'ch-warden',
-    number: 'Bab 7',
-    title: 'Panduan Felo & Warden: Kelulusan E-Leave, Poster QR & Direktori',
+    number: 'Bab 8',
+    title: 'Panduan Felo & Warden: Kelulusan Cuti, Poster QR A4 & Direktori Blok',
     roleLabel: 'Warden & Pentadbir Sahaja',
     allowedRoles: ['warden', 'staff', 'college_admin', 'super_admin'],
     icon: 'ShieldCheck',
-    summary: 'Aliran kerja felo: kelulusan cuti blok, pemantauan status terlewat, penjanaan poster QR A4, dan direktori residen (view-only).',
+    summary: 'Aliran kerja khusus felo: kelulusan cuti blok, pemantauan status terlewat (overdue), cetakan poster QR rasmi, dan semakan residen (view-only).',
     sections: [
       {
-        title: '7.1 Skop Blok Jagaan Felo',
-        content: 'Warden hanya mempunyai akses terhadap data residen dan permohonan cuti bagi blok yang ditugaskan di bawah entiti WardenBlock. Privasi pelajar blok lain adalah dilindungi.'
+        title: '8.1 Skop Kuasa & Privasi Mengikut Blok',
+        content: 'Felo/Warden hanya boleh melihat permohonan cuti, laporan kerosakan, dan rekod residen bagi blok yang ditugaskan kepada mereka di bawah entiti WardenBlock (cth: Felo Blok G hanya melihat residen Blok G).'
       },
       {
-        title: '7.2 Direktori Residen (Akses Paparan Sahaja)',
-        content: 'Warden boleh mencari dan melihat butiran kontak/waris residen bilik bagi blok jagaan sendiri secara View-Only. Butang Tambah, Edit, dan Padam disekat demi keselamatan integriti rekod kolej.'
-      },
-      {
-        title: '7.3 Menjana & Mencetak Poster Kod QR A4',
+        title: '8.2 Langkah Memproses Kelulusan E-Leave',
         steps: [
-          'Buka modul E-Leave → Klik butang "Poster QR Blok".',
-          'Pilih blok jagaan anda (hanya blok yang dibenarkan akan terpapar).',
-          'Tekan butang "Cetak Poster A4 Rasmi" untuk membuka tetingkap cetakan resolusi tinggi berserta jata UMS dan arahan pelajar.',
-          'Tampal poster fizikal di pintu masuk aras bawah blok kediaman atau pondok pengawal.'
+          'Langkah 1: Buka modul "E-Leave" atau "Leave Monitor".',
+          'Langkah 2: Semak senarai permohonan berstatus "Pending Approval".',
+          'Langkah 3: Teliti destinasi, tarikh pulang, dan alasan cuti pelajar.',
+          'Langkah 4: Tekan butang hijau "Luluskan (Approve)" atau butang merah "Tolak (Reject)". Pelajar akan menerima notifikasi tolak pada telefon mereka serta-merta.'
         ]
       },
       {
-        title: '7.4 Pengesahan Kembali Manual (Rondaan Blok)',
-        content: 'Sekiranya pelajar mengalami masalah telefon atau ketiadaan bateri semasa tiba di kolej, warden boleh mengesahkan kepulangan pelajar secara manual semasa rondaan blok dengan butang "Sahkan Kembali Manual".'
+        title: '8.3 Langkah Menjana & Mencetak Poster Kod QR A4 Rasmi',
+        steps: [
+          'Langkah 1: Di modul E-Leave, tekan butang "Poster QR Blok".',
+          'Langkah 2: Pilih blok jagaan anda daripada menu pilihan lokasi (cth: Blok G).',
+          'Langkah 3: Tekan butang "Cetak Poster A4 Rasmi".',
+          'Langkah 4: Tetingkap cetakan resolusi tinggi dibuka secara automatik dengan reka bentuk poster rasmi UMS, panduan 3 langkah pelajar, dan kod QR HD.',
+          'Langkah 5: Cetak pada kertas A4 (atau laminate) dan tampal di papan kenyataan pintu masuk blok kediaman.'
+        ]
+      },
+      {
+        title: '8.4 Langkah Pengesahan Kepulangan Manual (Rondaan Blok)',
+        steps: [
+          'Langkah 1: Jika terdapat pelajar yang terlupa mengimbas atau kehabisan bateri, buka kad permohonan pelajar tersebut.',
+          'Langkah 2: Tekan butang "Sahkan Kepulangan Pelajar (Manual Clearance)".',
+          'Langkah 3: Status cuti pelajar akan dikemas kini kepada "TELAH KEMBALI" berserta catatan pengesahan felo.'
+        ]
+      },
+      {
+        title: '8.5 Direktori Residen (Akses Paparan Sahaja / View-Only)',
+        content: 'Warden boleh mencari nama, no. bilik, dan kontak waris kecemasan pelajar di halaman Student Management melalui butang mata (👁️). Butang Tambah, Edit, dan Padam pelajar disembunyikan sepenuhnya demi mengekalkan integriti rekod pendaftaran kolej.'
       }
     ]
   },
   {
     id: 'ch-jakmas',
-    number: 'Bab 8',
-    title: 'Panduan EXCO JAKMAS: Pengurusan Acara, Notis & Tugasan',
+    number: 'Bab 9',
+    title: 'Panduan EXCO JAKMAS: Pengurusan Acara, Notis & Portfolio',
     roleLabel: 'JAKMAS & Pentadbir Sahaja',
     allowedRoles: ['jakmas', 'staff', 'college_admin', 'super_admin'],
     icon: 'ClipboardList',
     summary: 'Panduan barisan EXCO Jawatankuasa Kebajikan Mahasiswa mengurus aktiviti kolej, draf pengumuman rasmi, dan kemajuan portfolio.',
     sections: [
       {
-        title: '8.1 Pengurusan Acara & Kehadiran Pelajar',
-        content: 'EXCO JAKMAS boleh mencipta program kolej, menetapkan had kuota peserta, dan menjana token / kod QR kehadiran program untuk diimbas oleh peserta.'
+        title: '9.1 Langkah Mencipta Program / Acara Kolej',
+        steps: [
+          'Langkah 1: Buka modul "Events" → Tekan "Tambah Acara".',
+          'Langkah 2: Masukkan Nama Acara, Tarikh, Masa Mula/Tamat, Tempat (Venue), dan Had Peserta.',
+          'Langkah 3: Tulis keterangan program dan muat naik poster digital.',
+          'Langkah 4: Selepas acara diterbitkan, sistem akan menjana Kod QR Kehadiran khusus untuk dipaparkan kepada peserta semasa hari kejadian.'
+        ]
       },
       {
-        title: '8.2 Draf Pengumuman Rasmi Kolej',
-        content: 'JAKMAS boleh merangka notis pengumuman rasmi. Pengumuman akan melalui semakan pentadbiran kolej sebelum disiarkan secara umum kepada semua residen.'
+        title: '9.2 Langkah Merangka Draf Pengumuman Rasmi',
+        steps: [
+          'Langkah 1: Buka modul "Announcements" → Tekan "Draf Pengumuman".',
+          'Langkah 2: Pilih Kategori: Acara, Sukan, Aktiviti Pelajar, atau Umum.',
+          'Langkah 3: Tulis tajuk dan isi pengumuman.',
+          'Langkah 4: Hantar draf untuk semakan dan kelulusan Pentadbir Kolej sebelum disiarkan kepada semua penghuni.'
+        ]
       },
       {
-        title: '8.3 Penyerahan Bukti Tugasan EXCO',
-        content: 'Pada halaman "My JAKMAS Tasks", EXCO boleh mengemas kini status tugasan daripada "Ditugaskan" kepada "Sedang Dijalankan" dan memuat naik bukti kemajuan (evidence) kepada pihak penasihat kolej.'
+        title: '9.3 Langkah Mengemaskini Tugasan Portfolio (JAKMAS Tasks)',
+        steps: [
+          'Langkah 1: Buka modul "My JAKMAS Tasks".',
+          'Langkah 2: Semak tugasan yang diagihkan oleh penasihat kolej/pentadbir.',
+          'Langkah 3: Tukar status tugasan kepada "Sedang Dijalankan (In Progress)".',
+          'Langkah 4: Lampirkan nota laporan kemajuan serta pautan dokumen/gambar bukti pelaksanaan (Evidence) dan tekan "Hantar Tugasan".'
+        ]
       }
     ]
   },
   {
     id: 'ch-admin',
-    number: 'Bab 9',
+    number: 'Bab 10',
     title: 'Panduan Pentadbir & Staf: Penyelarasan Bilik, AI Knowledge & Audit',
     roleLabel: 'Pentadbir Utama & Staf Sahaja',
     allowedRoles: ['staff', 'college_admin', 'super_admin'],
@@ -228,22 +355,62 @@ const MANUAL_CHAPTERS = [
     summary: 'Pengurusan inventori bilik, penyelarasan kapasiti katil, pelantikan EXCO, muat naik dokumen AI, dan Audit Log forensik.',
     sections: [
       {
-        title: '9.1 Penyelarasan Kapasiti Bilik (Bed Sync)',
-        content: 'Pentadbir mengurus status bilik (Available, Occupied, Full, Maintenance). Menggunakan fungsi "Penyelarasan Kapasiti", sistem akan mengira semula bilangan katil terisi secara automatik mengikut rekod residen aktif.'
+        title: '10.1 Penyelarasan Kapasiti Bilik & Katil (Room Sync)',
+        steps: [
+          'Langkah 1: Buka modul "Rooms" (Pengurusan Bilik).',
+          'Langkah 2: Klik butang "Penyelarasan Kapasiti (Sync Beds)".',
+          'Langkah 3: Sistem menyelaraskan semula bilangan penghuni aktif dengan kapasiti katil sebenar setiap bilik secara automatik (Available / Occupied / Full).'
+        ]
       },
       {
-        title: '9.2 Pengurusan Pangkalan Pengetahuan AI (AI Knowledge Base)',
-        content: 'Pentadbir boleh memuat naik fail dokumen (.txt, .doc, .md) mengandungi buku peraturan kolej atau SOP kemasukan. Kandungan dokumen akan disuntik terus ke memori Gemini AI untuk rujukan KKTF Assistant.'
+        title: '10.2 Pangkalan Pengetahuan AI (AI Knowledge Base) & Muat Naik Dokumen',
+        steps: [
+          'Langkah 1: Buka modul "AI Knowledge" (Pengetahuan AI).',
+          'Langkah 2: Tekan butang "Muat Naik Dokumen" untuk mengimport fail dokumen peraturan atau SOP kemasukan (.txt, .doc, .md).',
+          'Langkah 3: Sistem membaca kandungan fail secara automatik dan mengisi borang pengetahuan.',
+          'Langkah 4: Tekan "Simpan ke Memori AI". AI Assistant akan terus merujuk dokumen tersebut dalam jawapan kepada pelajar.'
+        ]
       },
       {
-        title: '9.3 Jejak Audit Log Forensik Data (Kotak Hitam)',
-        content: 'Semua tindakan pendaftaran, kemas kini, pemadaman rekod, kelulusan cuti, dan pengesahan geofence GPS direkodkan bersama ID pengguna, alamat IP/metadata dan cap masa rasmi untuk kawalan tatakelola kolej.'
+        title: '10.3 Pengurusan Pelantikan EXCO JAKMAS',
+        content: 'Pada modul "JAKMAS Management", pentadbir boleh melantik pelajar menjadi barisan pimpinan kolej, menetapkan jawatan (Yang Dipertua, Setiausaha, Bendahari, EXCO Kebajikan, dll), serta mengagihkan tugasan mengikut portfolio.'
+      },
+      {
+        title: '10.4 Jejak Audit Log Forensik Data (Kotak Hitam Keselamatan)',
+        content: 'Buka modul "Audit Log" untuk menyiasat sebarang aktiviti penambahan, kemaskini, atau pemadaman data merentas semua modul. Setiap tindakan direkodkan dengan identiti pengguna dan cap masa milisaat yang tidak boleh dimanipulasi.'
+      }
+    ]
+  },
+  {
+    id: 'ch-faq',
+    number: 'Bab 11',
+    title: 'Soalan Lazim (FAQ) & Penyelesaian Masalah (Troubleshooting)',
+    roleLabel: 'Semua Pengguna',
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas'],
+    icon: 'HelpCircle',
+    summary: 'Panduan pantas mengatasi isu teknikal seperti kamera tidak menyala, masalah GPS, atau notifikasi tidak masuk.',
+    sections: [
+      {
+        title: 'S1: Kamera telefon tidak terbuka semasa hendak mengimbas Kod QR?',
+        content: 'Penyelesaian: Buka tetapan pelayar telefon anda (Safari Settings atau Chrome Settings) → Cari kebenaran Laman Web (Permissions) → Pastikan "Kamera (Camera)" ditetapkan kepada "Benarkan (Allow)".'
+      },
+      {
+        title: 'S2: GPS memaparkan status "Di Luar Kampus" padahal saya sudah berada di KKTF?',
+        content: 'Penyelesaian: Pastikan perkhidmatan Lokasi Telefon (Location/GPS) dihidupkan dalam mod ketepatan tinggi (High Accuracy). Tekan butang "Kemas Kini Lokasi GPS" pada skrin pengimbas untuk menyegarkan bacaan satelit GPS anda.'
+      },
+      {
+        title: 'S3: Saya tidak menerima notifikasi tolak pada telefon?',
+        content: 'Penyelesaian: Buka aplikasi MyKKTF → Pastikan anda telah menekan "Benarkan" pada gesaan notifikasi. Pada iPhone, pastikan aplikasi telah ditambah ke Home Screen (PWA) untuk menyokong Web Push Notifications.'
+      },
+      {
+        title: 'S4: Siapa yang perlu saya hubungi jika menghadapi masalah akaun?',
+        content: 'Penyelesaian: Sila hubungi Kaunter Pentadbiran Kolej Kediaman Tun Fuad (UMS) pada waktu pejabat atau ajukan soalan anda terus kepada KKTF Assistant AI.'
       }
     ]
   }
 ];
 
-// ROLE-FILTERED SLIDES FOR PRESENTATION DECK
+// PRESENTATION SLIDES DECK WITH ROLE FILTERING
 const ALL_SLIDES = [
   {
     kind: 'cover',
@@ -425,11 +592,11 @@ export default function PresentationPage() {
               <BookOpen className="w-6 h-6 text-indigo-600" /> Buku Panduan Penggunaan Sistem MyKKTF
             </h1>
             <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs">
-              Versi 3.1
+              Versi 3.1 Rasmi
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Kandungan panduan disesuaikan secara khusus mengikut peranan anda ({userRole === 'student' ? 'Pelajar Residen' : userRole === 'warden' ? 'Felo / Warden' : userRole})
+            Manual Lengkap Bergambar, Aliran Kerja Langkah Demi Langkah & Panduan Operasi Kolej Kediaman Tun Fuad, UMS
           </p>
         </div>
 
@@ -445,11 +612,11 @@ export default function PresentationPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="auto">Peranan Saya ({userRole})</SelectItem>
-                  <SelectItem value="all">Semua Bab (Master Guide)</SelectItem>
-                  <SelectItem value="student">Pandangan Pelajar</SelectItem>
-                  <SelectItem value="warden">Pandangan Warden</SelectItem>
-                  <SelectItem value="jakmas">Pandangan JAKMAS</SelectItem>
-                  <SelectItem value="staff">Pandangan Pentadbir</SelectItem>
+                  <SelectItem value="all">Semua Bab (Master Guide - 11 Bab)</SelectItem>
+                  <SelectItem value="student">Panduan Pelajar</SelectItem>
+                  <SelectItem value="warden">Panduan Warden / Felo</SelectItem>
+                  <SelectItem value="jakmas">Panduan EXCO JAKMAS</SelectItem>
+                  <SelectItem value="staff">Panduan Pentadbir & Staf</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -493,7 +660,7 @@ export default function PresentationPage() {
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input 
-                placeholder="Cari topik atau bab..." 
+                placeholder="Cari kata kunci (cth: QR, GPS, MyServ)..." 
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="pl-9 h-9 text-xs bg-card"
@@ -544,7 +711,7 @@ export default function PresentationPage() {
                   <h4 className="text-xs font-bold">Perlu Bantuan Lanjut?</h4>
                 </div>
                 <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Buka <strong>KKTF Assistant AI</strong> di penjuru kanan bawah untuk bertanya sebarang soalan mengenai kolej secara terus.
+                  Buka <strong>KKTF Assistant AI</strong> di penjuru kanan bawah untuk bertanya sebarang soalan mengenai kolej secara terus 24/7.
                 </p>
               </div>
             </Card>
