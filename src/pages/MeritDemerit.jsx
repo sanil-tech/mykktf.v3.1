@@ -139,7 +139,7 @@ export default function MeritDemerit() {
         // JAKMAS -> Committee & Program Roster
         // Student -> My Personal Merit Record
         const role = u?.role;
-        const isOfficialStaff = ['super_admin', 'college_admin', 'warden', 'staff'].includes(role);
+        const isOfficialStaff = ['super_admin', 'principal', 'college_admin', 'warden', 'staff'].includes(role);
         const isOfficialJakmas = role === 'jakmas' || !!u?.jakmasAppointment;
 
         if (isOfficialStaff) {
@@ -319,7 +319,7 @@ export default function MeritDemerit() {
               </Button>
             )}
 
-            {(isStaff || isJakmas) && (
+            {isJakmas && (
               <Button 
                 onClick={() => setCommitteeModalOpen(true)}
                 className="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-bold gap-1.5 rounded-xl shadow-xs"
@@ -428,7 +428,7 @@ export default function MeritDemerit() {
 
       {/* TABS NAVIGATION (ROLE-BASED VISIBILITY) */}
       <div className="flex flex-wrap gap-1 bg-muted/60 p-1.5 rounded-2xl border border-border w-fit">
-        {/* TAB 1: SELECTION COMMITTEE (PENGETUA & FELO SAHAJA) */}
+        {/* TAB 1: SELECTION COMMITTEE (PENGETUA, FELO & PENTADBIRAN SAHAJA) */}
         {isStaff && (
           <button
             onClick={() => setActiveTab('matrix')}
@@ -441,8 +441,8 @@ export default function MeritDemerit() {
           </button>
         )}
 
-        {/* TAB 2: COMMITTEE ROSTER (JAKMAS & FELO) */}
-        {(isStaff || isJakmas) && (
+        {/* TAB 2: COMMITTEE ROSTER (JAKMAS SAHAJA) */}
+        {!isStaff && isJakmas && (
           <button
             onClick={() => setActiveTab('committee')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
@@ -450,11 +450,11 @@ export default function MeritDemerit() {
             }`}
           >
             <Users className="w-4 h-4 text-indigo-500" />
-            <span>2. Lantikan AJK & Urusetia Program</span>
+            <span>1. Lantikan AJK & Urusetia Program</span>
           </button>
         )}
 
-        {/* TAB 3: DEMERIT DISCIPLINARY LOGS (FELO & PENTADBIR SAHAJA) */}
+        {/* TAB: DEMERIT DISCIPLINARY LOGS (PENGETUA, FELO & PENTADBIR SAHAJA) */}
         {isStaff && (
           <button
             onClick={() => setActiveTab('demerit')}
@@ -463,33 +463,33 @@ export default function MeritDemerit() {
             }`}
           >
             <ShieldAlert className="w-4 h-4 text-rose-500" />
-            <span>3. Rekod Dimerit Disiplin</span>
+            <span>2. Rekod Dimerit Disiplin</span>
           </button>
         )}
 
-        {/* TAB 4: RUBRIC SETTINGS (PENTADBIR & FELO SAHAJA) */}
-        {isStaff && (
-          <button
-            onClick={() => setActiveTab('rubric')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'rubric' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Sliders className="w-4 h-4 text-primary" />
-            <span>4. Skala Pemarkahan Rasmi (Rubric)</span>
-          </button>
-        )}
-
-        {/* TAB 5: MY PERSONAL MERIT RECORD (SEMUA PENGGUNA) */}
+        {/* TAB: RUBRIC SETTINGS */}
         <button
-          onClick={() => setActiveTab('my_record')}
+          onClick={() => setActiveTab('rubric')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'my_record' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+            activeTab === 'rubric' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          <Award className="w-4 h-4 text-lime-500" />
-          <span>{isStaff ? '5. Rekod Merit Saya' : isJakmas ? '3. Rekod Merit Saya' : 'Rekod Merit & Kelayakan Saya'}</span>
+          <Sliders className="w-4 h-4 text-primary" />
+          <span>{isStaff ? '3. Skala Pemarkahan Rasmi (Rubric)' : isJakmas ? '2. Skala Pemarkahan Rasmi (Rubric)' : 'Skala Pemarkahan Rasmi (Rubric)'}</span>
         </button>
+
+        {/* TAB: MY PERSONAL MERIT RECORD (UNTUK MAHASISWA / JAKMAS SAHAJA - BUKAN PENGETUA/FELO/STAF) */}
+        {!isStaff && (
+          <button
+            onClick={() => setActiveTab('my_record')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'my_record' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Award className="w-4 h-4 text-lime-500" />
+            <span>{isJakmas ? '3. Rekod Merit Saya' : 'Rekod Merit & Kelayakan Saya'}</span>
+          </button>
+        )}
       </div>
 
       {/* TAB 1: SELECTION COMMITTEE MATRIX (PENGETUA & FELO SAHAJA) */}
