@@ -25,7 +25,16 @@ import {
   CheckCircle,
   ThumbsUp,
   Timer,
-  CalendarCheck
+  CalendarCheck,
+  Share2,
+  Copy,
+  MessageCircle,
+  Send,
+  Building2,
+  Search,
+  Check,
+  AlertTriangle,
+  Flame
 } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 import { toast } from 'sonner';
@@ -34,11 +43,34 @@ import { logAudit } from '@/lib/audit';
 
 const UMS_MYSERV_URL = 'https://aset.ums.edu.my/myserv/';
 
+// Smart Unit Routing for WhatsApp Group Dispatch
+const CATEGORY_UNIT_MAP = {
+  'Electrical': { unit: 'UNIT M&E (ELEKTRIKAL)', tag: '@M&E Elektrik', icon: '⚡', color: 'text-amber-600 bg-amber-50 border-amber-200' },
+  'Plumbing': { unit: 'UNIT AWAM & M&E (PAIP/PLUMBING)', tag: '@Awam & Paip', icon: '💧', color: 'text-blue-600 bg-blue-50 border-blue-200' },
+  'Furniture': { unit: 'UNIT AWAM (CIVIL / PERABOT)', tag: '@Awam Perabot', icon: '🪑', color: 'text-orange-600 bg-orange-50 border-orange-200' },
+  'Internet': { unit: 'UNIT PTM / ICT & RANGKAIAN', tag: '@Unit ICT', icon: '📶', color: 'text-indigo-600 bg-indigo-50 border-indigo-200' },
+  'Cleaning': { unit: 'UNIT KEBERSIHAN (CLEANER)', tag: '@Cleaner / Kebersihan', icon: '🧹', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+  'Doors & Windows': { unit: 'UNIT AWAM (CIVIL)', tag: '@Awam Civil', icon: '🚪', color: 'text-stone-600 bg-stone-50 border-stone-200' },
+  'Air Conditioning / Fan': { unit: 'UNIT M&E (MEKANIKAL & KIPAS)', tag: '@M&E Mekanikal', icon: '❄️', color: 'text-cyan-600 bg-cyan-50 border-cyan-200' },
+  'Structural / Roof': { unit: 'UNIT AWAM (CIVIL & STRUKTUR)', tag: '@Awam Struktur', icon: '🏢', color: 'text-rose-600 bg-rose-50 border-rose-200' },
+  'Pest Control': { unit: 'UNIT KEBERSIHAN & KAWALAN MAKHLUK', tag: '@Pest Control', icon: '🐜', color: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
+  'Others': { unit: 'UNIT PENYELENGGARAAN AM', tag: '@Penyelenggaraan Am', icon: '🔧', color: 'text-slate-600 bg-slate-50 border-slate-200' }
+};
+
 const statusBadge = { 
-  Submitted: 'bg-slate-100 text-slate-700 border-slate-200', 
-  Assigned: 'bg-blue-50 text-blue-700 border-blue-200', 
+  Submitted: 'bg-slate-100 text-slate-700 border-slate-200',
+  'Reported to MyServ': 'bg-blue-50 text-blue-700 border-blue-200',
+  'Followed Up': 'bg-purple-50 text-purple-700 border-purple-200',
   'In Progress': 'bg-amber-50 text-amber-700 border-amber-200', 
   Completed: 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+};
+
+const STATUS_LABELS = {
+  Submitted: 'Menunggu No. MyServ',
+  'Reported to MyServ': 'Telah Lapor MyServ',
+  'Followed Up': 'Dihebahkan / Susulan JPP',
+  'In Progress': 'Tindakan JPP Berjalan',
+  Completed: 'Disahkan Selesai'
 };
 
 const COMMON_FACILITIES = [
@@ -70,6 +102,14 @@ function formatResolutionTime(hours) {
   return remainingHours > 0 ? `${days} Hari ${remainingHours} Jam (${hours.toFixed(1)} Jam)` : `${days} Hari`;
 }
 
+function getDaysElapsed(submittedIso) {
+  if (!submittedIso) return 0;
+  const start = new Date(submittedIso).getTime();
+  const now = Date.now();
+  const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+  return Math.max(0, diffDays);
+}
+
 function formatDateTime(isoStr) {
   if (!isoStr) return null;
   try {
@@ -92,6 +132,7 @@ export default function Maintenance() {
   const [currentUser, setCurrentUser] = useState(null);
   const [myStudent, setMyStudent] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Modal States
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -100,12 +141,24 @@ export default function Maintenance() {
   const [inputRefNumber, setInputRefNumber] = useState('');
   const [updatingRef, setUpdatingRef] = useState(false);
 
-  // Student Self-Verification Modal States
+  // WhatsApp Group Dispatch Modal State
+  const [waModalOpen, setWaModalOpen] = useState(false);
+  const [selectedReqForWa, setSelectedReqForWa] = useState(null);
+  const [copiedWa, setCopiedWa] = useState(false);
+  const [waFollowupNote, setWaFollowupNote] = useState('');
+
+  // Student / Staff Self-Verification Modal States
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
   const [selectedReqForComplete, setSelectedReqForComplete] = useState(null);
   const [completeRemarks, setCompleteRemarks] = useState('Kerosakan telah dibaiki dan diuji dengan baik oleh juruteknik JPP.');
   const [completePhoto, setCompletePhoto] = useState(null);
   const [completing, setCompleting] = useState(false);
+
+  // Quick Follow-up Log Modal State
+  const [logModalOpen, setLogModalOpen] = useState(false);
+  const [selectedReqForLog, setSelectedReqForLog] = useState(null);
+  const [quickLogText, setQuickLogText] = useState('');
+  const [savingLog, setSavingLog] = useState(false);
 
   // New Request Form
   const [form, setForm] = useState({
@@ -114,6 +167,7 @@ export default function Maintenance() {
     block_name: '',
     specific_location: '',
     category: 'Electrical',
+    urgency: 'Normal',
     description: '',
     photo: null
   });
@@ -182,6 +236,7 @@ export default function Maintenance() {
       block_name: myStudent?.block_name || '',
       specific_location: myStudent ? `Bilik ${myStudent.room_number}, ${myStudent.block_name}` : '',
       category: 'Electrical',
+      urgency: 'Normal',
       description: '',
       photo: null
     });
@@ -251,6 +306,7 @@ export default function Maintenance() {
       location_type: form.location_type,
       specific_location: locationDisplay,
       category: form.category,
+      urgency: form.urgency || 'Normal',
       description: form.description,
       myserv_ticket_no: '',
       photo: form.photo || null,
@@ -266,7 +322,7 @@ export default function Maintenance() {
       submitted_at: nowIso
     });
 
-    toast.success('Laporan asas disimpan! Membuka portal UMS MyServ...');
+    toast.success('Laporan disimpan! Membuka portal UMS MyServ...');
     setDialogOpen(false);
 
     // Open UMS MyServ in new window
@@ -294,7 +350,8 @@ export default function Maintenance() {
 
       await base44.entities.MaintenanceRequest.update(selectedReqForRef.id, {
         myserv_ticket_no: cleanRef,
-        myserv_linked_at: nowIso
+        myserv_linked_at: nowIso,
+        status: selectedReqForRef.status === 'Submitted' ? 'Reported to MyServ' : selectedReqForRef.status
       });
 
       await logAudit(currentUser, 'MAINTENANCE_REF_UPDATED', 'Maintenance', { 
@@ -303,7 +360,7 @@ export default function Maintenance() {
         myserv_linked_at: nowIso
       });
 
-      toast.success(`No. Rujukan ${cleanRef} berjaya dikemaskini!`);
+      toast.success(`No. Rujukan ${cleanRef} berjaya dipautkan!`);
       setRefModalOpen(false);
       setSelectedReqForRef(null);
       setInputRefNumber('');
@@ -316,7 +373,124 @@ export default function Maintenance() {
     }
   }
 
-  // STUDENT SELF-CONFIRMATION OF COMPLETION WITH DURATION SLA CALCULATION
+  // BUILD STANDARDIZED WHATSAPP MESSAGE FOR KKTF MAINTENANCE GROUP
+  function generateWhatsAppMessage(req) {
+    if (!req) return '';
+    const unitInfo = CATEGORY_UNIT_MAP[req.category] || CATEGORY_UNIT_MAP['Others'];
+    const daysElapsed = getDaysElapsed(req.submitted_at || req.created_date);
+    const urgencyHeader = req.urgency === 'Urgent' 
+      ? '🚨 *[KECEMASAN / URGENT]*' 
+      : (daysElapsed >= 3 ? `⚠️ *[SUSULAN - TERTUNGGAK ${daysElapsed} HARI]*` : '📢 *[ADUAN KEROSAKAN KKTF]*');
+
+    const refLine = req.myserv_ticket_no 
+      ? `📋 *No. MyServ:* ${req.myserv_ticket_no}` 
+      : '📋 *No. MyServ:* (Menunggu kemaskini pemohon)';
+
+    const reporterLine = `👤 *Pelapor:* ${req.student_name || 'Residen KKTF'}`;
+
+    return `${urgencyHeader}
+🎯 *TINDAKAN: ${unitInfo.unit}*
+━━━━━━━━━━━━━━━━━━━━━━━
+🏢 *Lokasi:* ${req.specific_location || `Bilik ${req.room_number}`} (${req.block_name || 'KKTF'})
+🔧 *Kategori:* ${unitInfo.icon} ${req.category}
+${refLine}
+${reporterLine}
+⏱️ *Tarikh Aduan:* ${formatDateTime(req.submitted_at || req.created_date) || 'Baru'}
+
+📝 *Keterangan Kerosakan:*
+"${req.description}"
+
+${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_followup_note}\n` : ''}Mohon semakan dan tindakan pihak bertugas/kontraktor JPP dalam kumpulan ini. Terima kasih.
+— *Diselaras melalui Sistem MyKKTF (${currentUser?.full_name || 'Pentadbiran / Felo KKTF'})*`;
+  }
+
+  // DISPATCH TO WHATSAPP
+  async function handleOpenWhatsAppGroup(req) {
+    const text = generateWhatsAppMessage(req);
+    const encoded = encodeURIComponent(text);
+    const waUrl = `https://api.whatsapp.com/send?text=${encoded}`;
+    
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
+
+    // Auto-log the dispatch if staff
+    if (isStaff) {
+      try {
+        const nowIso = new Date().toISOString();
+        const actor = currentUser?.full_name || currentUser?.email || 'Felo/Staf';
+        const note = waFollowupNote.trim() 
+          ? `Dihebahkan ke Group WhatsApp oleh ${actor}: "${waFollowupNote.trim()}"`
+          : `Dihebahkan ke Group WhatsApp Penyelenggaraan KKTF oleh ${actor}`;
+
+        await base44.entities.MaintenanceRequest.update(req.id, {
+          status: req.status === 'Completed' ? 'Completed' : 'Followed Up',
+          last_followed_up_at: nowIso,
+          latest_followup_note: note,
+          followed_up_by: actor
+        });
+
+        await logAudit(currentUser, 'MAINTENANCE_WA_DISPATCHED', 'Maintenance', {
+          id: req.id,
+          unit: CATEGORY_UNIT_MAP[req.category]?.unit,
+          note
+        });
+
+        toast.success('Mesej dibuka di WhatsApp! Rekod susulan telah dikemaskini.');
+        setWaModalOpen(false);
+        init();
+      } catch (e) {
+        console.error('Error logging WA dispatch:', e);
+      }
+    }
+  }
+
+  // COPY WHATSAPP TEXT
+  function handleCopyWhatsAppText(req) {
+    const text = generateWhatsAppMessage(req);
+    navigator.clipboard.writeText(text);
+    setCopiedWa(true);
+    toast.success('Format mesej WhatsApp disalin ke papan keratan (clipboard)!');
+    setTimeout(() => setCopiedWa(false), 2500);
+  }
+
+  // QUICK LOG SAVE
+  async function handleSaveQuickLog() {
+    if (!selectedReqForLog || !quickLogText.trim()) {
+      toast.error('Sila masukkan catatan susulan');
+      return;
+    }
+
+    setSavingLog(true);
+    try {
+      const nowIso = new Date().toISOString();
+      const actor = currentUser?.full_name || currentUser?.email || 'Felo/Staf';
+      const fullNote = `${quickLogText.trim()} (oleh ${actor})`;
+
+      await base44.entities.MaintenanceRequest.update(selectedReqForLog.id, {
+        latest_followup_note: fullNote,
+        last_followed_up_at: nowIso,
+        followed_up_by: actor,
+        status: selectedReqForLog.status === 'Submitted' ? 'Followed Up' : selectedReqForLog.status
+      });
+
+      await logAudit(currentUser, 'MAINTENANCE_LOG_ADDED', 'Maintenance', {
+        id: selectedReqForLog.id,
+        note: fullNote
+      });
+
+      toast.success('Catatan susulan berjaya disimpan!');
+      setLogModalOpen(false);
+      setSelectedReqForLog(null);
+      setQuickLogText('');
+      init();
+    } catch (e) {
+      console.error(e);
+      toast.error('Gagal menyimpan catatan susulan');
+    } finally {
+      setSavingLog(false);
+    }
+  }
+
+  // STUDENT / STAFF GROUND VERIFICATION CONFIRMATION
   async function handleConfirmCompletion() {
     if (!selectedReqForComplete) return;
 
@@ -339,9 +513,9 @@ export default function Maintenance() {
         completion_date: todayDate,
         completed_at: nowIso,
         resolution_duration_hours: durationHours,
-        completion_remarks: completeRemarks.trim() || 'Pembaikan telah disahkan siap oleh residen.',
+        completion_remarks: completeRemarks.trim() || 'Pembaikan telah disahkan siap oleh residen / felo.',
         completion_photo: completePhoto || null,
-        verified_by: isStaff ? `Staf/Warden: ${verifierName}` : `Residen: ${verifierName}`
+        verified_by: isStaff ? `Felo/Staf: ${verifierName}` : `Residen: ${verifierName}`
       });
 
       await logAudit(currentUser, 'MAINTENANCE_VERIFIED_COMPLETED', 'Maintenance', {
@@ -351,7 +525,7 @@ export default function Maintenance() {
         remarks: completeRemarks
       });
 
-      toast.success(`Pengesahan pembaikan berjaya direkodkan! Tempoh penyelesaian: ${formatResolutionTime(durationHours)}`);
+      toast.success(`Pengesahan siap direkodkan! Tempoh penyelesaian: ${formatResolutionTime(durationHours)}`);
       setCompleteModalOpen(false);
       setSelectedReqForComplete(null);
       setCompleteRemarks('Kerosakan telah dibaiki dan diuji dengan baik oleh juruteknik JPP.');
@@ -365,25 +539,47 @@ export default function Maintenance() {
     }
   }
 
-  async function updateStatus(id, status) {
-    const nowIso = new Date().toISOString();
-    const updatePayload = { status };
-    if (status === 'Completed') {
-      updatePayload.completed_at = nowIso;
-      updatePayload.completion_date = nowIso.split('T')[0];
+  // SEARCH AND FILTER LOGIC
+  const filtered = requests.filter(r => {
+    if (filter === 'all') {
+      // keep
+    } else if (filter === 'pending_ref') {
+      if (r.status === 'Completed' || r.myserv_ticket_no) return false;
+    } else if (filter === 'has_ref') {
+      if (!r.myserv_ticket_no) return false;
+    } else if (filter === 'overdue') {
+      const days = getDaysElapsed(r.submitted_at || r.created_date);
+      if (r.status === 'Completed' || days < 3) return false;
+    } else if (filter !== r.status) {
+      return false;
     }
-    await base44.entities.MaintenanceRequest.update(id, updatePayload);
-    await logAudit(currentUser, 'MAINTENANCE_UPDATED', 'Maintenance', { id, status });
-    toast.success(`Status dikemaskini kepada: ${status}`);
-    init();
-  }
 
-  const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchLoc = (r.specific_location || '').toLowerCase().includes(q);
+      const matchRoom = (r.room_number || '').toLowerCase().includes(q);
+      const matchBlock = (r.block_name || '').toLowerCase().includes(q);
+      const matchStudent = (r.student_name || '').toLowerCase().includes(q);
+      const matchRef = (r.myserv_ticket_no || '').toLowerCase().includes(q);
+      const matchCat = (r.category || '').toLowerCase().includes(q);
+      const matchDesc = (r.description || '').toLowerCase().includes(q);
+      if (!matchLoc && !matchRoom && !matchBlock && !matchStudent && !matchRef && !matchCat && !matchDesc) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  // KPI STATS FOR MONITORING
+  const totalActive = requests.filter(r => r.status !== 'Completed').length;
+  const totalWithRef = requests.filter(r => r.status !== 'Completed' && r.myserv_ticket_no).length;
+  const totalOverdue = requests.filter(r => r.status !== 'Completed' && getDaysElapsed(r.submitted_at || r.created_date) >= 3).length;
+  const totalCompleted = requests.filter(r => r.status === 'Completed').length;
 
   if (loading) {
     return (
-      <div>
-        <PageHeader title="Damage & Maintenance Reports" description="Memuatkan laporan kerosakan..." />
+      <div className="space-y-6">
+        <PageHeader title="Laporan Kerosakan & Pemantauan JPP" description="Memuatkan data pemantauan kerosakan..." />
         <CardGridSkeleton count={6} />
       </div>
     );
@@ -393,8 +589,10 @@ export default function Maintenance() {
     <div className="space-y-6">
       {/* SINGLE CLEAN HEADER */}
       <PageHeader
-        title="Damage & Maintenance Reports"
-        description={isStaff ? "Pantau dan urus aduan kerosakan fasiliti kolej serta No. Rujukan MyServ UMS" : "Lapor kerosakan bilik atau kawasan awam kolej untuk tindakan UMS MyServ"}
+        title="Laporan Kerosakan & Pemantauan JPP"
+        description={isStaff 
+          ? "Pantau aduan kerosakan kolej, selaras bersama kumpulan WhatsApp Penyelenggaraan (M&E, Civil, Cleaner, Felo) & semak No. MyServ" 
+          : "Lapor kerosakan bilik atau kawasan awam kolej untuk tindakan UMS MyServ & pemantauan Felo KKTF"}
         actions={
           !isStaff && (
             <Button size="sm" onClick={handleOpenDialog} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-sm font-semibold">
@@ -404,72 +602,165 @@ export default function Maintenance() {
         }
       />
 
-      {/* SINGLE STREAMLINED PIPELINE GUIDE BANNER */}
+      {/* WHATSAPP GROUP & JPP MONITORING BANNER */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-indigo-500/20 shadow-md">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Badge className="bg-indigo-500/30 text-indigo-300 border-indigo-400/30 text-[11px] px-2.5 py-0.5 font-medium">
-                Aliran Bersepadu UMS MyServ
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge className="bg-emerald-500/30 text-emerald-300 border-emerald-400/30 text-[11px] px-2.5 py-0.5 font-medium flex items-center gap-1">
+                <MessageCircle className="w-3 h-3 text-emerald-400" /> WhatsApp Group Penyelenggaraan KKTF
               </Badge>
-              <span className="text-xs text-indigo-200 font-mono">aset.ums.edu.my/myserv</span>
+              <span className="text-xs text-indigo-200 font-mono">Cleaner • M&E • Civil • Admin • Felo</span>
             </div>
             <h3 className="text-sm sm:text-base font-heading font-bold text-white">
-              3 Langkah Mudah Laporan Kerosakan & Pengesahan Pembaikan
+              Aliran Pemantauan & Tindakan Susulan JPP (UMS MyServ)
             </h3>
+            <p className="text-xs text-indigo-200/90 max-w-2xl">
+              Pentadbiran & Felo KKTF bertindak sebagai pemantau dan penyelaras susulan. Setiap aduan dihebahkan ke unit bertugas melalui format WhatsApp rasmi bersepadu.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs w-full lg:w-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs w-full lg:w-auto shrink-0">
             <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">1</span>
-              <span>Isi info di MyKKTF</span>
+              <div>
+                <p className="font-semibold text-white">Rekod di MyKKTF</p>
+                <p className="text-[10px] text-slate-300">Dapatkan REQ MyServ</p>
+              </div>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">2</span>
-              <span>Hantar di UMS MyServ</span>
+              <span className="w-5 h-5 rounded-full bg-emerald-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">2</span>
+              <div>
+                <p className="font-semibold text-white">Hebah ke Group WA</p>
+                <p className="text-[10px] text-slate-300">Tag M&E / Civil / Cleaner</p>
+              </div>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-emerald-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">3</span>
-              <span>Kemas No. REQ & Sahkan</span>
+              <span className="w-5 h-5 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">3</span>
+              <div>
+                <p className="font-semibold text-white">Sahkan di Lokasi</p>
+                <p className="text-[10px] text-slate-300">Selesai & Catat SLA</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
+      {/* MONITORING STATS TILES (STAFF & ADMIN) */}
       {isStaff && (
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-48 h-9 text-xs bg-card border-border">
-              <SelectValue placeholder="Tapis Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Status ({requests.length})</SelectItem>
-              <SelectItem value="Submitted">Submitted</SelectItem>
-              <SelectItem value="Assigned">Assigned</SelectItem>
-              <SelectItem value="In Progress">In Progress</SelectItem>
-              <SelectItem value="Completed">Completed</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground font-medium">Jumlah Aktif</span>
+              <Wrench className="w-4 h-4 text-indigo-600" />
+            </div>
+            <p className="text-xl font-heading font-bold text-foreground mt-1">{totalActive}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Sedang dipantau di kolej</p>
+          </div>
+
+          <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground font-medium">Ada No. MyServ</span>
+              <CheckCircle2 className="w-4 h-4 text-blue-600" />
+            </div>
+            <p className="text-xl font-heading font-bold text-blue-600 mt-1">{totalWithRef}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Telah dihantar ke portal JPP</p>
+          </div>
+
+          <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground font-medium">Perlu Susulan (&ge;3 Hari)</span>
+              <AlertTriangle className="w-4 h-4 text-amber-600" />
+            </div>
+            <p className="text-xl font-heading font-bold text-amber-600 mt-1">{totalOverdue}</p>
+            <p className="text-[10px] text-amber-700 mt-0.5 font-medium">Saranan heboh ke WhatsApp</p>
+          </div>
+
+          <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground font-medium">Disahkan Selesai</span>
+              <CheckCircle className="w-4 h-4 text-emerald-600" />
+            </div>
+            <p className="text-xl font-heading font-bold text-emerald-600 mt-1">{totalCompleted}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Telah siap & diuji di lokasi</p>
+          </div>
         </div>
       )}
+
+      {/* SEARCH AND FILTER BAR */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 flex-wrap">
+        <div className="relative w-full sm:w-72">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input 
+            placeholder="Cari bilik, blok, pelapor, no. REQ..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="pl-9 h-9 text-xs bg-card"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Select value={filter} onValueChange={setFilter}>
+            <SelectTrigger className="w-full sm:w-56 h-9 text-xs bg-card border-border">
+              <SelectValue placeholder="Tapis Status & Keutamaan" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Laporan ({requests.length})</SelectItem>
+              <SelectItem value="overdue">🚨 Perlu Susulan (&ge;3 Hari) ({totalOverdue})</SelectItem>
+              <SelectItem value="pending_ref">Menunggu No. MyServ</SelectItem>
+              <SelectItem value="has_ref">Telah Ada No. MyServ</SelectItem>
+              <SelectItem value="Submitted">Status: Submitted</SelectItem>
+              <SelectItem value="Followed Up">Status: Followed Up</SelectItem>
+              <SelectItem value="In Progress">Status: In Progress</SelectItem>
+              <SelectItem value="Completed">Status: Completed ({totalCompleted})</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {!isStaff && (
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => window.open(UMS_MYSERV_URL, '_blank', 'noopener,noreferrer')}
+              className="h-9 text-xs gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50 shrink-0"
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> Portal MyServ
+            </Button>
+          )}
+        </div>
+      </div>
 
       {/* REQUESTS LIST / CARDS */}
       {filtered.length === 0 ? (
         <EmptyState 
           icon={Wrench} 
           title="Tiada Laporan Kerosakan Ditemui" 
-          description={isStaff ? "Semua aduan kerosakan telah diselesaikan." : "Anda belum menghantar sebarang laporan kerosakan."} 
+          description={isStaff ? "Semua aduan kerosakan telah diselesaikan atau tiada padanan carian." : "Anda belum menghantar sebarang laporan kerosakan."} 
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(r => {
             const hasRef = Boolean(r.myserv_ticket_no);
             const isCompleted = r.status === 'Completed';
+            const unitInfo = CATEGORY_UNIT_MAP[r.category] || CATEGORY_UNIT_MAP['Others'];
+            const daysElapsed = getDaysElapsed(r.submitted_at || r.created_date);
+            const isOverdue = !isCompleted && daysElapsed >= 3;
+            const isUrgent = r.urgency === 'Urgent';
 
             return (
-              <div key={r.id} className={`bg-card border rounded-2xl p-4 shadow-sm transition-all flex flex-col justify-between space-y-3 ${isCompleted ? 'border-emerald-200 bg-emerald-50/10' : 'border-border hover:border-indigo-200'}`}>
+              <div 
+                key={r.id} 
+                className={`bg-card border rounded-2xl p-4 shadow-sm transition-all flex flex-col justify-between space-y-3 relative ${
+                  isCompleted 
+                    ? 'border-emerald-200 bg-emerald-50/10' 
+                    : isUrgent 
+                      ? 'border-rose-300 bg-rose-50/20 ring-1 ring-rose-300' 
+                      : isOverdue 
+                        ? 'border-amber-300 bg-amber-50/10' 
+                        : 'border-border hover:border-indigo-200'
+                }`}
+              >
                 <div>
-                  {/* Top Location & Status Header */}
+                  {/* Top Location, Unit Badge & Status Header */}
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground truncate">
@@ -480,24 +771,41 @@ export default function Maintenance() {
                         Pelapor: <span className="font-medium text-slate-700">{r.student_name}</span>
                       </p>
                     </div>
-                    <Badge variant="outline" className={`text-[10px] font-semibold shrink-0 ${statusBadge[r.status] || 'bg-slate-100'}`}>
-                      {r.status}
-                    </Badge>
+
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <Badge variant="outline" className={`text-[10px] font-semibold ${statusBadge[r.status] || 'bg-slate-100'}`}>
+                        {STATUS_LABELS[r.status] || r.status}
+                      </Badge>
+                      {isUrgent && (
+                        <span className="flex items-center gap-0.5 text-[9px] font-bold text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded-full">
+                          <Flame className="w-2.5 h-2.5" /> Kecemasan
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Category & Location Badges */}
+                  {/* Category, Smart Unit Routing & Aging Counter */}
                   <div className="flex items-center gap-1.5 flex-wrap mb-2">
-                    <span className="px-2 py-0.5 rounded-md bg-muted text-[11px] font-medium text-muted-foreground">
-                      {r.category}
+                    {/* Unit Tag for WhatsApp routing */}
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border flex items-center gap-1 ${unitInfo.color}`}>
+                      <span>{unitInfo.icon}</span>
+                      <span>{unitInfo.tag}</span>
                     </span>
+
                     {r.location_type && (
-                      <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-[10px] font-medium text-indigo-700 border border-indigo-100">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-medium text-slate-600">
                         {r.location_type}
                       </span>
                     )}
-                    {r.submitted_at && (
-                      <span className="text-[10px] text-slate-400 flex items-center gap-1 ml-auto font-mono">
-                        <Clock className="w-3 h-3 text-slate-400" /> {formatDateTime(r.submitted_at)}
+
+                    {/* Aging / Days Elapsed Badge */}
+                    {!isCompleted && (
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-md flex items-center gap-1 ml-auto font-medium ${
+                        isOverdue 
+                          ? 'bg-amber-100 text-amber-800 font-bold border border-amber-200' 
+                          : 'text-slate-500 bg-slate-50'
+                      }`}>
+                        <Clock className="w-3 h-3" /> {daysElapsed === 0 ? 'Hari ini' : `${daysElapsed} hari`}
                       </span>
                     )}
                   </div>
@@ -514,27 +822,46 @@ export default function Maintenance() {
                     </div>
                   )}
 
+                  {/* LATEST FOLLOW-UP NOTE (IF ANY) */}
+                  {r.latest_followup_note && (
+                    <div className="mt-2.5 p-2 bg-purple-50/70 rounded-xl border border-purple-200/80 text-[11px] text-purple-950 space-y-0.5">
+                      <div className="flex items-center justify-between font-semibold text-purple-900">
+                        <span className="flex items-center gap-1">
+                          <MessageCircle className="w-3 h-3 text-purple-600" /> Catatan Susulan Terkini:
+                        </span>
+                        {r.last_followed_up_at && (
+                          <span className="text-[9px] font-mono text-purple-700 font-normal">
+                            {formatDateTime(r.last_followed_up_at)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="italic text-[10.5px] leading-relaxed text-purple-900">
+                        "{r.latest_followup_note}"
+                      </p>
+                    </div>
+                  )}
+
                   {/* UMS MYSERV REFERENCE NUMBER BOX */}
                   <div className="mt-3 pt-2.5 border-t border-border">
                     {hasRef ? (
-                      <div className="p-2.5 bg-emerald-50/80 rounded-xl border border-emerald-200/80 flex items-center justify-between">
+                      <div className="p-2.5 bg-blue-50/80 rounded-xl border border-blue-200/80 flex items-center justify-between">
                         <div>
-                          <p className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wide flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> No. Rujukan MyServ:
+                          <p className="text-[10px] font-semibold text-blue-800 uppercase tracking-wide flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-blue-600" /> No. Rujukan MyServ (JPP):
                           </p>
                           <a 
                             href={UMS_MYSERV_URL} 
                             target="_blank" 
                             rel="noopener noreferrer" 
-                            className="text-xs font-mono font-bold text-emerald-950 hover:underline flex items-center gap-1 mt-0.5"
+                            className="text-xs font-mono font-bold text-blue-950 hover:underline flex items-center gap-1 mt-0.5"
                           >
-                            {r.myserv_ticket_no} <ExternalLink className="w-3 h-3 text-emerald-600" />
+                            {r.myserv_ticket_no} <ExternalLink className="w-3 h-3 text-blue-600" />
                           </a>
                         </div>
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-7 w-7 text-emerald-700 hover:bg-emerald-100"
+                          className="h-7 w-7 text-blue-700 hover:bg-blue-100"
                           title="Kemaskini No. Rujukan"
                           onClick={() => {
                             setSelectedReqForRef(r);
@@ -549,9 +876,9 @@ export default function Maintenance() {
                       <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-[11px] font-semibold text-amber-800 flex items-center gap-1 truncate">
-                            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" /> Belum Ada No. Rujukan
+                            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" /> Belum Ada No. MyServ
                           </p>
-                          <p className="text-[10px] text-amber-700 truncate">Sila masukkan selepas selesai di MyServ</p>
+                          <p className="text-[10px] text-amber-700 truncate">Hantar ke portal MyServ untuk No. REQ</p>
                         </div>
                         <Button 
                           size="sm" 
@@ -562,7 +889,7 @@ export default function Maintenance() {
                             setRefModalOpen(true);
                           }}
                         >
-                          + No. Rujukan
+                          + No. REQ
                         </Button>
                       </div>
                     )}
@@ -613,50 +940,54 @@ export default function Maintenance() {
 
                 {/* BOTTOM ACTION BUTTONS */}
                 <div className="pt-2 border-t border-border flex flex-col gap-2">
-                  {/* STUDENT SELF-CONFIRMATION BUTTON */}
-                  {!isCompleted && !isStaff && (
+                  {/* WHATSAPP GROUP DISPATCH BUTTON (ALL USERS / STAFF) */}
+                  {!isCompleted && (
+                    <div className="flex gap-1.5">
+                      <Button 
+                        size="sm"
+                        onClick={() => {
+                          setSelectedReqForWa(r);
+                          setWaFollowupNote('');
+                          setWaModalOpen(true);
+                        }}
+                        className="flex-1 h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-1.5 shadow-sm rounded-xl"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" /> Hantar ke Group WA
+                      </Button>
+
+                      {isStaff && (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          title="Catat Maklum Balas / Susulan Dalaman"
+                          onClick={() => {
+                            setSelectedReqForLog(r);
+                            setQuickLogText(r.latest_followup_note || '');
+                            setLogModalOpen(true);
+                          }}
+                          className="h-8 px-2.5 text-xs text-slate-700 hover:bg-slate-100 rounded-xl"
+                        >
+                          <FileEdit className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* STUDENT SELF-CONFIRMATION OR STAFF VERIFY BUTTON */}
+                  {!isCompleted && (
                     <Button 
                       size="sm" 
                       onClick={() => {
                         setSelectedReqForComplete(r);
-                        setCompleteRemarks('Kerosakan telah dibaiki dan diuji dengan baik oleh juruteknik JPP.');
+                        setCompleteRemarks(isStaff ? 'Kerosakan disahkan siap oleh felo/staf kolej.' : 'Kerosakan telah dibaiki dan diuji dengan baik oleh juruteknik JPP.');
                         setCompletePhoto(null);
                         setCompleteModalOpen(true);
                       }}
-                      className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-1.5 shadow-sm rounded-xl"
+                      variant="outline"
+                      className="w-full h-8 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50 font-semibold flex items-center justify-center gap-1.5 rounded-xl"
                     >
-                      <ThumbsUp className="w-3.5 h-3.5" /> Sahkan Pembaikan Selesai (JPP)
+                      <ThumbsUp className="w-3.5 h-3.5" /> Sahkan Siap di Lokasi
                     </Button>
-                  )}
-
-                  {/* STAFF CONTROLS */}
-                  {isStaff && (
-                    <div className="flex gap-1.5 flex-wrap">
-                      {r.status === 'Submitted' && (
-                        <Button size="sm" variant="outline" className="text-xs h-7 text-blue-700 border-blue-200 hover:bg-blue-50" onClick={() => updateStatus(r.id, 'Assigned')}>
-                          Tugaskan Staf
-                        </Button>
-                      )}
-                      {r.status === 'Assigned' && (
-                        <Button size="sm" variant="outline" className="text-xs h-7 text-amber-700 border-amber-200 hover:bg-amber-50" onClick={() => updateStatus(r.id, 'In Progress')}>
-                          Mula Kerja
-                        </Button>
-                      )}
-                      {!isCompleted && (
-                        <Button 
-                          size="sm" 
-                          className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white" 
-                          onClick={() => {
-                            setSelectedReqForComplete(r);
-                            setCompleteRemarks('Kerosakan disahkan siap oleh staf/warden kolej.');
-                            setCompletePhoto(null);
-                            setCompleteModalOpen(true);
-                          }}
-                        >
-                          <CheckCircle2 className="w-3 h-3 mr-1" /> Sahkan Selesai
-                        </Button>
-                      )}
-                    </div>
                   )}
                 </div>
               </div>
@@ -665,7 +996,7 @@ export default function Maintenance() {
         </div>
       )}
 
-      {/* STEP 1 MODAL: NEW DAMAGE REPORT */}
+      {/* MODAL 1: NEW DAMAGE REPORT */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -673,7 +1004,7 @@ export default function Maintenance() {
               <Wrench className="w-4 h-4 text-indigo-600" /> Borang Laporan Kerosakan Kolej
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Langkah 1 daripada 2: Lengkapkan maklumat kerosakan sebelum dihantar ke portal UMS MyServ.
+              Langkah 1: Lengkapkan maklumat kerosakan sebelum dihantar ke portal UMS MyServ dan kumpulan WhatsApp penyelenggaraan.
             </DialogDescription>
           </DialogHeader>
 
@@ -681,7 +1012,7 @@ export default function Maintenance() {
             <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100 flex items-center justify-between text-xs text-indigo-900">
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-indigo-600" />
-                <span>Mikro-Alamat Residen: <strong>{myStudent.full_name}</strong></span>
+                <span>Mikro-Alamat: <strong>{myStudent.full_name}</strong></span>
               </div>
               <Badge className="bg-indigo-200/60 text-indigo-800 border-none font-mono text-[11px]">
                 {myStudent.block_name || 'Blok'} - {myStudent.room_number ? `Bilik ${myStudent.room_number}` : 'Tiada Bilik'}
@@ -784,17 +1115,32 @@ export default function Maintenance() {
               </div>
             )}
 
-            {/* KATEGORI */}
-            <div>
-              <Label className="text-xs font-medium">Kategori Kerosakan *</Label>
-              <Select value={form.category} onValueChange={v => setForm({ ...form, category: v })}>
-                <SelectTrigger className="h-9 text-xs mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {['Electrical', 'Plumbing', 'Furniture', 'Internet', 'Cleaning', 'Others'].map(c => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* KATEGORI & KEUTAMAAN */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-medium">Kategori Kerosakan *</Label>
+                <Select value={form.category} onValueChange={v => setForm({ ...form, category: v })}>
+                  <SelectTrigger className="h-9 text-xs mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.keys(CATEGORY_UNIT_MAP).map(c => (
+                      <SelectItem key={c} value={c}>
+                        {CATEGORY_UNIT_MAP[c].icon} {c} ({CATEGORY_UNIT_MAP[c].tag})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs font-medium">Tahap Keutamaan</Label>
+                <Select value={form.urgency} onValueChange={v => setForm({ ...form, urgency: v })}>
+                  <SelectTrigger className="h-9 text-xs mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Normal">Biasa (Standard)</SelectItem>
+                    <SelectItem value="Urgent">🚨 Kecemasan (Paip Utama / Tiada Elektrik)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* PENERANGAN */}
@@ -837,12 +1183,88 @@ export default function Maintenance() {
         </DialogContent>
       </Dialog>
 
-      {/* STEP 3 MODAL: UPDATE NO RUJUKAN MYSERV */}
+      {/* MODAL 2: WHATSAPP GROUP DISPATCH & FORMAT PREVIEW */}
+      <Dialog open={waModalOpen} onOpenChange={setWaModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base font-heading font-bold flex items-center gap-2 text-emerald-800">
+              <MessageCircle className="w-5 h-5 text-emerald-600" /> Hebah ke WhatsApp Group Penyelenggaraan
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Mesej berstruktur ini akan dihantar ke WhatsApp Group KKTF (Cleaner, M&E, Civil, Admin, Felo) dengan tag unit yang tepat.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedReqForWa && (
+            <div className="space-y-3 mt-2">
+              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-xs flex items-center justify-between text-emerald-950">
+                <span className="font-semibold">
+                  Unit Bertanggungjawab: {CATEGORY_UNIT_MAP[selectedReqForWa.category]?.unit || 'UNIT AM'}
+                </span>
+                <Badge className="bg-emerald-600 text-white text-[10px]">
+                  {CATEGORY_UNIT_MAP[selectedReqForWa.category]?.tag}
+                </Badge>
+              </div>
+
+              {/* MESSAGE PREVIEW BOX */}
+              <div>
+                <Label className="text-xs font-medium text-slate-700">Pratonton Mesej WhatsApp:</Label>
+                <div className="mt-1 p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl border border-slate-800 whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto selection:bg-emerald-500 selection:text-black">
+                  {generateWhatsAppMessage(selectedReqForWa)}
+                </div>
+              </div>
+
+              {/* OPTIONAL FOLLOW-UP NOTE FOR STAFF AUDIT */}
+              {isStaff && (
+                <div>
+                  <Label className="text-xs font-medium text-slate-700">
+                    Catatan Tambahan untuk Rekod Sistem (Pilihan)
+                  </Label>
+                  <Input 
+                    placeholder="cth: Telah maklumkan kepada En. Razif (JPP) secara lisan juga"
+                    value={waFollowupNote}
+                    onChange={e => setWaFollowupNote(e.target.value)}
+                    className="h-8 text-xs mt-1"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-4 border-t border-border mt-3">
+            <Button 
+              type="button"
+              variant="outline" 
+              size="sm" 
+              onClick={() => handleCopyWhatsAppText(selectedReqForWa)}
+              className="w-full sm:w-auto text-xs gap-1.5"
+            >
+              {copiedWa ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedWa ? 'Disalin!' : 'Salin Mesej'}
+            </Button>
+
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button variant="outline" size="sm" onClick={() => setWaModalOpen(false)}>
+                Tutup
+              </Button>
+              <Button 
+                size="sm" 
+                onClick={() => handleOpenWhatsAppGroup(selectedReqForWa)}
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold gap-1.5"
+              >
+                <Send className="w-3.5 h-3.5" /> Buka WhatsApp Sekarang
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 3: UPDATE NO RUJUKAN MYSERV */}
       <Dialog open={refModalOpen} onOpenChange={setRefModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-heading font-bold flex items-center gap-2">
-              <Hash className="w-4 h-4 text-emerald-600" /> Kemaskini No. Rujukan UMS MyServ
+              <Hash className="w-4 h-4 text-blue-600" /> Kemaskini No. Rujukan UMS MyServ
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               Masukkan No. Rujukan yang tertera di sistem MyServ selepas anda menghantar aduan.
@@ -893,7 +1315,7 @@ export default function Maintenance() {
                 size="sm" 
                 disabled={updatingRef}
                 onClick={handleSaveRefNumber}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
               >
                 {updatingRef ? 'Menyimpan...' : 'Simpan No. Rujukan'}
               </Button>
@@ -902,7 +1324,58 @@ export default function Maintenance() {
         </DialogContent>
       </Dialog>
 
-      {/* MODAL PENGESAHAN PEMBAIKAN SELESAI (PELAJAR / STAF) */}
+      {/* MODAL 4: QUICK FOLLOW-UP NOTE (STAFF) */}
+      <Dialog open={logModalOpen} onOpenChange={setLogModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-heading font-bold flex items-center gap-2">
+              <FileEdit className="w-4 h-4 text-purple-600" /> Catat Tindakan Susulan JPP / Kontraktor
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Rekod maklumat lisan, panggilan, atau semakan kontraktor untuk rujukan pihak kolej dan felo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 mt-2">
+            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+              <p className="font-semibold text-slate-800">
+                {selectedReqForLog?.specific_location || selectedReqForLog?.room_number} — {selectedReqForLog?.category}
+              </p>
+              {selectedReqForLog?.myserv_ticket_no && (
+                <p className="text-blue-700 font-mono font-medium">{selectedReqForLog.myserv_ticket_no}</p>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium text-slate-700">Catatan Susulan *</Label>
+              <Textarea 
+                value={quickLogText}
+                onChange={e => setQuickLogText(e.target.value)}
+                placeholder="cth: Dihubungi juruteknik elektrik JPP. Bahan gantian telah dipesan dan dijangka siap esok."
+                rows={3}
+                className="text-xs mt-1"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t border-border mt-3">
+            <Button variant="outline" size="sm" onClick={() => setLogModalOpen(false)}>
+              Batal
+            </Button>
+            <Button 
+              size="sm"
+              disabled={savingLog}
+              onClick={handleSaveQuickLog}
+              className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold"
+            >
+              {savingLog ? 'Menyimpan...' : 'Simpan Catatan'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 5: PENGESAHAN PEMBAIKAN SELESAI DI LOKASI */}
       <Dialog open={completeModalOpen} onOpenChange={setCompleteModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -910,7 +1383,7 @@ export default function Maintenance() {
               <CheckCircle className="w-5 h-5 text-emerald-600" /> Pengesahan Pembaikan Kerosakan
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Sahkan bahawa pihak juruteknik/kontraktor JPP telah menyelesaikan kerja pembaikan di lokasi anda.
+              Sahkan bahawa pihak juruteknik/kontraktor JPP telah menyelesaikan kerja pembaikan di lokasi dan berfungsi dengan baik.
             </DialogDescription>
           </DialogHeader>
 
@@ -934,7 +1407,7 @@ export default function Maintenance() {
                 onChange={e => setCompleteRemarks(e.target.value)} 
                 className="text-xs mt-1" 
                 rows={2} 
-                placeholder="cth: Lampu dan tombol pintu telah diganti dan berfungsi dengan baik." 
+                placeholder="cth: Lampu dan suis telah diganti baru dan diuji berfungsi dengan baik." 
               />
             </div>
 
