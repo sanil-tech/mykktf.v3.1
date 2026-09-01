@@ -940,8 +940,8 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
 
                 {/* BOTTOM ACTION BUTTONS */}
                 <div className="pt-2 border-t border-border flex flex-col gap-2">
-                  {/* WHATSAPP GROUP DISPATCH BUTTON (ALL USERS / STAFF) */}
-                  {!isCompleted && (
+                  {/* WHATSAPP GROUP DISPATCH BUTTON (STAFF / WARDEN ONLY) */}
+                  {!isCompleted && isStaff && (
                     <div className="flex gap-1.5">
                       <Button 
                         size="sm"
@@ -955,21 +955,27 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
                         <MessageCircle className="w-3.5 h-3.5" /> Hantar ke Group WA
                       </Button>
 
-                      {isStaff && (
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          title="Catat Maklum Balas / Susulan Dalaman"
-                          onClick={() => {
-                            setSelectedReqForLog(r);
-                            setQuickLogText(r.latest_followup_note || '');
-                            setLogModalOpen(true);
-                          }}
-                          className="h-8 px-2.5 text-xs text-slate-700 hover:bg-slate-100 rounded-xl"
-                        >
-                          <FileEdit className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        title="Catat Maklum Balas / Susulan Dalaman"
+                        onClick={() => {
+                          setSelectedReqForLog(r);
+                          setQuickLogText(r.latest_followup_note || '');
+                          setLogModalOpen(true);
+                        }}
+                        className="h-8 px-2.5 text-xs text-slate-700 hover:bg-slate-100 rounded-xl"
+                      >
+                        <FileEdit className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* STUDENT NOTICE */}
+                  {!isCompleted && !isStaff && (
+                    <div className="p-2 bg-indigo-50/70 border border-indigo-100 rounded-xl text-[11px] text-indigo-900 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <span>Laporan anda dipantau oleh Felo Blok untuk tindakan susulan JPP.</span>
                     </div>
                   )}
 
