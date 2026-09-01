@@ -12,7 +12,7 @@ import { jsPDF } from 'jspdf';
 const REPORT_TYPES = [
   { value: 'residents', label: 'Resident List', entity: 'Student' },
   { value: 'occupancy', label: 'Occupancy Report', entity: 'Room' },
-  { value: 'maintenance', label: 'Maintenance Report', entity: 'MaintenanceRequest' },
+  { value: 'maintenance', label: 'Damage & Maintenance Report', entity: 'MaintenanceRequest' },
   { value: 'attendance', label: 'Attendance Report', entity: 'Attendance' },
   { value: 'leave', label: 'Leave Report', entity: 'LeaveApplication' },
   { value: 'visitors', label: 'Visitor Report', entity: 'Visitor' },

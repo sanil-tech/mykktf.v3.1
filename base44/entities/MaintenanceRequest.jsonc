@@ -51,12 +51,26 @@
     },
     "remarks": {
       "type": "string"
+    },
+    "location_type": {
+      "type": "string",
+      "enum": [
+        "My Room",
+        "Common Area",
+        "Other Facility"
+      ],
+      "default": "My Room"
+    },
+    "specific_location": {
+      "type": "string"
+    },
+    "myserv_ticket_no": {
+      "type": "string"
     }
   },
   "required": [
     "student_id",
     "student_name",
-    "room_number",
     "category",
     "description"
   ],

@@ -156,7 +156,7 @@ export default function WardenDashboard({ user }) {
             </div>
             <div>
               <p className="text-2xl font-bold">{maintenance.length}</p>
-              <p className="text-xs text-muted-foreground">New Maintenance</p>
+              <p className="text-xs text-muted-foreground">New Damage Reports</p>
             </div>
           </div>
         </div>
@@ -198,18 +198,18 @@ export default function WardenDashboard({ user }) {
         )}
       </div>
 
-      {/* New Maintenance Requests */}
+      {/* New Damage Reports */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h2 className="text-sm font-heading font-semibold flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-blue-500" /> New Maintenance Requests
+            <AlertCircle className="w-4 h-4 text-blue-500" /> New Damage Reports
           </h2>
           <Link to="/maintenance" className="text-xs text-primary hover:underline">View All</Link>
         </div>
         {maintenance.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 gap-2">
             <Check className="w-8 h-8 text-green-400" />
-            <p className="text-sm text-muted-foreground">No new maintenance requests.</p>
+            <p className="text-sm text-muted-foreground">No new damage reports.</p>
           </div>
         ) : (
           <div className="divide-y divide-border">
