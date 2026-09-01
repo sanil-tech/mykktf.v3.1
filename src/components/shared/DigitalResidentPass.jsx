@@ -89,7 +89,7 @@ export default function DigitalResidentPass({ student, user, triggerButton }) {
               onClick={() => setIsFlipped(!isFlipped)} 
               className="h-8 text-xs text-amber-300 hover:text-amber-200 hover:bg-slate-800 gap-1"
             >
-              <RotateCw className="w-3.5 h-3.5" /> {isFlipped : 'Info Waris' : 'Flip'}
+              <RotateCw className="w-3.5 h-3.5" /> {isFlipped ? 'Info Waris' : 'Flip'}
             </Button>
           </DialogHeader>
 
