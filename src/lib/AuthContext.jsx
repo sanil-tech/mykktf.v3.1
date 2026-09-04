@@ -19,6 +19,22 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const checkAppState = async () => {
+    // Check if MAPEK guest demo session is active
+    try {
+      const guestJson = localStorage.getItem('mykktf_mapek_guest');
+      if (guestJson) {
+        const guestUser = JSON.parse(guestJson);
+        setUser(guestUser);
+        setIsAuthenticated(true);
+        setIsLoadingAuth(false);
+        setIsLoadingPublicSettings(false);
+        setAuthChecked(true);
+        return;
+      }
+    } catch (e) {
+      localStorage.removeItem('mykktf_mapek_guest');
+    }
+
     try {
       setIsLoadingPublicSettings(true);
       setAuthError(null);
@@ -129,7 +145,31 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginAsMapekGuest = () => {
+    const guestUser = {
+      id: 'guest_mapek_principal_01',
+      full_name: 'Pengetua Jemputan (Majlis MAPEK)',
+      email: 'pengetua.mapek@ums.edu.my',
+      role: 'principal',
+      effectiveRole: 'principal',
+      isGuestDemo: true,
+      college: 'Kolej Kediaman Tun Fuad'
+    };
+    try {
+      localStorage.setItem('mykktf_mapek_guest', JSON.stringify(guestUser));
+    } catch (e) {}
+    setUser(guestUser);
+    setIsAuthenticated(true);
+    setIsLoadingAuth(false);
+    setIsLoadingPublicSettings(false);
+    setAuthChecked(true);
+    setAuthError(null);
+  };
+
   const logout = (shouldRedirect = true) => {
+    try {
+      localStorage.removeItem('mykktf_mapek_guest');
+    } catch (e) {}
     setUser(null);
     setIsAuthenticated(false);
     
@@ -157,6 +197,7 @@ export const AuthProvider = ({ children }) => {
       appPublicSettings,
       authChecked,
       logout,
+      loginAsMapekGuest,
       navigateToLogin,
       checkUserAuth,
       checkAppState
