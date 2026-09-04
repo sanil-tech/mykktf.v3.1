@@ -67,8 +67,6 @@ function stepsFor(role) {
 }
 
 export default function WelcomeTour({ user, role }) {
-  if (!user || user?.isGuestDemo) return null;
-
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
 
@@ -116,7 +114,7 @@ export default function WelcomeTour({ user, role }) {
   }
   function back() { if (step > 0) setStep(s => s - 1); }
 
-  if (!open) return null;
+  if (!user || user?.isGuestDemo || !open) return null;
 
   const current = steps[step];
   const Icon = current.icon;
