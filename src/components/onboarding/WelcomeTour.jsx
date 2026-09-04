@@ -67,6 +67,8 @@ function stepsFor(role) {
 }
 
 export default function WelcomeTour({ user, role }) {
+  if (!user || user?.isGuestDemo) return null;
+
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
 

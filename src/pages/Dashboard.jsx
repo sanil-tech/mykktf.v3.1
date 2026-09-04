@@ -118,7 +118,10 @@ export default function Dashboard() {
           effectiveRole === 'warden' ||
           effectiveRole === 'staff' ||
           effectiveRole === 'super_admin' ||
-          effectiveRole === 'college_admin'
+          effectiveRole === 'college_admin' ||
+          effectiveRole === 'principal' ||
+          user?.role === 'principal' ||
+          user?.isGuestDemo
         ) {
           if (user?.id) {
             try {
@@ -300,7 +303,38 @@ export default function Dashboard() {
   );
 
   // ====================================================================
-  // 🎯 UI DENGAN IMPLEMENTASI LATAR BELAKANG GAMBAR KAMPUS UMS (OPACITY 30%)
+  // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD (STAFF/ADMIN/PRINCIPAL/GUEST)
+  // ====================================================================
+  const effectiveRole = computeEffectiveRole(currentUser?.role, jakmasAppointment);
+  const isExecutiveOrGuest = 
+    effectiveRole === 'principal' ||
+    effectiveRole === 'super_admin' ||
+    effectiveRole === 'college_admin' ||
+    effectiveRole === 'staff' ||
+    currentUser?.role === 'principal' ||
+    Boolean(currentUser?.isGuestDemo);
+
+  const dashboardProps = {
+    user: currentUser,
+    jakmasAppointment,
+    checkedInCount,
+    pendingRoomCount,
+    availableRoomCount,
+    statsComponent: renderStatsCards()
+  };
+
+  const tour = <WelcomeTour user={currentUser} role={effectiveRole} />;
+
+  // PENTING: Pengetua, Pentadbir, Staf dan Tetamu Jemputan MAPEK terus ke Executive Dashboard tanpa melalui borang profil pelajar!
+  if (isExecutiveOrGuest) {
+    return <><AdminDashboard {...dashboardProps} />{tour}</>;
+  }
+
+  if (effectiveRole === 'warden') return <><WardenDashboard {...dashboardProps} />{tour}</>;
+  if (effectiveRole === 'jakmas') return <><StudentDashboard user={currentUser} jakmasAppointment={jakmasAppointment} />{tour}</>;
+
+  // ====================================================================
+  // 🎯 UI PELAJAR DENGAN IMPLEMENTASI LATAR BELAKANG GAMBAR KAMPUS UMS (OPACITY 30%)
   // ====================================================================
   
   // Taktik: Menggunakan kelas pseudo Tailwind 'before:' bersama relative untuk imej pudar yang tidak mengganggu teks.
@@ -470,34 +504,9 @@ export default function Dashboard() {
     );
   }
 
-  // ====================================================================
-  // 🛡️ UTAMA: SUBSISTEM ROUTING DASHBOARD (STAFF/ADMIN)
-  // ====================================================================
-  const effectiveRole = computeEffectiveRole(currentUser?.role, jakmasAppointment);
-  const dashboardProps = {
-    user: currentUser,
-    jakmasAppointment,
-    checkedInCount,
-    pendingRoomCount,
-    availableRoomCount,
-    statsComponent: renderStatsCards()
-  };
-
-  const tour = <WelcomeTour user={currentUser} role={effectiveRole} />;
-
-  if (effectiveRole === 'warden') return <><WardenDashboard {...dashboardProps} />{tour}</>;
-  if (effectiveRole === 'jakmas') return <><StudentDashboard user={currentUser} jakmasAppointment={jakmasAppointment} />{tour}</>;
-  if (
-    effectiveRole === 'super_admin' ||
-    effectiveRole === 'college_admin' ||
-    effectiveRole === 'staff'
-  ) {
-    return <><AdminDashboard {...dashboardProps} />{tour}</>;
-  }
-
   if (hasStudentProfile && isRoomAssigned) {
     return <><StudentDashboard user={currentUser} />{tour}</>;
   }
 
-  return <><AdminDashboard {...dashboardProps} />{tour}</>;
+  return <><StudentDashboard user={currentUser} />{tour}</>;
 }
