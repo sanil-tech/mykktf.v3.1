@@ -25,7 +25,8 @@ export default function Login() {
 
   const handleGuestLogin = () => {
     loginAsMapekGuest();
-    navigate('/');
+    sessionStorage.setItem('mapek_has_visited_guide', 'true');
+    navigate('/guide');
   };
 
   const handleSubmit = async (e) => {

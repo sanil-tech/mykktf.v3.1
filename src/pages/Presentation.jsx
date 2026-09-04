@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import {
   ChevronLeft, ChevronRight, Maximize, Minimize, Presentation as PresentationIcon,
@@ -9,7 +10,7 @@ import {
   ShieldCheck, MapPin, QrCode, CheckCircle2, AlertCircle, HeartHandshake,
   Download, FileText, ChevronDown, ChevronUp, Share2, HelpCircle, Filter, Eye,
   Camera, Compass, Bell, Lock, KeyRound, Wrench as WrenchIcon, Award, Trophy,
-  PhoneCall, Phone, BadgeCheck, FileCheck
+  PhoneCall, Phone, BadgeCheck, FileCheck, Crown, ArrowRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -846,6 +847,7 @@ const ALL_SLIDES = [
 
 export default function PresentationPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState('handbook'); // 'handbook' or 'slides'
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -856,10 +858,10 @@ export default function PresentationPage() {
   const userRole = user?.role || 'student';
   const isJakmas = Boolean(user?.jakmasAppointment);
   const effectiveRole = isJakmas ? 'jakmas' : userRole;
-  const isAdmin = userRole === 'super_admin' || userRole === 'college_admin';
+  const isAdmin = userRole === 'super_admin' || userRole === 'college_admin' || userRole === 'principal' || Boolean(user?.isGuestDemo);
 
-  // Role filter preview (Admins can toggle view perspective)
-  const [rolePerspective, setRolePerspective] = useState('auto');
+  // Role filter preview (Admins & MAPEK Guests can toggle view perspective - default 'all' for guest)
+  const [rolePerspective, setRolePerspective] = useState(user?.isGuestDemo ? 'all' : 'auto');
 
   const activePerspective = rolePerspective === 'auto' ? effectiveRole : rolePerspective;
 
@@ -925,6 +927,44 @@ export default function PresentationPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
+      {/* 👑 VIP GUEST SHOWCASE BANNER FOR MAPEK */}
+      {user?.isGuestDemo && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-indigo-500/10 border-2 border-amber-400/80 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-amber-500/20 border border-amber-400 flex items-center justify-center text-amber-700 dark:text-amber-300 shrink-0 mt-0.5 shadow-sm">
+              <Crown className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] px-2.5 py-0.5">
+                  👑 MAJLIS PENGETUA MAPEK
+                </Badge>
+                <span className="text-xs text-amber-900 dark:text-amber-200 font-semibold">
+                  Akses Demonstrasi Khas — Kolej Kediaman Tun Fuad, UMS
+                </span>
+              </div>
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 mt-1">
+                Buku Panduan & Manual Operasi Sistem MyKKTF v3.1
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-0.5 max-w-3xl leading-relaxed">
+                Yang Berbahagia Pengetua-Pengetua dijemput meneliti struktur dan aliran kerja modul MyKKTF di bawah. Selepas meneliti panduan, anda boleh menekan butang untuk terus menguji dan merasai pengalaman <strong>Dashboard Eksekutif Pengetua</strong> secara interaktif.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0">
+            <Button
+              onClick={() => {
+                sessionStorage.setItem('mapek_has_visited_guide', 'true');
+                navigate('/');
+              }}
+              className="bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs sm:text-sm h-10 px-4 rounded-xl shadow-md gap-2 cursor-pointer"
+            >
+              <LayoutDashboard className="w-4 h-4" /> Masuk Ke Dashboard Eksekutif <ArrowRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* TOP ACTION BAR */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-border pb-4">
         <div>

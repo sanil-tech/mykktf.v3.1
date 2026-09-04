@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import AdminDashboard from '@/components/dashboard/AdminDashboard';
 import StudentDashboard from '@/components/dashboard/StudentDashboard';
@@ -26,6 +27,7 @@ const UMS_FACULTIES = [
 ];
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
   const [jakmasAppointment, setJakmasAppointment] = useState(null);
   const [hasStudentProfile, setHasStudentProfile] = useState(false);
@@ -62,6 +64,13 @@ export default function Dashboard() {
         setLoading(true);
         const user = await base44.auth.me();
         setCurrentUser(user);
+
+        // Jika jemputan MAPEK masuk kali pertama, terus buka Buku Panduan MyKKTF
+        if (user?.isGuestDemo && !sessionStorage.getItem('mapek_has_visited_guide')) {
+          sessionStorage.setItem('mapek_has_visited_guide', 'true');
+          navigate('/guide', { replace: true });
+          return;
+        }
 
         // JAKMAS capability is appointment-derived (mirrors WardenBlock pattern).
         let appt = null;
