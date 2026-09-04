@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 
 const ICONS = {
   LayoutDashboard, GraduationCap, DoorOpen, ArrowLeftRight, CalendarOff,
@@ -853,6 +854,7 @@ export default function PresentationPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeChapter, setActiveChapter] = useState('ch-intro');
+  const [mobileTocOpen, setMobileTocOpen] = useState(false);
 
   // Determine user's effective role
   const userRole = user?.role || 'student';
@@ -879,6 +881,55 @@ export default function PresentationPage() {
            ch.summary.toLowerCase().includes(q) ||
            ch.sections.some(s => s.title.toLowerCase().includes(q) || (s.content && s.content.toLowerCase().includes(q)));
   });
+
+  // Active chapter helpers & mobile navigation
+  const currentChapterIndex = displayChapters.findIndex(c => c.id === activeChapter);
+  const activeChapterObj = (currentChapterIndex >= 0 ? displayChapters[currentChapterIndex] : displayChapters[0]) || null;
+
+  const handleSelectChapter = (chId) => {
+    setActiveChapter(chId);
+    setMobileTocOpen(false);
+    setTimeout(() => {
+      const el = document.getElementById(chId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 150);
+  };
+
+  const handlePrevChapter = () => {
+    if (currentChapterIndex > 0) {
+      handleSelectChapter(displayChapters[currentChapterIndex - 1].id);
+    }
+  };
+
+  const handleNextChapter = () => {
+    if (currentChapterIndex < displayChapters.length - 1) {
+      handleSelectChapter(displayChapters[currentChapterIndex + 1].id);
+    }
+  };
+
+  // Scroll spy to update activeChapter as user scrolls
+  useEffect(() => {
+    if (viewMode !== 'handbook' || displayChapters.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setActiveChapter(entry.target.id);
+          }
+        });
+      },
+      { rootMargin: '-15% 0px -70% 0px', threshold: 0 }
+    );
+
+    displayChapters.forEach((ch) => {
+      const el = document.getElementById(ch.id);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [viewMode, displayChapters]);
 
   // Filter slides based on active perspective
   const displaySlides = ALL_SLIDES.filter(sl => {
@@ -1035,129 +1086,259 @@ export default function PresentationPage() {
 
       {/* VIEW MODE 1: INTERACTIVE HANDBOOK / READER VIEW */}
       {viewMode === 'handbook' && (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-          {/* SIDEBAR TABLE OF CONTENTS */}
-          <div className="lg:col-span-1 space-y-4 sticky top-6">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input 
-                placeholder="Cari kata kunci (cth: QR, GPS, MyServ)..." 
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="pl-9 h-9 text-xs bg-card"
-              />
-            </div>
+        <div className="space-y-4">
+          {/* 📱 MOBILE QUICK TOP BAR: CHAPTER SELECTOR & PREV/NEXT ARROWS */}
+          <div className="lg:hidden sticky top-0 z-30 bg-background/95 backdrop-blur-md pb-2 pt-1 border-b border-border/80 shadow-xs">
+            <div className="flex items-center gap-2">
+              <Sheet open={mobileTocOpen} onOpenChange={setMobileTocOpen}>
+                <SheetTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 justify-between text-xs h-10 font-semibold bg-card border-indigo-200 text-indigo-950 shadow-xs px-3 min-w-0"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <BookOpen className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span className="truncate text-left">
+                        <span className="text-indigo-600 font-bold mr-1.5">{activeChapterObj?.number || 'Bab'}:</span>
+                        {activeChapterObj?.title || 'Pilih Bab Panduan'}
+                      </span>
+                    </div>
+                    <Badge variant="secondary" className="text-[10px] ml-1.5 shrink-0 bg-indigo-50 text-indigo-700 font-bold border-indigo-200">
+                      {displayChapters.length} Bab ▾
+                    </Badge>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[85vw] sm:max-w-md p-0 flex flex-col h-full z-50">
+                  <SheetHeader className="p-4 border-b border-border text-left">
+                    <SheetTitle className="text-sm font-bold flex items-center gap-2 text-indigo-950">
+                      <BookOpen className="w-4 h-4 text-indigo-600" /> Bab Panduan ({displayChapters.length})
+                    </SheetTitle>
+                    <SheetDescription className="text-xs text-muted-foreground">
+                      Pilih bab untuk membaca nota panduan operasi Kolej Kediaman Tun Fuad.
+                    </SheetDescription>
+                    <div className="relative pt-2">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 translate-y-1 text-muted-foreground" />
+                      <Input 
+                        placeholder="Cari kata kunci (cth: QR, GPS, MyServ)..." 
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="pl-9 h-9 text-xs bg-muted/40"
+                      />
+                    </div>
+                  </SheetHeader>
+                  <div className="flex-1 overflow-y-auto p-3 space-y-1">
+                    {displayChapters.map(ch => {
+                      const ChIcon = ICONS[ch.icon] || BookOpen;
+                      const isActive = activeChapter === ch.id;
+                      return (
+                        <button
+                          key={ch.id}
+                          onClick={() => handleSelectChapter(ch.id)}
+                          className={`w-full text-left px-3 py-2.5 rounded-xl text-xs flex items-center gap-2.5 transition-all ${
+                            isActive 
+                              ? 'bg-indigo-50 text-indigo-950 font-bold border border-indigo-200' 
+                              : 'text-slate-600 hover:bg-slate-50 font-medium'
+                          }`}
+                        >
+                          <ChIcon className={`w-4 h-4 shrink-0 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+                          <div className="truncate">
+                            <span className="text-[10px] text-muted-foreground block font-semibold">{ch.number}</span>
+                            <span className="truncate block">{ch.title}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </SheetContent>
+              </Sheet>
 
-            <div className="bg-card border border-border rounded-2xl p-3 shadow-xs space-y-1">
-              <div className="flex items-center justify-between px-2 py-1">
-                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                  Bab Panduan ({displayChapters.length})
-                </p>
-                {activePerspective === 'student' && (
-                  <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">Pelajar</span>
-                )}
+              {/* Quick prev/next arrow buttons for mobile */}
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  size="icon"
+                  variant="outline"
+                  disabled={currentChapterIndex <= 0}
+                  onClick={handlePrevChapter}
+                  className="h-10 w-10 shrink-0 border-border bg-card"
+                  title="Bab Sebelumnya"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  disabled={currentChapterIndex >= displayChapters.length - 1}
+                  onClick={handleNextChapter}
+                  className="h-10 w-10 shrink-0 border-border bg-card"
+                  title="Bab Seterusnya"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+            {/* SIDEBAR TABLE OF CONTENTS (DESKTOP ONLY) */}
+            <div className="hidden lg:block lg:col-span-1 space-y-4 lg:sticky lg:top-6 lg:self-start">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input 
+                  placeholder="Cari kata kunci (cth: QR, GPS, MyServ)..." 
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="pl-9 h-9 text-xs bg-card"
+                />
               </div>
 
-              {displayChapters.map(ch => {
+              <div className="bg-card border border-border rounded-2xl p-3 shadow-xs space-y-1">
+                <div className="flex items-center justify-between px-2 py-1">
+                  <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Bab Panduan ({displayChapters.length})
+                  </p>
+                  {activePerspective === 'student' && (
+                    <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">Pelajar</span>
+                  )}
+                </div>
+
+                {displayChapters.map(ch => {
+                  const ChIcon = ICONS[ch.icon] || BookOpen;
+                  const isActive = activeChapter === ch.id;
+                  return (
+                    <button
+                      key={ch.id}
+                      onClick={() => handleSelectChapter(ch.id)}
+                      className={`w-full text-left px-2.5 py-2 rounded-xl text-xs flex items-center gap-2.5 transition-all ${
+                        isActive 
+                          ? 'bg-indigo-50 text-indigo-950 font-bold border border-indigo-200' 
+                          : 'text-slate-600 hover:bg-slate-50 font-medium'
+                      }`}
+                    >
+                      <ChIcon className={`w-4 h-4 shrink-0 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+                      <div className="truncate">
+                        <span className="text-[10px] text-muted-foreground block">{ch.number}</span>
+                        <span className="truncate block">{ch.title}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <Card className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-2xl p-4 border-none shadow-md">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <h4 className="text-xs font-bold">Perlu Bantuan Lanjut?</h4>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Buka <strong>KKTF Assistant AI</strong> di penjuru kanan bawah untuk bertanya sebarang soalan mengenai kolej secara terus 24/7.
+                  </p>
+                </div>
+              </Card>
+            </div>
+
+            {/* MAIN HANDBOOK CHAPTER CONTENT */}
+            <div className="col-span-1 lg:col-span-3 space-y-6 lg:space-y-8 w-full min-w-0">
+              {displayChapters.map((ch, chIdx) => {
                 const ChIcon = ICONS[ch.icon] || BookOpen;
-                const isActive = activeChapter === ch.id;
+                const prevCh = chIdx > 0 ? displayChapters[chIdx - 1] : null;
+                const nextCh = chIdx < displayChapters.length - 1 ? displayChapters[chIdx + 1] : null;
+
                 return (
-                  <button
-                    key={ch.id}
-                    onClick={() => {
-                      setActiveChapter(ch.id);
-                      const el = document.getElementById(ch.id);
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className={`w-full text-left px-2.5 py-2 rounded-xl text-xs flex items-center gap-2.5 transition-all ${
-                      isActive 
-                        ? 'bg-indigo-50 text-indigo-950 font-bold border border-indigo-200' 
-                        : 'text-slate-600 hover:bg-slate-50 font-medium'
-                    }`}
+                  <div 
+                    key={ch.id} 
+                    id={ch.id} 
+                    className="bg-card border border-border rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-xs space-y-5 lg:space-y-6 scroll-mt-24 lg:scroll-mt-6"
                   >
-                    <ChIcon className={`w-4 h-4 shrink-0 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
-                    <div className="truncate">
-                      <span className="text-[10px] text-muted-foreground block">{ch.number}</span>
-                      <span className="truncate block">{ch.title}</span>
+                    <div className="border-b border-border pb-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono font-bold text-indigo-600 uppercase tracking-widest">
+                          {ch.number}
+                        </span>
+                        <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-700">
+                          Sasaran: {ch.roleLabel}
+                        </Badge>
+                      </div>
+                      <h2 className="text-base sm:text-lg lg:text-xl font-bold text-slate-900 flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                          <ChIcon className="w-4 h-4" />
+                        </div>
+                        <span>{ch.title}</span>
+                      </h2>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {ch.summary}
+                      </p>
                     </div>
-                  </button>
+
+                    <div className="space-y-4 sm:space-y-5">
+                      {ch.sections.map((sec, sIdx) => (
+                        <div key={sIdx} className="space-y-2 bg-slate-50/70 border border-slate-100 rounded-xl sm:rounded-2xl p-3.5 sm:p-4">
+                          <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            {sec.title}
+                          </h3>
+                          {sec.content && (
+                            <p className="text-xs text-slate-600 leading-relaxed pl-5.5">
+                              {sec.content}
+                            </p>
+                          )}
+                          {sec.steps && (
+                            <div className="space-y-2 pt-1 pl-5.5">
+                              {sec.steps.map((st, stIdx) => (
+                                <div key={stIdx} className="text-xs text-slate-700 flex items-start gap-2">
+                                  <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                    {stIdx + 1}
+                                  </span>
+                                  <span className="leading-relaxed">{st}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* CHAPTER BOTTOM NAVIGATION */}
+                    <div className="border-t border-border/70 pt-3.5 mt-4 flex items-center justify-between gap-2 text-xs">
+                      {prevCh ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleSelectChapter(prevCh.id)}
+                          className="text-xs text-slate-600 hover:text-indigo-600 gap-1.5 px-2.5 h-8 font-semibold"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" /> {prevCh.number}
+                        </Button>
+                      ) : <div />}
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const mainEl = document.querySelector('main');
+                          if (mainEl) mainEl.scrollTo({ top: 0, behavior: 'smooth' });
+                          else window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="text-[11px] h-7 px-2.5 text-muted-foreground font-normal border-slate-200"
+                      >
+                        ↑ Ke Atas
+                      </Button>
+
+                      {nextCh ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleSelectChapter(nextCh.id)}
+                          className="text-xs text-slate-600 hover:text-indigo-600 gap-1.5 px-2.5 h-8 font-semibold"
+                        >
+                          {nextCh.number} <ChevronRight className="w-3.5 h-3.5" />
+                        </Button>
+                      ) : <div />}
+                    </div>
+                  </div>
                 );
               })}
             </div>
-
-            <Card className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-2xl p-4 border-none shadow-md">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-400" />
-                  <h4 className="text-xs font-bold">Perlu Bantuan Lanjut?</h4>
-                </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Buka <strong>KKTF Assistant AI</strong> di penjuru kanan bawah untuk bertanya sebarang soalan mengenai kolej secara terus 24/7.
-                </p>
-              </div>
-            </Card>
-          </div>
-
-          {/* MAIN HANDBOOK CHAPTER CONTENT */}
-          <div className="lg:col-span-3 space-y-8">
-            {displayChapters.map(ch => {
-              const ChIcon = ICONS[ch.icon] || BookOpen;
-              return (
-                <div 
-                  key={ch.id} 
-                  id={ch.id} 
-                  className="bg-card border border-border rounded-3xl p-6 lg:p-8 shadow-xs space-y-6 scroll-mt-6"
-                >
-                  <div className="border-b border-border pb-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono font-bold text-indigo-600 uppercase tracking-widest">
-                        {ch.number}
-                      </span>
-                      <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-700">
-                        Sasaran: {ch.roleLabel}
-                      </Badge>
-                    </div>
-                    <h2 className="text-lg lg:text-xl font-bold text-slate-900 flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                        <ChIcon className="w-4 h-4" />
-                      </div>
-                      {ch.title}
-                    </h2>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      {ch.summary}
-                    </p>
-                  </div>
-
-                  <div className="space-y-5">
-                    {ch.sections.map((sec, sIdx) => (
-                      <div key={sIdx} className="space-y-2 bg-slate-50/70 border border-slate-100 rounded-2xl p-4">
-                        <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          {sec.title}
-                        </h3>
-                        {sec.content && (
-                          <p className="text-xs text-slate-600 leading-relaxed pl-5.5">
-                            {sec.content}
-                          </p>
-                        )}
-                        {sec.steps && (
-                          <div className="space-y-2 pt-1 pl-5.5">
-                            {sec.steps.map((st, stIdx) => (
-                              <div key={stIdx} className="text-xs text-slate-700 flex items-start gap-2">
-                                <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
-                                  {stIdx + 1}
-                                </span>
-                                <span className="leading-relaxed">{st}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
       )}
