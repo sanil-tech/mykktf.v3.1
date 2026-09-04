@@ -29,6 +29,13 @@ export default function Login() {
     navigate('/guide');
   };
 
+  // Instant one-tap link support: e.g. /login?demo=mapek&direct=1
+  useEffect(() => {
+    if (isGuestDemoEnabled && isMapekUrl && (searchParams.get('direct') === '1' || searchParams.get('auto') === '1')) {
+      handleGuestLogin();
+    }
+  }, [isMapekUrl, isGuestDemoEnabled, searchParams]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
