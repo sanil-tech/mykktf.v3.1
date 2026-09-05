@@ -250,6 +250,21 @@ export default function MeritDemerit() {
           if (u.role === 'warden' && myWa.length > 0) {
             setFilterBlock('my_blocks');
           }
+          // If user is student, default their dashboard to personal logbook (my_record)
+          const isStudentRole = u.role === 'student' || u.role === 'user' || (!['super_admin', 'principal', 'college_admin', 'warden', 'staff', 'jakmas'].includes(u.role));
+          if (isStudentRole) {
+            setActiveTab('my_record');
+          }
+          // Support URL query params (?claim=sports or ?tab=sports)
+          try {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('claim') === 'sports') {
+              setSportsModalOpen(true);
+            }
+            if (urlParams.get('tab')) {
+              setActiveTab(urlParams.get('tab'));
+            }
+          } catch (e) {}
         }
 
         // Derive distinct event names directly from real attendance records & events
@@ -833,6 +848,28 @@ export default function MeritDemerit() {
               </Button>
             )}
 
+            {isStudent && (
+              <Button 
+                onClick={() => {
+                  setSportsForm({
+                    student_id: myStudentProfile?.id || '',
+                    sport_name: '',
+                    tournament_name: '',
+                    level: 'Kolej',
+                    achievement: 'Penyertaan',
+                    proof_type: 'Sijil Rasmi',
+                    proof_url: '',
+                    custom_points: '',
+                    notes: ''
+                  });
+                  setSportsModalOpen(true);
+                }}
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold gap-1.5 rounded-xl shadow-md border border-amber-400"
+              >
+                <Medal className="w-4 h-4" /> Tuntut Merit Sukan (Mahasiswa)
+              </Button>
+            )}
+
             {(isStaff || isJakmas) && (
               <Button 
                 onClick={() => setSportsModalOpen(true)}
@@ -901,14 +938,45 @@ export default function MeritDemerit() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
           <div className="bg-card border border-lime-300 dark:border-lime-900/50 bg-lime-50/20 rounded-2xl p-4 shadow-xs">
             <div className="flex items-center justify-between text-lime-700 dark:text-lime-400">
-              <span className="text-[11px] font-bold uppercase tracking-wider">Skor Merit Bersih Saya</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider">Skor Merit Bersih</span>
               <Award className="w-4 h-4 text-lime-600" />
             </div>
             <p className="text-2xl font-black font-heading text-foreground mt-1">{myStudentProfile?.netScore || 0} Mata</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">{myStudentProfile?.qualification}</p>
+          </div>
+
+          <div className="bg-card border border-amber-300 dark:border-amber-900/60 bg-gradient-to-br from-amber-50/50 to-amber-100/30 dark:from-amber-950/20 dark:to-transparent rounded-2xl p-3.5 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between text-amber-700 dark:text-amber-400">
+                <span className="text-[11px] font-bold uppercase tracking-wider">Merit Sukan & Atlet</span>
+                <Medal className="w-4 h-4 text-amber-600" />
+              </div>
+              <p className="text-2xl font-black font-heading text-foreground mt-1">+{myStudentProfile?.sportsMerit || 0} Mata</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{myStudentProfile?.sportsCount || 0} Penglibatan / Pingat</p>
+            </div>
+            <Button 
+              size="sm"
+              onClick={() => {
+                setSportsForm({
+                  student_id: myStudentProfile?.id || '',
+                  sport_name: '',
+                  tournament_name: '',
+                  level: 'Kolej',
+                  achievement: 'Penyertaan',
+                  proof_type: 'Sijil Rasmi',
+                  proof_url: '',
+                  custom_points: '',
+                  notes: ''
+                });
+                setSportsModalOpen(true);
+              }}
+              className="mt-2 w-full bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold gap-1 rounded-xl h-7 shadow-xs"
+            >
+              <Medal className="w-3.5 h-3.5" /> Tuntut Merit Sukan
+            </Button>
           </div>
 
           <div className="bg-card border border-border rounded-2xl p-4 shadow-xs">
@@ -1926,6 +1994,43 @@ export default function MeritDemerit() {
                 {myStudentProfile?.tierLabel}
               </Badge>
             </div>
+          </div>
+
+          {/* BANNER TUNTUTAN MERIT SUKAN MAHASISWA */}
+          <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/5 border border-amber-300 dark:border-amber-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl shrink-0 font-black">
+                🏅
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wide flex items-center gap-1.5">
+                  Tuntutan Sumbangan Sukan & Atlet Kolej
+                  <span className="text-[9px] bg-amber-500/20 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full font-mono font-bold">Buka Permohonan</span>
+                </h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Mewakili Kolej, Universiti, Negeri, Kebangsaan atau Antarabangsa? Hantar bukti sijil/penyertaan anda untuk dikreditkan mata merit sukan secara rasmi.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => {
+                setSportsForm({
+                  student_id: myStudentProfile?.id || '',
+                  sport_name: '',
+                  tournament_name: '',
+                  level: 'Kolej',
+                  achievement: 'Penyertaan',
+                  proof_type: 'Sijil Rasmi',
+                  proof_url: '',
+                  custom_points: '',
+                  notes: ''
+                });
+                setSportsModalOpen(true);
+              }}
+              className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold gap-1.5 rounded-xl shrink-0 shadow-sm"
+            >
+              <Medal className="w-4 h-4" /> Tuntut Merit Sukan Sekarang
+            </Button>
           </div>
 
           {/* NET SCORE DISPLAY */}

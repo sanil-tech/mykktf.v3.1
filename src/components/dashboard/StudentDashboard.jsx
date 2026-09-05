@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { Wrench, CalendarOff, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare } from 'lucide-react';
+import { Wrench, CalendarOff, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare, Medal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import JakmasPanel from '@/components/dashboard/JakmasPanel';
 import DigitalResidentPass from '@/components/shared/DigitalResidentPass';
@@ -348,9 +348,10 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
       {/* Quick Access Matrix */}
       <div>
         <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 pl-1">Menu Tindakan Pantas</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
           <QuickAction to="/leave" icon={CalendarOff} label="Mohon Cuti" description="Pelepasan balik hujung minggu" color="bg-purple-600" />
           <QuickAction to="/maintenance" icon={Wrench} label="Aduan Fasiliti" description="Laporan kerosakan bilik/blok" color="bg-amber-500" />
+          <QuickAction to="/merit?claim=sports" icon={Medal} label="Tuntut Merit" description="Tuntutan atlet & sukan kolej" color="bg-amber-600" />
           <QuickAction to="/facilities" icon={Home} label="Tempahan" description="Bilik belajar, dewan & peralatan" color="bg-sky-600" />
           <QuickAction to="/visitors" icon={ClipboardList} label="Daftar Pelawat" description="Log kemasukan pelawat luar" color="bg-emerald-600" />
           <QuickAction to="/attendance" icon={Calendar} label="Kehadiran" description="Semak rekod kehadiran kolej" color="bg-[#132A4A]" />
@@ -440,6 +441,56 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
                   })}
                 </div>
               )}
+            </div>
+
+            {/* Student Merit & Sports Recognition Card (4th Card in 2x2 Grid) */}
+            <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-amber-500/10 text-amber-600 rounded-lg">
+                      <Medal className="w-4 h-4" />
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-800 tracking-tight">Merit & Sukan Kolej</h3>
+                  </div>
+                  <Link to="/merit">
+                    <Button variant="ghost" size="sm" className="text-xs font-bold text-sky-700 hover:text-sky-800 hover:bg-sky-50 h-8 rounded-lg">
+                      Buku Log
+                    </Button>
+                  </Link>
+                </div>
+
+                <div className="bg-gradient-to-br from-amber-50/60 via-amber-100/30 to-amber-50/20 border border-amber-200/60 rounded-xl p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">Mata Merit Semasa</span>
+                    <span className="text-xl font-black font-heading text-amber-700">{student?.merit_points || 0} Mata</span>
+                  </div>
+                  
+                  {/* Progress to Priority Room Allocation */}
+                  <div className="w-full bg-amber-200/50 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 h-full rounded-full transition-all"
+                      style={{ width: `${Math.min(100, (((student?.merit_points || 0)) / 100) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-amber-800/80">
+                    Sumbangan atlet & kejohanan sukan melayakkan anda menerima penarafan Keutamaan Khas pemilihan bilik kolej.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
+                <Link to="/merit?claim=sports" className="flex-1">
+                  <Button size="sm" className="w-full bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold h-8 gap-1.5 rounded-xl shadow-xs">
+                    <Medal className="w-3.5 h-3.5" /> Tuntut Merit Sukan
+                  </Button>
+                </Link>
+                <Link to="/merit">
+                  <Button size="sm" variant="outline" className="text-xs font-semibold h-8 rounded-xl px-3 border-slate-200">
+                    Transkrip
+                  </Button>
+                </Link>
+              </div>
             </div>
 
           </div>
