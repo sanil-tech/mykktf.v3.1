@@ -51,14 +51,19 @@ export default function StudentCheckInModal({
   const [manualCode, setManualCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [savingRoom, setSavingRoom] = useState(false);
+  const [successData, setSuccessData] = useState(null);
   const html5QrCodeRef = useRef(null);
+  const isProcessingRef = useRef(false);
 
   // Initialize room data and determine initial step
   useEffect(() => {
     if (!isOpen) {
       stopCamera();
+      isProcessingRef.current = false;
       return;
     }
+
+    isProcessingRef.current = false;
 
     async function fetchHostelData() {
       setLoadingRooms(true);
@@ -80,7 +85,8 @@ export default function StudentCheckInModal({
 
     // Pastikan sebarang rekod yang belum disahkan melalui imbasan QR fizikal
     // dikunci kepada 'Pending Verification' (anti-bypass jika berlaku ralat/refresh)
-    if (student?.id && !student?.qr_verified && student?.room_status === 'Checked In') {
+    // JANGAN reset jika proses pengaktifan telah berjaya (step === 'success')
+    if (step !== 'success' && student?.id && !student?.qr_verified && student?.room_status === 'Checked In') {
       base44.entities.Student.update(student.id, {
         room_status: 'Pending Verification',
         resident_status: 'Registered',
@@ -171,16 +177,17 @@ export default function StudentCheckInModal({
 
   // Stop Camera
   const stopCamera = async () => {
-    if (html5QrCodeRef.current) {
+    const scanner = html5QrCodeRef.current;
+    if (scanner) {
+      html5QrCodeRef.current = null;
       try {
-        if (html5QrCodeRef.current.isScanning) {
-          await html5QrCodeRef.current.stop();
+        if (scanner.isScanning) {
+          await scanner.stop();
         }
-        await html5QrCodeRef.current.clear();
+        await scanner.clear();
       } catch (e) {
         console.warn('Error stopping camera:', e);
       }
-      html5QrCodeRef.current = null;
     }
     setIsScanning(false);
   };
@@ -188,6 +195,7 @@ export default function StudentCheckInModal({
   // When moving to QR step, trigger camera
   useEffect(() => {
     if (step === 'qr_scanning' && isOpen) {
+      isProcessingRef.current = false;
       const timer = setTimeout(() => {
         startCamera();
       }, 300);
@@ -199,6 +207,8 @@ export default function StudentCheckInModal({
 
   // Handle QR code validation
   const handleQrResult = async (decodedText) => {
+    if (isProcessingRef.current) return;
+
     const cleanText = (decodedText || '').trim().toUpperCase();
 
     // Check if the QR matches any standard KKTF physical check-in format:
@@ -223,12 +233,22 @@ export default function StudentCheckInModal({
       return;
     }
 
+    isProcessingRef.current = true;
+
+    // Pause camera immediately to prevent duplicate frame decodes
+    try {
+      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+        html5QrCodeRef.current.pause(true);
+      }
+    } catch (e) {}
+
     await stopCamera();
     await processSuccessfulCheckIn(cleanText);
   };
 
   // Handle Manual Code Check-In fallback
   const handleManualSubmit = async () => {
+    if (isProcessingRef.current) return;
     if (!manualCode.trim()) {
       toast({ title: 'Sila masukkan kod pengesahan', variant: 'destructive' });
       return;
@@ -239,6 +259,7 @@ export default function StudentCheckInModal({
       return;
     }
 
+    isProcessingRef.current = true;
     await stopCamera();
     await processSuccessfulCheckIn(`MANUAL:${clean}`);
   };
@@ -297,6 +318,19 @@ export default function StudentCheckInModal({
       const todayDate = todayIso.split('T')[0];
       const currentTimeStr = new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' });
 
+      // Resolve student record safely
+      let activeStudent = student;
+      if (!activeStudent?.id && user?.email) {
+        try {
+          const found = await base44.entities.Student.filter({ email: user.email });
+          if (found && found.length > 0) {
+            activeStudent = found[0];
+          }
+        } catch (fErr) {
+          console.warn('Could not re-fetch student:', fErr);
+        }
+      }
+
       const targetRoom = rooms.find(r => 
         r.block_name === selectedBlock && 
         String(r.room_number) === String(selectedRoomNumber)
@@ -304,11 +338,11 @@ export default function StudentCheckInModal({
 
       const roomId = targetRoom?.id || selectedRoomId || '';
 
-      // 1. Create Audit CheckIn Entry
+      // 1. Create Audit CheckIn Entry (best-effort)
       try {
         await base44.entities.CheckIn.create({
-          student_id: student.id,
-          student_name: student.full_name,
+          student_id: activeStudent?.id || '',
+          student_name: activeStudent?.full_name || user?.full_name || 'Pelajar',
           room_id: roomId,
           room_number: selectedRoomNumber,
           block_name: selectedBlock,
@@ -334,16 +368,41 @@ export default function StudentCheckInModal({
         }
       }
 
-      // 3. Log Audit
-      await logAudit(
-        user, 
-        'STUDENT_RESIDENT_ACTIVATION', 
-        'Pengaktifan Residen', 
-        { student: student.full_name, student_id: student.student_id, block: selectedBlock, room: selectedRoomNumber, source: verificationSource }
-      );
+      // 3. Log Audit (best-effort)
+      try {
+        await logAudit(
+          user, 
+          'STUDENT_RESIDENT_ACTIVATION', 
+          'Pengaktifan Residen', 
+          { student: activeStudent?.full_name, student_id: activeStudent?.student_id, block: selectedBlock, room: selectedRoomNumber, source: verificationSource }
+        );
+      } catch (aErr) {}
 
       // 4. HANYA SELEPAS QR DIIMBAS: AKTIFKAN PROFIL PELAJAR BERSAMA COP PENGESAHAN qr_verified: true
-      await base44.entities.Student.update(student.id, {
+      if (activeStudent?.id) {
+        await base44.entities.Student.update(activeStudent.id, {
+          block_name: selectedBlock,
+          room_number: selectedRoomNumber,
+          room_id: roomId,
+          check_in_date: todayDate,
+          room_status: 'Checked In',
+          resident_status: 'Active',
+          qr_verified: true,
+          qr_verified_at: todayIso,
+          verification_source: verificationSource
+        });
+
+        activeStudent.block_name = selectedBlock;
+        activeStudent.room_number = selectedRoomNumber;
+        activeStudent.room_id = roomId;
+        activeStudent.check_in_date = todayDate;
+        activeStudent.room_status = 'Checked In';
+        activeStudent.resident_status = 'Active';
+        activeStudent.qr_verified = true;
+        activeStudent.qr_verified_at = todayIso;
+      }
+
+      const verifiedPayload = {
         block_name: selectedBlock,
         room_number: selectedRoomNumber,
         room_id: roomId,
@@ -351,18 +410,20 @@ export default function StudentCheckInModal({
         room_status: 'Checked In',
         resident_status: 'Active',
         qr_verified: true,
-        qr_verified_at: todayIso,
-        verification_source: verificationSource
-      });
+        qr_verified_at: todayIso
+      };
+      setSuccessData(verifiedPayload);
 
       playSuccessChime();
 
       // Confetti celebration
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      } catch (cErr) {}
 
       setStep('success');
 
@@ -371,18 +432,9 @@ export default function StudentCheckInModal({
         description: `Selamat mendiami ${selectedBlock}, Bilik ${selectedRoomNumber}. Pas Residen Digital anda kini aktif.`
       });
 
-      if (onCheckInSuccess) {
-        onCheckInSuccess({
-          block_name: selectedBlock,
-          room_number: selectedRoomNumber,
-          room_id: roomId,
-          room_status: 'Checked In',
-          resident_status: 'Active',
-          qr_verified: true
-        });
-      }
     } catch (err) {
       console.error('Resident activation error:', err);
+      isProcessingRef.current = false;
       toast({
         title: 'Ralat Semasa Pengaktifan',
         description: err.message || 'Sila cuba lagi atau hubungi felo bertugas.',
@@ -396,6 +448,12 @@ export default function StudentCheckInModal({
 
   const handleClose = () => {
     stopCamera();
+    isProcessingRef.current = false;
+    if (step === 'success' && successData) {
+      if (onCheckInSuccess) {
+        onCheckInSuccess(successData);
+      }
+    }
     onClose();
   };
 

@@ -65,22 +65,30 @@ export default function StudentDashboard({ user, jakmasAppointment }) {
         2
       );
       // Susun balik mesej supaya yang paling lama di atas mengikut gaya perbualan biasa
-      setRecentChats(chats.reverse());
+      if (Array.isArray(chats)) {
+        setRecentChats([...chats].reverse());
+      }
     } catch (err) {
-      console.error("Gagal memuatkan mesej komuniti:", err);
+      console.warn("Gagal memuatkan mesej komuniti:", err);
     }
   }
 
   useEffect(() => {
     async function load() {
       try {
-        const students = await base44.entities.Student.filter({ email: user.email });
+        let students = [];
+        if (user?.id) {
+          students = await base44.entities.Student.filter({ user_id: user.id });
+        }
+        if (!students.length && user?.email) {
+          students = await base44.entities.Student.filter({ email: user.email });
+        }
         const myStudent = students[0] || null;
         setStudent(myStudent);
 
         const dataPromises = [
           base44.entities.Announcement.list('-publish_date'),
-          base44.entities.AnnouncementRead.filter({ student_user_id: user.id })
+          user?.id ? base44.entities.AnnouncementRead.filter({ student_user_id: user.id }) : Promise.resolve([])
         ];
 
         if (myStudent) {
@@ -88,7 +96,7 @@ export default function StudentDashboard({ user, jakmasAppointment }) {
           dataPromises.push(base44.entities.MaintenanceRequest.filter({ student_id: myStudent.student_id }, '-created_date', 5));
         }
 
-        const [ann, reads, leave = [], maint = []] = await Promise.all(dataPromises);
+        const [ann, reads = [], leave = [], maint = []] = await Promise.all(dataPromises);
 
         setMyLeave(leave);
         setMyMaint(maint);
@@ -135,10 +143,21 @@ export default function StudentDashboard({ user, jakmasAppointment }) {
     load();
 
     // Langganan mesej masa nyata (real-time chat updates)
-    const unsubChat = base44.entities.ChatMessage.subscribe(() => {
-      loadRecentChats();
-    });
-    return unsubChat;
+    let unsubChat = () => {};
+    if (typeof base44?.entities?.ChatMessage?.subscribe === 'function') {
+      try {
+        unsubChat = base44.entities.ChatMessage.subscribe(() => {
+          loadRecentChats();
+        });
+      } catch (subErr) {
+        console.warn('Chat subscription unavailable:', subErr);
+      }
+    }
+    return () => {
+      try {
+        if (typeof unsubChat === 'function') unsubChat();
+      } catch (e) {}
+    };
   }, [user]);
 
   async function markRead(ann) {
