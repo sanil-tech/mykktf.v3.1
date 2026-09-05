@@ -6,11 +6,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
-import { User, Save, Loader2, Building2, ShieldCheck, Briefcase, Camera, Trash2, Upload, Printer } from 'lucide-react';
+import { User, Save, Loader2, Building2, ShieldCheck, Briefcase, Camera, Trash2, Upload, Printer, MessageCircle, ExternalLink, Lock, CalendarDays } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import DigitalResidentPass from '@/components/shared/DigitalResidentPass';
 import CollegeTranscriptModal from '@/components/CollegeTranscriptModal';
 import { ROLE_LABELS } from '@/lib/roles';
+
+export function toWhatsAppNumber(phone) {
+  if (!phone) return '';
+  const digits = String(phone).replace(/^(\+60|60|0)/, '').replace(/\D/g, '');
+  return digits ? `60${digits}` : '';
+}
 
 function compressImage(file, maxWidth = 400, maxHeight = 400, quality = 0.85) {
   return new Promise((resolve, reject) => {
@@ -194,14 +200,17 @@ export default function MyProfile() {
       });
     } else {
       // Non-student staff / officer profile
+      const savedTerm = localStorage.getItem(`warden_term_${user.id}`) || user.appointment_term || 'Sesi 2025/2026 (1 Ogos 2025 – 31 Julai 2026)';
+      const savedPhone = localStorage.getItem(`warden_phone_${user.id}`) || user.phone || '0165097489';
       setForm({
         full_name: user.full_name || '',
         email: user.email || '',
-        phone: user.phone || '01X-XXXXXXX',
+        phone: savedPhone,
         staff_id: user.staff_id || 'UMS-KKTF-001',
         department: user.department || 'Pejabat Pentadbiran Kolej Kediaman Tun Fuad',
-        office_location: 'Pejabat Kolej Kediaman Tun Fuad, UMS',
-        role: user.role
+        office_location: user.office_location || 'Pejabat Kolej Kediaman Tun Fuad, UMS',
+        role: user.role,
+        appointment_term: savedTerm
       });
     }
 
@@ -219,6 +228,10 @@ export default function MyProfile() {
     if (user.role === 'warden') {
       const wa = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
       setWardenAssignments(wa);
+      const termFromWb = wa.find(a => a.appointment_term)?.appointment_term;
+      if (termFromWb) {
+        setForm(f => ({ ...f, appointment_term: termFromWb }));
+      }
     }
     setLoading(false);
   }
@@ -249,10 +262,32 @@ export default function MyProfile() {
     } else {
       // Update User object
       try {
-        await base44.auth.updateMe({
+        const isPrincipalOrAdmin = currentUser?.role === 'principal' || currentUser?.role === 'super_admin';
+        const updatePayload = {
           full_name: form.full_name,
-          phone: form.phone
-        });
+          phone: form.phone,
+          department: form.department,
+          office_location: form.office_location,
+        };
+        if (isPrincipalOrAdmin && form.appointment_term) {
+          updatePayload.appointment_term = form.appointment_term;
+          localStorage.setItem(`warden_term_${currentUser.id}`, form.appointment_term);
+        }
+        await base44.auth.updateMe(updatePayload);
+
+        // Jika Felo / Warden, selaraskan nombor telefon dan pautan whatsapp ke WardenBlock
+        if (currentUser?.role === 'warden') {
+          const cleanWA = toWhatsAppNumber(form.phone);
+          localStorage.setItem(`warden_phone_${currentUser.id}`, form.phone);
+          const wa = await base44.entities.WardenBlock.filter({ warden_user_id: currentUser.id });
+          for (const wb of wa) {
+            await base44.entities.WardenBlock.update(wb.id, {
+              warden_name: form.full_name,
+              phone: form.phone,
+              whatsapp_number: cleanWA
+            }).catch(() => {});
+          }
+        }
       } catch (e) {
         // Fallback
       }
@@ -380,36 +415,101 @@ export default function MyProfile() {
               </div>
 
               <div>
-                <Label className="text-xs font-bold">Nombor Telefon / WhatsApp *</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold">Nombor Telefon / WhatsApp *</Label>
+                  {toWhatsAppNumber(form.phone) && (
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Serasi WhatsApp
+                    </span>
+                  )}
+                </div>
                 <Input 
-                  value={form.phone} 
+                  value={form.phone || ''} 
                   onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                  placeholder="cth: 019-8765432" 
-                  className="h-9 text-xs mt-1 bg-background" 
+                  placeholder="cth: 016-509 7489 atau 0165097489" 
+                  className="h-9 text-xs mt-1 bg-background font-mono" 
                 />
+                <div className="flex flex-wrap items-center justify-between gap-1 mt-1.5 p-2 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/60 text-[11px]">
+                  <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300">
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Pautan WhatsApp Pelajar: <strong className="font-mono">wa.me/{toWhatsAppNumber(form.phone) || '601X-XXXXXXX'}</strong></span>
+                  </div>
+                  {toWhatsAppNumber(form.phone) && (
+                    <a 
+                      href={`https://wa.me/${toWhatsAppNumber(form.phone)}`} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 dark:text-emerald-200 hover:underline bg-emerald-200/70 dark:bg-emerald-800/50 px-2 py-0.5 rounded-md transition-colors"
+                      title="Uji pautan terus WhatsApp"
+                    >
+                      <ExternalLink className="w-2.5 h-2.5" /> Uji Pautan
+                    </a>
+                  )}
+                </div>
               </div>
 
               <div>
-                <Label className="text-xs font-bold">Fakulti / Jabatan / Pejabat</Label>
-                <Select 
-                  value={form.department} 
-                  onValueChange={v => setForm(f => ({ ...f, department: v }))}
-                >
-                  <SelectTrigger className="h-9 text-xs mt-1 bg-background"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {UMS_FACULTIES.map(fc => <SelectItem key={fc} value={fc}>{fc}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Label className="text-xs font-bold">Fakulti / Jabatan / Pejabat (Manual Entry)</Label>
+                <Input 
+                  value={form.department || ''} 
+                  onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
+                  placeholder="cth: Fakulti Kejuruteraan (FKJ) / Bahagian Hal Ehwal Pelajar" 
+                  className="h-9 text-xs mt-1 bg-background" 
+                />
               </div>
 
               <div>
                 <Label className="text-xs font-bold">Lokasi Pejabat / Bilik Bertugas</Label>
                 <Input 
-                  value={form.office_location} 
+                  value={form.office_location || ''} 
                   onChange={e => setForm(f => ({ ...f, office_location: e.target.value }))}
                   placeholder="cth: Pejabat Pentadbiran KKTF" 
                   className="h-9 text-xs mt-1 bg-background" 
                 />
+              </div>
+
+              {/* TERM LANTIKAN PEGAWAI / WARDEN (KUASA PENGETUA) */}
+              <div className="sm:col-span-2 p-3.5 bg-slate-50/80 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    <Label className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Term Lantikan Rasmi Pegawai / Warden
+                    </Label>
+                  </div>
+                  <Badge variant="outline" className="w-fit text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-amber-600" /> Kuasa Penetapan: Pengetua Kolej
+                  </Badge>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                  <Input 
+                    value={form.appointment_term || 'Sesi 2025/2026'} 
+                    disabled={!(currentUser?.role === 'principal' || currentUser?.role === 'super_admin')} 
+                    onChange={e => setForm(f => ({ ...f, appointment_term: e.target.value }))}
+                    placeholder="cth: Sesi 2025/2026 (1 Ogos 2025 – 31 Julai 2026)" 
+                    className={`h-9 text-xs flex-1 ${
+                      !(currentUser?.role === 'principal' || currentUser?.role === 'super_admin')
+                        ? 'bg-slate-100 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300 cursor-not-allowed border-dashed' 
+                        : 'bg-background font-medium border-indigo-400 focus-visible:ring-indigo-400'
+                    }`} 
+                  />
+                  {(currentUser?.role === 'principal' || currentUser?.role === 'super_admin') && (
+                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold shrink-0 bg-indigo-50 dark:bg-indigo-950/50 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                      Mod Pengetua (Boleh Ubah)
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 leading-tight">
+                  <Lock className="w-3 h-3 text-amber-500 shrink-0" />
+                  <em>
+                    {(currentUser?.role === 'principal' || currentUser?.role === 'super_admin')
+                      ? 'Sebagai Pengetua Kolej / Pentadbir Utama, anda mempunyai kuasa untuk menetapkan dan mengemas kini tempoh term lantikan ini.' 
+                      : 'Nota: Penetapan tempoh term lantikan staf / felo adalah di bawah kuasa mutlak Pengetua Kolej Kediaman Tun Fuad (BACA SAHAJA).'}
+                  </em>
+                </p>
               </div>
             </div>
           </div>

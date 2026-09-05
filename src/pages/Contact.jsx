@@ -58,7 +58,15 @@ export default function Contact() {
           if (myStud && myStud.block_name) {
             // Find assigned fellow for this student's block
             const feloMatch = (wBlocks || []).find(w => w.block_name === myStud.block_name);
-            setAssignedFelo(feloMatch || null);
+            if (feloMatch) {
+              const cachedPhone = localStorage.getItem(`warden_phone_${feloMatch.warden_user_id}`);
+              setAssignedFelo({
+                ...feloMatch,
+                phone: cachedPhone || feloMatch.phone || feloMatch.whatsapp_number || '0165097489'
+              });
+            } else {
+              setAssignedFelo(null);
+            }
           }
         }
       } catch (err) {
@@ -113,8 +121,9 @@ export default function Contact() {
   };
 
   const getFeloWhatsAppLink = () => {
-    const feloPhone = assignedFelo?.phone || '60138765432';
-    const cleanPhone = feloPhone.replace(/[^0-9]/g, '');
+    const rawPhone = assignedFelo?.phone || assignedFelo?.whatsapp_number || '0165097489';
+    const digits = String(rawPhone).replace(/^(\+60|60|0)/, '').replace(/\D/g, '');
+    const cleanPhone = digits ? `60${digits}` : '60165097489';
     const text = encodeURIComponent(
       `Salam Felo KKTF ${assignedFelo?.warden_name || ''},\n\nSaya ${studentProfile?.full_name || currentUser?.full_name || 'Residen'} (No. Matrik: ${studentProfile?.student_id || '-'}) dari ${studentProfile?.block_name || 'KKTF'} Bilik ${studentProfile?.room_number || '-'}.\n\nSaya ingin memaklumkan / berhubung mengenai:`
     );
@@ -196,7 +205,7 @@ export default function Contact() {
                   {assignedFelo?.warden_name || 'Puan Norazilah binti Tuman'}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Pegawai Felo / Warden KKTF &bull; {assignedFelo?.warden_email || 'zeela@ums.edu.my'}
+                  Pegawai Felo / Warden KKTF &bull; {assignedFelo?.warden_email || 'zeela@ums.edu.my'} &bull; 📱 {assignedFelo?.phone || '016-509 7489'}
                 </p>
                 <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold mt-0.5">
                   Blok Kawal Selia: {studentProfile?.block_name || 'Block B & Block G'}
