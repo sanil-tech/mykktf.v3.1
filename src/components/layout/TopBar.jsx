@@ -9,9 +9,27 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 import { requestNotificationPermission } from '@/lib/pushNotifications';
 import RolePersonaSwitcher from '@/components/shared/RolePersonaSwitcher';
+import { getStoredFeloExcoAppointments } from '@/lib/jakmas';
 
 export default function TopBar({ onMenuClick, user }) {
   const [unreadCount, setUnreadCount] = useState(0);
+
+  const feloAppt = React.useMemo(() => {
+    if (user?.role !== 'warden' && user?.effectiveRole !== 'warden') return null;
+    try {
+      const appts = getStoredFeloExcoAppointments();
+      return appts.find(a => 
+        a.status === 'active' && (
+          a.fellow_user_id === user?.id ||
+          (a.fellow_email && user?.email && a.fellow_email.toLowerCase() === user?.email.toLowerCase()) ||
+          (a.fellow_name && user?.full_name && a.fellow_name.toLowerCase().includes(user.full_name.toLowerCase())) ||
+          (user?.full_name && a.fellow_name && user.full_name.toLowerCase().includes(a.fellow_name.toLowerCase()))
+        )
+      );
+    } catch (e) {
+      return null;
+    }
+  }, [user]);
 
   useEffect(() => {
     if (user?.id) {
@@ -80,6 +98,11 @@ export default function TopBar({ onMenuClick, user }) {
               <div className="hidden sm:block text-left">
                 <p className="text-xs font-medium leading-none flex items-center gap-1">
                   {user?.full_name || 'User'}
+                  {feloAppt && (
+                    <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-[9px] px-1 py-0 leading-none">
+                      Felo Penyelaras
+                    </Badge>
+                  )}
                   {user?.jakmasAppointment && (
                     <Badge className="bg-emerald-100 text-emerald-700 text-[9px] px-1 py-0 leading-none">JAKMAS</Badge>
                   )}
@@ -94,7 +117,9 @@ export default function TopBar({ onMenuClick, user }) {
                     ? 'Pengetua Jemputan MAPEK'
                     : (user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.effectiveRole === 'principal' || user?.role === 'principal'
                         ? 'Pengetua Kolej'
-                        : (ROLE_LABELS[user?.effectiveRole] || ROLE_LABELS[user?.role] || user?.role))}
+                        : (feloAppt 
+                            ? 'Felo Penyelaras Exco JAKMAS' 
+                            : (ROLE_LABELS[user?.effectiveRole] || ROLE_LABELS[user?.role] || user?.role)))}
                 </p>
               </div>
             </Button>
