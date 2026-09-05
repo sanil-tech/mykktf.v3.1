@@ -170,8 +170,21 @@ export default function Dashboard() {
           const s = studs[0];
           setStudentProfile(s);
           setHasStudentProfile(true);
-          const isCheckedIn = (s.room_status === 'Checked In') && Boolean(s.block_name && s.room_number);
-          setIsRoomAssigned(isCheckedIn);
+
+          // PENGESAHAN KETAT (ANTI-BYPASS):
+          // Pelajar HANYA dibenarkan masuk ke Dashboard Residen Aktif jika:
+          // 1. Status bilik ialah 'Checked In' & status residen ialah 'Active'
+          // 2. Blok dan bilik telah ditetapkan
+          // 3. Telah melalui imbasan QR fizikal kolej yang sah (qr_verified === true)
+          // Jika pelajar belum imbas QR, refresh halaman, atau tekan 'Back', mereka
+          // KEKAL disekat di 'Pusat Pengaktifan Residen KKTF' sehingga imbasan QR berjaya!
+          const isStrictlyVerified = 
+            s.room_status === 'Checked In' && 
+            s.resident_status === 'Active' && 
+            Boolean(s.block_name && s.room_number) &&
+            (s.qr_verified === true);
+
+          setIsRoomAssigned(isStrictlyVerified);
         } else {
           setHasStudentProfile(false);
           setStudentProfile(null);

@@ -270,7 +270,8 @@ export default function CheckInOut() {
         room_id: room.id,
         check_in_date: ciForm.check_in_date,
         room_status: 'Checked In', 
-        resident_status: 'Active' 
+        resident_status: 'Active',
+        qr_verified: true 
       });
 
       const nextOcc = (room.current_occupancy || 0) + 1;

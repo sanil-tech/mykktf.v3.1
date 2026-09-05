@@ -50,6 +50,7 @@ export default function StudentCheckInModal({
   const [cameraError, setCameraError] = useState('');
   const [manualCode, setManualCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [savingRoom, setSavingRoom] = useState(false);
   const html5QrCodeRef = useRef(null);
 
   // Initialize room data and determine initial step
@@ -76,6 +77,19 @@ export default function StudentCheckInModal({
     }
 
     fetchHostelData();
+
+    // Pastikan sebarang rekod yang belum disahkan melalui imbasan QR fizikal
+    // dikunci kepada 'Pending Verification' (anti-bypass jika berlaku ralat/refresh)
+    if (student?.id && !student?.qr_verified && student?.room_status === 'Checked In') {
+      base44.entities.Student.update(student.id, {
+        room_status: 'Pending Verification',
+        resident_status: 'Registered',
+        qr_verified: false
+      }).catch(e => console.warn('Reset unverified student status:', e));
+      student.room_status = 'Pending Verification';
+      student.resident_status = 'Registered';
+      student.qr_verified = false;
+    }
 
     // If student already has room pre-assigned, go straight to QR scanning
     if (student?.block_name && student?.room_number) {
@@ -227,7 +241,51 @@ export default function StudentCheckInModal({
     await processSuccessfulCheckIn(`MANUAL:${clean}`);
   };
 
-  // Process the actual Resident Activation in Database
+  // Lock in selected room as Pending Verification before proceeding to scan (Anti-Bypass)
+  const handleProceedToQr = async () => {
+    if (!selectedBlock || !selectedRoomNumber) {
+      toast({ title: 'Sila pilih blok dan nombor bilik', variant: 'destructive' });
+      return;
+    }
+
+    setSavingRoom(true);
+    try {
+      const targetRoom = rooms.find(r => 
+        r.block_name === selectedBlock && 
+        String(r.room_number) === String(selectedRoomNumber)
+      );
+      const roomId = targetRoom?.id || selectedRoomId || '';
+
+      // KUNCI STATUS:
+      // Simpan penempatan bilik tetapi KEKALKAN 'room_status' sebagai 'Pending Verification'
+      // dan 'qr_verified: false'. Pelajar TIDAK AKAN dapat masuk ke dashboard aktif
+      // jika mereka cuba muat semula (refresh) atau tekan butang 'Back'!
+      if (student?.id) {
+        await base44.entities.Student.update(student.id, {
+          block_name: selectedBlock,
+          room_number: selectedRoomNumber,
+          room_id: roomId,
+          room_status: 'Pending Verification',
+          resident_status: 'Registered',
+          qr_verified: false
+        });
+
+        student.block_name = selectedBlock;
+        student.room_number = selectedRoomNumber;
+        student.room_id = roomId;
+        student.room_status = 'Pending Verification';
+        student.resident_status = 'Registered';
+        student.qr_verified = false;
+      }
+    } catch (e) {
+      console.warn('Gagal prapendaftaran bilik:', e);
+    } finally {
+      setSavingRoom(false);
+      setStep('qr_scanning');
+    }
+  };
+
+  // Process the actual Resident Activation in Database (ONLY CALLED ON VALID QR SCAN)
   const processSuccessfulCheckIn = async (verificationSource) => {
     if (submitting) return;
     setSubmitting(true);
@@ -244,30 +302,7 @@ export default function StudentCheckInModal({
 
       const roomId = targetRoom?.id || selectedRoomId || '';
 
-      // 1. Update Student Entity
-      await base44.entities.Student.update(student.id, {
-        block_name: selectedBlock,
-        room_number: selectedRoomNumber,
-        room_id: roomId,
-        check_in_date: todayDate,
-        room_status: 'Checked In',
-        resident_status: 'Active'
-      });
-
-      // 2. Increment Room Occupancy if room found (best-effort, protected against student RBAC restrictions)
-      if (targetRoom) {
-        try {
-          const nextOcc = (targetRoom.current_occupancy || 0) + 1;
-          await base44.entities.Room.update(targetRoom.id, {
-            current_occupancy: nextOcc,
-            status: nextOcc >= (targetRoom.capacity || 4) ? 'Full' : 'Occupied'
-          });
-        } catch (roomErr) {
-          console.warn('Kemaskini Room entity dilepaskan (had akses peranan pelajar):', roomErr?.message || roomErr);
-        }
-      }
-
-      // 3. Create Audit CheckIn Entry
+      // 1. Create Audit CheckIn Entry
       try {
         await base44.entities.CheckIn.create({
           student_id: student.id,
@@ -284,13 +319,39 @@ export default function StudentCheckInModal({
         console.warn('CheckIn log error:', e);
       }
 
-      // 4. Log Audit
+      // 2. Increment Room Occupancy if room found (best-effort, protected against student RBAC restrictions)
+      if (targetRoom) {
+        try {
+          const nextOcc = (targetRoom.current_occupancy || 0) + 1;
+          await base44.entities.Room.update(targetRoom.id, {
+            current_occupancy: nextOcc,
+            status: nextOcc >= (targetRoom.capacity || 4) ? 'Full' : 'Occupied'
+          });
+        } catch (roomErr) {
+          console.warn('Kemaskini Room entity dilepaskan (had akses peranan pelajar):', roomErr?.message || roomErr);
+        }
+      }
+
+      // 3. Log Audit
       await logAudit(
         user, 
         'STUDENT_RESIDENT_ACTIVATION', 
         'Pengaktifan Residen', 
-        { student: student.full_name, student_id: student.student_id, block: selectedBlock, room: selectedRoomNumber }
+        { student: student.full_name, student_id: student.student_id, block: selectedBlock, room: selectedRoomNumber, source: verificationSource }
       );
+
+      // 4. HANYA SELEPAS QR DIIMBAS: AKTIFKAN PROFIL PELAJAR BERSAMA COP PENGESAHAN qr_verified: true
+      await base44.entities.Student.update(student.id, {
+        block_name: selectedBlock,
+        room_number: selectedRoomNumber,
+        room_id: roomId,
+        check_in_date: todayDate,
+        room_status: 'Checked In',
+        resident_status: 'Active',
+        qr_verified: true,
+        qr_verified_at: todayIso,
+        verification_source: verificationSource
+      });
 
       playSuccessChime();
 
@@ -312,8 +373,10 @@ export default function StudentCheckInModal({
         onCheckInSuccess({
           block_name: selectedBlock,
           room_number: selectedRoomNumber,
+          room_id: roomId,
           room_status: 'Checked In',
-          resident_status: 'Active'
+          resident_status: 'Active',
+          qr_verified: true
         });
       }
     } catch (err) {
@@ -434,11 +497,19 @@ export default function StudentCheckInModal({
                 </Button>
                 <Button 
                   size="sm" 
-                  disabled={!selectedBlock || !selectedRoomNumber}
-                  onClick={() => setStep('qr_scanning')}
+                  disabled={!selectedBlock || !selectedRoomNumber || savingRoom}
+                  onClick={handleProceedToQr}
                   className="bg-[#0c182c] hover:bg-[#132440] text-white gap-1.5 text-xs font-bold"
                 >
-                  Seterusnya: Imbas Kod QR <ScanLine className="w-4 h-4 text-lime-400" />
+                  {savingRoom ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-lime-400" /> Menyimpan...
+                    </>
+                  ) : (
+                    <>
+                      Seterusnya: Imbas Kod QR <ScanLine className="w-4 h-4 text-lime-400" />
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
