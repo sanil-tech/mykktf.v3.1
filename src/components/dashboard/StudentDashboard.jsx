@@ -294,7 +294,87 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
         );
       })()}
 
+      {/* Room Inspection 48-Hour Smart Banner */}
+      {(() => {
+        const checkInDateStr = student?.check_in_date || student?.created_date || student?.registration_date;
+        const checkInTime = checkInDateStr ? new Date(checkInDateStr).getTime() : null;
+        const hoursSinceCheckIn = checkInTime ? (Date.now() - checkInTime) / (1000 * 60 * 60) : null;
+
+        if (myInspection) {
+          return (
+            <div className="flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 shadow-sm">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0">
+                <CheckSquare className="w-4 h-4 text-emerald-700" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-emerald-800">Pemeriksaan Bilik Telah Dihantar ✓</p>
+                <p className="text-[11px] text-emerald-600">
+                  Status: <span className="font-semibold">{myInspection.status}</span>
+                  {myInspection.inspection_date ? ` • ${myInspection.inspection_date}` : ''}
+                </p>
+              </div>
+              <Link to="/room-inspections" className="shrink-0">
+                <Button size="sm" variant="outline" className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 text-xs h-7 gap-1">
+                  <ChevronRight className="w-3 h-3" /> Lihat
+                </Button>
+              </Link>
+            </div>
+          );
+        }
+
+        const withinWindow = hoursSinceCheckIn === null || hoursSinceCheckIn <= 720;
+        if (!withinWindow) return null;
+
+        const isOverdue = hoursSinceCheckIn !== null && hoursSinceCheckIn > 48;
+        const isWarning = hoursSinceCheckIn !== null && hoursSinceCheckIn > 24 && hoursSinceCheckIn <= 48;
+
+        const bannerCls = isOverdue
+          ? 'bg-gradient-to-r from-red-500/10 via-red-500/5 to-transparent border-red-300/80'
+          : isWarning
+          ? 'bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-amber-300/80'
+          : 'bg-gradient-to-r from-sky-500/10 via-sky-500/5 to-transparent border-sky-300/80';
+        const iconCls = isOverdue
+          ? 'bg-red-100 border-red-200 text-red-700'
+          : isWarning
+          ? 'bg-amber-100 border-amber-200 text-amber-800'
+          : 'bg-sky-100 border-sky-200 text-sky-700';
+        const labelCls = isOverdue ? 'text-red-800' : isWarning ? 'text-amber-800' : 'text-sky-800';
+        const btnCls = isOverdue
+          ? 'bg-red-600 hover:bg-red-700'
+          : isWarning
+          ? 'bg-amber-600 hover:bg-amber-700'
+          : 'bg-sky-600 hover:bg-sky-700';
+        const label = isOverdue
+          ? '⚠️ Tempoh 48 Jam Telah Tamat — Hantar Segera!'
+          : isWarning
+          ? '⏰ Kurang 24 Jam — Hantar Laporan Pemeriksaan Bilik'
+          : '📋 Pemeriksaan Bilik Wajib (48 Jam)';
+        const desc = isOverdue
+          ? 'Anda melebihi tempoh 48 jam. Sila hantar laporan pemeriksaan bilik segera untuk mengelakkan isu merit.'
+          : 'Sila periksa 8 inventori bilik dan hantar laporan dalam tempoh 48 jam selepas menerima kunci bilik kolej.';
+
+        return (
+          <div className={`border rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3 ${bannerCls}`}>
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${iconCls}`}>
+                <CheckSquare className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <span className={`text-[11px] font-bold uppercase tracking-wide ${labelCls}`}>{label}</span>
+                <p className="text-xs text-slate-600 max-w-sm">{desc}</p>
+              </div>
+            </div>
+            <Link to="/room-inspections" className="shrink-0 w-full md:w-auto">
+              <Button size="sm" className={`text-white text-xs font-semibold h-8 gap-1.5 shadow-sm w-full md:w-auto ${btnCls}`}>
+                <CheckSquare className="w-3.5 h-3.5" /> Isi Laporan Sekarang
+              </Button>
+            </Link>
+          </div>
+        );
+      })()}
+
       {/* 2. Urgent Unread Notices Box */}
+
       {unreadAnn.length > 0 && (
         <div className="space-y-3 bg-red-50/60 border border-red-100 rounded-2xl p-4 shadow-sm">
           <p className="text-xs font-extrabold text-red-700 uppercase tracking-widest flex items-center gap-1.5 animate-pulse">
