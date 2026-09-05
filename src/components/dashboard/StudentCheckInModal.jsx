@@ -254,13 +254,17 @@ export default function StudentCheckInModal({
         resident_status: 'Active'
       });
 
-      // 2. Increment Room Occupancy if room found
+      // 2. Increment Room Occupancy if room found (best-effort, protected against student RBAC restrictions)
       if (targetRoom) {
-        const nextOcc = (targetRoom.current_occupancy || 0) + 1;
-        await base44.entities.Room.update(targetRoom.id, {
-          current_occupancy: nextOcc,
-          status: nextOcc >= (targetRoom.capacity || 4) ? 'Full' : 'Occupied'
-        });
+        try {
+          const nextOcc = (targetRoom.current_occupancy || 0) + 1;
+          await base44.entities.Room.update(targetRoom.id, {
+            current_occupancy: nextOcc,
+            status: nextOcc >= (targetRoom.capacity || 4) ? 'Full' : 'Occupied'
+          });
+        } catch (roomErr) {
+          console.warn('Kemaskini Room entity dilepaskan (had akses peranan pelajar):', roomErr?.message || roomErr);
+        }
       }
 
       // 3. Create Audit CheckIn Entry
