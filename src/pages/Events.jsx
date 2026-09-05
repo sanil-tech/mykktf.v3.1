@@ -28,7 +28,10 @@ import {
   Copy,
   Check,
   Search,
-  AlertCircle
+  AlertCircle,
+  Globe,
+  Video,
+  ExternalLink
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
@@ -120,6 +123,9 @@ const emptyForm = {
   event_name: '', 
   description: '', 
   venue: '', 
+  modality: 'Bersemuka', // 'Bersemuka' | 'Dalam Talian' | 'Hibrid'
+  platform: 'Google Meet', // 'Google Meet' | 'Zoom' | 'Cisco Webex' | 'YouTube Live' | 'Microsoft Teams' | 'Lain-lain'
+  meeting_link: '',
   event_date: '', 
   event_time: '', 
   organizer: '', 
@@ -797,15 +803,57 @@ export default function Events() {
                   )}
 
                   {/* METADATA INFO */}
-                  <div className="space-y-1.5 text-xs text-muted-foreground bg-muted/40 p-3 rounded-2xl border border-border/60">
-                    <div className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-primary" /><span>{ev.venue}</span></div>
-                    <div className="flex items-center gap-2"><Calendar className="w-3.5 h-3.5 text-primary" /><span>{ev.event_date}{ev.event_time ? ` · ${ev.event_time}` : ''}</span></div>
-                    <div className="flex items-center justify-between pt-0.5 border-t border-border/50">
-                      <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-primary" />{ev.current_registrations || 0}{ev.registration_limit ? `/${ev.registration_limit}` : ''} Peserta</span>
+                  <div className="space-y-2 text-xs text-muted-foreground bg-muted/40 p-3.5 rounded-2xl border border-border/60">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 truncate">
+                        <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+                        <span className="truncate">{ev.venue}</span>
+                      </div>
+                      {/* MODALITY BADGE */}
+                      <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold shrink-0 ${
+                        ev.modality === 'Dalam Talian'
+                          ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-400/40'
+                          : ev.modality === 'Hibrid'
+                          ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-400/40'
+                          : 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
+                      }`}>
+                        {ev.modality === 'Dalam Talian' 
+                          ? `🌐 Dalam Talian (${ev.platform || 'Meet'})` 
+                          : ev.modality === 'Hibrid' 
+                          ? `🔄 Hibrid (${ev.platform || 'Online'})` 
+                          : '🏢 Bersemuka'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span>{ev.event_date}{ev.event_time ? ` · ${ev.event_time}` : ''}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                      <span className="flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-primary" />
+                        {ev.current_registrations || 0}{ev.registration_limit ? `/${ev.registration_limit}` : ''} Peserta
+                      </span>
                       <Badge className="bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 border-emerald-400/40 text-[10px] font-bold">
                         +{meritValue} Merit
                       </Badge>
                     </div>
+
+                    {/* DIRECT JOIN LINK FOR ONLINE / HYBRID SESSIONS */}
+                    {(ev.modality === 'Dalam Talian' || ev.modality === 'Hibrid') && ev.meeting_link && (isRegistered || isAttended || canManage) && (
+                      <div className="pt-2 border-t border-blue-200/60 dark:border-blue-900/40">
+                        <a 
+                          href={ev.meeting_link} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="w-full flex items-center justify-center gap-2 py-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+                        >
+                          <Video className="w-3.5 h-3.5" /> Sertai Sesi {ev.platform || 'Dalam Talian'}
+                          <ExternalLink className="w-3 h-3 opacity-80" />
+                        </a>
+                      </div>
+                    )}
                   </div>
 
                   {/* KHAS PAPARAN PELAJAR: GANJARAN & SUMBANGAN MATA MERIT (TANPA MAKLUMAT FELO PENYELARAS) */}
@@ -1118,9 +1166,99 @@ export default function Events() {
               <p className="text-[10px] text-muted-foreground">Felo Penyelaras bertugas akan menyemak kertas kerja, memantau acara dan mengesahkan merit urusetia.</p>
             </div>
 
+            {/* MODALITI & PLATFORM ACARA */}
+            <div className="p-3.5 bg-muted/40 border border-border rounded-2xl space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs font-bold">Modaliti Program *</Label>
+                  <Select 
+                    value={form.modality || 'Bersemuka'} 
+                    onValueChange={(val) => setForm(f => ({ 
+                      ...f, 
+                      modality: val,
+                      venue: val === 'Dalam Talian' && (!f.venue || f.venue === 'Dewan Serbaguna KKTF')
+                        ? `Atas Talian (${f.platform || 'Google Meet'})`
+                        : f.venue
+                    }))}
+                  >
+                    <SelectTrigger className="h-9 text-xs mt-1 bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Bersemuka">🏢 Bersemuka (Fizikal)</SelectItem>
+                      <SelectItem value="Dalam Talian">🌐 Dalam Talian (Online)</SelectItem>
+                      <SelectItem value="Hibrid">🔄 Hibrid (Bersemuka & Online)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {(form.modality === 'Dalam Talian' || form.modality === 'Hibrid') ? (
+                  <div>
+                    <Label className="text-xs font-bold">Platform Sesi *</Label>
+                    <Select 
+                      value={form.platform || 'Google Meet'} 
+                      onValueChange={(val) => setForm(f => ({ 
+                        ...f, 
+                        platform: val,
+                        venue: f.modality === 'Dalam Talian' ? `Atas Talian (${val})` : f.venue
+                      }))}
+                    >
+                      <SelectTrigger className="h-9 text-xs mt-1 bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Google Meet">Google Meet</SelectItem>
+                        <SelectItem value="Zoom">Zoom Meeting</SelectItem>
+                        <SelectItem value="Cisco Webex">Cisco Webex</SelectItem>
+                        <SelectItem value="YouTube Live">YouTube Live</SelectItem>
+                        <SelectItem value="Microsoft Teams">Microsoft Teams</SelectItem>
+                        <SelectItem value="Lain-lain">Lain-lain</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div>
+                    <Label className="text-xs font-bold">Penganjur</Label>
+                    <Input value={form.organizer} onChange={e => setForm(f => ({ ...f, organizer: e.target.value }))} placeholder="cth: JAKMAS KKTF" className="h-9 text-xs mt-1" />
+                  </div>
+                )}
+              </div>
+
+              {/* PAUTAN SESI DALAM TALIAN JIKA ONLINE ATAU HIBRID */}
+              {(form.modality === 'Dalam Talian' || form.modality === 'Hibrid') && (
+                <div className="space-y-1.5 pt-2 border-t border-border/60">
+                  <Label className="text-xs font-bold text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-blue-600" /> Pautan Pertemuan / Sesi (Meeting URL) *
+                  </Label>
+                  <Input 
+                    value={form.meeting_link || ''} 
+                    onChange={e => setForm(f => ({ ...f, meeting_link: e.target.value }))} 
+                    placeholder="cth: https://meet.google.com/abc-defg-hij atau https://zoom.us/j/..." 
+                    className="h-9 text-xs bg-background font-mono" 
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Pelajar yang berdaftar akan menerima butang terus "Sertai Sesi Dalam Talian" untuk menyertai program.
+                  </p>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-xs font-bold">Tempat (Venue) *</Label><Input value={form.venue} onChange={e => setForm(f => ({ ...f, venue: e.target.value }))} placeholder="cth: Dewan Serbaguna KKTF" className="h-9 text-xs mt-1" /></div>
-              <div><Label className="text-xs font-bold">Penganjur</Label><Input value={form.organizer} onChange={e => setForm(f => ({ ...f, organizer: e.target.value }))} placeholder="cth: JAKMAS KKTF" className="h-9 text-xs mt-1" /></div>
+              <div>
+                <Label className="text-xs font-bold">
+                  {form.modality === 'Dalam Talian' ? 'Lokasi Maya / Platform *' : 'Tempat (Venue Fizikal) *'}
+                </Label>
+                <Input 
+                  value={form.venue} 
+                  onChange={e => setForm(f => ({ ...f, venue: e.target.value }))} 
+                  placeholder={form.modality === 'Dalam Talian' ? 'cth: Google Meet' : 'cth: Dewan Serbaguna KKTF'} 
+                  className="h-9 text-xs mt-1" 
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-bold">Penganjur</Label>
+                <Input value={form.organizer} onChange={e => setForm(f => ({ ...f, organizer: e.target.value }))} placeholder="cth: JAKMAS KKTF" className="h-9 text-xs mt-1" />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -1492,8 +1630,23 @@ export default function Events() {
           <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto p-6 bg-card border-border rounded-3xl shadow-xl">
             <DialogHeader>
               <DialogTitle className="font-heading font-bold text-base">Senarai Peserta — {viewingEvent.event_name}</DialogTitle>
+              <div className="flex items-center gap-2 pt-1 mb-2">
+                <span className="text-xs text-muted-foreground">{participants.length} orang telah mendaftar</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${
+                  viewingEvent.modality === 'Dalam Talian'
+                    ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-400/40'
+                    : viewingEvent.modality === 'Hibrid'
+                    ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-400/40'
+                    : 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border border-slate-300'
+                }`}>
+                  {viewingEvent.modality === 'Dalam Talian' 
+                    ? `🌐 Dalam Talian (${viewingEvent.platform || 'Meet'})` 
+                    : viewingEvent.modality === 'Hibrid' 
+                    ? `🔄 Hibrid (${viewingEvent.platform || 'Online'})` 
+                    : '🏢 Bersemuka'}
+                </span>
+              </div>
             </DialogHeader>
-            <p className="text-xs text-muted-foreground mb-3">{participants.length} orang telah mendaftar</p>
             {participants.length === 0 ? (
               <p className="text-sm text-center text-muted-foreground py-6">Tiada pendaftaran setakat ini.</p>
             ) : (
