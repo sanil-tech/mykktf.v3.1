@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { Wrench, CalendarOff, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare, Medal, ClipboardCheck } from 'lucide-react';
+import { Wrench, CalendarOff, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare, Medal, ClipboardCheck, CheckSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import JakmasPanel from '@/components/dashboard/JakmasPanel';
 import DigitalResidentPass from '@/components/shared/DigitalResidentPass';

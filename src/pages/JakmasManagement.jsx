@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
 import { 
-  UserCog, Plus, Search, Pencil, Ban, CheckCircle2, RotateCcw, XCircle, ClipboardList, Eye, AlertTriangle,
+  UserCog, UserCheck, Plus, Search, Pencil, Ban, CheckCircle2, RotateCcw, XCircle, ClipboardList, Eye, AlertTriangle,
   ShieldCheck, Award, HeartHandshake, Briefcase, GraduationCap, Medal, Sparkles, Layers, Trash2, Calendar, FileText,
   Users, Globe, Megaphone, Check, CheckSquare, Square, Building2, BookmarkCheck, ExternalLink, UserPlus, UserX, AlertCircle, Phone
 } from 'lucide-react';
