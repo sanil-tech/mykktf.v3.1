@@ -72,12 +72,12 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '1.5 Pendaftaran Kali Pertama Pelajar (First-Time Onboarding Wizard)',
+        title: '1.5 Pendaftaran Kali Pertama Pelajar (First-Time Onboarding Wizard & Pengaktifan QR)',
         steps: [
-          'Langkah 1 (Persediaan): Sediakan maklumat asas sebelum mula: No. Kad Pengenalan/Pasport, No. Matrik Pelajar UMS (cth: BP23110045), Fakulti & Program Pengajian, serta Nombor Telefon Waris/Ibu Bapa.',
-          'Langkah 2 (Log Masuk): Log masuk kali pertama menggunakan e-mel rasmi universiti. Sistem akan mengunci paparan dan memaparkan "Wisel Pendaftaran Residen Baharu (3 Langkah)".',
-          'Langkah 3 (Lengkapkan 3 Langkah): Isi Maklumat Peribadi → Maklumat Akademik UMS → Kontak Waris Kecemasan.',
-          'Langkah 4 (Selesai & Masuk): Tekan "Lengkapkan Pendaftaran & Masuk". Akaun anda akan aktif serta-merta dan anda dibawa terus ke Student Dashboard untuk menyemak bilik dan memohon cuti.'
+          'Langkah 1 (Persediaan Dokumen): Sediakan maklumat penting sebelum mula: No. Kad Pengenalan / Pasport, No. Matrik UMS (cth: BP23110045), Fakulti & Program Pengajian, No. Telefon Sendiri, serta Nombor Telefon Waris / Kecemasan.',
+          'Langkah 2 (Log Masuk Universiti): Log masuk kali pertama menggunakan e-mel rasmi universiti. Sistem akan mengunci paparan aplikasi dan memaparkan wisel "Pendaftaran Residen Baharu (Self-Service 3 Langkah)".',
+          'Langkah 3 (Lengkapkan 3 Langkah): Isi Maklumat Peribadi & Kontak → Isi Maklumat Akademik UMS & No. Plat Kenderaan → Tetapkan Status Kunci & Bilik (Pilihan A: "Belum Ambil Kunci - Prapendaftaran dari Rumah" ATAU Pilihan B: "Sudah Tahu Bilik Kunci" dengan penapis blok jantina).',
+          'Langkah 4 (Pusat Pengaktifan Residen & Wajib Imbas QR): Selepas menekan simpan, sistem membawa anda ke "Pusat Pengaktifan Residen KKTF" dengan lencana "● MENUNGGU PENGAKTIFAN QR". Pelajar WAJIB mengimbas Kod QR Rasmi Pengaktifan Residen di Kaunter Kunci Dewan Serbaguna atau pintu blok kediaman untuk mengesahkan kehadiran fizikal dan membuka Dashboard Penuh.'
         ]
       }
     ]
@@ -171,34 +171,49 @@ const MANUAL_CHAPTERS = [
   {
     id: 'ch-checkin-student',
     number: 'Bab 4',
-    title: 'Pendaftaran Residen Baharu (Self-Service) & Penetapan Bilik Ditawarkan',
+    title: 'Pendaftaran Masuk Residen, Pengesahan QR Kaunter Kunci & Pendaftaran Keluar',
     roleLabel: 'Pelajar & Pentadbir',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
     icon: 'KeyRound',
-    summary: 'Aliran pendaftaran masuk kendiri 100% tanpa beban kerja staf kolej: pengesahan bilik, pengaktifan pas automatik, dan pendaftaran keluar.',
+    summary: 'Aliran pendaftaran masuk kendiri tanpa beban kerja staf kolej: prapendaftaran dalam talian, pengesahan kehadiran fizikal melalui imbasan Kod QR Kaunter Kunci, pemeriksaan bilik 48 jam, dan pendaftaran keluar.',
     sections: [
       {
-        title: '4.1 Pendaftaran Masuk Kendiri (Zero Staff Workload)',
+        title: '4.1 Peringkat 1: Prapendaftaran Dalam Talian (Self-Service Wizard 3 Langkah)',
         steps: [
-          'Langkah 1: Semasa log masuk kali pertama, pelajar melengkapkan maklumat peribadi dan akademik pada Langkah 1 & 2.',
-          'Langkah 2 (Langkah 3 Onboarding): Pelajar memilih Blok Kediaman (ditapis mengikut jantina secara automatik) dan Nombor Bilik yang tertera pada surat tawaran UMS mereka.',
-          'Langkah 3: Tekan "Sahkan & Aktifkan Pas Residen". Sistem secara automatik menukar status penghuni kepada "Checked In", menambah kapasiti bilik (+1), dan menjana Pas Residen Digital serta-merta tanpa perlu staf kaunter mengisi data secara manual.'
+          'Langkah 1 (Maklumat Peribadi & Kontak): Pelajar mengisi Nama Penuh (MyKad/Pasport), No. Kad Pengenalan, Jantina, Tarikh Lahir, No. Telefon Sendiri, dan No. Telefon Waris / Kecemasan.',
+          'Langkah 2 (Akademik UMS & Kenderaan): Masukkan No. Matrik UMS (cth: BP23110045), pilih Fakulti Pengajian, masukkan Program Pengajian, Tahun Pengajian, serta No. Pendaftaran Kenderaan jika membawa kenderaan ke kolej.',
+          'Langkah 3 (Status Kunci & Bilik): Pelajar memilih salah satu daripada dua keadaan: Pilihan A ("Belum Ambil Kunci - Prapendaftaran dari Rumah") di mana status ditetapkan kepada "Pending Key"; ATAU Pilihan B ("Sudah Tahu Bilik Kunci") di mana pelajar memilih Blok Kediaman (ditapis mengikut jantina secara automatik) dan Nombor Bilik yang tertera pada surat tawaran UMS.',
+          'Langkah 4: Tekan "Sahkan & Teruskan". Data profil disimpan secara selamat ke pangkalan data kolej.'
         ]
       },
       {
-        title: '4.2 Pemeriksaan Keadaan Bilik (Room Inspection)',
+        title: '4.2 Peringkat 2: Pusat Pengaktifan Residen KKTF (Pintu Kawalan Wajib Imbas QR)',
         steps: [
-          'Langkah 1: Buka modul "Room Inspections" dalam tempoh 48 jam selepas menduduki bilik.',
-          'Langkah 2: Periksa suis lampu, soket elektrik, tombol pintu, tingkap, tilam, katil, almari, dan meja belajar.',
-          'Langkah 3: Tandakan status keadaan inventori (Baik / Perlu Pembaikan) dan muat naik gambar jika terdapat kerosakan sedia ada bagi mengelakkan pertikaian di akhir semester.'
+          'Kunci Akses Keselamatan: Selepas melengkapkan prapendaftaran, sistem mengunci akses aplikasi dan memaparkan skrin "Pusat Pengaktifan Residen KKTF" dengan lencana amaran kuning ("● MENUNGGU PENGAKTIFAN QR" atau "● MENUNGGU KUNCI"). Pelajar TIDAK boleh melangkaui skrin ini tanpa imbasan fizikal.',
+          'Langkah 1: Setibanya di kampus KKTF, pelajar mengambil kunci fizikal di Kaunter Kunci (Dewan Serbaguna Kolej Kediaman Tun Fuad).',
+          'Langkah 2: Jika pelajar mendaftar awal tanpa bilik, masukkan nombor bilik kunci yang diterima pada paparan skrin.',
+          'Langkah 3: Tekan butang hijau "Imbas Kod QR Pengaktifan Residen" (kamera pengimbas telefon dibuka secara automatik).',
+          'Langkah 4: Halakan kamera telefon ke Poster Kod QR Rasmi Pengaktifan Residen yang dipamerkan di Kaunter Kunci Dewan Serbaguna atau pintu masuk blok kediaman.',
+          'Langkah 5 (Pengaktifan Penuh): Sistem mengesahkan kehadiran fizikal serta-merta, menukar status residen kepada "Checked In" & "● RESIDEN AKTIF", menambah kapasiti bilik (+1), menjana Pas Residen Digital rasmi, dan membuka akses penuh ke Student Dashboard.'
         ]
       },
       {
-        title: '4.3 Langkah Pendaftaran Keluar (Check-Out) Akhir Semester',
+        title: '4.3 Peringkat 3: Pemeriksaan Keadaan Bilik (Room Inspection Checklist - 48 Jam)',
         steps: [
-          'Langkah 1: Pastikan bilik telah dibersihkan dan barangan peribadi telah dikosongkan.',
-          'Langkah 2: Buka modul "Check-In / Out" → Tekan "Mohon Daftar Keluar (Check-Out)".',
-          'Langkah 3: Felo/Warden atau staf kolej akan membuat pemeriksaan fizikal bilik dan serahkan kunci di kaunter kolej.'
+          'Langkah 1: Buka modul "Room Inspections" pada menu sisi dalam tempoh 48 jam selepas menduduki bilik.',
+          'Langkah 2: Periksa 8 komponen inventori bilik: suis lampu, soket elektrik, tombol pintu, selak tingkap, tilam, katil bertingkat, almari pakaian, dan meja belajar.',
+          'Langkah 3: Tandakan status keadaan inventori (Baik / Perlu Pembaikan) bagi setiap item.',
+          'Langkah 4: Muat naik gambar bukti kerosakan sedia ada (jika ada) dan tekan "Hantar Laporan Pemeriksaan". Rekod ini melindungi pelajar daripada tuntutan gantirugi di akhir semester.'
+        ]
+      },
+      {
+        title: '4.4 Peringkat 4: Langkah Pendaftaran Keluar (Check-Out) Akhir Semester',
+        steps: [
+          'Langkah 1: Pastikan bilik telah dibersihkan sepenuhnya dan barangan peribadi telah dikosongkan.',
+          'Langkah 2: Buka modul "Check-In / Out" → Tekan butang "Mohon Daftar Keluar (Check-Out)".',
+          'Langkah 3: Felo bertugas atau staf pentadbiran membuat pemeriksaan fizikal inventori bilik berasaskan rekod Room Inspection awal semester.',
+          'Langkah 4: Serahkan kunci fizikal bilik di kaunter pejabat kolej.',
+          'Langkah 5: Lengkapkan borang Tinjauan Kepuasan Residen (Survey Analytics) dalam talian untuk menamatkan status penghunian sesi secara rasmi.'
         ]
       }
     ]
@@ -240,6 +255,10 @@ const MANUAL_CHAPTERS = [
       {
         title: '5.4 Apa Nak Buat Jika Telefon Kehabisan Bateri / Tiada Data?',
         content: 'Sekiranya telefon anda kehabisan bateri atau mengalami masalah rangkaian internet semasa tiba, sila berjumpa terus dengan Felo/Warden bertugas di blok anda. Warden boleh melakukan "Pengesahan Kepulangan Manual" bagi pihak anda.'
+      },
+      {
+        title: '5.5 Pemantauan Cuti Terlewat (Overdue Leave Alert) & Tindakan Felo',
+        content: 'Sekiranya pelajar gagal mengesahkan kepulangan melepasi tarikh & masa yang diluluskan, sistem secara automatik menandakan status cuti sebagai "TERLEWAT / OVERDUE" berserta lencana merah berdenyut pada Papan Pemuka Warden. Ini membolehkan felo bertugas segera menghubungi pelajar atau nombor telefon waris kecemasan bagi memastikan keselamatan residen.'
       }
     ]
   },
@@ -272,6 +291,14 @@ const MANUAL_CHAPTERS = [
           'Langkah 3: Tetingkap pratonton mesej rasmi akan dibuka dengan teks yang telah diformat secara pintar mengikut unit (cth: @M&E Elektrik, @Awam & Paip, @Cleaner / Kebersihan).',
           'Langkah 4: Tekan "Buka WhatsApp Sekarang" untuk terus menghantar mesej ke WhatsApp Group Penyelenggaraan KKTF bagi tindakan pantas juruteknik bertugas.',
           'Langkah 5: Catat nota susulan (Follow-Up Note) di MyKKTF untuk merekodkan status perbincangan dengan pihak JPP.'
+        ]
+      },
+      {
+        title: '6.4 Peringatan SLA Automatik & Penutupan Aduan Selesai',
+        steps: [
+          'Langkah 1: Sistem memantau tempoh aduan secara automatik (Peringatan harian dicetuskan jika aduan melebihi 24 jam tanpa tindakan).',
+          'Langkah 2: Selepas kerja pembaikan fizikal disiapkan oleh pihak kontraktor JPP di bilik pelajar, staf kolej atau felo menyemak hasil kerja.',
+          'Langkah 3: Buka kad aduan berkenaan → Tukar status kepada "Completed" berserta catatan ulasan pembaikan dan gambar hasil siap bagi menutup tiket laporan.'
         ]
       }
     ]
@@ -513,13 +540,30 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '12.2 Langkah Mendaftar Acara & Mengimbas Kehadiran Kod QR',
+        title: '12.2 Langkah Mendaftar Acara di Modul Events',
         steps: [
-          'Langkah 1: Buka modul "Events" untuk melihat senarai aktiviti anjuran JAKMAS dan pihak kolej.',
-          'Langkah 2: Tekan "Daftar Acara" untuk menempah tempat anda sebelum kuota penuh.',
-          'Langkah 3: Pada hari acara berlangsung, buka modul "Attendance" pada telefon anda.',
-          'Langkah 4: Imbas Kod QR Acara yang dipaparkan di pintu masuk dewan oleh penganjur.',
-          'Langkah 5: Kehadiran anda akan disahkan dan direkodkan ke dalam profil merit penginapan kolej anda.'
+          'Langkah 1: Buka modul "Events" (/events) untuk melihat takwim aktiviti anjuran JAKMAS dan pihak pengurusan kolej.',
+          'Langkah 2: Teliti butiran program (Tarikh, Masa, Lokasi, Penganjur, dan Had Kuota Peserta).',
+          'Langkah 3: Tekan "Daftar Acara" untuk menempah tempat anda. Pengesahan pendaftaran akan disimpan ke dalam rekod aktiviti anda.'
+        ]
+      },
+      {
+        title: '12.3 Langkah Mengesahkan Kehadiran QR & Kod Token Manual (/attendance)',
+        steps: [
+          'Langkah 1: Pada hari program berlangsung, buka modul "Attendance" (/attendance) pada telefon pintar anda.',
+          'Langkah 2: Pilih mod pengesahan: Mod Kamera Pengimbas QR ATAU Mod Masukkan Kod Token Manual.',
+          'Langkah 3 (Mod Kamera): Tekan "Buka Kamera Pengimbas" dan halakan lensa telefon ke Kod QR Acara rasmi yang dipamerkan oleh urusetia di pintu dewan.',
+          'Langkah 4 (Mod Kod Token Manual): Sekiranya kamera telefon anda bermasalah atau pencahayaan malap, pilih tab manual dan masukkan 6-digit Kod Token Acara yang disediakan.',
+          'Langkah 5 (Pengesahan Masa Nyata): Sistem mengesahkan kehadiran anda dalam masa nyata berserta nada bunyi pengesahan dan animasi konfeti 🎊 (Status: Present).',
+          'Langkah 6 (Kredit Merit Serta-Merta): Mata merit aktiviti kolej (+10 Mata Peserta) dikreditkan secara automatik ke dalam profil merit residen dan Transkrip Sahsiah anda.'
+        ]
+      },
+      {
+        title: '12.4 Pemantauan Langsung Kehadiran oleh Urusetia JAKMAS',
+        steps: [
+          'Langkah 1: Urusetia program atau EXCO JAKMAS membuka modul "Attendance".',
+          'Langkah 2: Sistem memaparkan Kaunter Kehadiran Langsung (Live Attendee Counter) yang bertambah secara masa nyata setiap kali mahasiswa mengimbas.',
+          'Langkah 3: Urusetia boleh menyemak senarai nama penghuni yang telah hadir, atau membuat carian No. Matrik manual sekiranya terdapat pelajar yang memerlukan bantuan pendaftaran.'
         ]
       }
     ]
@@ -722,8 +766,16 @@ const MANUAL_CHAPTERS = [
         content: 'Penyelesaian: Buka aplikasi MyKKTF → Pastikan anda telah menekan "Benarkan" pada gesaan notifikasi. Pada iPhone, pastikan aplikasi telah ditambah ke Home Screen (PWA) untuk menyokong Web Push Notifications.'
       },
       {
-        title: 'S4: Siapa yang perlu saya hubungi jika menghadapi masalah akaun?',
-        content: 'Penyelesaian: Sila hubungi Kaunter Pentadbiran Kolej Kediaman Tun Fuad (UMS) pada waktu pejabat atau ajukan soalan anda terus melalui modul Hab Perhubungan (/contact) atau KKTF Assistant AI.'
+        title: 'S4: Kenapa saya terkunci pada paparan "Pusat Pengaktifan Residen" dan tidak boleh membuka Student Dashboard?',
+        content: 'Penyelesaian: Ini adalah pintu kawalan keselamatan rasmi kolej bagi memastikan anda benar-benar telah melapor diri dan tiba secara fizikal di kampus. Sila ambil kunci bilik di Kaunter Kunci (Dewan Serbaguna KKTF) dan tekan butang "Imbas Kod QR Pengaktifan Residen" untuk mengimbas poster QR yang dipamerkan di kaunter/pintu blok. Selepas imbasan berjaya, Pas Residen Digital dan Student Dashboard anda akan terbuka serta-merta.'
+      },
+      {
+        title: 'S5: Berapa lama tempoh semakan tuntutan merit sukan mahasiswa?',
+        content: 'Penyelesaian: Permohonan tuntutan merit sukan disemak terus oleh Felo Penyelaras Exco Sukan & Rekreasi atau Warden bertugas. Pegawai akan meneliti dokumen bukti yang anda lampirkan (sijil/surat pelepasan/foto podium). Kelulusan biasanya mengambil masa 1-3 hari bekerja dan merit akan dikreditkan secara automatik ke Buku Log Merit dan Transkrip Sahsiah anda.'
+      },
+      {
+        title: 'S6: Siapa yang perlu saya hubungi jika menghadapi masalah akaun atau teknikal?',
+        content: 'Penyelesaian: Sila hubungi Kaunter Pentadbiran Kolej Kediaman Tun Fuad (UMS) pada waktu pejabat atau ajukan soalan anda terus melalui modul Hab Perhubungan (/contact) atau tanya pembantu maya KKTF Assistant AI di penjuru kanan bawah.'
       }
     ]
   }
