@@ -1561,25 +1561,12 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
                   </div>
                   <div>
                     <Label className="text-xs font-medium">Aras / Tingkat *</Label>
-                    <Select
+                    <Input
                       value={form.floor_level}
-                      onValueChange={v => setForm({ ...form, floor_level: v })}
-                    >
-                      <SelectTrigger className="h-9 text-xs mt-1 bg-card">
-                        <SelectValue placeholder="Pilih Aras" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Aras Bawah / Ground Floor">🏗️ Aras Bawah / Ground Floor</SelectItem>
-                        <SelectItem value="Aras 1">Aras 1</SelectItem>
-                        <SelectItem value="Aras 2">Aras 2</SelectItem>
-                        <SelectItem value="Aras 3">Aras 3</SelectItem>
-                        <SelectItem value="Aras 4">Aras 4</SelectItem>
-                        <SelectItem value="Aras 5">Aras 5</SelectItem>
-                        <SelectItem value="Aras 6">Aras 6</SelectItem>
-                        <SelectItem value="Aras 7">Aras 7</SelectItem>
-                        <SelectItem value="Bumbung / Rooftop">🔝 Bumbung / Rooftop</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      onChange={e => setForm({ ...form, floor_level: e.target.value })}
+                      className="h-9 text-xs mt-1"
+                      placeholder="cth: Aras 2, Ground Floor, Tingkat 3..."
+                    />
                   </div>
                 </div>
 
