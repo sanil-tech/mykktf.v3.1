@@ -118,7 +118,7 @@ export default function MeritDemerit() {
         const [u, sList, eList, aList, mList, bList, waList] = await Promise.all([
           base44.auth.me(),
           base44.entities.Student.list(),
-          base44.entities.Attendance.list('-created_date'),
+          base44.entities.Event.list('-event_date'),
           base44.entities.Attendance.list('-created_date'),
           base44.entities.DisciplineRecord.list('-created_date'),
           base44.entities.Block.list(),
@@ -186,16 +186,28 @@ export default function MeritDemerit() {
 
   // Compute student net merit score
   const studentScores = students.map(st => {
-    // Attendance merit (+10 each)
-    const attendedCount = attendanceRecords.filter(a => a.student_id === st.id).length;
+    // Attendance merit (+10 each) matching by id, student_id (matric) or full_name
+    const attendedCount = attendanceRecords.filter(a => 
+      (a.status === 'Present' || !a.status) && (
+        a.student_id === st.id || 
+        (st.student_id && a.student_id === st.student_id) ||
+        (st.full_name && a.student_name && a.student_name.toLowerCase() === st.full_name.toLowerCase())
+      )
+    ).length;
     const attendanceMerit = attendedCount * (rubricSettings.event_attendance?.defaultPoints || 10);
 
     // Extra merit & demerit transactions
-    const studentTxs = meritTransactions.filter(t => t.student_id === st.id && t.status === 'Approved');
+    const studentTxs = meritTransactions.filter(t => 
+      (t.student_id === st.id || (st.student_id && t.student_id === st.student_id)) && 
+      t.status === 'Approved'
+    );
     const extraMerit = studentTxs.filter(t => t.type === 'Merit').reduce((acc, curr) => acc + (curr.points || 0), 0);
     const demerit = studentTxs.filter(t => t.type === 'Demerit').reduce((acc, curr) => acc + Math.abs(curr.points || 0), 0);
 
-    const netScore = Math.max(0, (attendanceMerit + extraMerit) - demerit);
+    // Harmonize with recorded Student.merit_points
+    const recordedProfileMerit = st.merit_points || 0;
+    const totalPositiveMerit = Math.max(recordedProfileMerit, attendanceMerit + extraMerit);
+    const netScore = Math.max(0, totalPositiveMerit - demerit);
 
     let tier = 'bronze';
     let tierLabel = 'Tier Gangsa (Belum Capai Syarat)';
@@ -369,6 +381,7 @@ export default function MeritDemerit() {
       return;
     }
     const student = students.find(s => s.id === committeeForm.student_id);
+    if (!student) return;
     const rubricItem = rubricSettings[committeeForm.role_key] || { label: 'AJK', defaultPoints: 20 };
     const points = Number(committeeForm.custom_points) || rubricItem.defaultPoints;
 
@@ -385,6 +398,20 @@ export default function MeritDemerit() {
     };
 
     setMeritTransactions(prev => [newTx, ...prev]);
+
+    if (isStaff) {
+      // Persist merit directly to Student record
+      try {
+        const curMerit = student.merit_points || 0;
+        await base44.entities.Student.update(student.id, {
+          merit_points: curMerit + points
+        });
+        setStudents(prev => prev.map(s => s.id === student.id ? { ...s, merit_points: curMerit + points } : s));
+      } catch (err) {
+        console.warn('Failed updating student merit:', err);
+      }
+    }
+
     toast.success(isStaff ? `Merit +${points} mata berjaya dikreditkan kepada ${student.full_name}.` : 'Cadangan AJK dihantar untuk perakuan Felo.');
     setCommitteeModalOpen(false);
   };
@@ -396,6 +423,7 @@ export default function MeritDemerit() {
       return;
     }
     const student = students.find(s => s.id === demeritForm.student_id);
+    if (!student) return;
     const rubricItem = rubricSettings[demeritForm.demerit_key] || { label: 'Kesalahan Disiplin', defaultPoints: -10 };
     const points = Number(demeritForm.custom_points) ? -Math.abs(Number(demeritForm.custom_points)) : rubricItem.defaultPoints;
 
@@ -410,6 +438,29 @@ export default function MeritDemerit() {
       status: 'Approved',
       officer: currentUser?.full_name || 'Felo Bertugas'
     };
+
+    // Persist discipline record to DB
+    try {
+      await base44.entities.DisciplineRecord.create({
+        student_id: student.id,
+        student_name: student.full_name,
+        offence_category: rubricItem.label,
+        demerit_points: Math.abs(points),
+        incident_date: demeritForm.incident_date,
+        notes: demeritForm.notes,
+        recorded_by: currentUser?.full_name || 'Felo Bertugas',
+        status: 'Approved'
+      });
+      // Deduct from Student merit_points
+      const curMerit = student.merit_points || 0;
+      const updatedMerit = Math.max(0, curMerit - Math.abs(points));
+      await base44.entities.Student.update(student.id, {
+        merit_points: updatedMerit
+      });
+      setStudents(prev => prev.map(s => s.id === student.id ? { ...s, merit_points: updatedMerit } : s));
+    } catch (err) {
+      console.warn('Discipline persistence error:', err);
+    }
 
     setMeritTransactions(prev => [newTx, ...prev]);
     toast.success(`Dimerit ${points} mata direkodkan bagi ${student.full_name}.`);
