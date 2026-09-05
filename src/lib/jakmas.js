@@ -110,168 +110,20 @@ export function getStoredFeloExcoAppointments() {
     const raw = localStorage.getItem('kktf_felo_exco_appointments');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length >= 7) {
-        // Semak status felo yang telah tamat perkhidmatan (cth: Cik Noor Aznadira)
-        let changed = false;
-        parsed.forEach(p => {
-          if (p.id === 'felo-aznadira' || p.fellow_user_id === 'felo-aznadira') {
-            if (p.status !== 'ended') {
-              p.status = 'ended';
-              p.notes = 'Tamat perkhidmatan di KKTF. Portfolio sedia untuk diselaraskan semula kepada Felo baharu yang dijemput.';
-              changed = true;
-            }
-          }
-        });
-        if (changed) {
-          localStorage.setItem('kktf_felo_exco_appointments', JSON.stringify(parsed));
+      if (Array.isArray(parsed)) {
+        // Bersihkan sebarang rekod ujian/placeholder terdahulu bagi mengelakkan kekeliruan
+        const mockIds = ['felo-saniyil', 'felo-an-shaharizuan', 'felo-hafizie', 'felo-norazilah', 'felo-narvinna', 'felo-aznadira', 'felo-asru'];
+        const realAppointments = parsed.filter(p => !mockIds.includes(p.id) && !mockIds.includes(p.fellow_user_id));
+        if (realAppointments.length !== parsed.length) {
+          localStorage.setItem('kktf_felo_exco_appointments', JSON.stringify(realAppointments));
         }
-        return parsed;
+        return realAppointments;
       }
     }
   } catch (e) {}
 
-  // Senarai Rasmi Penyelarasan Felo Mengikut Exco JAKMAS KKTF Sesi 2025/2026
-  const officialAppointments = [
-    {
-      id: 'felo-saniyil',
-      fellow_user_id: 'felo-saniyil',
-      fellow_name: 'En. Saniyil Bansai',
-      fellow_email: 'saniyil@ums.edu.my',
-      block_assigned: 'Blok A',
-      portfolios: [
-        'Exco Kebajikan dan Keselamatan (YDP)',
-        'Exco Sukan dan Rekreasi'
-      ],
-      appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
-      appointment_date: '2025-08-01',
-      academic_session: 'Sesi 2025/2026',
-      term_end: '2026-07-31',
-      status: 'active',
-      letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/01',
-      notes: 'Penyelaras Kebajikan & Keselamatan serta Pengesah Tuntutan Merit Sukan Kolej.'
-    },
-    {
-      id: 'felo-an-shaharizuan',
-      fellow_user_id: 'felo-an-shaharizuan',
-      fellow_name: 'Ts. Dr. An Mohd Shaharizuan',
-      fellow_email: 'shaharizuan@ums.edu.my',
-      block_assigned: 'Blok D',
-      portfolios: [
-        'Exco Kebajikan dan Keselamatan (YDP)',
-        'Exco Akademik dan Kepimpinan (NYDP)',
-        'Exco Kerohanian dan Pembangunan Sahsiah (Bendahari)',
-        'Exco Keusahawanan'
-      ],
-      appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
-      appointment_date: '2025-08-01',
-      academic_session: 'Sesi 2025/2026',
-      term_end: '2026-07-31',
-      status: 'active',
-      letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/02',
-      notes: 'Penyelaras Kepimpinan, Akademik, Sahsiah & Keusahawanan Mahasiswa.'
-    },
-    {
-      id: 'felo-hafizie',
-      fellow_user_id: 'felo-hafizie',
-      fellow_name: 'En. Hafizie Potera',
-      fellow_email: 'hafizie@ums.edu.my',
-      block_assigned: 'Blok C',
-      portfolios: [
-        'Exco Kebajikan dan Keselamatan (YDP)',
-        'Exco Perhubungan Korporat dan Antarabangsa (SU)',
-        'Exco Kesenian dan Kebudayaan'
-      ],
-      appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
-      appointment_date: '2025-08-01',
-      academic_session: 'Sesi 2025/2026',
-      term_end: '2026-07-31',
-      status: 'active',
-      letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/03',
-      notes: 'Penyelaras Kebajikan, Hubungan Korporat/Antarabangsa & Seni Budaya.'
-    },
-    {
-      id: 'felo-norazilah',
-      fellow_user_id: 'felo-norazilah',
-      fellow_name: 'Puan Norazilah Tuman',
-      fellow_email: 'norazilah@ums.edu.my',
-      block_assigned: 'Blok B',
-      portfolios: [
-        'Exco Akademik dan Kepimpinan (NYDP)',
-        'Exco Perhubungan Korporat dan Antarabangsa (SU)',
-        'Exco Keusahawanan',
-        'Exco Kesukarelawanan dan Kemasyarakatan'
-      ],
-      appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
-      appointment_date: '2025-08-01',
-      academic_session: 'Sesi 2025/2026',
-      term_end: '2026-07-31',
-      status: 'active',
-      letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/04',
-      notes: 'Penyelaras Akademik, Kesukarelawanan, Keusahawanan & Perhubungan Korporat.'
-    },
-    {
-      id: 'felo-narvinna',
-      fellow_user_id: 'felo-narvinna',
-      fellow_name: 'Cik Narvinna',
-      fellow_email: 'narvinna@ums.edu.my',
-      block_assigned: 'Blok E',
-      portfolios: [
-        'Exco Kerohanian dan Pembangunan Sahsiah (Bendahari)',
-        'Exco Kesukarelawanan dan Kemasyarakatan',
-        'Exco Sukan dan Rekreasi'
-      ],
-      appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
-      appointment_date: '2025-08-01',
-      academic_session: 'Sesi 2025/2026',
-      term_end: '2026-07-31',
-      status: 'active',
-      letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/05',
-      notes: 'Penyelaras Kerohanian, Kesukarelawanan & Pengesah Sukan/Rekreasi.'
-    },
-    {
-      id: 'felo-aznadira',
-      fellow_user_id: 'felo-aznadira',
-      fellow_name: 'Cik Noor Aznadira',
-      fellow_email: 'aznadira@ums.edu.my',
-      block_assigned: 'Blok F',
-      portfolios: [
-        'Exco Kesukarelawanan dan Kemasyarakatan',
-        'Exco Sukan dan Rekreasi'
-      ],
-      appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
-      appointment_date: '2025-08-01',
-      academic_session: 'Sesi 2025/2026',
-      term_end: '2025-12-31',
-      status: 'ended', // Tidak bertugas di KKTF lagi
-      letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/06',
-      notes: 'Tamat perkhidmatan di KKTF. Portfolio sedia untuk diselaraskan semula kepada Felo baharu yang dijemput.'
-    },
-    {
-      id: 'felo-asru',
-      fellow_user_id: 'felo-asru',
-      fellow_name: 'En. Asru Lakmal',
-      fellow_email: 'asru@ums.edu.my',
-      block_assigned: 'Blok G',
-      portfolios: [
-        'Exco Media dan Publisiti',
-        'Exco Sukan dan Rekreasi',
-        'Exco Kesenian dan Kebudayaan'
-      ],
-      appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
-      appointment_date: '2025-08-01',
-      academic_session: 'Sesi 2025/2026',
-      term_end: '2026-07-31',
-      status: 'active',
-      letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/07',
-      notes: 'Penyelaras Media, Seni Budaya & Pengesah Rasmi Sukan/Rekreasi Kolej.'
-    }
-  ];
-
-  try {
-    localStorage.setItem('kktf_felo_exco_appointments', JSON.stringify(officialAppointments));
-  } catch (e) {}
-
-  return officialAppointments;
+  // Mulakan dengan senarai kosong - lantikan akan dibuat mengikut Felo/Warden sebenar yang berdaftar
+  return [];
 }
 
 export function saveStoredFeloExcoAppointment(appointment, actorUser) {

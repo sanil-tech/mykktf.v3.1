@@ -134,24 +134,7 @@ export default function JakmasManagement() {
         }
       });
 
-      // 7 Felo Penyelaras Rasmi KKTF Sesi 2025/2026 (Watikah Pengetua)
-      // Cik Noor Aznadira ditandakan 'ended' (tidak bertugas lagi di KKTF)
-      const officialSeedFelos = [
-        { id: 'felo-saniyil', name: 'En. Saniyil Bansai', email: 'saniyil@ums.edu.my', block: 'Blok A', status: 'active' },
-        { id: 'felo-an-shaharizuan', name: 'Ts. Dr. An Mohd Shaharizuan', email: 'shaharizuan@ums.edu.my', block: 'Blok D', status: 'active' },
-        { id: 'felo-hafizie', name: 'En. Hafizie Potera', email: 'hafizie@ums.edu.my', block: 'Blok C', status: 'active' },
-        { id: 'felo-norazilah', name: 'Puan Norazilah Tuman', email: 'norazilah@ums.edu.my', block: 'Blok B', status: 'active' },
-        { id: 'felo-narvinna', name: 'Cik Narvinna', email: 'narvinna@ums.edu.my', block: 'Blok E', status: 'active' },
-        { id: 'felo-aznadira', name: 'Cik Noor Aznadira', email: 'aznadira@ums.edu.my', block: 'Blok F', status: 'ended', service_ended: true },
-        { id: 'felo-asru', name: 'En. Asru Lakmal', email: 'asru@ums.edu.my', block: 'Blok G', status: 'active' }
-      ];
-      officialSeedFelos.forEach(osf => {
-        if (!distinctFelos.some(df => df.id === osf.id || df.name === osf.name)) {
-          distinctFelos.push(osf);
-        }
-      });
-
-      // Muatkan felo/warden baharu yang didaftarkan / dijemput
+      // Muatkan felo/warden baharu yang didaftarkan / dijemput mengikut pendaftaran sebenar
       const customFelos = getStoredCustomWardensFelos();
       customFelos.forEach(cf => {
         if (!distinctFelos.some(df => df.id === cf.id || (df.email && df.email.toLowerCase() === (cf.email || '').toLowerCase()))) {
@@ -646,16 +629,16 @@ export default function JakmasManagement() {
                 Senarai Penyelarasan Felo Mengikut Exco JAKMAS
               </h2>
               <p className="text-xs sm:text-sm text-indigo-100/80 leading-relaxed">
-                Struktur rasmi Kolej Kediaman Tun Fuad: Pengetua Kolej melantik para Felo untuk menyelaras portfolio Exco JAKMAS. 
-                Pelantikan felo adalah dinamik berasaskan senarai warden dan felo berkhidmat serta sedia diselaraskan mengikut kemasukan / jemputan felo baharu.
+                Struktur rasmi 9 Portfolio Exco JAKMAS Kolej Kediaman Tun Fuad. 
+                Pelantikan rasmi Felo Penyelaras akan diselaraskan oleh Pengetua Kolej mengikut senarai Felo dan Warden sebenar yang berdaftar dengan sistem ini kelak bagi memastikan ketepatan dan mengelakkan sebarang kekeliruan.
               </p>
               <div className="pt-2 flex flex-wrap gap-2 text-xs">
                 <span className="px-3 py-1 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 text-white font-medium flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> {activeFelos.length} Felo Aktif Berkhidmat
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> {activeFelos.length} Felo Penyelaras Dilantik
                 </span>
                 {endedFelos.length > 0 && (
                   <span className="px-3 py-1 rounded-xl bg-amber-500/20 backdrop-blur-sm border border-amber-400/30 text-amber-200 font-medium flex items-center gap-1.5">
-                    <UserX className="w-3.5 h-3.5 text-amber-300" /> {endedFelos.length} Tamat Perkhidmatan ({endedFelos.map(ef => ef.fellow_name).join(', ')})
+                    <UserX className="w-3.5 h-3.5 text-amber-300" /> {endedFelos.length} Tamat Perkhidmatan
                   </span>
                 )}
                 <span className="px-3 py-1 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 text-white font-medium flex items-center gap-1.5">
@@ -830,8 +813,8 @@ export default function JakmasManagement() {
                           </p>
 
                           {matchingFelos.length === 0 ? (
-                            <p className="text-xs text-amber-600 dark:text-amber-400 italic py-2">
-                              Belum ada felo penyelaras ditugaskan.
+                            <p className="text-xs text-muted-foreground italic py-2">
+                              Belum ada Felo dilantik (Menunggu pendaftaran Felo sebenar).
                             </p>
                           ) : (
                             <div className="space-y-2">
@@ -959,7 +942,7 @@ export default function JakmasManagement() {
                             </td>
                             <td className="px-4 py-3.5">
                               {matchingFelos.length === 0 ? (
-                                <span className="text-muted-foreground italic">Tiada felo</span>
+                                <span className="text-muted-foreground italic">Belum dilantik (Menunggu pendaftaran Felo sebenar)</span>
                               ) : (
                                 <ul className="space-y-1">
                                   {matchingFelos.map((mf) => {
@@ -991,9 +974,9 @@ export default function JakmasManagement() {
                                     openAppointFelo();
                                   }
                                 }}
-                                className="h-7 text-[11px] rounded-lg"
+                                className="h-7 text-[11px] rounded-lg gap-1"
                               >
-                                Urus Lantikan
+                                {matchingFelos.length > 0 ? 'Urus Lantikan' : <><Plus className="w-3 h-3" /> Lantik Felo</>}
                               </Button>
                             </td>
                           </tr>
@@ -1008,6 +991,27 @@ export default function JakmasManagement() {
 
           {/* VIEW 2: MENGIKUT FELO PENYELARAS */}
           {feloViewMode === 'by_felo' && (
+            feloCoordinators.length === 0 ? (
+              <div className="p-10 text-center bg-card border border-dashed border-border rounded-3xl space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 flex items-center justify-center mx-auto shadow-inner">
+                  <UserCheck className="w-7 h-7" />
+                </div>
+                <div className="max-w-md mx-auto space-y-1.5">
+                  <h4 className="text-base font-bold text-foreground">Belum Ada Felo Penyelaras Dilantik</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Sistem bersedia menerima pendaftaran Felo dan Warden sebenar. Pengetua Kolej boleh membuat lantikan rasmi sebaik sahaja Felo berdaftar dalam sistem bagi mengelakkan sebarang kekeliruan nama atau portfolio.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+                  <Button onClick={() => openAppointFelo()} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs gap-1.5 font-bold h-9">
+                    <Plus className="w-4 h-4" /> Lantik Felo Berdaftar
+                  </Button>
+                  <Button variant="outline" onClick={() => setInviteModalOpen(true)} className="rounded-xl text-xs gap-1.5 h-9">
+                    <UserPlus className="w-4 h-4" /> Jemput / Daftar Felo Baharu
+                  </Button>
+                </div>
+              </div>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {feloCoordinators.filter(fc => {
                 if (feloStatusFilter === 'active' && fc.status !== 'active') return false;
@@ -1174,6 +1178,7 @@ export default function JakmasManagement() {
                 );
               })}
             </div>
+            )
           )}
         </TabsContent>
 
@@ -1696,7 +1701,7 @@ export default function JakmasManagement() {
               <Textarea
                 value={inviteForm.notes}
                 onChange={(e) => setInviteForm(f => ({ ...f, notes: e.target.value }))}
-                placeholder="Cth: Menggantikan Cik Noor Aznadira bagi Blok F dan Penyelaras Exco Sukan / Kesukarelawanan..."
+                placeholder="Cth: Felo Penyelaras Blok F dan Exco Sukan & Rekreasi..."
                 rows={2}
                 className="text-xs rounded-xl bg-background"
               />
