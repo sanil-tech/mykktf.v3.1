@@ -4,13 +4,32 @@
  */
 
 export async function registerServiceWorker() {
-  if ('serviceWorker' in navigator) {
+  if (!('serviceWorker' in navigator)) return null;
+
+  // In dev, never register a SW — and aggressively tear down any stale worker
+  // (e.g. a leftover /sw.js from a previous session) that would cache-serve
+  // outdated /src or /node_modules/.vite chunks. A stale graph mismatching the
+  // current React/ReactDOM is what triggers "Cannot read properties of null
+  // (reading 'useState')" at runtime.
+  if (import.meta.env.DEV) {
     try {
-      const reg = await navigator.serviceWorker.register('/sw.js');
-      return reg;
-    } catch (err) {
-      console.warn('[MyKKTF] ServiceWorker registration failed:', err);
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch (e) {
+      /* ignore */
     }
+    return null;
+  }
+
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    return reg;
+  } catch (err) {
+    console.warn('[MyKKTF] ServiceWorker registration failed:', err);
   }
   return null;
 }
