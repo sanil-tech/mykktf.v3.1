@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
 import { requestNotificationPermission } from '@/lib/pushNotifications';
+import RolePersonaSwitcher from '@/components/shared/RolePersonaSwitcher';
 
 export default function TopBar({ onMenuClick, user }) {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -40,6 +41,8 @@ export default function TopBar({ onMenuClick, user }) {
         </div>
       </div>
       <div className="flex items-center gap-2">
+        {/* ROLE PERSPECTIVE SWITCHER (SUPER ADMIN vs FELO BLOK) */}
+        <RolePersonaSwitcher user={user} />
         {user?.role && user.role !== 'student' && user.role !== 'user' && (
           <Button 
             variant="outline" 
