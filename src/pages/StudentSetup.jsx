@@ -150,11 +150,11 @@ export default function StudentSetup({ user, onComplete }) {
       const selectedRoom = rooms.find(r => r.room_number === form.room_number && r.block_name === form.block_name);
       const roomId = selectedRoom?.id || form.room_id || '';
 
-      // 1. Create Student Resident record (Pre-registration)
+      // 1. Create or Update Student Resident record (Pre-registration)
       const studentData = {
         ...form,
         user_id: user?.id || form.user_id || '',
-        email: user?.email || form.email || '',
+        email: (user?.email || form.email || '').trim(),
         block_name: knowsRoom ? form.block_name : '',
         room_number: knowsRoom ? form.room_number : '',
         room_id: knowsRoom ? roomId : '',
@@ -164,7 +164,26 @@ export default function StudentSetup({ user, onComplete }) {
         qr_verified: false
       };
 
-      await base44.entities.Student.create(studentData);
+      // Cegah rekod duplikasi jika pengguna memadam akaun auth dan mendaftar semula dengan emel yang sama
+      let existingStudents = [];
+      if (studentData.email) {
+        try {
+          existingStudents = await base44.entities.Student.filter({ email: studentData.email });
+        } catch (eFilter) {}
+      }
+
+      if (existingStudents && existingStudents.length > 0) {
+        // Kemaskini rekod sedia ada kepada status pra-pendaftaran yang bersih
+        await base44.entities.Student.update(existingStudents[0].id, studentData);
+        // Padam sebarang salinan duplikasi lama jika ada
+        if (existingStudents.length > 1) {
+          for (let i = 1; i < existingStudents.length; i++) {
+            await base44.entities.Student.delete(existingStudents[i].id).catch(() => {});
+          }
+        }
+      } else {
+        await base44.entities.Student.create(studentData);
+      }
 
       // 2. Update user role
       await base44.auth.updateMe({ role: 'student' });
