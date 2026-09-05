@@ -14,12 +14,13 @@ import { toast } from '@/components/ui/use-toast';
 import { 
   UserCog, Plus, Search, Pencil, Ban, CheckCircle2, RotateCcw, XCircle, ClipboardList, Eye, AlertTriangle,
   ShieldCheck, Award, HeartHandshake, Briefcase, GraduationCap, Medal, Sparkles, Layers, Trash2, Calendar, FileText,
-  Users, Globe, Megaphone, Check, CheckSquare, Square, Building2, BookmarkCheck, ExternalLink
+  Users, Globe, Megaphone, Check, CheckSquare, Square, Building2, BookmarkCheck, ExternalLink, UserPlus, UserX, AlertCircle, Phone
 } from 'lucide-react';
 import {
   JAKMAS_POSITIONS, JAKMAS_PORTFOLIOS, JAKMAS_TASK_PRIORITIES, DEFAULT_EXCO_PORTFOLIOS, OFFICIAL_EXCO_METADATA,
   isActiveAppointment, isJakmasAdmin, logJakmasAudit, todayISO,
-  getStoredFeloExcoAppointments, saveStoredFeloExcoAppointment, deleteStoredFeloExcoAppointment
+  getStoredFeloExcoAppointments, saveStoredFeloExcoAppointment, deleteStoredFeloExcoAppointment,
+  getStoredCustomWardensFelos, saveStoredCustomWardenFelo, terminateFeloService, reactivateFeloService
 } from '@/lib/jakmas';
 
 const STATUS_COLORS = {
@@ -66,7 +67,21 @@ export default function JakmasManagement() {
   const [feloModalOpen, setFeloModalOpen] = useState(false);
   const [editingFeloAppt, setEditingFeloAppt] = useState(null);
   const [feloViewMode, setFeloViewMode] = useState('by_exco'); // 'by_exco' or 'by_felo'
+  const [feloStatusFilter, setFeloStatusFilter] = useState('all'); // 'all', 'active', 'ended'
   const [feloSearchQuery, setFeloSearchQuery] = useState('');
+  
+  // Modal Jemput / Tambah Felo Baharu
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [inviteForm, setInviteForm] = useState({
+    name: '',
+    email: '',
+    role_title: 'Felo Kolej Kediaman',
+    block: 'Blok F',
+    phone: '',
+    academic_session: 'Sesi 2025/2026',
+    notes: ''
+  });
+
   const [feloForm, setFeloForm] = useState({
     fellow_user_id: '',
     portfolios: [],
@@ -109,29 +124,47 @@ export default function JakmasManagement() {
       const distinctFelos = [];
       fetchedWardens.forEach(w => {
         if (w.id && !distinctFelos.some(df => df.id === w.id)) {
-          distinctFelos.push({ id: w.id, name: w.full_name || w.email, email: w.email });
+          distinctFelos.push({ id: w.id, name: w.full_name || w.email, email: w.email, status: 'active' });
         }
       });
       (wBlocks || []).forEach(wb => {
         const id = wb.warden_user_id || wb.id;
         if (wb.warden_name && !distinctFelos.some(df => df.name === wb.warden_name || df.id === id)) {
-          distinctFelos.push({ id: id, name: wb.warden_name, email: wb.warden_email, block: wb.block_name });
+          distinctFelos.push({ id: id, name: wb.warden_name, email: wb.warden_email, block: wb.block_name, status: 'active' });
         }
       });
 
       // 7 Felo Penyelaras Rasmi KKTF Sesi 2025/2026 (Watikah Pengetua)
+      // Cik Noor Aznadira ditandakan 'ended' (tidak bertugas lagi di KKTF)
       const officialSeedFelos = [
-        { id: 'felo-saniyil', name: 'En. Saniyil Bansai', email: 'saniyil@ums.edu.my', block: 'Blok A' },
-        { id: 'felo-an-shaharizuan', name: 'Ts. Dr. An Mohd Shaharizuan', email: 'shaharizuan@ums.edu.my', block: 'Blok D' },
-        { id: 'felo-hafizie', name: 'En. Hafizie Potera', email: 'hafizie@ums.edu.my', block: 'Blok C' },
-        { id: 'felo-norazilah', name: 'Puan Norazilah Tuman', email: 'norazilah@ums.edu.my', block: 'Blok B' },
-        { id: 'felo-narvinna', name: 'Cik Narvinna', email: 'narvinna@ums.edu.my', block: 'Blok E' },
-        { id: 'felo-aznadira', name: 'Cik Noor Aznadira', email: 'aznadira@ums.edu.my', block: 'Blok F' },
-        { id: 'felo-asru', name: 'En. Asru Lakmal', email: 'asru@ums.edu.my', block: 'Blok G' }
+        { id: 'felo-saniyil', name: 'En. Saniyil Bansai', email: 'saniyil@ums.edu.my', block: 'Blok A', status: 'active' },
+        { id: 'felo-an-shaharizuan', name: 'Ts. Dr. An Mohd Shaharizuan', email: 'shaharizuan@ums.edu.my', block: 'Blok D', status: 'active' },
+        { id: 'felo-hafizie', name: 'En. Hafizie Potera', email: 'hafizie@ums.edu.my', block: 'Blok C', status: 'active' },
+        { id: 'felo-norazilah', name: 'Puan Norazilah Tuman', email: 'norazilah@ums.edu.my', block: 'Blok B', status: 'active' },
+        { id: 'felo-narvinna', name: 'Cik Narvinna', email: 'narvinna@ums.edu.my', block: 'Blok E', status: 'active' },
+        { id: 'felo-aznadira', name: 'Cik Noor Aznadira', email: 'aznadira@ums.edu.my', block: 'Blok F', status: 'ended', service_ended: true },
+        { id: 'felo-asru', name: 'En. Asru Lakmal', email: 'asru@ums.edu.my', block: 'Blok G', status: 'active' }
       ];
       officialSeedFelos.forEach(osf => {
         if (!distinctFelos.some(df => df.id === osf.id || df.name === osf.name)) {
           distinctFelos.push(osf);
+        }
+      });
+
+      // Muatkan felo/warden baharu yang didaftarkan / dijemput
+      const customFelos = getStoredCustomWardensFelos();
+      customFelos.forEach(cf => {
+        if (!distinctFelos.some(df => df.id === cf.id || (df.email && df.email.toLowerCase() === (cf.email || '').toLowerCase()))) {
+          distinctFelos.push({
+            id: cf.id,
+            name: cf.name,
+            email: cf.email,
+            block: cf.block || 'KKTF',
+            phone: cf.phone || '',
+            role_title: cf.role_title || 'Felo Kolej',
+            is_custom: true,
+            status: cf.status || 'active'
+          });
         }
       });
 
@@ -244,12 +277,85 @@ export default function JakmasManagement() {
     setEditingFeloAppt(null);
   }
 
+  async function handleTerminateFeloService(felo) {
+    const reason = prompt(
+      `Sila masukkan sebab penamatan perkhidmatan bagi ${felo.fellow_name} (cth: Berpindah tugas / Tidak bertugas lagi di KKTF):`,
+      'Tamat perkhidmatan di KKTF. Menunggu pelantikan Felo baharu.'
+    );
+    if (reason === null) return;
+    const updated = terminateFeloService(felo.id, reason, user);
+    setFeloCoordinators(updated);
+    await logJakmasAudit(user, 'FELO_SERVICE_ENDED', 'JAKMAS', {
+      fellow: felo.fellow_name,
+      reason
+    });
+    toast({
+      title: 'Perkhidmatan Felo Ditamatkan',
+      description: `${felo.fellow_name} telah ditandakan sebagai tamat perkhidmatan. Portfolio sedia untuk diselaraskan semula kepada felo baharu.`
+    });
+  }
+
+  async function handleReactivateFeloService(felo) {
+    if (!confirm(`Aktifkan semula perkhidmatan ${felo.fellow_name} sebagai Felo Penyelaras KKTF?`)) return;
+    const updated = reactivateFeloService(felo.id, user);
+    setFeloCoordinators(updated);
+    await logJakmasAudit(user, 'FELO_SERVICE_REACTIVATED', 'JAKMAS', {
+      fellow: felo.fellow_name
+    });
+    toast({
+      title: 'Felo Diaktifkan Semula',
+      description: `${felo.fellow_name} kini aktif semula berkhidmat di KKTF.`
+    });
+  }
+
+  async function handleSaveInvitedFelo() {
+    if (!inviteForm.name?.trim() || !inviteForm.email?.trim()) {
+      toast({ title: 'Sila lengkapkan nama penuh dan emel Felo', variant: 'destructive' });
+      return;
+    }
+    const newEntry = {
+      id: `felo-invited-${Date.now()}`,
+      name: inviteForm.name.trim(),
+      email: inviteForm.email.trim(),
+      role_title: inviteForm.role_title || 'Felo Kolej Kediaman',
+      block: inviteForm.block || 'Blok F',
+      phone: inviteForm.phone || '',
+      status: 'active'
+    };
+    saveStoredCustomWardenFelo(newEntry, user);
+    setAvailableFelos(prev => [newEntry, ...prev]);
+    await logJakmasAudit(user, 'WARDEN_FELO_INVITED', 'JAKMAS', {
+      name: newEntry.name,
+      email: newEntry.email,
+      block: newEntry.block
+    });
+    toast({
+      title: 'Warden / Felo Baharu Berjaya Didaftarkan! 🎉',
+      description: `${newEntry.name} kini berada dalam senarai rasmi dan sedia untuk dilantik ke portfolio Exco JAKMAS.`
+    });
+    setInviteModalOpen(false);
+
+    // Buka terus dialog lantikan watikah untuk felo baharu ini
+    setEditingFeloAppt(null);
+    setFeloForm({
+      fellow_user_id: newEntry.id,
+      portfolios: ['Exco Sukan dan Rekreasi', 'Exco Kesukarelawanan dan Kemasyarakatan'],
+      academic_session: 'Sesi 2025/2026',
+      appointment_date: todayISO(),
+      term_end: '2026-07-31',
+      letter_ref: `UMS/KKTF/WATIKAH-FELO/${new Date().getFullYear()}/${Math.floor(Math.random() * 90 + 10)}`,
+      notes: `Lantikan Felo baharu (${newEntry.name}) menggantikan perjawatan yang telah tamat perkhidmatan.`,
+      customPortfolioInput: ''
+    });
+    setFeloModalOpen(true);
+  }
+
   async function removeFeloAppointment(id, name) {
-    if (!confirm(`Adakah anda pasti untuk menamatkan pelantikan Felo Penyelaras bagi ${name}?`)) return;
+    if (!confirm(`Adakah anda pasti untuk memadam rekod pelantikan bagi ${name}?`)) return;
     const updated = deleteStoredFeloExcoAppointment(id);
     setFeloCoordinators(updated);
     await logJakmasAudit(user, 'FELO_EXCO_TERMINATED', 'JAKMAS', { id, fellow: name });
-    toast({ title: 'Pelantikan Felo Penyelaras telah ditamatkan' });
+    toast({ title: 'Rekod pelantikan telah dipadam' });
   }
 
   const today = todayISO();
@@ -478,6 +584,9 @@ export default function JakmasManagement() {
     </tr>
   );
 
+  const activeFelos = feloCoordinators.filter(f => f.status === 'active');
+  const endedFelos = feloCoordinators.filter(f => f.status === 'ended');
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -485,8 +594,11 @@ export default function JakmasManagement() {
         description="Lantik & urus Felo Penyelaras Exco (Watikah Pengetua) serta pentadbiran pimpinan mahasiswa JAKMAS KKTF."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm font-semibold text-xs" onClick={() => openAppointFelo()}>
+            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm font-semibold text-xs rounded-xl" onClick={() => openAppointFelo()}>
               <ShieldCheck className="w-4 h-4" /> Lantik Felo Penyelaras Exco
+            </Button>
+            <Button variant="outline" className="text-xs font-semibold rounded-xl h-9 gap-1.5 border-indigo-300 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950" onClick={() => setInviteModalOpen(true)}>
+              <UserPlus className="w-3.5 h-3.5" /> Jemput / Daftar Felo Baharu
             </Button>
             {overdueAppointments.length > 0 && (
               <Button variant="outline" size="sm" onClick={expireOverdue}><AlertTriangle className="w-3.5 h-3.5 mr-1" /> Expire Overdue ({overdueAppointments.length})</Button>
@@ -535,17 +647,22 @@ export default function JakmasManagement() {
               </h2>
               <p className="text-xs sm:text-sm text-indigo-100/80 leading-relaxed">
                 Struktur rasmi Kolej Kediaman Tun Fuad: Pengetua Kolej melantik para Felo untuk menyelaras portfolio Exco JAKMAS. 
-                Seorang felo boleh memegang dan menyelaras beberapa portfolio Exco serentak bagi memantau kebajikan, program, sukan, dan merit mahasiswa.
+                Pelantikan felo adalah dinamik berasaskan senarai warden dan felo berkhidmat serta sedia diselaraskan mengikut kemasukan / jemputan felo baharu.
               </p>
               <div className="pt-2 flex flex-wrap gap-2 text-xs">
                 <span className="px-3 py-1 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 text-white font-medium flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> 7 Felo Penyelaras Dilantik
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> {activeFelos.length} Felo Aktif Berkhidmat
                 </span>
+                {endedFelos.length > 0 && (
+                  <span className="px-3 py-1 rounded-xl bg-amber-500/20 backdrop-blur-sm border border-amber-400/30 text-amber-200 font-medium flex items-center gap-1.5">
+                    <UserX className="w-3.5 h-3.5 text-amber-300" /> {endedFelos.length} Tamat Perkhidmatan ({endedFelos.map(ef => ef.fellow_name).join(', ')})
+                  </span>
+                )}
                 <span className="px-3 py-1 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 text-white font-medium flex items-center gap-1.5">
                   <Award className="w-3.5 h-3.5 text-amber-400" /> 9 Portfolio Exco JAKMAS
                 </span>
                 <span className="px-3 py-1 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 text-white font-medium flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-cyan-400" /> Bidang Kuasa: Pengetua KKTF
+                  <Building2 className="w-3.5 h-3.5 text-cyan-400" /> Kuasa: Pengetua KKTF
                 </span>
               </div>
             </div>
@@ -556,14 +673,14 @@ export default function JakmasManagement() {
 
           {/* FILTER & VIEW SWITCHER BAR */}
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-card p-3 rounded-2xl border border-border">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant={feloViewMode === 'by_exco' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setFeloViewMode('by_exco')}
                 className={`text-xs font-semibold rounded-xl h-9 gap-1.5 ${feloViewMode === 'by_exco' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : ''}`}
               >
-                <Layers className="w-3.5 h-3.5" /> Susunan Mengikut 9 Exco (Dokumen Rasmi)
+                <Layers className="w-3.5 h-3.5" /> Susunan Mengikut 9 Exco
               </Button>
               <Button
                 variant={feloViewMode === 'by_felo' ? 'default' : 'outline'}
@@ -571,12 +688,49 @@ export default function JakmasManagement() {
                 onClick={() => setFeloViewMode('by_felo')}
                 className={`text-xs font-semibold rounded-xl h-9 gap-1.5 ${feloViewMode === 'by_felo' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : ''}`}
               >
-                <Users className="w-3.5 h-3.5" /> Susunan Mengikut 7 Felo Penyelaras
+                <Users className="w-3.5 h-3.5" /> Susunan Mengikut Felo
               </Button>
+
+              {/* Status Filter Pills */}
+              <div className="flex items-center gap-1 pl-1 sm:pl-2 border-l border-border">
+                <button
+                  type="button"
+                  onClick={() => setFeloStatusFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                    feloStatusFilter === 'all' 
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'bg-muted/60 text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  Semua ({feloCoordinators.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFeloStatusFilter('active')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                    feloStatusFilter === 'active' 
+                      ? 'bg-emerald-600 text-white' 
+                      : 'bg-muted/60 text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  Aktif ({activeFelos.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFeloStatusFilter('ended')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                    feloStatusFilter === 'ended' 
+                      ? 'bg-red-600 text-white' 
+                      : 'bg-muted/60 text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  Tamat ({endedFelos.length})
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="relative flex-1 sm:w-64">
+              <div className="relative flex-1 sm:w-56">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input
                   value={feloSearchQuery}
@@ -587,15 +741,23 @@ export default function JakmasManagement() {
               </div>
               <Button
                 size="sm"
+                onClick={() => setInviteModalOpen(true)}
+                variant="outline"
+                className="text-xs rounded-xl h-9 shrink-0 gap-1.5 border-indigo-200 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50"
+              >
+                <UserPlus className="w-3.5 h-3.5" /> Jemput Felo
+              </Button>
+              <Button
+                size="sm"
                 onClick={() => openAppointFelo()}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-xl h-9 shrink-0 gap-1.5"
               >
-                <Plus className="w-3.5 h-3.5" /> Lantik Felo
+                <Plus className="w-3.5 h-3.5" /> Lantik
               </Button>
             </div>
           </div>
 
-          {/* VIEW 1: MENGIKUT 9 EXCO JAKMAS (SESUAIKAN DENGAN DOKUMEN RASMI PDF) */}
+          {/* VIEW 1: MENGIKUT 9 EXCO JAKMAS */}
           {feloViewMode === 'by_exco' && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -616,10 +778,15 @@ export default function JakmasManagement() {
                     })
                   );
 
+                  const activeMatchingFelos = matchingFelos.filter(mf => mf.status === 'active');
+                  const hasEndedFelo = matchingFelos.some(mf => mf.status === 'ended');
+
                   return (
                     <div 
                       key={exco.id} 
-                      className="bg-card border border-border/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4 group hover:border-indigo-300 dark:hover:border-indigo-800"
+                      className={`bg-card border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4 group ${
+                        hasEndedFelo ? 'border-amber-300 dark:border-amber-900/60' : 'border-border/80 hover:border-indigo-300 dark:hover:border-indigo-800'
+                      }`}
                     >
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
@@ -640,12 +807,26 @@ export default function JakmasManagement() {
                           </p>
                         </div>
 
+                        {hasEndedFelo && (
+                          <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-[10.5px] text-amber-800 dark:text-amber-300 flex items-start gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                            <span>Felo sebelum ini telah tamat perkhidmatan. Sedia untuk dilantik Felo baharu yang dijemput.</span>
+                          </div>
+                        )}
+
                         <div className="pt-2 border-t border-border/60">
                           <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center justify-between mb-2">
                             <span>Felo Penyelaras Dilantik</span>
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
-                              {matchingFelos.length} Felo
-                            </Badge>
+                            <div className="flex gap-1">
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-emerald-700 bg-emerald-50 dark:bg-emerald-950 dark:text-emerald-300">
+                                {activeMatchingFelos.length} Aktif
+                              </Badge>
+                              {matchingFelos.length > activeMatchingFelos.length && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-red-700 bg-red-50 dark:bg-red-950 dark:text-red-300">
+                                  {matchingFelos.length - activeMatchingFelos.length} Tamat
+                                </Badge>
+                              )}
+                            </div>
                           </p>
 
                           {matchingFelos.length === 0 ? (
@@ -654,16 +835,33 @@ export default function JakmasManagement() {
                             </p>
                           ) : (
                             <div className="space-y-2">
-                              {matchingFelos.map((mf) => (
+                              {matchingFelos.map((mf) => {
+                                const isEnded = mf.status === 'ended';
+                                return (
                                 <div 
                                   key={mf.id} 
-                                  className="flex items-center justify-between p-2 rounded-xl bg-muted/40 hover:bg-muted/70 transition-colors"
+                                  className={`flex items-center justify-between p-2.5 rounded-xl transition-colors ${
+                                    isEnded 
+                                      ? 'bg-red-50/50 dark:bg-red-950/20 border border-red-200/60 dark:border-red-900/40' 
+                                      : 'bg-muted/40 hover:bg-muted/70'
+                                  }`}
                                 >
                                   <div className="min-w-0 pr-2">
-                                    <p className="text-xs font-semibold text-foreground truncate flex items-center gap-1.5">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                                      {mf.fellow_name}
-                                    </p>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isEnded ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                                      <p className={`text-xs font-semibold truncate ${isEnded ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                                        {mf.fellow_name}
+                                      </p>
+                                      {isEnded ? (
+                                        <span className="text-[9px] px-1.5 py-0 rounded bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 font-semibold">
+                                          Tamat
+                                        </span>
+                                      ) : (
+                                        <span className="text-[9px] px-1.5 py-0 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 font-semibold">
+                                          Aktif
+                                        </span>
+                                      )}
+                                    </div>
                                     <p className="text-[10px] text-muted-foreground truncate pl-3">
                                       {mf.fellow_email} {mf.block_assigned ? `• ${mf.block_assigned}` : ''}
                                     </p>
@@ -678,7 +876,8 @@ export default function JakmasManagement() {
                                     <Pencil className="w-3 h-3" />
                                   </Button>
                                 </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -690,8 +889,10 @@ export default function JakmasManagement() {
                           size="sm"
                           onClick={() => {
                             setEditingFeloAppt(null);
+                            // Pilih felo aktif pertama atau felo baharu
+                            const defaultFelo = availableFelos.find(f => f.status === 'active')?.id || availableFelos[0]?.id || '';
                             setFeloForm({
-                              fellow_user_id: availableFelos[0]?.id || '',
+                              fellow_user_id: defaultFelo,
                               portfolios: [exco.name],
                               academic_session: 'Sesi 2025/2026',
                               appointment_date: todayISO(),
@@ -704,7 +905,7 @@ export default function JakmasManagement() {
                           }}
                           className="w-full text-xs h-8 rounded-xl border-dashed border-border hover:border-indigo-400 hover:text-indigo-600 gap-1"
                         >
-                          <Plus className="w-3 h-3" /> Tambah Penyelaras Exco Ini
+                          <Plus className="w-3 h-3" /> Tambah / Ganti Penyelaras Exco Ini
                         </Button>
                       </div>
                     </div>
@@ -712,7 +913,7 @@ export default function JakmasManagement() {
                 })}
               </div>
 
-              {/* JADUAL PENUH PENYELARASAN MENGIKUT DOKUMEN RASMI */}
+              {/* JADUAL PENUH PENYELARASAN */}
               <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm mt-6">
                 <div className="p-4 bg-muted/40 border-b border-border flex items-center justify-between">
                   <div>
@@ -761,15 +962,21 @@ export default function JakmasManagement() {
                                 <span className="text-muted-foreground italic">Tiada felo</span>
                               ) : (
                                 <ul className="space-y-1">
-                                  {matchingFelos.map((mf) => (
+                                  {matchingFelos.map((mf) => {
+                                    const isEnded = mf.status === 'ended';
+                                    return (
                                     <li key={mf.id} className="font-medium text-foreground flex items-center gap-1.5">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                                      <span>{mf.fellow_name}</span>
+                                      <span className={`w-1.5 h-1.5 rounded-full ${isEnded ? 'bg-red-500' : 'bg-indigo-500'}`} />
+                                      <span className={isEnded ? 'line-through text-muted-foreground' : ''}>{mf.fellow_name}</span>
+                                      {isEnded && (
+                                        <span className="text-[9px] px-1 py-0 rounded bg-red-100 text-red-700 font-semibold">(Tamat Perkhidmatan)</span>
+                                      )}
                                       {mf.block_assigned && (
                                         <span className="text-[10px] text-muted-foreground font-normal">({mf.block_assigned})</span>
                                       )}
                                     </li>
-                                  ))}
+                                    );
+                                  })}
                                 </ul>
                               )}
                             </td>
@@ -799,35 +1006,57 @@ export default function JakmasManagement() {
             </div>
           )}
 
-          {/* VIEW 2: MENGIKUT 7 FELO PENYELARAS */}
+          {/* VIEW 2: MENGIKUT FELO PENYELARAS */}
           {feloViewMode === 'by_felo' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {feloCoordinators.filter(fc => {
+                if (feloStatusFilter === 'active' && fc.status !== 'active') return false;
+                if (feloStatusFilter === 'ended' && fc.status !== 'ended') return false;
                 if (!feloSearchQuery) return true;
                 const q = feloSearchQuery.toLowerCase();
                 return (fc.fellow_name || '').toLowerCase().includes(q) ||
                        (fc.fellow_email || '').toLowerCase().includes(q) ||
                        (fc.portfolios || []).some(p => p.toLowerCase().includes(q));
-              }).map((felo) => (
+              }).map((felo) => {
+                const isEnded = felo.status === 'ended';
+                return (
                 <div 
                   key={felo.id}
-                  className="bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                  className={`border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4 ${
+                    isEnded 
+                      ? 'bg-red-50/20 dark:bg-red-950/10 border-red-200/80 dark:border-red-900/50' 
+                      : 'bg-card border-border'
+                  }`}
                 >
                   <div className="space-y-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center text-sm shadow-inner">
+                        <div className={`w-11 h-11 rounded-2xl border font-bold flex items-center justify-center text-sm shadow-inner ${
+                          isEnded
+                            ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400'
+                            : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-600 dark:text-indigo-400'
+                        }`}>
                           {felo.fellow_name ? felo.fellow_name.split(' ').map(n => n[0]).slice(0, 2).join('') : 'FP'}
                         </div>
                         <div>
-                          <h4 className="text-sm font-bold text-foreground font-heading">{felo.fellow_name}</h4>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className={`text-sm font-bold font-heading ${isEnded ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                              {felo.fellow_name}
+                            </h4>
+                            {isEnded ? (
+                              <Badge className="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border border-red-200">
+                                Tamat Perkhidmatan di KKTF
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200">
+                                Aktif Berkhidmat
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">{felo.fellow_email}</p>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
                               {felo.block_assigned || 'Semua Blok'}
-                            </span>
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900">
-                              {felo.status === 'active' ? 'Aktif Berkhidmat' : felo.status}
                             </span>
                           </div>
                         </div>
@@ -843,17 +1072,70 @@ export default function JakmasManagement() {
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
+                        {isEnded ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                            onClick={() => handleReactivateFeloService(felo)}
+                            title="Aktifkan Semula Felo"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
+                            onClick={() => handleTerminateFeloService(felo)}
+                            title="Tamatkan Perkhidmatan Felo"
+                          >
+                            <UserX className="w-4 h-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-red-600"
                           onClick={() => removeFeloAppointment(felo.id, felo.fellow_name)}
-                          title="Tamatkan Lantikan"
+                          title="Padam Rekod"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
+
+                    {isEnded && (
+                      <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200/80 dark:border-red-900/60 text-[11px] text-red-800 dark:text-red-300 flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-semibold">⚠️ Tidak Bertugas di KKTF Lagi</p>
+                          <p className="text-[10px] text-red-700/80 dark:text-red-300/80 mt-0.5">
+                            {felo.notes || 'Portfolio yang dipegang sedia untuk diselaraskan semula kepada Warden / Felo baharu yang dimasukkan.'}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setEditingFeloAppt(null);
+                            const activeCandidate = availableFelos.find(af => af.status === 'active')?.id || '';
+                            setFeloForm({
+                              fellow_user_id: activeCandidate,
+                              portfolios: [...(felo.portfolios || [])],
+                              academic_session: 'Sesi 2025/2026',
+                              appointment_date: todayISO(),
+                              term_end: '2026-07-31',
+                              letter_ref: `UMS/KKTF/WATIKAH-FELO/${new Date().getFullYear()}/${Math.floor(Math.random() * 90 + 10)}`,
+                              notes: `Pengganti portfolio bagi ${felo.fellow_name} yang telah tamat perkhidmatan.`,
+                              customPortfolioInput: ''
+                            });
+                            setFeloModalOpen(true);
+                          }}
+                          className="h-7 text-[10.5px] bg-red-600 hover:bg-red-700 text-white rounded-lg shrink-0"
+                        >
+                          Tugaskan Semula
+                        </Button>
+                      </div>
+                    )}
 
                     <div className="pt-2 border-t border-border">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
@@ -864,16 +1146,20 @@ export default function JakmasManagement() {
                           <Badge 
                             key={i} 
                             variant="secondary"
-                            className="text-[11px] py-1 px-2.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/60"
+                            className={`text-[11px] py-1 px-2.5 rounded-lg border ${
+                              isEnded
+                                ? 'bg-muted text-muted-foreground border-border/80'
+                                : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200/70 dark:border-indigo-800/60'
+                            }`}
                           >
-                            <ShieldCheck className="w-3 h-3 mr-1 text-indigo-600 dark:text-indigo-400" />
+                            <ShieldCheck className={`w-3 h-3 mr-1 ${isEnded ? 'text-muted-foreground' : 'text-indigo-600 dark:text-indigo-400'}`} />
                             {port}
                           </Badge>
                         ))}
                       </div>
                     </div>
 
-                    {felo.notes && (
+                    {!isEnded && felo.notes && (
                       <p className="text-[11px] text-muted-foreground bg-muted/30 p-2.5 rounded-xl italic">
                         &ldquo;{felo.notes}&rdquo;
                       </p>
@@ -885,7 +1171,8 @@ export default function JakmasManagement() {
                     <span>Lantikan: <strong className="text-foreground">{felo.appointed_by || 'Pengetua KKTF'}</strong></span>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -1314,6 +1601,114 @@ export default function JakmasManagement() {
             <Button onClick={saveFeloAppointment} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl gap-1.5">
               <Check className="w-4 h-4" />
               {editingFeloAppt ? 'Simpan Kemaskini' : 'Sahkan Watikah Lantikan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG JEMPUT & DAFTAR WARDEN / FELO BAHARU */}
+      <Dialog open={inviteModalOpen} onOpenChange={(o) => !o && setInviteModalOpen(false)}>
+        <DialogContent className="max-w-lg p-6 bg-card rounded-3xl border-border shadow-2xl">
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+              <UserPlus className="w-6 h-6" />
+              <DialogTitle className="text-lg font-bold font-heading">
+                Jemput & Daftar Warden / Felo Baharu
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Daftarkan Felo atau Warden baharu yang dijemput bertugas di Kolej Kediaman Tun Fuad. Profil ini akan serta-merta tersedia untuk menerima watikah lantikan Pengetua bagi mana-mana portfolio Exco JAKMAS.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5 py-2 text-xs">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-foreground">Nama Penuh Warden / Felo *</Label>
+              <Input
+                value={inviteForm.name}
+                onChange={(e) => setInviteForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Cth: Dr. Mohd Firdaus bin Ramli / Cik Siti Aisyah"
+                className="h-9 text-xs rounded-xl bg-background"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-foreground">Emel Rasmi UMS *</Label>
+                <Input
+                  type="email"
+                  value={inviteForm.email}
+                  onChange={(e) => setInviteForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="firdaus@ums.edu.my"
+                  className="h-9 text-xs rounded-xl bg-background"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-foreground">No. Telefon / WhatsApp</Label>
+                <Input
+                  value={inviteForm.phone}
+                  onChange={(e) => setInviteForm(f => ({ ...f, phone: e.target.value }))}
+                  placeholder="+6012-3456789"
+                  className="h-9 text-xs rounded-xl bg-background"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-foreground">Peranan / Jawatan</Label>
+                <Select
+                  value={inviteForm.role_title}
+                  onValueChange={(val) => setInviteForm(f => ({ ...f, role_title: val }))}
+                >
+                  <SelectTrigger className="h-9 text-xs rounded-xl bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Felo Kolej Kediaman">Felo Kolej Kediaman</SelectItem>
+                    <SelectItem value="Warden Blok">Warden Blok</SelectItem>
+                    <SelectItem value="Ketua Warden / Felo Kanan">Ketua Warden / Felo Kanan</SelectItem>
+                    <SelectItem value="Felo Penyelaras Khas">Felo Penyelaras Khas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-foreground">Blok Bertugas Utama</Label>
+                <Select
+                  value={inviteForm.block}
+                  onValueChange={(val) => setInviteForm(f => ({ ...f, block: val }))}
+                >
+                  <SelectTrigger className="h-9 text-xs rounded-xl bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {['Blok A', 'Blok B', 'Blok C', 'Blok D', 'Blok E', 'Blok F', 'Blok G', 'Pentadbiran Kolej'].map(blk => (
+                      <SelectItem key={blk} value={blk}>{blk}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-foreground">Catatan Pengambilan / Portfolio Sasaran</Label>
+              <Textarea
+                value={inviteForm.notes}
+                onChange={(e) => setInviteForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Cth: Menggantikan Cik Noor Aznadira bagi Blok F dan Penyelaras Exco Sukan / Kesukarelawanan..."
+                rows={2}
+                className="text-xs rounded-xl bg-background"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setInviteModalOpen(false)} className="rounded-xl">
+              Batal
+            </Button>
+            <Button onClick={handleSaveInvitedFelo} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl gap-1.5">
+              <UserPlus className="w-4 h-4" /> Daftar & Terus Lantik
             </Button>
           </DialogFooter>
         </DialogContent>

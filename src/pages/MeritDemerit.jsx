@@ -2482,8 +2482,8 @@ export default function MeritDemerit() {
                 Felo Penyelaras Exco Sukan & Rekreasi (Watikah Pengetua):
               </p>
               <p className="text-[10.5px] text-muted-foreground leading-relaxed">
-                Tuntutan ini akan disahkan oleh salah seorang Felo Penyelaras Sukan KKTF: 
-                <strong className="text-foreground"> En. Asru Lakmal, En. Saniyil Bansai, Cik Narvinna, Cik Noor Aznadira</strong>.
+                Tuntutan ini akan disemak dan disahkan oleh Felo Penyelaras Sukan KKTF yang sedang aktif berkhidmat: 
+                <strong className="text-foreground"> En. Asru Lakmal, En. Saniyil Bansai, Cik Narvinna</strong> (atau Felo baharu yang dilantik Pengetua menggantikan Felo yang tamat perkhidmatan).
               </p>
             </div>
           </div>

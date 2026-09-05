@@ -69,12 +69,64 @@ export function todayISO() {
 }
 
 // Helpers for Felo Penyelaras Exco JAKMAS (Appointed directly by Pengetua Kolej Kediaman Tun Fuad)
+export function getStoredCustomWardensFelos() {
+  try {
+    const raw = localStorage.getItem('kktf_custom_wardens_felos');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return [];
+}
+
+export function saveStoredCustomWardenFelo(felo, actorUser) {
+  const current = getStoredCustomWardensFelos();
+  const existsIdx = current.findIndex(f => f.id === felo.id || (f.email && f.email.toLowerCase() === (felo.email || '').toLowerCase()));
+  let updated;
+  if (existsIdx >= 0) {
+    updated = [...current];
+    updated[existsIdx] = {
+      ...updated[existsIdx],
+      ...felo,
+      updated_at: new Date().toISOString(),
+      updated_by: actorUser?.full_name || actorUser?.email
+    };
+  } else {
+    const newEntry = {
+      ...felo,
+      id: felo.id || `felo-custom-${Date.now()}`,
+      created_at: new Date().toISOString(),
+      invited_by: actorUser?.full_name || 'Pengetua Kolej Kediaman Tun Fuad',
+      status: felo.status || 'active'
+    };
+    updated = [newEntry, ...current];
+  }
+  try {
+    localStorage.setItem('kktf_custom_wardens_felos', JSON.stringify(updated));
+  } catch (e) {}
+  return updated;
+}
+
 export function getStoredFeloExcoAppointments() {
   try {
     const raw = localStorage.getItem('kktf_felo_exco_appointments');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length >= 7) return parsed;
+      if (Array.isArray(parsed) && parsed.length >= 7) {
+        // Semak status felo yang telah tamat perkhidmatan (cth: Cik Noor Aznadira)
+        let changed = false;
+        parsed.forEach(p => {
+          if (p.id === 'felo-aznadira' || p.fellow_user_id === 'felo-aznadira') {
+            if (p.status !== 'ended') {
+              p.status = 'ended';
+              p.notes = 'Tamat perkhidmatan di KKTF. Portfolio sedia untuk diselaraskan semula kepada Felo baharu yang dijemput.';
+              changed = true;
+            }
+          }
+        });
+        if (changed) {
+          localStorage.setItem('kktf_felo_exco_appointments', JSON.stringify(parsed));
+        }
+        return parsed;
+      }
     }
   } catch (e) {}
 
@@ -189,10 +241,10 @@ export function getStoredFeloExcoAppointments() {
       appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
       appointment_date: '2025-08-01',
       academic_session: 'Sesi 2025/2026',
-      term_end: '2026-07-31',
-      status: 'active',
+      term_end: '2025-12-31',
+      status: 'ended', // Tidak bertugas di KKTF lagi
       letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/06',
-      notes: 'Penyelaras Program Kesukarelawanan & Pengesah Tuntutan Sukan Kolej.'
+      notes: 'Tamat perkhidmatan di KKTF. Portfolio sedia untuk diselaraskan semula kepada Felo baharu yang dijemput.'
     },
     {
       id: 'felo-asru',
@@ -260,6 +312,44 @@ export function deleteStoredFeloExcoAppointment(id) {
     localStorage.setItem('kktf_felo_exco_appointments', JSON.stringify(updated));
   } catch (e) {}
   return updated;
+}
+
+export function terminateFeloService(feloId, reason, actorUser) {
+  const current = getStoredFeloExcoAppointments();
+  const idx = current.findIndex(f => f.id === feloId || f.fellow_user_id === feloId);
+  if (idx >= 0) {
+    const updated = [...current];
+    updated[idx] = {
+      ...updated[idx],
+      status: 'ended',
+      service_ended_at: todayISO(),
+      notes: reason ? `${reason} (Disahkan oleh ${actorUser?.full_name || 'Pengetua KKTF'})` : 'Tamat perkhidmatan di KKTF.'
+    };
+    try {
+      localStorage.setItem('kktf_felo_exco_appointments', JSON.stringify(updated));
+    } catch (e) {}
+    return updated;
+  }
+  return current;
+}
+
+export function reactivateFeloService(feloId, actorUser) {
+  const current = getStoredFeloExcoAppointments();
+  const idx = current.findIndex(f => f.id === feloId || f.fellow_user_id === feloId);
+  if (idx >= 0) {
+    const updated = [...current];
+    updated[idx] = {
+      ...updated[idx],
+      status: 'active',
+      reactivated_at: todayISO(),
+      notes: `Diaktifkan semula berkhidmat di KKTF oleh ${actorUser?.full_name || 'Pengetua KKTF'}.`
+    };
+    try {
+      localStorage.setItem('kktf_felo_exco_appointments', JSON.stringify(updated));
+    } catch (e) {}
+    return updated;
+  }
+  return current;
 }
 
 /**
