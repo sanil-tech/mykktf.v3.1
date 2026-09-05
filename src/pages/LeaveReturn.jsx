@@ -6,15 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { 
   CheckCircle2, 
-  MapPin, 
   QrCode, 
-  Clock, 
-  User, 
   AlertTriangle, 
-  ArrowRight, 
-  Building, 
   Calendar,
-  Sparkles,
   ShieldCheck,
   Camera,
   X,

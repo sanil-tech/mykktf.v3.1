@@ -29,13 +29,10 @@ import {
   Trophy,
   Calendar,
   CheckCircle2,
-  Clock,
   ArrowUpRight,
-  ExternalLink,
   MessageCircle,
   Award,
-  ChevronRight,
-  Sliders
+  ChevronRight
 } from "lucide-react";
 
 export default function AdminDashboard({ user }) {

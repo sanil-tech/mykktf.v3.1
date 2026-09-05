@@ -14,31 +14,20 @@ import {
   ShieldAlert, 
   ShieldCheck,
   CheckCircle2, 
-  XCircle, 
   Users, 
-  UserCheck, 
-  Download, 
   Plus, 
   Search, 
   Sliders, 
   FileSpreadsheet, 
   Sparkles, 
-  Clock, 
-  AlertTriangle, 
-  HelpCircle,
+  AlertTriangle,
   Building2,
-  Calendar,
-  Layers,
-  ChevronRight,
   TrendingUp,
-  FileCheck2,
-  Lock,
   ArrowUpRight,
   ArrowDownRight,
   Printer
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { logAudit } from '@/lib/audit';
 import CollegeTranscriptModal from '@/components/CollegeTranscriptModal';
 
 // DEFAULT SCORING RUBRIC (Can be modified dynamically by College Administrator)

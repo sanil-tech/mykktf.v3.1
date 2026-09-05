@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, Search, GraduationCap, Edit, Trash2, Eye, ShieldCheck, Lock, User, Building, Phone, Mail, AlertCircle } from 'lucide-react';
+import { Plus, Search, GraduationCap, Edit, Trash2, Eye, Lock, User, Building, Phone, Mail } from 'lucide-react';
 import TablePagination from '@/components/shared/TablePagination';
 import { TableSkeleton } from '@/components/shared/ListSkeletons';
 import { logAudit } from '@/lib/audit';

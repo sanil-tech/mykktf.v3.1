@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
-import { ClipboardList, Upload, CheckCircle2, Play, Send, FileText, Clock } from 'lucide-react';
+import { ClipboardList, CheckCircle2, Play, Send, FileText, Clock } from 'lucide-react';
 import { logJakmasAudit, isActiveAppointment, todayISO } from '@/lib/jakmas';
 
 const TASK_STATUS_COLORS = {

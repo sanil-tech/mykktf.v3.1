@@ -16,6 +16,7 @@ export const ROLE_LABELS = {
   staff: 'Staf Pentadbiran',
   jakmas: 'JAKMAS',
   student: 'Pelajar / Residen',
+  user: 'Pelajar / Residen',
 };
 
 export function hasAccess(userRole, allowedRoles) {
@@ -23,7 +24,8 @@ export function hasAccess(userRole, allowedRoles) {
     // Super Admin & Principal have full access to executive and administrative views
     return true;
   }
-  return allowedRoles.includes(userRole);
+  const effective = (!userRole || userRole === 'user') ? ROLES.STUDENT : userRole;
+  return allowedRoles.includes(effective);
 }
 
 export function getNavItems(role, hasJakmas = false) {

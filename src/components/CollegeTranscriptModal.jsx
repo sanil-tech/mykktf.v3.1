@@ -1,8 +1,7 @@
 import React from 'react';
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Printer, Download, Award, CheckCircle2, ShieldCheck, QrCode, Building2, X } from "lucide-react";
+import { Printer, Award, CheckCircle2, ShieldCheck, X } from "lucide-react";
 
 export default function CollegeTranscriptModal({ open, onOpenChange, student, attendanceRecords = [], meritTransactions = [] }) {
   if (!student) return null;

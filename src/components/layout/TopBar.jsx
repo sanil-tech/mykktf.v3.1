@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
-import { requestNotificationPermission, showPhoneNotification } from '@/lib/pushNotifications';
+import { requestNotificationPermission } from '@/lib/pushNotifications';
 
 export default function TopBar({ onMenuClick, user }) {
   const [unreadCount, setUnreadCount] = useState(0);

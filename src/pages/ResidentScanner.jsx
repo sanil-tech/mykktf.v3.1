@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   Camera, 
@@ -18,19 +17,12 @@ import {
   CheckCircle2, 
   XCircle, 
   AlertTriangle, 
-  Building2, 
-  Phone, 
   User, 
-  Clock, 
   Sparkles, 
   RotateCcw,
   Users,
   Calendar,
-  Volume2,
   FileCheck2,
-  Lock,
-  ChevronRight,
-  ExternalLink,
   SwitchCamera,
   Upload
 } from 'lucide-react';

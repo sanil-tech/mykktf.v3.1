@@ -7,15 +7,14 @@ import {
   Wrench, Building2, ClipboardCheck, Megaphone, CalendarDays, MessageSquare,
   MessagesSquare, FileBarChart, Star, UserCog, Sparkles, ScrollText,
   CalendarCheck, Users, ClipboardList, BookOpen, Search, Printer, Smartphone,
-  ShieldCheck, MapPin, QrCode, CheckCircle2, AlertCircle, HeartHandshake,
-  Download, FileText, ChevronDown, ChevronUp, Share2, HelpCircle, Filter, Eye,
-  Camera, Compass, Bell, Lock, KeyRound, Wrench as WrenchIcon, Award, Trophy,
+  ShieldCheck, MapPin, QrCode, CheckCircle2, HeartHandshake, FileText, HelpCircle, Eye,
+  Camera, Compass, Bell, KeyRound, Award, Trophy,
   PhoneCall, Phone, BadgeCheck, FileCheck, Crown, ArrowRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 

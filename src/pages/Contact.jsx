@@ -14,18 +14,13 @@ import {
   ShieldAlert, 
   MessageCircle, 
   Building2, 
-  Clock, 
-  MapPin, 
   Mail, 
   HeartHandshake, 
   ExternalLink, 
   Send, 
   AlertTriangle,
   Ambulance,
-  Phone,
-  CheckCircle2,
-  Users,
-  Sparkles
+  Phone
 } from "lucide-react";
 
 export default function Contact() {

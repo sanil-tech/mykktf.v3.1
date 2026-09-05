@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
-import { User, Save, Loader2, Building2, Plus, X, ShieldCheck, Mail, Phone, BadgeCheck, Briefcase, Building } from 'lucide-react';
+import { User, Save, Loader2, Building2, ShieldCheck, Briefcase } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import DigitalResidentPass from '@/components/shared/DigitalResidentPass';
 import CollegeTranscriptModal from '@/components/CollegeTranscriptModal';

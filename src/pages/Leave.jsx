@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
@@ -26,8 +26,6 @@ import {
   QrCode,
   CheckCircle2,
   Printer,
-  Sparkles,
-  ArrowRight,
   ShieldCheck,
   Building,
   Camera

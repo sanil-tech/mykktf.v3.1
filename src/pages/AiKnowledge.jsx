@@ -19,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import { TableSkeleton } from '@/components/shared/ListSkeletons';
-import { Plus, Pencil, Trash2, BookOpen, Search, Sparkles, Upload, FileText, CheckCircle2, Info } from 'lucide-react';
+import { Plus, Pencil, Trash2, BookOpen, Search, Sparkles, Upload, CheckCircle2 } from 'lucide-react';
 
 const CATEGORIES = ['Rule', 'Process', 'Event', 'Announcement', 'FAQ', 'General'];
 const CATEGORY_COLOR = {

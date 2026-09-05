@@ -14,13 +14,10 @@ import {
   HeartHandshake, 
   MessageSquare, 
   Eye, 
-  CheckCircle, 
   ShieldAlert, 
   Wrench, 
   Lock, 
-  User, 
   Sparkles, 
-  Building2, 
   ArrowRight,
   ShieldCheck,
   CheckCircle2
