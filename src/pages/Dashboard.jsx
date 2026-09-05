@@ -368,7 +368,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <InstitutionalDualLogo />
             <Badge className="bg-amber-500/20 text-amber-300 border-amber-400/40 text-[10px] font-mono font-bold px-2.5 py-1">
-              {studentProfile?.room_status === 'Pending Verification' ? '● MENUNGGU IMBASAN QR' : '● MENUNGGU KUNCI'}
+              {studentProfile?.room_status === 'Pending Verification' ? '● MENUNGGU PENGAKTIFAN QR' : '● MENUNGGU KUNCI'}
             </Badge>
           </div>
 
@@ -378,10 +378,10 @@ export default function Dashboard() {
               <KeyRound className="w-7 h-7" />
             </div>
             <h1 className="text-xl font-black text-white tracking-tight pt-2">
-              Pusat Pengesahan & Self Check-In KKTF
+              Pusat Pengaktifan Residen KKTF
             </h1>
             <p className="text-xs text-slate-300 font-medium max-w-sm mx-auto">
-              Hai <strong className="text-amber-300">{studentProfile?.full_name || currentUser?.full_name}</strong> ({studentProfile?.student_id || 'Pelajar'}), lengkapkan pengesahan di bawah untuk mengaktifkan Pas Residen Digital anda.
+              Hai <strong className="text-amber-300">{studentProfile?.full_name || currentUser?.full_name}</strong> ({studentProfile?.student_id || 'Pelajar'}), lengkapkan pengesahan di bawah untuk mengaktifkan status residen dan Pas Digital anda.
             </p>
           </div>
 
@@ -422,9 +422,9 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Prosedur Kemasukan Ringkas */}
+          {/* Prosedur Pengaktifan Ringkas */}
           <div className="text-left space-y-2.5 bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80 text-xs text-slate-300">
-            <p className="font-bold text-slate-200 text-[11px] uppercase tracking-wider">3 Langkah Mudah Pengesahan:</p>
+            <p className="font-bold text-slate-200 text-[11px] uppercase tracking-wider">3 Langkah Pengaktifan Residen:</p>
             <div className="flex items-start gap-2.5">
               <span className="w-5 h-5 rounded-full bg-slate-800 text-lime-400 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 border border-slate-700">1</span>
               <p>Ambil kunci fizikal di <strong>Kaunter Utama Pentadbiran KKTF</strong>.</p>
@@ -435,7 +435,7 @@ export default function Dashboard() {
             </div>
             <div className="flex items-start gap-2.5">
               <span className="w-5 h-5 rounded-full bg-slate-800 text-lime-400 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 border border-slate-700">3</span>
-              <p>Imbas <strong>Kod QR Check-In Rasmi</strong> di kaunter/blok untuk mengaktifkan pas!</p>
+              <p>Imbas <strong>Kod QR Pengaktifan Residen</strong> di kaunter/blok untuk mengaktifkan pas!</p>
             </div>
           </div>
 
@@ -445,7 +445,7 @@ export default function Dashboard() {
             className="w-full h-12 bg-gradient-to-r from-lime-500 to-emerald-600 hover:from-lime-600 hover:to-emerald-700 text-slate-950 font-black text-sm rounded-2xl shadow-[0_0_25px_rgba(132,204,22,0.3)] flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.01]"
           >
             <ScanLine className="w-5 h-5 text-slate-950" />
-            {studentProfile?.block_name ? "📷 Imbas Kod QR Pengesahan Masuk" : "🔑 Tetapkan Bilik & Imbas Kod QR"}
+            {studentProfile?.block_name ? "📷 Imbas Kod QR Pengaktifan Residen" : "🔑 Tetapkan Bilik & Aktifkan Residen"}
           </Button>
 
           <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400">
@@ -454,7 +454,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Self Check-In Modal */}
+        {/* Resident Activation Modal */}
         <StudentCheckInModal 
           isOpen={showCheckInModal}
           onClose={() => setShowCheckInModal(false)}

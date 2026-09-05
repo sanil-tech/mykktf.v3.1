@@ -418,7 +418,7 @@ export default function CheckInOut() {
         actions={
           <div className="flex gap-2 flex-wrap">
             <Button size="sm" variant="outline" className="border-lime-500/60 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100/60" onClick={() => setShowQrPosterModal(true)}>
-              <QrCode className="w-4 h-4 mr-1.5 text-emerald-600" /> Kod QR Kaunter
+              <QrCode className="w-4 h-4 mr-1.5 text-emerald-600" /> Kod QR Pengaktifan
             </Button>
             <Button size="sm" variant="secondary" onClick={() => setArchiveDialog(true)}>
               <Archive className="w-4 h-4 mr-1.5" /> Tutup Sesi
@@ -788,36 +788,36 @@ export default function CheckInOut() {
         </DialogContent>
       </Dialog>
 
-      {/* COUNTER SELF CHECK-IN QR POSTER DIALOG */}
+      {/* COUNTER RESIDENT ACTIVATION QR POSTER DIALOG */}
       <Dialog open={showQrPosterModal} onOpenChange={setShowQrPosterModal}>
         <DialogContent className="max-w-md p-6 bg-white rounded-3xl border border-slate-200 text-center shadow-2xl">
           <div className="flex items-center justify-between border-b pb-3">
             <InstitutionalDualLogo />
             <Badge className="bg-lime-500 text-slate-950 font-bold text-[10px]">
-              POSTER RASMI
+              POSTER PENGAKTIFAN
             </Badge>
           </div>
 
           <div className="space-y-1 pt-2">
             <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">
-              Kod QR Self Check-In KKTF
+              Kod QR Pengaktifan Residen KKTF
             </h3>
             <p className="text-xs text-slate-500">
-              Pamerkan di Kaunter Penyerahan Kunci atau Pintu Masuk Blok Kediaman.
+              Pamerkan di Kaunter Penyerahan Kunci atau Pintu Masuk Blok untuk pengaktifan residen fizikal kali pertama.
             </p>
           </div>
 
           <div className="p-4 bg-white rounded-2xl border-4 border-lime-400 shadow-md inline-block mx-auto my-2">
             <img 
               src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=KKTF-CHECKIN-OFFICIAL-2025" 
-              alt="QR Rasmi Check-In KKTF" 
+              alt="QR Rasmi Pengaktifan Residen KKTF" 
               className="w-56 h-56 mx-auto object-contain"
             />
           </div>
 
           <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl text-left space-y-1 text-xs text-slate-600">
-            <p className="font-bold text-slate-800">Kod Pengesahan Kaunter: <code className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono font-bold">KKTF2025</code></p>
-            <p className="text-[11px] text-slate-500">Pelajar boleh mengimbas QR ini atau memasukkan kod manual di atas melalui portal telefon mereka.</p>
+            <p className="font-bold text-slate-800">Kod Pengaktifan Kaunter: <code className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono font-bold">KKTF2025</code></p>
+            <p className="text-[11px] text-slate-500">Pelajar boleh mengimbas QR ini atau memasukkan kod manual di atas melalui portal telefon mereka selepas menerima kunci bilik.</p>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

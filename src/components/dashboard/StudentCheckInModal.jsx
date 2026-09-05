@@ -201,7 +201,7 @@ export default function StudentCheckInModal({
     if (!isValidKktfQr) {
       toast({
         title: 'Kod QR Tidak Sah',
-        description: 'Sila imbas Kod QR Rasmi Check-In Kolej Kediaman Tun Fuad.',
+        description: 'Sila imbas Kod QR Rasmi Pengaktifan Residen Kolej Kediaman Tun Fuad.',
         variant: 'destructive'
       });
       return;
@@ -227,7 +227,7 @@ export default function StudentCheckInModal({
     await processSuccessfulCheckIn(`MANUAL:${clean}`);
   };
 
-  // Process the actual Check-In in Database
+  // Process the actual Resident Activation in Database
   const processSuccessfulCheckIn = async (verificationSource) => {
     if (submitting) return;
     setSubmitting(true);
@@ -274,7 +274,7 @@ export default function StudentCheckInModal({
           check_in_date: todayDate,
           check_in_time: currentTimeStr,
           semester: 'Sem1_2526',
-          notes: `Self Check-In fizikal berjaya melalui imbasan QR (${verificationSource})`
+          notes: `Pengaktifan residen fizikal berjaya melalui imbasan QR (${verificationSource})`
         });
       } catch (e) {
         console.warn('CheckIn log error:', e);
@@ -283,8 +283,8 @@ export default function StudentCheckInModal({
       // 4. Log Audit
       await logAudit(
         user, 
-        'STUDENT_SELF_CHECKIN', 
-        'Check-In/Out', 
+        'STUDENT_RESIDENT_ACTIVATION', 
+        'Pengaktifan Residen', 
         { student: student.full_name, student_id: student.student_id, block: selectedBlock, room: selectedRoomNumber }
       );
 
@@ -300,7 +300,7 @@ export default function StudentCheckInModal({
       setStep('success');
 
       toast({
-        title: 'Check-In Berjaya! 🎉',
+        title: 'Pengaktifan Residen Berjaya! 🎉',
         description: `Selamat mendiami ${selectedBlock}, Bilik ${selectedRoomNumber}. Pas Residen Digital anda kini aktif.`
       });
 
@@ -313,9 +313,9 @@ export default function StudentCheckInModal({
         });
       }
     } catch (err) {
-      console.error('Check-in processing error:', err);
+      console.error('Resident activation error:', err);
       toast({
-        title: 'Ralat Semasa Check-In',
+        title: 'Ralat Semasa Pengaktifan',
         description: err.message || 'Sila cuba lagi atau hubungi felo bertugas.',
         variant: 'destructive'
       });
@@ -338,18 +338,18 @@ export default function StudentCheckInModal({
           <div className="flex items-center justify-between">
             <InstitutionalDualLogo />
             <Badge className="bg-lime-500/25 text-lime-300 border-lime-400/40 text-[10px] font-mono font-bold px-2 py-0.5">
-              SELF CHECK-IN KKTF
+              PENGAKTIFAN RESIDEN KKTF
             </Badge>
           </div>
           <DialogTitle className="text-base font-bold text-white mt-3">
             {step === 'room_selection' && 'Langkah 1: Tetapkan Bilik Kunci'}
-            {step === 'qr_scanning' && 'Langkah 2: Imbas Kod QR Kehadiran'}
+            {step === 'qr_scanning' && 'Langkah 2: Imbas Kod QR Pengaktifan Residen'}
             {step === 'success' && 'Tahniah! Residen Aktif Kolej'}
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-300 mt-0.5">
             {step === 'room_selection' && 'Pilih blok & nombor bilik mengikut kunci fizikal yang telah diserahkan di kaunter.'}
-            {step === 'qr_scanning' && 'Halakan kamera ke Kod QR Check-In yang dipaparkan di kaunter atau blok anda.'}
-            {step === 'success' && 'Pendaftaran masuk fizikal disahkan. Pas Residen Digital anda sedia digunakan.'}
+            {step === 'qr_scanning' && 'Halakan kamera ke Kod QR Pengaktifan Residen yang dipaparkan di kaunter atau blok anda.'}
+            {step === 'success' && 'Pengaktifan residen fizikal disahkan. Pas Residen Digital anda sedia digunakan.'}
           </DialogDescription>
         </div>
 
@@ -480,12 +480,12 @@ export default function StudentCheckInModal({
               </div>
 
               <p className="text-[11px] text-slate-500 text-center leading-tight">
-                Imbas kod QR pada poster <strong>"Check-In Fizikal KKTF"</strong> di kaunter atau blok kediaman anda.
+                Imbas kod QR pada poster <strong>"Pengaktifan Residen KKTF"</strong> di kaunter atau blok kediaman anda.
               </p>
 
               {/* MANUAL CODE ENTRY AS BACKUP */}
               <div className="pt-2 border-t border-slate-100 space-y-2">
-                <p className="text-[11px] font-semibold text-slate-600">Kamera tidak berfungsi? Masukkan Kod Kaunter:</p>
+                <p className="text-[11px] font-semibold text-slate-600">Kamera tidak berfungsi? Masukkan Kod Pengaktifan Kaunter:</p>
                 <div className="flex gap-2">
                   <Input 
                     value={manualCode}
@@ -529,9 +529,9 @@ export default function StudentCheckInModal({
               </div>
 
               <div className="space-y-1">
-                <h3 className="text-lg font-black text-slate-900">Check-In Berjaya Disahkan!</h3>
+                <h3 className="text-lg font-black text-slate-900">Pengaktifan Residen Berjaya Disahkan!</h3>
                 <p className="text-xs text-slate-600 max-w-xs mx-auto">
-                  Kehadiran fizikal anda telah direkodkan ke dalam sistem kolej.
+                  Kehadiran fizikal anda telah disahkan dan status residen kini aktif sepenuhnya.
                 </p>
               </div>
 
