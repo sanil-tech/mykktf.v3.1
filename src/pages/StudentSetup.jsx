@@ -8,9 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
   GraduationCap, 
   User, 
-  Phone, 
   BookOpen, 
-  Users, 
   CheckCircle2, 
   ChevronRight, 
   ChevronLeft, 
@@ -19,8 +17,7 @@ import {
   Sparkles, 
   Building2, 
   ShieldCheck,
-  DoorClosed,
-  Home
+  DoorClosed
 } from 'lucide-react';
 
 const FACULTIES = [
@@ -156,12 +153,15 @@ export default function StudentSetup({ user, onComplete }) {
       // 1. Create Student Resident record (Pre-registration)
       const studentData = {
         ...form,
+        user_id: user?.id || form.user_id || '',
+        email: user?.email || form.email || '',
         block_name: knowsRoom ? form.block_name : '',
         room_number: knowsRoom ? form.room_number : '',
         room_id: knowsRoom ? roomId : '',
         year_of_study: Number(form.year_of_study),
         room_status: knowsRoom ? 'Pending Verification' : 'Pending Key',
-        resident_status: 'Registered'
+        resident_status: 'Registered',
+        qr_verified: false
       };
 
       await base44.entities.Student.create(studentData);

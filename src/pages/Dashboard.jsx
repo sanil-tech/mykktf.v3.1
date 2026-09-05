@@ -152,29 +152,60 @@ export default function Dashboard() {
 
         let studs = [];
         if (user?.id) {
-          studs = await base44.entities.Student.filter({ user_id: user.id });
+          studs = await base44.entities.Student.filter({ user_id: user.id }, '-created_date');
         }
         if (!studs.length && user?.email) {
-          studs = await base44.entities.Student.filter({ email: user.email });
+          const cleanEmail = user.email.trim();
+          studs = await base44.entities.Student.filter({ email: cleanEmail }, '-created_date');
+        }
+        // Fallback case-insensitive check from allStudents
+        if (!studs.length && allStudents && allStudents.length > 0) {
+          const userEmailClean = (user?.email || '').trim().toLowerCase();
+          studs = allStudents.filter(s => 
+            (user?.id && s.user_id === user.id) || 
+            (userEmailClean && (s.email || '').trim().toLowerCase() === userEmailClean)
+          );
         }
         
         if (studs.length > 0 && studs[0]?.student_id) {
-          const s = studs[0];
+          // Jika ada lebih dari satu rekod (contohnya ujian demo berulang), utamakan rekod yang sudah qr_verified
+          const s = studs.find(st => st.qr_verified === true || st.qr_verified === 'true' || st.qr_verified === 1 || st.qr_verified === '1') || studs[0];
           setStudentProfile(s);
           setHasStudentProfile(true);
 
           // PENGESAHAN KETAT (ANTI-BYPASS):
           // Pelajar HANYA dibenarkan masuk ke Dashboard Residen Aktif jika:
-          // 1. Status bilik ialah 'Checked In' & status residen ialah 'Active'
-          // 2. Blok dan bilik telah ditetapkan
-          // 3. Telah melalui imbasan QR fizikal kolej yang sah (qr_verified === true)
-          // Jika pelajar belum imbas QR, refresh halaman, atau tekan 'Back', mereka
-          // KEKAL disekat di 'Pusat Pengaktifan Residen KKTF' sehingga imbasan QR berjaya!
-          const isStrictlyVerified = 
-            s.room_status === 'Checked In' && 
-            s.resident_status === 'Active' && 
-            Boolean(s.block_name && s.room_number) &&
-            (s.qr_verified === true);
+          // 1. Mempunyai penempatan blok & bilik
+          // 2. Telah melalui imbasan QR fizikal kolej yang sah (qr_verified sah)
+          const isQrVerified = s.qr_verified === true || s.qr_verified === 'true' || s.qr_verified === 1 || s.qr_verified === '1' || Boolean(s.qr_verified && s.qr_verified !== 'false');
+          const hasRoom = Boolean(s.block_name && s.room_number);
+          const isStrictlyVerified = hasRoom && isQrVerified;
+
+          // Selaraskan status di database jika qr_verified telah sah tetapi status teks tertinggal
+          if (isStrictlyVerified) {
+            const isRoomCheckedIn = String(s.room_status || '').trim().toLowerCase() === 'checked in';
+            const isResidentActive = String(s.resident_status || '').trim().toLowerCase() === 'active';
+            
+            if (!isRoomCheckedIn || !isResidentActive || !s.user_id) {
+              s.room_status = 'Checked In';
+              s.resident_status = 'Active';
+              if (user?.id) s.user_id = user.id;
+              base44.entities.Student.update(s.id, {
+                room_status: 'Checked In',
+                resident_status: 'Active',
+                qr_verified: true,
+                user_id: s.user_id || user?.id || ''
+              }).catch(e => console.warn('Sync verified status error:', e));
+            }
+
+            // Pastikan peranan auth dan user sentiasa 'student'
+            if (user?.role !== 'student') {
+              base44.auth.updateMe({ role: 'student' }).catch(() => {});
+              if (user?.id) {
+                base44.entities.User.update(user.id, { role: 'student' }).catch(() => {});
+              }
+            }
+          }
 
           setIsRoomAssigned(isStrictlyVerified);
         } else {

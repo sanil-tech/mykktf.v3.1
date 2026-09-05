@@ -78,20 +78,6 @@ export default function StudentCheckInModal({
 
     fetchHostelData();
 
-    // Pastikan sebarang rekod yang belum disahkan melalui imbasan QR fizikal
-    // dikunci kepada 'Pending Verification' (anti-bypass jika berlaku ralat/refresh)
-    // JANGAN reset jika proses pengaktifan telah berjaya (step === 'success')
-    if (step !== 'success' && student?.id && !student?.qr_verified && student?.room_status === 'Checked In') {
-      base44.entities.Student.update(student.id, {
-        room_status: 'Pending Verification',
-        resident_status: 'Registered',
-        qr_verified: false
-      }).catch(e => console.warn('Reset unverified student status:', e));
-      student.room_status = 'Pending Verification';
-      student.resident_status = 'Registered';
-      student.qr_verified = false;
-    }
-
     // If student already has room pre-assigned, go straight to QR scanning
     if (student?.block_name && student?.room_number) {
       setSelectedBlock(student.block_name);
@@ -336,9 +322,15 @@ export default function StudentCheckInModal({
 
       // Resolve student record safely
       let activeStudent = student;
-      if (!activeStudent?.id && user?.email) {
+      if (!activeStudent?.id) {
         try {
-          const found = await base44.entities.Student.filter({ email: user.email });
+          let found = [];
+          if (user?.id) {
+            found = await base44.entities.Student.filter({ user_id: user.id }, '-created_date');
+          }
+          if ((!found || found.length === 0) && user?.email) {
+            found = await base44.entities.Student.filter({ email: user.email.trim() }, '-created_date');
+          }
           if (found && found.length > 0) {
             activeStudent = found[0];
           }
@@ -397,6 +389,7 @@ export default function StudentCheckInModal({
       // 4. HANYA SELEPAS QR DIIMBAS: AKTIFKAN PROFIL PELAJAR BERSAMA COP PENGESAHAN qr_verified: true
       if (activeStudent?.id) {
         await base44.entities.Student.update(activeStudent.id, {
+          user_id: activeStudent.user_id || user?.id || '',
           block_name: selectedBlock,
           room_number: selectedRoomNumber,
           room_id: roomId,
@@ -408,6 +401,7 @@ export default function StudentCheckInModal({
           verification_source: verificationSource
         });
 
+        activeStudent.user_id = activeStudent.user_id || user?.id || '';
         activeStudent.block_name = selectedBlock;
         activeStudent.room_number = selectedRoomNumber;
         activeStudent.room_id = roomId;
