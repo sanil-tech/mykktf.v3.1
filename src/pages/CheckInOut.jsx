@@ -810,14 +810,14 @@ export default function CheckInOut() {
 
           <div className="p-4 bg-white rounded-2xl border-4 border-lime-400 shadow-md inline-block mx-auto my-2">
             <img 
-              src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=KKTF-CHECKIN-OFFICIAL-2025" 
+              src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=KKTF-ACTIVATION-OFFICIAL-2026" 
               alt="QR Rasmi Pengaktifan Residen KKTF" 
               className="w-56 h-56 mx-auto object-contain"
             />
           </div>
 
           <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl text-left space-y-1 text-xs text-slate-600">
-            <p className="font-bold text-slate-800">Kod Pengaktifan Kaunter: <code className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono font-bold">KKTF2025</code></p>
+            <p className="font-bold text-slate-800">Kod Pengaktifan Kaunter: <code className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono font-bold">KKTF2026</code></p>
             <p className="text-[11px] text-slate-500">Pelajar boleh mengimbas QR ini atau memasukkan kod manual di atas melalui portal telefon mereka selepas menerima kunci bilik.</p>
           </div>
 

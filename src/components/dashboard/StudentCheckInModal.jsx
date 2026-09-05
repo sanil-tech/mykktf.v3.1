@@ -202,13 +202,15 @@ export default function StudentCheckInModal({
     const cleanText = (decodedText || '').trim().toUpperCase();
 
     // Check if the QR matches any standard KKTF physical check-in format:
-    // 1. "KKTF-CHECKIN" (Standard Counter / Gate QR)
+    // 1. "KKTF-ACTIVATION" / "KKTF-CHECKIN" (Standard Counter / Gate QR)
     // 2. "KKTF-BLOCK-" (Block Specific QR)
-    // 3. "KKTF2025" or "CHECKIN"
+    // 3. "KKTF2026" / "KKTF2025"
     const isValidKktfQr = 
+      cleanText.includes('KKTF-ACTIVATION') ||
       cleanText.includes('KKTF-CHECKIN') || 
       cleanText.includes('KKTF-COUNTER') || 
       cleanText.includes('KKTF-BLOCK') ||
+      cleanText === 'KKTF2026' ||
       cleanText === 'KKTF2025' ||
       cleanText.startsWith('KKTF:');
 
@@ -232,8 +234,8 @@ export default function StudentCheckInModal({
       return;
     }
     const clean = manualCode.trim().toUpperCase();
-    if (clean !== 'KKTF2025' && clean !== 'KKTF-CHECKIN' && !clean.includes('KKTF')) {
-      toast({ title: 'Kod Tidak Sah', description: 'Kod pengesahan kaunter salah. Sila dapatkan kod dari Felo bertugas.', variant: 'destructive' });
+    if (clean !== 'KKTF2026' && clean !== 'KKTF2025' && clean !== 'KKTF-CHECKIN' && clean !== 'KKTF-ACTIVATION' && !clean.includes('KKTF')) {
+      toast({ title: 'Kod Tidak Sah', description: 'Kod pengesahan kaunter salah. Sila dapatkan kod dari Felo bertugas (KKTF2026).', variant: 'destructive' });
       return;
     }
 
@@ -565,7 +567,7 @@ export default function StudentCheckInModal({
                   <Input 
                     value={manualCode}
                     onChange={(e) => setManualCode(e.target.value.toUpperCase())}
-                    placeholder="Contoh: KKTF2025"
+                    placeholder="Contoh: KKTF2026"
                     className="h-9 text-xs uppercase font-mono"
                     disabled={submitting}
                   />
