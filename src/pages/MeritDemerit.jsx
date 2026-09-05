@@ -887,9 +887,9 @@ export default function MeritDemerit() {
                   });
                   setSportsModalOpen(true);
                 }}
-                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold gap-1.5 rounded-xl shadow-md border border-amber-400"
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold gap-1.5 rounded-xl shadow-xs"
               >
-                <Medal className="w-4 h-4" /> Tuntut Merit Sukan (Mahasiswa)
+                <Medal className="w-4 h-4" /> Tuntut Merit Sukan
               </Button>
             )}
 
@@ -971,35 +971,13 @@ export default function MeritDemerit() {
             <p className="text-[11px] text-muted-foreground mt-0.5">{myStudentProfile?.qualification}</p>
           </div>
 
-          <div className="bg-card border border-amber-300 dark:border-amber-900/60 bg-gradient-to-br from-amber-50/50 to-amber-100/30 dark:from-amber-950/20 dark:to-transparent rounded-2xl p-3.5 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between text-amber-700 dark:text-amber-400">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Merit Sukan & Atlet</span>
-                <Medal className="w-4 h-4 text-amber-600" />
-              </div>
-              <p className="text-2xl font-black font-heading text-foreground mt-1">+{myStudentProfile?.sportsMerit || 0} Mata</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{myStudentProfile?.sportsCount || 0} Penglibatan / Pingat</p>
+          <div className="bg-card border border-border rounded-2xl p-4 shadow-xs">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Merit Sukan & Atlet</span>
+              <Medal className="w-4 h-4 text-amber-500" />
             </div>
-            <Button 
-              size="sm"
-              onClick={() => {
-                setSportsForm({
-                  student_id: myStudentProfile?.id || '',
-                  sport_name: '',
-                  tournament_name: '',
-                  level: 'Kolej',
-                  achievement: 'Penyertaan',
-                  proof_type: 'Sijil Rasmi',
-                  proof_url: '',
-                  custom_points: '',
-                  notes: ''
-                });
-                setSportsModalOpen(true);
-              }}
-              className="mt-2 w-full bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold gap-1 rounded-xl h-7 shadow-xs"
-            >
-              <Medal className="w-3.5 h-3.5" /> Tuntut Merit Sukan
-            </Button>
+            <p className="text-2xl font-black font-heading text-amber-600 dark:text-amber-400 mt-1">+{myStudentProfile?.sportsMerit || 0} Mata</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{myStudentProfile?.sportsCount || 0} Penglibatan / Pingat</p>
           </div>
 
           <div className="bg-card border border-border rounded-2xl p-4 shadow-xs">
@@ -1992,27 +1970,6 @@ export default function MeritDemerit() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                onClick={() => {
-                  setSportsForm({
-                    student_id: myStudentProfile?.id || '',
-                    sport_name: '',
-                    tournament_name: '',
-                    level: 'Kolej',
-                    achievement: 'Penyertaan',
-                    proof_type: 'Sijil Rasmi',
-                    proof_url: '',
-                    custom_points: '',
-                    notes: ''
-                  });
-                  setSportsModalOpen(true);
-                }}
-                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold gap-1 rounded-xl shadow-xs"
-              >
-                <Medal className="w-3.5 h-3.5" /> Tuntut Merit Sukan
-              </Button>
-
               <Badge className={`text-xs font-bold border px-3 py-1 ${myStudentProfile?.tierBadgeClass}`}>
                 {myStudentProfile?.tierLabel}
               </Badge>
