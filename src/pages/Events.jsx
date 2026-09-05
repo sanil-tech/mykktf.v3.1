@@ -36,12 +36,85 @@ import { computeEffectiveRole, fetchActiveJakmasAppointment } from '@/lib/jakmas
 import { logAudit } from '@/lib/audit';
 
 const MANAGE_ROLES = ['super_admin', 'principal', 'college_admin', 'warden', 'staff', 'jakmas'];
-const STATUS_COLORS = {
-  Upcoming: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300',
-  Ongoing: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300',
-  Completed: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-  Cancelled: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300',
-};
+
+export function getEventDateStatus(ev) {
+  // 1. Manually Cancelled or Rejected
+  if (ev.status === 'Cancelled' || ev.status === 'Dibatalkan' || ev.felo_approval_status === 'Rejected') {
+    return {
+      key: 'cancelled',
+      label: 'Dibatalkan',
+      badgeClass: 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800'
+    };
+  }
+
+  // 2. Manually Postponed
+  if (ev.status === 'Postponed' || ev.status === 'Ditangguhkan') {
+    return {
+      key: 'postponed',
+      label: 'Ditangguhkan',
+      badgeClass: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800'
+    };
+  }
+
+  // 3. Manually marked Completed
+  if (ev.status === 'Completed' || ev.status === 'Selesai') {
+    return {
+      key: 'past',
+      label: 'Sudah Berlalu',
+      badgeClass: 'bg-slate-200/80 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
+    };
+  }
+
+  if (!ev.event_date) {
+    return {
+      key: 'upcoming',
+      label: 'Akan Datang',
+      badgeClass: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-800'
+    };
+  }
+
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  const eventDateStr = ev.event_date;
+
+  // 4. Tarikh sudah berlalu (sebelum hari ini)
+  if (eventDateStr < todayStr) {
+    return {
+      key: 'past',
+      label: 'Sudah Berlalu',
+      badgeClass: 'bg-slate-200/80 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
+    };
+  }
+
+  // 5. Hari Ini (Bandingkan waktu jika ada)
+  if (eventDateStr === todayStr) {
+    if (ev.event_time) {
+      const [evH, evM] = ev.event_time.split(':').map(Number);
+      const [curH, curM] = [now.getHours(), now.getMinutes()];
+      const diffMinutes = (curH * 60 + curM) - (evH * 60 + evM);
+      // Jika telah tamat lebih 4 jam dari waktu mula
+      if (diffMinutes > 240) {
+        return {
+          key: 'past',
+          label: 'Sudah Berlalu',
+          badgeClass: 'bg-slate-200/80 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
+        };
+      }
+    }
+    return {
+      key: 'ongoing',
+      label: 'Sedang Berlangsung',
+      badgeClass: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 animate-pulse'
+    };
+  }
+
+  // 6. Tarikh masa hadapan
+  return {
+    key: 'upcoming',
+    label: 'Akan Datang',
+    badgeClass: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-800'
+  };
+}
 
 const emptyForm = { 
   event_name: '', 
@@ -72,6 +145,8 @@ export default function Events() {
   const [participants, setParticipants] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [uploading, setUploading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'upcoming' | 'past' | 'cancelled_postponed'
+  const [viewModeOverride, setViewModeOverride] = useState('auto'); // 'auto' | 'student' | 'admin'
 
   // AJK & Committee Management Modal State
   const [ajkModalEvent, setAjkModalEvent] = useState(null);
@@ -568,11 +643,31 @@ export default function Events() {
     }
   }
 
+  async function handleUpdateEventStatus(eventId, newStatus) {
+    try {
+      await base44.entities.Event.update(eventId, { status: newStatus });
+      toast({ title: `Status acara dikemas kini kepada: ${newStatus}` });
+      setEvents(prev => prev.map(e => e.id === eventId ? { ...e, status: newStatus } : e));
+    } catch (err) {
+      toast({ title: 'Ralat mengemas kini status', variant: 'destructive' });
+    }
+  }
+
   const role = user?.effectiveRole || user?.role;
-  const canManage = user && MANAGE_ROLES.includes(role);
+  const isRealStudent = user?.role === 'student' || user?.effectiveRole === 'student';
+  const isStudent = viewModeOverride === 'student' || (viewModeOverride === 'auto' && isRealStudent);
+  const canManage = !isStudent && user && MANAGE_ROLES.includes(role);
   const isPrincipalOrAdmin = user && ['super_admin', 'principal', 'college_admin'].includes(user?.role);
   const isFeloCoordinatorOrAdmin = user && ['super_admin', 'principal', 'college_admin', 'warden'].includes(user?.role);
-  const isStudent = !canManage || role === 'student';
+
+  // Filter events based on statusFilter
+  const filteredEvents = events.filter(ev => {
+    const s = getEventDateStatus(ev);
+    if (statusFilter === 'upcoming') return s.key === 'upcoming' || s.key === 'ongoing';
+    if (statusFilter === 'past') return s.key === 'past';
+    if (statusFilter === 'cancelled_postponed') return s.key === 'cancelled' || s.key === 'postponed';
+    return true;
+  });
 
   if (loading) return <div><PageHeader title="Acara & Program Kolej" description="Memuatkan senarai acara..." /><CardGridSkeleton count={6} /></div>;
 
@@ -585,28 +680,95 @@ export default function Events() {
             ? "Pengurusan aktiviti kolej, kelulusan Felo Penyelaras & Pengetua, semakan kehadiran QR, dan merit automatik."
             : "Sertai program kolej, kumpul mata merit residen untuk tawaran penginapan kolej, dan semak status penyertaan anda."
         }
-        actions={canManage && (
-          <Button size="sm" onClick={() => setShowForm(true)} className="rounded-xl font-bold bg-[#132644] hover:bg-[#1a335c] text-white gap-1.5 shadow-xs">
-            <Plus className="w-4 h-4" /> Cipta Acara Baharu
-          </Button>
-        )}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {user && MANAGE_ROLES.includes(user.role) && (
+              <Button
+                size="sm"
+                variant="outline"
+                className={`rounded-xl font-semibold text-xs h-9 gap-1.5 transition-all ${
+                  viewModeOverride === 'student' 
+                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-400 shadow-xs' 
+                    : 'hover:bg-primary/5 text-primary border-primary/30'
+                }`}
+                onClick={() => setViewModeOverride(prev => prev === 'student' ? 'admin' : 'student')}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                {viewModeOverride === 'student' ? 'Kembali ke Paparan Pentadbir' : 'Pratonton Paparan Pelajar'}
+              </Button>
+            )}
+            {canManage && (
+              <Button size="sm" onClick={() => setShowForm(true)} className="rounded-xl font-bold bg-[#132644] hover:bg-[#1a335c] text-white gap-1.5 shadow-xs h-9">
+                <Plus className="w-4 h-4" /> Cipta Acara Baharu
+              </Button>
+            )}
+          </div>
+        }
       />
 
-      {events.length === 0 ? (
+      {/* STATUS FILTER TABS */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-card border border-border/80 p-2.5 rounded-2xl shadow-xs">
+        <div className="flex flex-wrap gap-1.5">
+          <Button
+            size="sm"
+            variant={statusFilter === 'all' ? 'default' : 'ghost'}
+            className="h-8 text-xs font-semibold rounded-xl"
+            onClick={() => setStatusFilter('all')}
+          >
+            Semua Acara ({events.length})
+          </Button>
+          <Button
+            size="sm"
+            variant={statusFilter === 'upcoming' ? 'default' : 'ghost'}
+            className="h-8 text-xs font-semibold rounded-xl gap-1.5"
+            onClick={() => setStatusFilter('upcoming')}
+          >
+            <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+            Akan Datang ({events.filter(e => { const s = getEventDateStatus(e); return s.key === 'upcoming' || s.key === 'ongoing'; }).length})
+          </Button>
+          <Button
+            size="sm"
+            variant={statusFilter === 'past' ? 'default' : 'ghost'}
+            className="h-8 text-xs font-semibold rounded-xl gap-1.5"
+            onClick={() => setStatusFilter('past')}
+          >
+            <span className="w-2 h-2 rounded-full bg-slate-400 inline-block" />
+            Sudah Berlalu ({events.filter(e => getEventDateStatus(e).key === 'past').length})
+          </Button>
+          <Button
+            size="sm"
+            variant={statusFilter === 'cancelled_postponed' ? 'default' : 'ghost'}
+            className="h-8 text-xs font-semibold rounded-xl gap-1.5"
+            onClick={() => setStatusFilter('cancelled_postponed')}
+          >
+            <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
+            Dibatalkan / Ditangguhkan ({events.filter(e => { const s = getEventDateStatus(e); return s.key === 'cancelled' || s.key === 'postponed'; }).length})
+          </Button>
+        </div>
+
+        {viewModeOverride === 'student' && (
+          <div className="text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-400/30 flex items-center gap-1.5">
+            <span>👁️ Paparan Residen/Pelajar Aktif (Merit Ditekankan)</span>
+          </div>
+        )}
+      </div>
+
+      {filteredEvents.length === 0 ? (
         <div className="text-center py-16 bg-card border border-border rounded-3xl text-muted-foreground p-6">
           <Calendar className="w-12 h-12 mx-auto text-muted-foreground/40 mb-3" />
-          <p className="font-bold text-base text-foreground">Tiada acara aktif buat masa ini</p>
-          <p className="text-xs text-muted-foreground mt-1">Acara kolej yang disahkan akan dipaparkan di sini.</p>
+          <p className="font-bold text-base text-foreground">Tiada acara dalam kategori ini</p>
+          <p className="text-xs text-muted-foreground mt-1">Sila tukar penapis status di atas untuk melihat acara lain.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {events.map(ev => {
+          {filteredEvents.map(ev => {
             const isRegistered = isStudent && myRegistrations.some(r => r.event_id === ev.id && r.status === 'Registered');
             const isAttended = isStudent && myRegistrations.some(r => r.event_id === ev.id && r.status === 'Attended');
             const isFull = ev.registration_limit && ev.current_registrations >= ev.registration_limit;
             const isApproved = ev.felo_approval_status === 'Approved';
             const isRejected = ev.felo_approval_status === 'Rejected';
             const meritValue = ev.merit_points || 10;
+            const statusInfo = getEventDateStatus(ev);
 
             return (
               <div key={ev.id} className="bg-card border border-border hover:border-indigo-300 dark:hover:border-indigo-800 rounded-3xl overflow-hidden flex flex-col shadow-xs hover:shadow-md transition-all">
@@ -624,8 +786,9 @@ export default function Events() {
                       <h3 className="font-heading font-bold text-base leading-snug text-foreground">{ev.event_name}</h3>
                       <p className="text-[11px] text-muted-foreground">Penganjur: <span className="font-semibold text-foreground">{ev.organizer || 'Kolej Kediaman Tun Fuad'}</span></p>
                     </div>
-                    <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold shrink-0 ${STATUS_COLORS[ev.status] || 'bg-muted text-muted-foreground'}`}>
-                      {ev.status}
+                    {/* DYNAMIC STATUS BADGE MENGIKUT TARIKH & STATUS */}
+                    <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold shrink-0 ${statusInfo.badgeClass}`}>
+                      {statusInfo.label}
                     </span>
                   </div>
 
@@ -770,47 +933,129 @@ export default function Events() {
                       </Button>
                     )}
 
-                    {/* STUDENT ACTIONS */}
-                    {isStudent && isApproved && ev.registration_status === 'Open' && !isRegistered && !isAttended && !isFull && (
-                      <Button size="sm" className="w-full text-xs h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl gap-1.5 shadow-xs" onClick={() => register(ev)}>
-                        <UserCheck className="w-4 h-4" /> Daftar Program (+{meritValue} Merit)
-                      </Button>
-                    )}
-
-                    {isStudent && !isApproved && (
-                      <div className="w-full text-center p-2 rounded-xl bg-muted/60 text-muted-foreground text-xs font-medium">
-                        Pendaftaran akan dibuka setelah kelulusan rasmi pentadbiran kolej.
+                    {/* STATUS AWARE ACTIONS (PELAJAR & STATUS PROGRAM) */}
+                    {statusInfo.key === 'past' && (
+                      <div className="w-full space-y-1.5">
+                        {isAttended ? (
+                          <div className="w-full p-2 bg-emerald-100 dark:bg-emerald-900/60 rounded-xl border border-emerald-300 dark:border-emerald-700 text-center">
+                            <span className="text-xs font-bold text-emerald-800 dark:text-emerald-200 flex items-center justify-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-300" /> Kehadiran Disahkan (+{meritValue} Merit Dikreditkan)
+                            </span>
+                          </div>
+                        ) : isRegistered ? (
+                          <div className="w-full p-2 bg-muted rounded-xl border border-border text-center text-xs text-muted-foreground font-semibold">
+                            Program Telah Selesai (Tidak Hadir)
+                          </div>
+                        ) : (
+                          <div className="w-full p-2 bg-muted/60 rounded-xl border border-border/60 text-center text-xs text-muted-foreground font-medium">
+                            Program Telah Selesai (Sudah Berlalu)
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    {isStudent && isApproved && isFull && !isRegistered && (
-                      <div className="w-full text-center p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 text-xs font-semibold">
-                        Kouta penyertaan program telah penuh ({ev.current_registrations}/{ev.registration_limit})
+                    {statusInfo.key === 'cancelled' && (
+                      <div className="w-full p-2 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 text-center text-xs text-rose-700 dark:text-rose-400 font-semibold">
+                        Program Telah Dibatalkan
                       </div>
                     )}
 
-                    {isStudent && isRegistered && !isAttended && (
-                      <div className="w-full flex items-center justify-between gap-2 p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800">
-                        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4" /> Anda Telah Berdaftar
-                        </span>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50" onClick={() => cancelRegistration(ev)}>
-                          Batal
-                        </Button>
+                    {statusInfo.key === 'postponed' && (
+                      <div className="w-full p-2 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-900 text-center text-xs text-amber-700 dark:text-amber-400 font-semibold">
+                        Program Ditangguhkan ke Tarikh Baharu
                       </div>
                     )}
 
-                    {isStudent && isAttended && (
-                      <div className="w-full p-2 bg-emerald-100 dark:bg-emerald-900/60 rounded-xl border border-emerald-300 dark:border-emerald-700 text-center">
-                        <span className="text-xs font-bold text-emerald-800 dark:text-emerald-200 flex items-center justify-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-300" /> Kehadiran Disahkan (+{meritValue} Merit Dikreditkan)
-                        </span>
+                    {/* REGISTRATION ACTIONS FOR ACTIVE UPCOMING/ONGOING EVENTS */}
+                    {(statusInfo.key === 'upcoming' || statusInfo.key === 'ongoing') && (
+                      <>
+                        {isStudent && isApproved && ev.registration_status === 'Open' && !isRegistered && !isAttended && !isFull && (
+                          <Button size="sm" className="w-full text-xs h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl gap-1.5 shadow-xs" onClick={() => register(ev)}>
+                            <UserCheck className="w-4 h-4" /> Daftar Program (+{meritValue} Merit)
+                          </Button>
+                        )}
+
+                        {isStudent && !isApproved && (
+                          <div className="w-full text-center p-2 rounded-xl bg-muted/60 text-muted-foreground text-xs font-medium">
+                            Pendaftaran akan dibuka setelah kelulusan rasmi pentadbiran kolej.
+                          </div>
+                        )}
+
+                        {isStudent && isApproved && isFull && !isRegistered && (
+                          <div className="w-full text-center p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 text-xs font-semibold">
+                            Kouta penyertaan program telah penuh ({ev.current_registrations}/{ev.registration_limit})
+                          </div>
+                        )}
+
+                        {isStudent && isRegistered && !isAttended && (
+                          <div className="w-full flex items-center justify-between gap-2 p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4" /> Anda Telah Berdaftar
+                            </span>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50" onClick={() => cancelRegistration(ev)}>
+                              Batal
+                            </Button>
+                          </div>
+                        )}
+
+                        {isStudent && isAttended && (
+                          <div className="w-full p-2 bg-emerald-100 dark:bg-emerald-900/60 rounded-xl border border-emerald-300 dark:border-emerald-700 text-center">
+                            <span className="text-xs font-bold text-emerald-800 dark:text-emerald-200 flex items-center justify-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-300" /> Kehadiran Disahkan (+{meritValue} Merit Dikreditkan)
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* ADMIN / PENYELARAS QUICK STATUS MANAGEMENT BUTTONS */}
+                    {canManage && (
+                      <div className="w-full pt-2 border-t border-border/60 flex items-center justify-between gap-1 text-[11px]">
+                        <span className="text-muted-foreground font-semibold text-[10px]">Tukar Status:</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            title="Kembali ke status automatik mengikut tarikh"
+                            onClick={() => handleUpdateEventStatus(ev.id, 'Upcoming')}
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${
+                              statusInfo.key === 'upcoming' || statusInfo.key === 'past' || statusInfo.key === 'ongoing'
+                                ? 'bg-primary text-primary-foreground shadow-xs' 
+                                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                            }`}
+                          >
+                            Auto Tarikh
+                          </button>
+                          <button
+                            type="button"
+                            title="Tangguhkan acara"
+                            onClick={() => handleUpdateEventStatus(ev.id, 'Postponed')}
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${
+                              statusInfo.key === 'postponed' 
+                                ? 'bg-amber-600 text-white shadow-xs' 
+                                : 'bg-muted text-muted-foreground hover:bg-amber-100 dark:hover:bg-amber-950'
+                            }`}
+                          >
+                            Tangguh
+                          </button>
+                          <button
+                            type="button"
+                            title="Batalkan acara"
+                            onClick={() => handleUpdateEventStatus(ev.id, 'Cancelled')}
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${
+                              statusInfo.key === 'cancelled' 
+                                ? 'bg-rose-600 text-white shadow-xs' 
+                                : 'bg-muted text-muted-foreground hover:bg-rose-100 dark:hover:bg-rose-950'
+                            }`}
+                          >
+                            Batal
+                          </button>
+                        </div>
                       </div>
                     )}
 
                     {/* DELETE BUTTON */}
                     {canManage && (role === 'super_admin' || role === 'college_admin' || ev.organizer_user_id === user?.id) && (
-                      <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl shrink-0" onClick={() => deleteEvent(ev.id)}>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl shrink-0 ml-auto" onClick={() => deleteEvent(ev.id)}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     )}
