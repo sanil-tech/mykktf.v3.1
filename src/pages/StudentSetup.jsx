@@ -39,7 +39,7 @@ const FACULTIES = [
 const STEPS = [
   { id: 1, title: 'Maklumat Peribadi & Kontak', icon: User, description: 'Pengenalan diri, no. telefon & waris' },
   { id: 2, title: 'Akademik UMS', icon: BookOpen, description: 'Fakulti, program pengajian & No. Matrik' },
-  { id: 3, title: 'Blok & Bilik KKTF', icon: Building2, description: 'Penetapan blok & bilik yang ditawarkan UMS' },
+  { id: 3, title: 'Status Kunci & Bilik', icon: Building2, description: 'Penetapan bilik atau penangguhan kunci di kaunter' },
 ];
 
 export default function StudentSetup({ user, onComplete }) {
@@ -48,6 +48,7 @@ export default function StudentSetup({ user, onComplete }) {
   const [blocks, setBlocks] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
+  const [knowsRoom, setKnowsRoom] = useState(false);
 
   const [form, setForm] = useState({
     student_id: '',
@@ -67,8 +68,8 @@ export default function StudentSetup({ user, onComplete }) {
     block_name: '',
     room_number: '',
     room_id: '',
-    room_status: 'Checked In',
-    resident_status: 'Active',
+    room_status: 'Pending Key',
+    resident_status: 'Registered',
     status: 'Active',
     user_id: user?.id || '',
   });
@@ -130,8 +131,10 @@ export default function StudentSetup({ user, onComplete }) {
       if (!form.year_of_study) errs.year_of_study = 'Sila pilih tahun pengajian';
     }
     if (s === 3) {
-      if (!form.block_name) errs.block_name = 'Sila pilih blok kediaman yang telah ditawarkan';
-      if (!form.room_number) errs.room_number = 'Sila pilih nombor bilik anda';
+      if (knowsRoom) {
+        if (!form.block_name) errs.block_name = 'Sila pilih blok kediaman yang telah ditawarkan';
+        if (!form.room_number) errs.room_number = 'Sila pilih nombor bilik anda';
+      }
     }
     return errs;
   }
@@ -149,49 +152,22 @@ export default function StudentSetup({ user, onComplete }) {
     try {
       const selectedRoom = rooms.find(r => r.room_number === form.room_number && r.block_name === form.block_name);
       const roomId = selectedRoom?.id || form.room_id || '';
-      const nowIso = new Date().toISOString();
-      const todayDate = nowIso.split('T')[0];
 
-      // 1. Create Student Resident record
+      // 1. Create Student Resident record (Pre-registration)
       const studentData = {
         ...form,
-        room_id: roomId,
+        block_name: knowsRoom ? form.block_name : '',
+        room_number: knowsRoom ? form.room_number : '',
+        room_id: knowsRoom ? roomId : '',
         year_of_study: Number(form.year_of_study),
-        check_in_date: todayDate,
-        room_status: 'Checked In',
-        resident_status: 'Active'
+        room_status: knowsRoom ? 'Pending Verification' : 'Pending Key',
+        resident_status: 'Registered'
       };
 
-      const createdStudent = await base44.entities.Student.create(studentData);
+      await base44.entities.Student.create(studentData);
 
       // 2. Update user role
       await base44.auth.updateMe({ role: 'student' });
-
-      // 3. Increment Room Occupancy if room found
-      if (selectedRoom) {
-        const nextOcc = (selectedRoom.current_occupancy || 0) + 1;
-        await base44.entities.Room.update(selectedRoom.id, {
-          current_occupancy: nextOcc,
-          status: nextOcc >= (selectedRoom.capacity || 4) ? 'Full' : 'Occupied'
-        });
-
-        // 4. Create audit CheckIn entry
-        try {
-          await base44.entities.CheckIn.create({
-            student_id: createdStudent.id,
-            student_name: form.full_name,
-            room_id: selectedRoom.id,
-            room_number: form.room_number,
-            block_name: form.block_name,
-            check_in_date: todayDate,
-            check_in_time: new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }),
-            semester: 'Sem1_2526',
-            notes: 'Pendaftaran kendiri residen baharu (Self-Service Onboarding)'
-          });
-        } catch (e) {
-          console.warn('CheckIn log note:', e);
-        }
-      }
     } catch (e) {
       console.error('Registration failed:', e);
     } finally {
@@ -404,83 +380,133 @@ export default function StudentSetup({ user, onComplete }) {
             </div>
           )}
 
-          {/* STEP 3: ASSIGNED BLOCK & ROOM SELECTION */}
+          {/* STEP 3: ASSIGNED BLOCK & ROOM SELECTION OR PRE-REGISTRATION */}
           {step === 3 && (
             <div className="space-y-4 text-xs">
               <div className="p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-2xl flex items-start gap-3 text-indigo-950">
                 <Sparkles className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
                 <div className="text-xs space-y-0.5">
-                  <p className="font-bold">Penetapan Bilik Ditawarkan UMS</p>
+                  <p className="font-bold">Status Kunci & Bilik Kediaman KKTF</p>
                   <p className="text-slate-600 leading-relaxed text-[11px]">
-                    Sila pilih blok dan bilik kediaman seperti yang tertera pada surat tawaran / portal e-Hostel UMS anda.
+                    Adakah anda mendaftar awal dari rumah (belum terima kunci), atau telah menerima kunci fizikal daripada pihak kolej?
                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-700">Pilih Blok Kediaman *</Label>
-                  <Select 
-                    value={form.block_name} 
-                    onValueChange={v => {
-                      setForm(f => ({ ...f, block_name: v, room_number: '', room_id: '' }));
-                      setErrors(e => ({ ...e, block_name: '', room_number: '' }));
-                    }}
-                  >
-                    <SelectTrigger className={`h-10 text-xs ${errors.block_name ? 'border-red-500 bg-red-50/30' : ''}`}>
-                      <SelectValue placeholder="Pilih Blok Anda" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableBlocks.map(b => (
-                        <SelectItem key={b.id} value={b.block_name}>
-                          {b.block_name} ({b.gender_restriction || 'Semua'})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.block_name && <p className="text-[11px] text-red-500">{errors.block_name}</p>}
+              {/* DUA PILIHAN: BELUM TERIMA KUNCI VS SUDAH ADA KUNCI */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div 
+                  onClick={() => {
+                    setKnowsRoom(false);
+                    setForm(f => ({ ...f, block_name: '', room_number: '', room_id: '' }));
+                    setErrors(e => ({ ...e, block_name: '', room_number: '' }));
+                  }}
+                  className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                    !knowsRoom 
+                      ? 'border-indigo-600 bg-indigo-50/50 shadow-sm' 
+                      : 'border-slate-200 bg-slate-50/50 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <DoorClosed className={`w-4 h-4 ${!knowsRoom ? 'text-indigo-600' : 'text-slate-500'}`} />
+                    <p className="font-bold text-slate-900 text-xs">Belum Ambil Kunci (Prapendaftaran)</p>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-tight">
+                    Saya mendaftar awal dari rumah. Saya akan key-in bilik dan imbas Kod QR selepas mengambil kunci di kaunter kolej.
+                  </p>
                 </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-700">Nombor Bilik *</Label>
-                  <Select 
-                    value={form.room_number} 
-                    disabled={!form.block_name}
-                    onValueChange={v => {
-                      const selRoom = availableRooms.find(r => r.room_number === v);
-                      setForm(f => ({ ...f, room_number: v, room_id: selRoom?.id || '' }));
-                      setErrors(e => ({ ...e, room_number: '' }));
-                    }}
-                  >
-                    <SelectTrigger className={`h-10 text-xs ${errors.room_number ? 'border-red-500 bg-red-50/30' : ''}`}>
-                      <SelectValue placeholder={form.block_name ? "Pilih Nombor Bilik" : "Pilih blok dahulu"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableRooms.map(r => (
-                        <SelectItem key={r.id} value={r.room_number}>
-                          Bilik {r.room_number} ({r.current_occupancy || 0}/{r.capacity || 4} orang)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.room_number && <p className="text-[11px] text-red-500">{errors.room_number}</p>}
+                <div 
+                  onClick={() => setKnowsRoom(true)}
+                  className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                    knowsRoom 
+                      ? 'border-indigo-600 bg-indigo-50/50 shadow-sm' 
+                      : 'border-slate-200 bg-slate-50/50 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Building2 className={`w-4 h-4 ${knowsRoom ? 'text-indigo-600' : 'text-slate-500'}`} />
+                    <p className="font-bold text-slate-900 text-xs">Sudah Tahu Bilik Kunci</p>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-tight">
+                    Saya telah memegang kunci fizikal / tahu blok & nombor bilik dan ingin memilihnya sekarang.
+                  </p>
                 </div>
               </div>
 
-              {form.block_name && form.room_number && (
+              {knowsRoom && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 animate-in fade-in slide-in-from-top-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-slate-700">Pilih Blok Kediaman *</Label>
+                    <Select 
+                      value={form.block_name} 
+                      onValueChange={v => {
+                        setForm(f => ({ ...f, block_name: v, room_number: '', room_id: '' }));
+                        setErrors(e => ({ ...e, block_name: '', room_number: '' }));
+                      }}
+                    >
+                      <SelectTrigger className={`h-10 text-xs ${errors.block_name ? 'border-red-500 bg-red-50/30' : ''}`}>
+                        <SelectValue placeholder="Pilih Blok Anda" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableBlocks.map(b => (
+                          <SelectItem key={b.id} value={b.block_name}>
+                            {b.block_name} ({b.gender_restriction || 'Semua'})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {errors.block_name && <p className="text-[11px] text-red-500">{errors.block_name}</p>}
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-slate-700">Nombor Bilik *</Label>
+                    <Select 
+                      value={form.room_number} 
+                      disabled={!form.block_name}
+                      onValueChange={v => {
+                        const selRoom = availableRooms.find(r => r.room_number === v);
+                        setForm(f => ({ ...f, room_number: v, room_id: selRoom?.id || '' }));
+                        setErrors(e => ({ ...e, room_number: '' }));
+                      }}
+                    >
+                      <SelectTrigger className={`h-10 text-xs ${errors.room_number ? 'border-red-500 bg-red-50/30' : ''}`}>
+                        <SelectValue placeholder={form.block_name ? "Pilih Nombor Bilik" : "Pilih blok dahulu"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableRooms.map(r => (
+                          <SelectItem key={r.id} value={r.room_number}>
+                            Bilik {r.room_number} ({r.current_occupancy || 0}/{r.capacity || 4} orang)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {errors.room_number && <p className="text-[11px] text-red-500">{errors.room_number}</p>}
+                  </div>
+                </div>
+              )}
+
+              {!knowsRoom ? (
+                <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-2xl flex items-center gap-2.5 text-amber-900">
+                  <Info className="w-4 h-4 text-amber-600 shrink-0" />
+                  <p className="text-[11px] leading-relaxed">
+                    Profil anda akan disimpan. Selepas mengambil kunci fizikal di kaunter pentadbiran kolej, anda boleh masukkan bilik dan imbas Kod QR untuk pengesahan kehadiran fizikal.
+                  </p>
+                </div>
+              ) : form.block_name && form.room_number ? (
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-emerald-950">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                     <div>
                       <p className="text-xs font-bold">Bilik Dipilih: {form.block_name} - Bilik {form.room_number}</p>
-                      <p className="text-[10px] text-emerald-700">Pas Residen Digital & Kod E-Leave anda akan dijana secara automatik.</p>
+                      <p className="text-[10px] text-emerald-700">Imbas Kod QR di kaunter kolej untuk mengaktifkan pas kehadiran fizikal.</p>
                     </div>
                   </div>
                   <Badge className="bg-emerald-600 text-white text-[10px] px-2 py-0.5">
-                    Sah Ditawarkan
+                    Sedia Disahkan
                   </Badge>
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 
@@ -517,11 +543,11 @@ export default function StudentSetup({ user, onComplete }) {
               >
                 {saving ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Mengaktifkan Residen & Pas...
+                    <Loader2 className="w-4 h-4 animate-spin" /> Menyimpan Profil...
                   </>
                 ) : (
                   <>
-                    <ShieldCheck className="w-4 h-4" /> Sahkan & Aktifkan Pas Residen
+                    <ShieldCheck className="w-4 h-4" /> Simpan Profil & Teruskan
                   </>
                 )}
               </Button>

@@ -11,9 +11,10 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Archive, LogIn, LogOut, Search, User, Loader2, Calendar } from 'lucide-react';
+import { Archive, LogIn, LogOut, Search, User, Loader2, Calendar, QrCode, Printer } from 'lucide-react';
 import SurveyModal from '@/components/SurveyModal';
 import TablePagination from '@/components/shared/TablePagination';
+import { InstitutionalDualLogo } from '@/components/shared/KKTFLogo';
 import { useQuery } from '@tanstack/react-query';
 import { realTimeQueryOptions } from '@/lib/query-client';
 import { logAudit } from '@/lib/audit';
@@ -55,6 +56,7 @@ export default function CheckInOut() {
   const [archiveDialog, setArchiveDialog] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState(null);
   const [showSurvey, setShowSurvey] = useState(false);
+  const [showQrPosterModal, setShowQrPosterModal] = useState(false);
 
   // Pagination States
   const [ciPage, setCiPage] = useState(1);
@@ -415,6 +417,9 @@ export default function CheckInOut() {
         description="Urus pergerakan residen dengan validasi hibrid"
         actions={
           <div className="flex gap-2 flex-wrap">
+            <Button size="sm" variant="outline" className="border-lime-500/60 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100/60" onClick={() => setShowQrPosterModal(true)}>
+              <QrCode className="w-4 h-4 mr-1.5 text-emerald-600" /> Kod QR Kaunter
+            </Button>
             <Button size="sm" variant="secondary" onClick={() => setArchiveDialog(true)}>
               <Archive className="w-4 h-4 mr-1.5" /> Tutup Sesi
             </Button>
@@ -779,6 +784,49 @@ export default function CheckInOut() {
                 {archiving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Mengarkib...</> : 'Teruskan Arkib'}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* COUNTER SELF CHECK-IN QR POSTER DIALOG */}
+      <Dialog open={showQrPosterModal} onOpenChange={setShowQrPosterModal}>
+        <DialogContent className="max-w-md p-6 bg-white rounded-3xl border border-slate-200 text-center shadow-2xl">
+          <div className="flex items-center justify-between border-b pb-3">
+            <InstitutionalDualLogo />
+            <Badge className="bg-lime-500 text-slate-950 font-bold text-[10px]">
+              POSTER RASMI
+            </Badge>
+          </div>
+
+          <div className="space-y-1 pt-2">
+            <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">
+              Kod QR Self Check-In KKTF
+            </h3>
+            <p className="text-xs text-slate-500">
+              Pamerkan di Kaunter Penyerahan Kunci atau Pintu Masuk Blok Kediaman.
+            </p>
+          </div>
+
+          <div className="p-4 bg-white rounded-2xl border-4 border-lime-400 shadow-md inline-block mx-auto my-2">
+            <img 
+              src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=KKTF-CHECKIN-OFFICIAL-2025" 
+              alt="QR Rasmi Check-In KKTF" 
+              className="w-56 h-56 mx-auto object-contain"
+            />
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl text-left space-y-1 text-xs text-slate-600">
+            <p className="font-bold text-slate-800">Kod Pengesahan Kaunter: <code className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono font-bold">KKTF2025</code></p>
+            <p className="text-[11px] text-slate-500">Pelajar boleh mengimbas QR ini atau memasukkan kod manual di atas melalui portal telefon mereka.</p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setShowQrPosterModal(false)}>
+              Tutup
+            </Button>
+            <Button size="sm" className="bg-[#002147] hover:bg-[#001833] text-white gap-1.5" onClick={() => window.print()}>
+              <Printer className="w-4 h-4" /> Cetak Poster
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

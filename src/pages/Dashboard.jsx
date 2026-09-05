@@ -4,13 +4,31 @@ import { base44 } from '@/api/base44Client';
 import AdminDashboard from '@/components/dashboard/AdminDashboard';
 import StudentDashboard from '@/components/dashboard/StudentDashboard';
 import WardenDashboard from '@/components/dashboard/WardenDashboard';
+import StudentSetup from '@/pages/StudentSetup';
+import StudentCheckInModal from '@/components/dashboard/StudentCheckInModal';
+import { InstitutionalDualLogo } from '@/components/shared/KKTFLogo';
+import { Badge } from '@/components/ui/badge';
 import { fetchActiveJakmasAppointment, computeEffectiveRole } from '@/lib/jakmas';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ClipboardCheck, MapPin, Info, Users, BedDouble, AlertCircle } from "lucide-react";
+import { 
+  Loader2, 
+  ClipboardCheck, 
+  MapPin, 
+  Info, 
+  Users, 
+  BedDouble, 
+  AlertCircle,
+  KeyRound,
+  Building2,
+  ScanLine,
+  Sparkles,
+  ShieldCheck,
+  CheckCircle2
+} from "lucide-react";
 import WelcomeTour from '@/components/onboarding/WelcomeTour';
 
 const UMS_FACULTIES = [
@@ -30,8 +48,10 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
   const [jakmasAppointment, setJakmasAppointment] = useState(null);
+  const [studentProfile, setStudentProfile] = useState(null);
   const [hasStudentProfile, setHasStudentProfile] = useState(false);
   const [isRoomAssigned, setIsRoomAssigned] = useState(false); 
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -83,20 +103,17 @@ export default function Dashboard() {
         // --- PENGAMBILAN DATA REAL-TIME ---
         try {
           const allStudents = await base44.entities.Student.filter({});
-          const checkedIn = allStudents.filter(s => s.block_name && s.room_number).length;
-          const pendingRoom = allStudents.filter(s => !s.block_name || !s.room_number).length;
+          const checkedIn = allStudents.filter(s => s.block_name && s.room_number && s.room_status === 'Checked In').length;
+          const pendingRoom = allStudents.filter(s => !s.block_name || !s.room_number || s.room_status !== 'Checked In').length;
 
           const allRooms = await base44.entities.Room.filter({});
           let availableRooms = 0;
 
-          // Hanya bilik OPERATIONAL (Available / Occupied) dikira sebagai kosong.
-          // Bilik Reserved, Maintenance & Not Available dikecualikan daripada
-          // jumlah kapasiti sebenar yang sedia untuk diinap.
           const NON_OPERATIONAL_STATUSES = ['Reserved', 'Maintenance', 'Under Maintenance', 'Not Available'];
           allRooms.forEach(room => {
             if (NON_OPERATIONAL_STATUSES.includes(room.status)) return;
             const currentOccupants = allStudents.filter(s => 
-              s.block_name === room.block_name && s.room_number === room.room_number
+              s.block_name === room.block_name && s.room_number === room.room_number && s.room_status === 'Checked In'
             ).length;
             const roomCapacity = room.capacity || room.max_beds || 2;
             if (currentOccupants < roomCapacity) {
@@ -111,9 +128,7 @@ export default function Dashboard() {
           console.error("Gagal mengira statistik:", countErr);
         }
 
-        // Non-resident roles (warden, staff, admin) must never be recorded or
-        // counted as students. Remove any stray Student record linked to their
-        // account so they don't appear in the student list / directory.
+        // Non-resident roles (warden, staff, admin)
         if (
           effectiveRole === 'warden' ||
           effectiveRole === 'staff' ||
@@ -129,14 +144,14 @@ export default function Dashboard() {
               if (stray.length > 0) {
                 await base44.entities.Student.deleteMany({ user_id: user.id });
               }
-            } catch (e) { /* best-effort cleanup, must not block login */ }
+            } catch (e) { /* best-effort cleanup */ }
           }
           setHasStudentProfile(true);
           setIsRoomAssigned(true);
           return;
         }
 
-        // JAKMAS members ARE students — keep their Student record; skip onboarding.
+        // JAKMAS members ARE students
         if (effectiveRole === 'jakmas') {
           setHasStudentProfile(true);
           setIsRoomAssigned(true);
@@ -152,14 +167,14 @@ export default function Dashboard() {
         }
         
         if (studs.length > 0 && studs[0]?.student_id) {
+          const s = studs[0];
+          setStudentProfile(s);
           setHasStudentProfile(true);
-          if (studs[0]?.block_name && studs[0]?.room_number) {
-            setIsRoomAssigned(true);
-          } else {
-            setIsRoomAssigned(false);
-          }
+          const isCheckedIn = (s.room_status === 'Checked In') && Boolean(s.block_name && s.room_number);
+          setIsRoomAssigned(isCheckedIn);
         } else {
           setHasStudentProfile(false);
+          setStudentProfile(null);
           setForm(prev => ({
             ...prev,
             full_name: user?.full_name || '',
@@ -341,165 +356,116 @@ export default function Dashboard() {
   const umsBackgroundImageStyle = "relative before:content-[''] before:absolute before:inset-0 before:block before:bg-[url('https://images.unsplash.com/photo-1605538032432-a9f0c8d9baac?q=80&w=1200')] before:bg-cover before:bg-center before:opacity-30 before:z-0";
 
   if (!hasStudentProfile) {
-    return (
-      <div className={`flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50 ${umsBackgroundImageStyle}`}>
-        <div className="max-w-xl w-full space-y-6 bg-white/95 backdrop-blur-md p-8 rounded-xl border border-slate-200 shadow-xl my-8 z-10">
-          <div className="text-center space-y-2">
-            <div className="inline-flex p-2 bg-blue-50 rounded-full text-[#002147] mb-1">
-              <ClipboardCheck className="w-6 h-6" />
-            </div>
-            <h1 className="text-2xl font-bold text-[#002147] tracking-tight">Profil Pelajar Baru 👋</h1>
-            <p className="text-slate-500 text-sm">
-              Sila isikan maklumat lengkap di bawah untuk mengaktifkan portal kediaman KKTF UMS.
-            </p>
-          </div>
-
-          <form onSubmit={handleCompleteProfile} className="space-y-5">
-            {/* Maklumat Peribadi */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-[#002147] uppercase tracking-wider border-b border-slate-100 pb-1.5">Maklumat Peribadi</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div>
-                  <Label className="text-xs text-slate-600">Nama Penuh *</Label>
-                  <Input value={form.full_name} onChange={e => updateFormKey('full_name', e.target.value)} className="h-10 mt-1" disabled={submitting} />
-                </div>
-                <div>
-                  <Label className="text-xs text-slate-600">No. Matrik Pelajar *</Label>
-                  <Input placeholder="Contoh: BI21110043" value={form.student_id} onChange={e => updateFormKey('student_id', e.target.value)} className="h-10 mt-1" disabled={submitting} />
-                </div>
-                <div>
-                  <Label className="text-xs text-slate-600">No. IC / Pasport</Label>
-                  <Input value={form.ic_passport} onChange={e => updateFormKey('ic_passport', e.target.value)} className="h-10 mt-1" disabled={submitting} />
-                </div>
-                <div>
-                  <Label className="text-xs text-slate-600">No. Telefon Bimbit *</Label>
-                  <Input placeholder="Contoh: 0123456789" value={form.phone} onChange={e => updateFormKey('phone', e.target.value)} className="h-10 mt-1" disabled={submitting} />
-                </div>
-                <div>
-                  <Label className="text-xs text-slate-600">Jantina</Label>
-                  <Select value={form.gender} onValueChange={v => updateFormKey('gender', v)} disabled={submitting}>
-                    <SelectTrigger className="h-10 mt-1"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Male">Male</SelectItem>
-                      <SelectItem value="Female">Female</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs text-slate-600">Tarikh Lahir</Label>
-                  <Input type="date" value={form.date_of_birth} onChange={e => updateFormKey('date_of_birth', e.target.value)} className="h-10 mt-1" disabled={submitting} />
-                </div>
-              </div>
-            </div>
-
-            {/* Maklumat Akademik */}
-            <div className="space-y-3 pt-2">
-              <h3 className="text-xs font-bold text-[#002147] uppercase tracking-wider border-b border-slate-100 pb-1.5">Maklumat Akademik</h3>
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-xs text-slate-600">Fakulti</Label>
-                  <Select value={form.faculty} onValueChange={v => updateFormKey('faculty', v)} disabled={submitting}>
-                    <SelectTrigger className="h-10 mt-1"><SelectValue placeholder="Pilih Fakulti" /></SelectTrigger>
-                    <SelectContent>
-                      {UMS_FACULTIES.map(fc => <SelectItem key={fc} value={fc}>{fc}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div>
-                    <Label className="text-xs text-slate-600">Program Pengajian</Label>
-                    <Input placeholder="Contoh: Sains Komputer" value={form.programme} onChange={e => updateFormKey('programme', e.target.value)} className="h-10 mt-1" disabled={submitting} />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-slate-600">Tahun Pengajian</Label>
-                    <Select value={String(form.year_of_study)} onValueChange={v => updateFormKey('year_of_study', Number(v))} disabled={submitting}>
-                      <SelectTrigger className="h-10 mt-1"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {[1,2,3,4,5].map(y => <SelectItem key={y} value={String(y)}>Tahun {y}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Maklumat Waris & Kecemasan */}
-            <div className="space-y-3 pt-2">
-              <h3 className="text-xs font-bold text-[#002147] uppercase tracking-wider border-b border-slate-100 pb-1.5">Maklumat Kecemasan & Kenderaan</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div>
-                  <Label className="text-xs text-slate-600">Nama Ibu Bapa / Penjaga *</Label>
-                  <Input value={form.parent_name} onChange={e => updateFormKey('parent_name', e.target.value)} className="h-10 mt-1" disabled={submitting} />
-                </div>
-                <div>
-                  <Label className="text-xs text-slate-600">No. Telefon Ibu Bapa / Penjaga *</Label>
-                  <Input placeholder="Contoh: 0134567890" value={form.parent_phone} onChange={e => updateFormKey('parent_phone', e.target.value)} className="h-10 mt-1" disabled={submitting} />
-                </div>
-                <div>
-                  <Label className="text-xs text-slate-600">Hubungan Kontak Kecemasan Lain</Label>
-                  <Input placeholder="Contoh: Pakcik / Kakak" value={form.emergency_contact} onChange={e => updateFormKey('emergency_contact', e.target.value)} className="h-10 mt-1" disabled={submitting} />
-                </div>
-                <div>
-                  <Label className="text-xs text-slate-600">No. Pendaftaran Kenderaan</Label>
-                  <Input placeholder="Contoh: SAB 1234 X" value={form.vehicle_reg} onChange={e => updateFormKey('vehicle_reg', e.target.value)} className="h-10 mt-1" disabled={submitting} />
-                </div>
-              </div>
-            </div>
-
-            <Button type="submit" className="w-full h-11 bg-[#002147] hover:bg-[#001833] text-white font-medium rounded-lg mt-2 transition-colors shadow-sm" disabled={submitting}>
-              {submitting ? "Menghantar Profil Pelajar..." : "Sahkan Profil & Daftar Akaun"}
-            </Button>
-          </form>
-        </div>
-      </div>
-    );
+    return <StudentSetup user={currentUser} onComplete={() => window.location.reload()} />;
   }
 
   if (hasStudentProfile && !isRoomAssigned) {
     return (
-      <div className={`flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50 ${umsBackgroundImageStyle}`}>
-        <div className="max-w-md w-full bg-white/95 backdrop-blur-md p-8 rounded-xl border border-slate-200 text-center shadow-xl space-y-6 z-10">
-          <div className="mx-auto w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100">
-            <ClipboardCheck className="w-7 h-7" />
+      <div className={`flex flex-col items-center justify-center min-h-screen p-4 sm:p-6 bg-slate-900 ${umsBackgroundImageStyle}`}>
+        <div className="max-w-lg w-full bg-slate-950/90 backdrop-blur-xl p-6 sm:p-8 rounded-3xl border border-slate-800 text-center shadow-2xl space-y-6 z-10 text-white animate-in fade-in zoom-in-95">
+          
+          {/* Header with Logos & Badge */}
+          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <InstitutionalDualLogo />
+            <Badge className="bg-amber-500/20 text-amber-300 border-amber-400/40 text-[10px] font-mono font-bold px-2.5 py-1">
+              {studentProfile?.room_status === 'Pending Verification' ? '● MENUNGGU IMBASAN QR' : '● MENUNGGU KUNCI'}
+            </Badge>
           </div>
 
-          <div className="space-y-2">
-            <h1 className="text-xl font-bold text-[#002147] tracking-tight">Tahniah! Pendaftaran Profil Berjaya! 🎉</h1>
-            <p className="text-sm text-slate-500 leading-relaxed">
-              Akaun anda telah aktif, namun penempatan blok & bilik kolej anda masih belum dikemas kini oleh pentadbir.
+          {/* Greeting & Identity */}
+          <div className="space-y-1.5 pt-1">
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500/20 to-lime-500/10 border border-amber-400/30 flex items-center justify-center text-amber-400 shadow-md">
+              <KeyRound className="w-7 h-7" />
+            </div>
+            <h1 className="text-xl font-black text-white tracking-tight pt-2">
+              Pusat Pengesahan & Self Check-In KKTF
+            </h1>
+            <p className="text-xs text-slate-300 font-medium max-w-sm mx-auto">
+              Hai <strong className="text-amber-300">{studentProfile?.full_name || currentUser?.full_name}</strong> ({studentProfile?.student_id || 'Pelajar'}), lengkapkan pengesahan di bawah untuk mengaktifkan Pas Residen Digital anda.
             </p>
           </div>
 
-          <div className="text-left space-y-3.5 bg-slate-50/80 p-5 rounded-xl border border-slate-100">
-            <h3 className="text-xs font-bold text-[#002147] uppercase tracking-wider flex items-center gap-1.5">
-              <Info className="w-4 h-4 text-blue-600" /> Langkah Seterusnya:
-            </h3>
+          {/* Room Status Box */}
+          <div className="p-4 bg-slate-900/90 border border-slate-800 rounded-2xl text-left space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-lime-400" /> Penempatan Bilik Kunci:
+              </span>
+              {studentProfile?.block_name && studentProfile?.room_number ? (
+                <Badge className="bg-lime-500/20 text-lime-300 border-lime-400/40 text-[10px]">
+                  Ditetapkan
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-slate-400 border-slate-700 text-[10px]">
+                  Belum Ditetapkan
+                </Badge>
+              )}
+            </div>
 
-            <div className="space-y-3 text-sm text-slate-600">
-              <div className="flex gap-3 items-start">
-                <span className="w-5 h-5 rounded-full bg-[#002147] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
-                <p>Hadir ke <strong>Pejabat Pentadbiran Kolej Kediaman Tun Fuad (KKTF)</strong>.</p>
+            {studentProfile?.block_name && studentProfile?.room_number ? (
+              <div className="flex items-center justify-between pt-1">
+                <p className="text-sm font-bold text-white font-mono">
+                  {studentProfile.block_name} &bull; Bilik {studentProfile.room_number}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowCheckInModal(true)}
+                  className="text-[11px] text-lime-400 hover:text-lime-300 font-bold underline cursor-pointer"
+                >
+                  Tukar Bilik
+                </button>
               </div>
-              <div className="flex gap-3 items-start">
-                <span className="w-5 h-5 rounded-full bg-[#002147] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
-                <p>Kemukakan <strong>No. Matrik</strong> anda kepada pegawai bertugas untuk semakan.</p>
-              </div>
-              <div className="flex gap-3 items-start">
-                <span className="w-5 h-5 rounded-full bg-[#002147] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
-                <p>Pegawai akan menyerahkan kunci fizikal dan mengemas kini bilik anda secara langsung ke dalam portal.</p>
-              </div>
+            ) : (
+              <p className="text-xs text-amber-300/90 font-medium pt-1">
+                ⚠️ Sila ambil kunci fizikal di kaunter pejabat kolej untuk mengetahui blok & nombor bilik anda.
+              </p>
+            )}
+          </div>
+
+          {/* Prosedur Kemasukan Ringkas */}
+          <div className="text-left space-y-2.5 bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80 text-xs text-slate-300">
+            <p className="font-bold text-slate-200 text-[11px] uppercase tracking-wider">3 Langkah Mudah Pengesahan:</p>
+            <div className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-slate-800 text-lime-400 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 border border-slate-700">1</span>
+              <p>Ambil kunci fizikal di <strong>Kaunter Utama Pentadbiran KKTF</strong>.</p>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-slate-800 text-lime-400 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 border border-slate-700">2</span>
+              <p>Masukkan nombor bilik kunci anda pada sistem.</p>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-slate-800 text-lime-400 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 border border-slate-700">3</span>
+              <p>Imbas <strong>Kod QR Check-In Rasmi</strong> di kaunter/blok untuk mengaktifkan pas!</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-blue-50/80 border border-blue-100 p-3.5 rounded-lg text-left text-sm text-[#002147]">
-            <MapPin className="w-5 h-5 shrink-0 text-[#990000]" />
-            <p className="text-xs leading-normal"><strong>Lokasi:</strong> Kaunter Utama Pentadbiran KKTF, Kompleks Kediaman UMS.</p>
-          </div>
-
-          <Button onClick={() => window.location.reload()} variant="outline" className="w-full h-10 text-xs text-slate-500 font-medium hover:bg-slate-50 border-slate-200">
-            Semak Semula Status Bilik
+          {/* Main Call to Action Button */}
+          <Button 
+            onClick={() => setShowCheckInModal(true)}
+            className="w-full h-12 bg-gradient-to-r from-lime-500 to-emerald-600 hover:from-lime-600 hover:to-emerald-700 text-slate-950 font-black text-sm rounded-2xl shadow-[0_0_25px_rgba(132,204,22,0.3)] flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.01]"
+          >
+            <ScanLine className="w-5 h-5 text-slate-950" />
+            {studentProfile?.block_name ? "📷 Imbas Kod QR Pengesahan Masuk" : "🔑 Tetapkan Bilik & Imbas Kod QR"}
           </Button>
+
+          <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400">
+            <MapPin className="w-3.5 h-3.5 text-red-400" />
+            <span>Lokasi: Kompleks Kolej Kediaman Tun Fuad (KKTF), UMS</span>
+          </div>
         </div>
+
+        {/* Self Check-In Modal */}
+        <StudentCheckInModal 
+          isOpen={showCheckInModal}
+          onClose={() => setShowCheckInModal(false)}
+          student={studentProfile}
+          user={currentUser}
+          onCheckInSuccess={(updated) => {
+            setStudentProfile(prev => ({ ...prev, ...updated }));
+            setIsRoomAssigned(true);
+            setShowCheckInModal(false);
+          }}
+        />
       </div>
     );
   }
