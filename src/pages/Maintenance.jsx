@@ -32,12 +32,18 @@ import {
   Search,
   Check,
   AlertTriangle,
-  Flame
+  Flame,
+  Printer,
+  FileText,
+  Building2
 } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 import { toast } from 'sonner';
 import { validateAttachment } from '@/lib/validators';
 import { logAudit } from '@/lib/audit';
+import DamageReportModal from '@/components/DamageReportModal';
+import BlockInspectionDossierModal from '@/components/BlockInspectionDossierModal';
+import { stampInspectionWatermark } from '@/lib/imageWatermark';
 
 const UMS_MYSERV_URL = 'https://aset.ums.edu.my/myserv/';
 
@@ -64,8 +70,8 @@ const statusBadge = {
 };
 
 const STATUS_LABELS = {
-  Submitted: 'Menunggu No. MyServ',
-  'Reported to MyServ': 'Telah Lapor MyServ',
+  Submitted: 'Menunggu No. TAMS',
+  'Reported to MyServ': 'Telah Lapor TAMS/JPP',
   'Followed Up': 'Dihebahkan / Susulan JPP',
   'In Progress': 'Tindakan JPP Berjalan',
   Completed: 'Disahkan Selesai'
@@ -158,6 +164,17 @@ export default function Maintenance() {
   const [quickLogText, setQuickLogText] = useState('');
   const [savingLog, setSavingLog] = useState(false);
 
+  // Damage Report Printable Modal States
+  const [damageReportModalOpen, setDamageReportModalOpen] = useState(false);
+  const [selectedReqForReport, setSelectedReqForReport] = useState(null);
+
+  // Block Inspection Dossier Modal State
+  const [dossierModalOpen, setDossierModalOpen] = useState(false);
+
+  // Photo Stamping Indicators
+  const [stampingPhoto, setStampingPhoto] = useState(false);
+  const [stampingCompletePhoto, setStampingCompletePhoto] = useState(false);
+
   // New Request Form
   const [form, setForm] = useState({
     location_type: 'My Room',
@@ -241,7 +258,7 @@ export default function Maintenance() {
     setDialogOpen(true);
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -253,14 +270,40 @@ export default function Maintenance() {
       return;
     }
 
+    setStampingPhoto(true);
+    const toastId = toast.loading('Menjana cop masa & lokasi rasmi pada foto...');
+
     const reader = new FileReader();
-    reader.onload = (event) => {
-      setForm(f => ({ ...f, photo: event.target.result }));
+    reader.onload = async (event) => {
+      try {
+        const rawBase64 = event.target.result;
+        const locName = form.location_type === 'My Room' 
+          ? (myStudent?.room_number ? `Bilik ${myStudent.room_number} (${myStudent.block_name || ''})` : form.specific_location)
+          : form.specific_location;
+        const reporterName = myStudent?.full_name || currentUser?.full_name || currentUser?.email;
+
+        const stamped = await stampInspectionWatermark(rawBase64, {
+          location: locName || 'Fasiliti Kolej KKTF',
+          category: form.category || 'Penyelenggaraan',
+          stage: 'PEMERIKSAAN KEROSAKAN TAPAK',
+          inspectorName: reporterName,
+          ticketRef: 'DRAF-KKTF'
+        });
+
+        setForm(f => ({ ...f, photo: stamped }));
+        toast.success('Foto berjaya dicap dengan cop masa & lokasi rasmi!', { id: toastId });
+      } catch (err) {
+        console.error('Failed to stamp photo:', err);
+        setForm(f => ({ ...f, photo: event.target.result }));
+        toast.dismiss(toastId);
+      } finally {
+        setStampingPhoto(false);
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleCompletePhotoChange = (e) => {
+  const handleCompletePhotoChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -272,11 +315,72 @@ export default function Maintenance() {
       return;
     }
 
+    setStampingCompletePhoto(true);
+    const toastId = toast.loading('Menjana cop masa pengesahan siap pembaikan...');
+
     const reader = new FileReader();
-    reader.onload = (event) => {
-      setCompletePhoto(event.target.result);
+    reader.onload = async (event) => {
+      try {
+        const rawBase64 = event.target.result;
+        const loc = selectedReqForComplete?.specific_location || selectedReqForComplete?.room_number || 'Fasiliti KKTF';
+        const verifierName = currentUser?.full_name || currentUser?.email || 'Felo Pemeriksa';
+        const tamsRef = selectedReqForComplete?.myserv_ticket_no || '';
+
+        const stamped = await stampInspectionWatermark(rawBase64, {
+          location: loc,
+          category: selectedReqForComplete?.category || 'Penyelenggaraan',
+          stage: 'PENGESAHAN SIAP PEMBAIKAN',
+          inspectorName: verifierName,
+          ticketRef: tamsRef || 'SELESAI'
+        });
+
+        setCompletePhoto(stamped);
+        toast.success('Foto pembaikan siap dicap dengan cop masa rasmi!', { id: toastId });
+      } catch (err) {
+        console.error('Failed to stamp completion photo:', err);
+        setCompletePhoto(event.target.result);
+        toast.dismiss(toastId);
+      } finally {
+        setStampingCompletePhoto(false);
+      }
     };
     reader.readAsDataURL(file);
+  };
+
+  // Quick Copy Helper for TAMS Portal Data Entry
+  const copyTamsFormat = (r) => {
+    if (!r) return;
+    const unitInfo = CATEGORY_UNIT_MAP[r.category] || CATEGORY_UNIT_MAP['Others'];
+    const isUrgent = r.urgency === 'Urgent';
+    const formattedDate = r.submitted_at 
+      ? new Date(r.submitted_at).toLocaleDateString('ms-MY', { 
+          day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+        })
+      : new Date().toLocaleDateString('ms-MY');
+
+    const ticketYear = r.submitted_at ? new Date(r.submitted_at).getFullYear() : new Date().getFullYear();
+    const internalKktfRef = `KKTF/MNT/${ticketYear}/${r.id ? String(r.id).slice(-5).toUpperCase() : 'REQ-01'}`;
+
+    const tamsText = `[LAPORAN KEROSAKAN FASILITI KKTF - TAMS UMS]
+No. Rujukan MyKKTF: ${internalKktfRef}
+Lokasi: ${r.specific_location || `Bilik ${r.room_number || '-'}`} (${r.location_type || 'Bilik Mahasiswa'})
+Kategori: ${r.category || 'Penyelenggaraan Am'}
+Unit Pelaksana JPP: ${unitInfo.unit}
+Tahap Keutamaan: ${isUrgent ? 'KECEMASAN / TINGGI' : 'BIASA (Standard SLA)'}
+Nama Pengadu / Felo: ${r.student_name || 'Felo Pemeriksa'} (ID/Matrik: ${r.student_id || '-'})
+No. Telefon Pengadu: ${r.phone_number || '-'}
+Tarikh Pemeriksaan: ${formattedDate}
+
+KETERANGAN KEROSAKAN:
+${r.description || '-'}
+
+CATATAN SUSULAN / PEMERIKSAAN TAPAK:
+${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi oleh pihak kolej.'}`;
+
+    navigator.clipboard.writeText(tamsText);
+    toast.success('Teks format TAMS berjaya disalin ke papan klip!', {
+      description: 'Sedia untuk ditampal ke sistem TAMS UMS.'
+    });
   };
 
   // STEP 1 & 2: Save to MyKKTF with exact timestamp and Launch MyServ
@@ -705,14 +809,26 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
             <SelectContent>
               <SelectItem value="all">Semua Laporan ({requests.length})</SelectItem>
               <SelectItem value="overdue">🚨 Perlu Susulan (&ge;3 Hari) ({totalOverdue})</SelectItem>
-              <SelectItem value="pending_ref">Menunggu No. MyServ</SelectItem>
-              <SelectItem value="has_ref">Telah Ada No. MyServ</SelectItem>
+              <SelectItem value="pending_ref">Menunggu No. TAMS</SelectItem>
+              <SelectItem value="has_ref">Telah Ada No. TAMS</SelectItem>
               <SelectItem value="Submitted">Status: Submitted</SelectItem>
               <SelectItem value="Followed Up">Status: Followed Up</SelectItem>
               <SelectItem value="In Progress">Status: In Progress</SelectItem>
               <SelectItem value="Completed">Status: Completed ({totalCompleted})</SelectItem>
             </SelectContent>
           </Select>
+
+          {isStaff && (
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => setDossierModalOpen(true)}
+              className="h-9 text-xs gap-1.5 text-[#132644] border-slate-300 hover:bg-slate-100 font-semibold shrink-0"
+              title="Jana Dokumen Ringkasan Pemeriksaan Blok A4 (Dossier)"
+            >
+              <FileText className="w-3.5 h-3.5 text-indigo-600" /> Dossier Blok (A4)
+            </Button>
+          )}
 
           {!isStaff && (
             <Button 
@@ -839,56 +955,78 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
                     </div>
                   )}
 
-                  {/* UMS MYSERV REFERENCE NUMBER BOX */}
+                  {/* UMS TAMS / MYSERV REFERENCE NUMBER BOX */}
                   <div className="mt-3 pt-2.5 border-t border-border">
                     {hasRef ? (
-                      <div className="p-2.5 bg-blue-50/80 rounded-xl border border-blue-200/80 flex items-center justify-between">
-                        <div>
-                          <p className="text-[10px] font-semibold text-blue-800 uppercase tracking-wide flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-blue-600" /> No. Rujukan MyServ (JPP):
+                      <div className="p-2.5 bg-blue-50/80 rounded-xl border border-blue-200/80 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold text-blue-800 uppercase tracking-wide flex items-center gap-1 truncate">
+                            <CheckCircle2 className="w-3 h-3 text-blue-600 shrink-0" /> No. Rujukan TAMS / JPP:
                           </p>
                           <a 
                             href={UMS_MYSERV_URL} 
                             target="_blank" 
                             rel="noopener noreferrer" 
-                            className="text-xs font-mono font-bold text-blue-950 hover:underline flex items-center gap-1 mt-0.5"
+                            className="text-xs font-mono font-bold text-blue-950 hover:underline flex items-center gap-1 mt-0.5 truncate"
                           >
-                            {r.myserv_ticket_no} <ExternalLink className="w-3 h-3 text-blue-600" />
+                            {r.myserv_ticket_no} <ExternalLink className="w-3 h-3 text-blue-600 shrink-0" />
                           </a>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-7 w-7 text-blue-700 hover:bg-blue-100"
-                          title="Kemaskini No. Rujukan"
-                          onClick={() => {
-                            setSelectedReqForRef(r);
-                            setInputRefNumber(r.myserv_ticket_no || '');
-                            setRefModalOpen(true);
-                          }}
-                        >
-                          <FileEdit className="w-3.5 h-3.5" />
-                        </Button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-7 w-7 text-blue-700 hover:bg-blue-100"
+                            title="Salin butiran terformat untuk TAMS"
+                            onClick={() => copyTamsFormat(r)}
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-7 w-7 text-blue-700 hover:bg-blue-100"
+                            title="Kemaskini No. Rujukan TAMS"
+                            onClick={() => {
+                              setSelectedReqForRef(r);
+                              setInputRefNumber(r.myserv_ticket_no || '');
+                              setRefModalOpen(true);
+                            }}
+                          >
+                            <FileEdit className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     ) : (
                       <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-[11px] font-semibold text-amber-800 flex items-center gap-1 truncate">
-                            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" /> Belum Ada No. MyServ
+                            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" /> Belum Ada No. TAMS
                           </p>
-                          <p className="text-[10px] text-amber-700 truncate">Hantar ke portal MyServ untuk No. REQ</p>
+                          <p className="text-[10px] text-amber-700 truncate">Daftar ke TAMS & masukkan no. tiket</p>
                         </div>
-                        <Button 
-                          size="sm" 
-                          className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-medium shrink-0 rounded-lg px-2.5"
-                          onClick={() => {
-                            setSelectedReqForRef(r);
-                            setInputRefNumber('');
-                            setRefModalOpen(true);
-                          }}
-                        >
-                          + No. REQ
-                        </Button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs border-amber-300 text-amber-800 hover:bg-amber-100 rounded-lg px-2"
+                            title="Salin Format TAMS"
+                            onClick={() => copyTamsFormat(r)}
+                          >
+                            <Copy className="w-3 h-3 text-amber-700" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg px-2.5"
+                            onClick={() => {
+                              setSelectedReqForRef(r);
+                              setInputRefNumber('');
+                              setRefModalOpen(true);
+                            }}
+                          >
+                            + No. TAMS
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -938,6 +1076,20 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
 
                 {/* BOTTOM ACTION BUTTONS */}
                 <div className="pt-2 border-t border-border flex flex-col gap-2">
+                  {/* JANA BORANG LAPORAN A4 BUTTON (AVAILABLE FOR EVERY REPORT) */}
+                  <Button 
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedReqForReport(r);
+                      setDamageReportModalOpen(true);
+                    }}
+                    className="w-full h-8 text-xs text-[#132644] border-slate-300 hover:bg-slate-100 font-semibold flex items-center justify-center gap-1.5 rounded-xl shadow-2xs"
+                    title="Jana Borang Pemeriksaan Fizikal & Arahan Kerja A4 (PDF / Cetak)"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-indigo-600" /> Jana Borang Laporan A4
+                  </Button>
+
                   {/* WHATSAPP GROUP DISPATCH BUTTON (STAFF / WARDEN ONLY) */}
                   {!isCompleted && isStaff && (
                     <div className="flex gap-1.5">
@@ -1159,15 +1311,28 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
               />
             </div>
 
-            {/* LAMPIRAN FOTO */}
+            {/* LAMPIRAN FOTO DENGAN AUTO-TIMESTAMP */}
             <div>
-              <Label className="text-xs font-medium">Muat Naik Foto Kerosakan (Pilihan)</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium">Muat Naik Foto Kerosakan (Pilihan)</Label>
+                {stampingPhoto && (
+                  <span className="text-[10px] text-amber-600 font-semibold animate-pulse">Menjana cop masa...</span>
+                )}
+              </div>
               <Input 
                 type="file" 
                 onChange={handleFileChange} 
                 className="text-xs mt-1" 
-                accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx" 
+                accept=".jpg,.jpeg,.png,.webp" 
               />
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Foto akan secara automatik dicap dengan cop masa rasmi, lokasi bilik & pengesahan KKTF.
+              </p>
+              {form.photo && (
+                <div className="mt-2 rounded-xl overflow-hidden border border-border shadow-xs">
+                  <img src={form.photo} alt="Foto Kerosakan Bercop Masa" className="w-full h-36 object-contain bg-slate-950" />
+                </div>
+              )}
             </div>
           </div>
 
@@ -1181,7 +1346,7 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
               onClick={handleSubmitAndLaunchMyServ}
               className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold gap-1.5"
             >
-              Simpan & Teruskan ke UMS MyServ <ArrowRight className="w-3.5 h-3.5" />
+              Simpan & Buka Portal TAMS / MyServ <ArrowRight className="w-3.5 h-3.5" />
             </Button>
           </div>
         </DialogContent>
@@ -1268,10 +1433,10 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-heading font-bold flex items-center gap-2">
-              <Hash className="w-4 h-4 text-blue-600" /> Kemaskini No. Rujukan UMS MyServ
+              <Hash className="w-4 h-4 text-blue-600" /> Kemaskini No. Rujukan TAMS / MyServ
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Masukkan No. Rujukan yang tertera di sistem MyServ selepas anda menghantar aduan.
+              Masukkan No. Tiket TAMS (Total Asset Management System) atau No. REQ MyServ selepas pendaftaran dibuat.
             </DialogDescription>
           </DialogHeader>
 
@@ -1285,31 +1450,42 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
 
             <div>
               <Label className="text-xs font-medium text-slate-700">
-                No. Rujukan MyServ (Contoh: REQ-2026-3938) *
+                No. Rujukan TAMS / MyServ (Contoh: TAMS-2026-0842 atau REQ-2026-3938) *
               </Label>
               <Input 
-                placeholder="REQ-2026-3938" 
+                placeholder="TAMS-2026-0842" 
                 value={inputRefNumber} 
                 onChange={e => setInputRefNumber(e.target.value)} 
                 className="h-10 text-sm font-mono mt-1 font-semibold uppercase tracking-wider"
                 autoFocus
               />
               <p className="text-[11px] text-muted-foreground mt-1">
-                Format: <span className="font-mono font-medium text-indigo-600">REQ-YYYY-XXXX</span> (cth: REQ-2026-3938, REQ-2026-0368)
+                Format: <span className="font-mono font-medium text-indigo-600">TAMS-YYYY-XXXX</span> atau <span className="font-mono font-medium text-indigo-600">REQ-YYYY-XXXX</span>
               </p>
             </div>
           </div>
 
-          <div className="flex justify-between items-center pt-4 border-t border-border mt-3">
-            <Button 
-              type="button"
-              variant="ghost" 
-              size="sm" 
-              className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-              onClick={() => window.open(UMS_MYSERV_URL, '_blank', 'noopener,noreferrer')}
-            >
-              <ExternalLink className="w-3.5 h-3.5" /> Buka MyServ Semula
-            </Button>
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-4 border-t border-border mt-3">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button 
+                type="button"
+                variant="outline" 
+                size="sm" 
+                className="text-xs text-indigo-700 border-indigo-200 hover:bg-indigo-50 flex items-center gap-1 w-full sm:w-auto"
+                onClick={() => copyTamsFormat(selectedReqForRef)}
+              >
+                <Copy className="w-3.5 h-3.5 text-indigo-600" /> Salin Format TAMS
+              </Button>
+              <Button 
+                type="button"
+                variant="ghost" 
+                size="sm" 
+                className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1 shrink-0"
+                onClick={() => window.open(UMS_MYSERV_URL, '_blank', 'noopener,noreferrer')}
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> Buka Portal
+              </Button>
+            </div>
 
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setRefModalOpen(false)}>
@@ -1416,13 +1592,26 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
             </div>
 
             <div>
-              <Label className="text-xs font-medium text-slate-700">Foto Selepas Pembaikan (Pilihan)</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium text-slate-700">Foto Selepas Pembaikan (Pilihan)</Label>
+                {stampingCompletePhoto && (
+                  <span className="text-[10px] text-emerald-600 font-semibold animate-pulse">Menjana cop masa...</span>
+                )}
+              </div>
               <Input 
                 type="file" 
                 onChange={handleCompletePhotoChange} 
                 className="text-xs mt-1" 
                 accept=".jpg,.jpeg,.png,.webp" 
               />
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Foto akan secara automatik dicap dengan status siap, cop masa & lokasi pengesahan.
+              </p>
+              {completePhoto && (
+                <div className="mt-2 rounded-xl overflow-hidden border border-emerald-300 shadow-xs">
+                  <img src={completePhoto} alt="Foto Pengesahan Siap" className="w-full h-36 object-contain bg-slate-950" />
+                </div>
+              )}
             </div>
           </div>
 
@@ -1441,6 +1630,23 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* MODAL 6: OFFICIAL DAMAGE REPORT / WORK-ORDER MODAL (A4 PRINTABLE / PDF) */}
+      <DamageReportModal 
+        open={damageReportModalOpen}
+        onOpenChange={setDamageReportModalOpen}
+        request={selectedReqForReport}
+        categoryUnitMap={CATEGORY_UNIT_MAP}
+      />
+
+      {/* MODAL 7: CONSOLIDATED BLOCK INSPECTION DOSSIER MODAL (A4 PRINTABLE / PDF) */}
+      <BlockInspectionDossierModal 
+        open={dossierModalOpen}
+        onOpenChange={setDossierModalOpen}
+        requests={requests}
+        currentBlockFilter={filter}
+        categoryUnitMap={CATEGORY_UNIT_MAP}
+      />
     </div>
   );
 }
