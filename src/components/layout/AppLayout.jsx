@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation, Navigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import AIAssistant from '@/components/AIAssistant';
 import { fetchActiveJakmasAppointment, computeEffectiveRole } from '@/lib/jakmas';
+import { base44 } from '@/api/base44Client';
 
 export default function AppLayout({ user }) {
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [jakmasAppointment, setJakmasAppointment] = useState(null);
+  const [isStudentVerified, setIsStudentVerified] = useState(true);
 
   const baseRole = user?.role || 'student';
   const isStudentBase = !baseRole || baseRole === 'student' || baseRole === 'user';
@@ -22,16 +25,66 @@ export default function AppLayout({ user }) {
   const effectiveRole = computeEffectiveRole(baseRole, jakmasAppointment);
   const enrichedUser = { ...user, jakmasAppointment, effectiveRole };
 
+  // Semakan ketat pintu utama untuk peranan pelajar:
+  // Pelajar yang belum melengkapkan pengaktifan QR disekat dari mengakses modul kolej
+  useEffect(() => {
+    if (!isStudentBase || hasJakmas) {
+      setIsStudentVerified(true);
+      return;
+    }
+
+    async function checkStudentStatus() {
+      try {
+        let studs = [];
+        if (user?.id) {
+          studs = await base44.entities.Student.filter({ user_id: user.id }, '-created_date');
+        }
+        if (!studs.length && user?.email) {
+          studs = await base44.entities.Student.filter({ email: user.email.trim() }, '-created_date');
+        }
+        if (studs.length > 0) {
+          const s = studs[0];
+          const hasRoom = Boolean(s.block_name && s.room_number);
+          const isQrVerified = Boolean(
+            s.qr_verified === true || 
+            s.qr_verified === 'true' || 
+            s.qr_verified === 1 || 
+            s.qr_verified === '1'
+          );
+          const isRoomCheckedIn = String(s.room_status || '').trim().toLowerCase() === 'checked in';
+          const isPending = String(s.room_status || '').trim().toLowerCase() === 'pending verification' ||
+                            String(s.room_status || '').trim().toLowerCase() === 'pending key';
+          setIsStudentVerified(hasRoom && isQrVerified && isRoomCheckedIn && !isPending);
+        } else {
+          setIsStudentVerified(false);
+        }
+      } catch (err) {
+        console.warn('AppLayout verification check error:', err);
+      }
+    }
+
+    checkStudentStatus();
+  }, [user?.id, user?.email, isStudentBase, hasJakmas, location.pathname]);
+
   const handleReturnToSuperAdmin = () => {
     localStorage.removeItem('mykktf_active_persona');
     window.location.reload();
   };
+
+  // Sekat laluan modul jika pelajar belum mengimbas QR di pintu utama
+  const publicAllowedPaths = ['/', '/guide', '/buku-panduan', '/presentation', '/contact', '/hotline'];
+  const isBlockedRoute = isStudentBase && !hasJakmas && !isStudentVerified && !publicAllowedPaths.includes(location.pathname);
+
+  if (isBlockedRoute) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar
         userRole={effectiveRole}
         hasJakmas={hasJakmas}
+        isStudentVerified={isStudentVerified}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         collapsed={collapsed}

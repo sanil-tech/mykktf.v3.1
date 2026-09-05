@@ -161,8 +161,14 @@ export default function StudentSetup({ user, onComplete }) {
         year_of_study: Number(form.year_of_study),
         room_status: knowsRoom ? 'Pending Verification' : 'Pending Key',
         resident_status: 'Registered',
+        status: 'Active',
         qr_verified: false
       };
+
+      // Pastikan sebarang cache pengesahan lama dipadamkan untuk mengelakkan bypass pintu utama
+      if (studentData.student_id) localStorage.removeItem(`kktf_verified_${studentData.student_id}`);
+      if (studentData.email) localStorage.removeItem(`kktf_verified_${studentData.email}`);
+      if (user?.email) localStorage.removeItem(`kktf_verified_${user.email}`);
 
       // Cegah rekod duplikasi jika pengguna memadam akaun auth dan mendaftar semula dengan emel yang sama
       let existingStudents = [];
@@ -173,7 +179,7 @@ export default function StudentSetup({ user, onComplete }) {
       }
 
       if (existingStudents && existingStudents.length > 0) {
-        // Kemaskini rekod sedia ada kepada status pra-pendaftaran yang bersih
+        // Kemaskini rekod sedia ada kepada status pra-pendaftaran yang bersih (Wajib Pengaktifan QR)
         await base44.entities.Student.update(existingStudents[0].id, studentData);
         // Padam sebarang salinan duplikasi lama jika ada
         if (existingStudents.length > 1) {
@@ -187,6 +193,11 @@ export default function StudentSetup({ user, onComplete }) {
 
       // 2. Update user role
       await base44.auth.updateMe({ role: 'student' });
+
+      // Jika pelajar telah memilih bilik, sediakan isyarat untuk terus buka scanner QR di pintu utama
+      if (knowsRoom && form.block_name && form.room_number) {
+        sessionStorage.setItem('open_resident_qr_modal', 'true');
+      }
     } catch (e) {
       console.error('Registration failed:', e);
     } finally {
@@ -513,17 +524,19 @@ export default function StudentSetup({ user, onComplete }) {
                   </p>
                 </div>
               ) : form.block_name && form.room_number ? (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-emerald-950">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <div>
-                      <p className="text-xs font-bold">Bilik Dipilih: {form.block_name} - Bilik {form.room_number}</p>
-                      <p className="text-[10px] text-emerald-700">Imbas Kod QR Pengaktifan Residen di Kaunter Kunci untuk mengaktifkan pas kehadiran fizikal.</p>
+                <div className="p-3.5 bg-amber-50 border-2 border-amber-300/80 rounded-2xl space-y-2 text-amber-950 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <p className="text-xs font-bold text-slate-900">Bilik Dipilih: {form.block_name} - Bilik {form.room_number}</p>
                     </div>
+                    <Badge className="bg-amber-600 text-white text-[10px] px-2 py-0.5 font-bold uppercase tracking-wider">
+                      Wajib Imbas QR
+                    </Badge>
                   </div>
-                  <Badge className="bg-emerald-600 text-white text-[10px] px-2 py-0.5">
-                    Sedia Diaktifkan
-                  </Badge>
+                  <p className="text-[11px] text-amber-900 leading-relaxed pl-7">
+                    ⚠️ <strong>Pintu Utama:</strong> Walaupun anda telah memegang kunci / memilih bilik, anda <strong>masih diwajibkan mengimbas Kod QR Rasmi Pengaktifan Residen</strong> di Kaunter Kunci atau pintu blok kolej untuk mengaktifkan Pas Digital anda.
+                  </p>
                 </div>
               ) : null}
             </div>
@@ -563,6 +576,10 @@ export default function StudentSetup({ user, onComplete }) {
                 {saving ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" /> Menyimpan Profil...
+                  </>
+                ) : knowsRoom && form.block_name && form.room_number ? (
+                  <>
+                    <ShieldCheck className="w-4 h-4" /> Simpan & Teruskan ke Imbasan QR
                   </>
                 ) : (
                   <>

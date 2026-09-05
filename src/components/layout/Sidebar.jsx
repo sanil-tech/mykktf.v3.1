@@ -17,7 +17,7 @@ const iconMap = {
   CalendarDays, Users, ClipboardList, Sparkles, ScanLine, Award, ClipboardCheck, BookOpen
 };
 
-export default function Sidebar({ userRole, hasJakmas, open, onClose, collapsed, onToggleCollapse }) {
+export default function Sidebar({ userRole, hasJakmas, isStudentVerified = true, open, onClose, collapsed, onToggleCollapse }) {
   const location = useLocation();
   const navItems = getNavItems(userRole, hasJakmas);
 
@@ -58,6 +58,30 @@ export default function Sidebar({ userRole, hasJakmas, open, onClose, collapsed,
           {navItems.map(item => {
             const Icon = iconMap[item.icon];
             const active = location.pathname === item.path;
+            const isRestricted = !isStudentVerified && item.path !== '/' && item.path !== '/guide' && item.path !== '/contact';
+
+            if (isRestricted) {
+              return (
+                <div
+                  key={item.path}
+                  title="Wajib imbas Kod QR Pengaktifan di Dashboard untuk membuka akses"
+                  className={`
+                    flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium opacity-40 cursor-not-allowed select-none
+                    text-primary-foreground/50
+                    ${collapsed ? 'justify-center px-2' : ''}
+                  `}
+                >
+                  {Icon && <Icon className="w-[18px] h-[18px] flex-shrink-0" />}
+                  {!collapsed && (
+                    <div className="flex items-center justify-between flex-1 min-w-0">
+                      <span className="truncate">{item.label}</span>
+                      <span className="text-[9px] bg-white/10 px-1 py-0.5 rounded text-amber-300 font-mono shrink-0 ml-1">Kunci</span>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <Link
                 key={item.path}

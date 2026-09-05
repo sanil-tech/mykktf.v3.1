@@ -169,47 +169,46 @@ export default function Dashboard() {
         }
         
         if (studs.length > 0 && studs[0]?.student_id) {
-          // Jika ada lebih dari satu rekod (contohnya ujian demo berulang), utamakan rekod yang sudah Checked In atau qr_verified
+          // Cari rekod yang sudah disahkan atau rekod terkini
           const s = studs.find(st => 
-            String(st.room_status || '').trim().toLowerCase() === 'checked in' ||
-            st.qr_verified === true || st.qr_verified === 'true' || st.qr_verified === 1 || st.qr_verified === '1'
+            (st.qr_verified === true || st.qr_verified === 'true' || st.qr_verified === 1 || st.qr_verified === '1') &&
+            String(st.room_status || '').trim().toLowerCase() === 'checked in'
           ) || studs[0];
           setStudentProfile(s);
           setHasStudentProfile(true);
 
-          // PENGESAHAN STATUS RESIDEN:
-          // Pelajar dibenarkan masuk ke Dashboard Residen Aktif jika:
+          // PENGESAHAN STATUS RESIDEN (PINTU UTAMA - IMBASAN QR WAJIB):
+          // Pelajar HANYA dibenarkan masuk ke Dashboard Residen Aktif jika:
           // 1. Mempunyai penempatan blok & nombor bilik
-          // 2. Status bilik ialah 'Checked In' ATAU cop qr_verified sah ATAU rekod peranti sah
+          // 2. Telah melalui imbasan fizikal Kod QR Pengaktifan rasmi kolej (qr_verified === true)
+          // 3. Status bilik ialah 'Checked In' (bukan 'Pending Verification' atau 'Pending Key')
+          // Walaupun pelajar telah memilih blok & nombor bilik dalam pra-pendaftaran,
+          // pintu utama iaitu imbasan QR tetap DIWAJIBKAN dan TIDAK BOLEH dibypass.
           const hasRoom = Boolean(s.block_name && s.room_number);
-          const isRoomCheckedIn = String(s.room_status || '').trim().toLowerCase() === 'checked in';
-          const isQrVerified = s.qr_verified === true || s.qr_verified === 'true' || s.qr_verified === 1 || s.qr_verified === '1' || Boolean(s.qr_verified && s.qr_verified !== 'false');
-          const isLocalVerified = Boolean(
-            (s.student_id && localStorage.getItem(`kktf_verified_${s.student_id}`) === 'true') ||
-            (user?.email && localStorage.getItem(`kktf_verified_${user.email}`) === 'true')
+          const isQrVerified = Boolean(
+            s.qr_verified === true || 
+            s.qr_verified === 'true' || 
+            s.qr_verified === 1 || 
+            s.qr_verified === '1'
           );
+          const isRoomCheckedIn = String(s.room_status || '').trim().toLowerCase() === 'checked in';
+          const isPending = String(s.room_status || '').trim().toLowerCase() === 'pending verification' ||
+                            String(s.room_status || '').trim().toLowerCase() === 'pending key';
 
-          const isStrictlyVerified = hasRoom && (isRoomCheckedIn || isQrVerified || isLocalVerified);
+          const isStrictlyVerified = hasRoom && isQrVerified && isRoomCheckedIn && !isPending;
 
-          // Selaraskan status di database jika sudah sah
+          // Selaraskan status di database jika sudah sah melalui imbasan QR
           if (isStrictlyVerified) {
-            if (s.student_id) localStorage.setItem(`kktf_verified_${s.student_id}`, 'true');
-            if (user?.email) localStorage.setItem(`kktf_verified_${user.email}`, 'true');
-
             const isResidentActive = String(s.resident_status || '').trim().toLowerCase() === 'active';
             const isStatusActive = String(s.status || '').trim().toLowerCase() === 'active';
             
-            if (!isRoomCheckedIn || !isResidentActive || !isStatusActive || !s.user_id || !s.qr_verified) {
-              s.room_status = 'Checked In';
+            if (!isResidentActive || !isStatusActive || !s.user_id) {
               s.resident_status = 'Active';
               s.status = 'Active';
-              s.qr_verified = true;
               if (user?.id) s.user_id = user.id;
               base44.entities.Student.update(s.id, {
-                room_status: 'Checked In',
                 resident_status: 'Active',
                 status: 'Active',
-                qr_verified: true,
                 user_id: s.user_id || user?.id || ''
               }).catch(e => console.warn('Sync verified status error:', e));
             }
@@ -220,6 +219,13 @@ export default function Dashboard() {
               if (user?.id) {
                 base44.entities.User.update(user.id, { role: 'student' }).catch(() => {});
               }
+            }
+          } else {
+            // Jika belum disahkan tetapi datang dari prapendaftaran/setup,
+            // automatik buka popup pengimbas QR pintu utama untuk kemudahan pelajar
+            if (sessionStorage.getItem('open_resident_qr_modal') === 'true') {
+              sessionStorage.removeItem('open_resident_qr_modal');
+              setShowCheckInModal(true);
             }
           }
 
