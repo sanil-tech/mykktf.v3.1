@@ -41,7 +41,7 @@ export default function DigitalResidentPass({ student, user, triggerButton }) {
 
   // Verification Payload for QR
   const verificationPayload = encodeURIComponent(`UMS-KKTF-PASS|${matricNo}|${blockName}|${roomNumber}|ACTIVE20252026`);
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${verificationPayload}&color=0f172a&bgcolor=ffffff`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${verificationPayload}&color=0f172a&bgcolor=ffffff`;
 
   const handleShareOrSave = () => {
     if (navigator.share) {
@@ -93,14 +93,14 @@ export default function DigitalResidentPass({ student, user, triggerButton }) {
               onClick={() => setIsFlipped(!isFlipped)} 
               className="h-8 text-xs border-slate-700 bg-slate-800/80 text-lime-400 hover:text-lime-300 hover:bg-slate-700 gap-1.5 rounded-xl"
             >
-              <RotateCw className="w-3.5 h-3.5" /> {isFlipped ? 'Muka Depan' : 'Info Waris'}
+              <RotateCw className="w-3.5 h-3.5" /> {isFlipped ? 'Muka Depan & Waris' : 'Papar Kod QR'}
             </Button>
           </DialogHeader>
 
           {/* CARD CONTAINER */}
           <div className="p-5 flex flex-col items-center">
             {!isFlipped ? (
-              /* FRONT OF THE CARD */
+              /* FRONT OF THE CARD: IDENTITY & NEXT-OF-KIN (INFO WARIS) */
               <div className="w-full relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0c182c] via-[#112440] to-[#0d1e34] border border-lime-500/30 shadow-[0_0_35px_rgba(132,204,22,0.18)] p-5 text-white">
                 
                 {/* Background Shimmer & Watermark Accents */}
@@ -109,7 +109,6 @@ export default function DigitalResidentPass({ student, user, triggerButton }) {
 
                 {/* 1. TOP PROTOCOL DUAL-LOGO BRANDING BAR */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/10 pb-3.5 mb-4 relative z-10 gap-2.5">
-                  {/* UMS FIRST, KKTF SECOND (GANDINGAN PROTOKOL) */}
                   <InstitutionalDualLogo />
 
                   {/* Status Badge */}
@@ -156,7 +155,7 @@ export default function DigitalResidentPass({ student, user, triggerButton }) {
                 </div>
 
                 {/* 3. ASSIGNED ROOM & BLOCK HIGHLIGHT BANNER */}
-                <div className="bg-slate-950/60 backdrop-blur-md rounded-2xl p-3 border border-lime-500/20 flex items-center justify-between mb-4 relative z-10 shadow-inner">
+                <div className="bg-slate-950/60 backdrop-blur-md rounded-2xl p-3 border border-lime-500/20 flex items-center justify-between mb-3.5 relative z-10 shadow-inner">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-lime-500/20 text-lime-400 flex items-center justify-center shrink-0 border border-lime-400/30">
                       <Building2 className="w-4 h-4" />
@@ -177,62 +176,123 @@ export default function DigitalResidentPass({ student, user, triggerButton }) {
                   </div>
                 </div>
 
-                {/* 4. BOTTOM VERIFICATION QR & SECURITY METADATA */}
-                <div className="flex items-center justify-between pt-3 border-t border-white/10 relative z-10">
-                  <div className="space-y-0.5">
-                    <p className="text-[9px] text-lime-300 flex items-center gap-1 font-mono uppercase tracking-wide font-bold">
-                      <Sparkles className="w-3 h-3 text-lime-400" /> Imbas untuk Pengesahan
-                    </p>
-                    <p className="text-[10px] text-slate-300 leading-tight">Pos Kawalan & Jam Malam KKTF</p>
-                    <p className="text-[8px] text-slate-400 font-mono">ID: {matricNo}-KKTF-VERIFIED</p>
+                {/* 4. EMERGENCY & NEXT-OF-KIN (INFO WARIS) ON FRONT */}
+                <div className="bg-slate-950/70 backdrop-blur-md rounded-2xl p-3 border border-slate-800/90 mb-3.5 relative z-10 space-y-2 shadow-inner">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+                    <span className="text-[9px] uppercase tracking-wider text-slate-300 font-bold flex items-center gap-1.5">
+                      <HeartHandshake className="w-3 h-3 text-rose-400" /> Kontak Waris & Kecemasan
+                    </span>
+                    <span className="text-[8.5px] font-mono text-lime-400 font-semibold">Talian Rasmi</span>
                   </div>
 
-                  <div className="p-1.5 bg-white rounded-xl shadow-lg shrink-0 border border-slate-200">
-                    <img 
-                      src={qrUrl} 
-                      alt="QR Pengesahan Residen" 
-                      className="w-14 h-14 object-contain"
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* BACK OF THE CARD: EMERGENCY & VEHICLE DETAILS */
-              <div className="w-full relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0a1220] via-[#111c30] to-[#0a1220] border border-slate-700 shadow-xl p-5 text-white space-y-4">
-                {/* Back Header with Small Logos */}
-                <div className="border-b border-slate-700/80 pb-2.5 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <InstitutionalDualLogo />
-                  </div>
-                  <span className="text-[9px] font-mono text-lime-400 font-bold bg-lime-500/10 px-2 py-0.5 rounded-full border border-lime-500/30">KKTF SAFE</span>
-                </div>
+                  <div className="grid grid-cols-2 gap-2 text-left">
+                    <div className="min-w-0">
+                      <p className="text-[8px] text-slate-400 uppercase font-medium">Nama Waris / Penjaga</p>
+                      <p className="text-[11px] font-bold text-white truncate mt-0.5">
+                        {student?.parent_name || 'Ibu / Bapa / Penjaga'}
+                      </p>
+                    </div>
 
-                <div className="space-y-2.5 text-xs">
-                  <div className="p-2.5 bg-slate-900/80 rounded-xl border border-slate-800">
-                    <p className="text-[9.5px] text-slate-400 uppercase font-semibold">No. Telefon Pelajar</p>
-                    <p className="text-xs font-bold text-white font-mono mt-0.5">{phone}</p>
+                    <div className="min-w-0 text-right sm:text-left">
+                      <p className="text-[8px] text-slate-400 uppercase font-medium">No. Telefon Waris</p>
+                      <p className="text-[11px] font-mono font-bold text-lime-400 truncate mt-0.5 flex items-center gap-1 sm:justify-start justify-end">
+                        <Phone className="w-2.5 h-2.5 shrink-0" /> {emergencyPhone}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="p-2.5 bg-slate-900/80 rounded-xl border border-slate-800">
-                    <p className="text-[9.5px] text-slate-400 uppercase font-semibold">Kontak Waris / Ibu Bapa</p>
-                    <p className="text-xs font-bold text-lime-400 font-mono mt-0.5">{emergencyPhone}</p>
-                    {student?.parent_name && (
-                      <p className="text-[10px] text-slate-300 mt-0.5">Nama Waris: {student.parent_name}</p>
+                  <div className="pt-1.5 border-t border-white/5 flex items-center justify-between text-[9.5px]">
+                    <span className="text-slate-400 flex items-center gap-1">
+                      <Phone className="w-2.5 h-2.5 text-slate-500" /> Pelajar: <strong className="text-white font-mono">{phone}</strong>
+                    </span>
+                    {vehicleReg && vehicleReg !== 'Tiada Kenderaan' && (
+                      <span className="text-amber-300 font-mono font-bold flex items-center gap-1">
+                        <Car className="w-3 h-3 text-amber-400" /> {vehicleReg}
+                      </span>
                     )}
                   </div>
+                </div>
 
-                  <div className="p-2.5 bg-slate-900/80 rounded-xl border border-slate-800 flex items-center justify-between">
-                    <div>
-                      <p className="text-[9.5px] text-slate-400 uppercase font-semibold">Pendaftaran Kenderaan Kolej</p>
-                      <p className="text-xs font-bold text-amber-300 font-mono mt-0.5">{vehicleReg}</p>
+                {/* 5. CALL TO ACTION TO FLIP TO HUGE QR */}
+                <button
+                  type="button"
+                  onClick={() => setIsFlipped(true)}
+                  className="w-full bg-gradient-to-r from-lime-500/20 via-emerald-500/15 to-lime-500/10 hover:from-lime-500/30 hover:to-emerald-500/25 border-2 border-lime-400/50 rounded-2xl p-3 flex items-center justify-between transition-all group shadow-md cursor-pointer relative z-10"
+                >
+                  <div className="flex items-center gap-2.5 text-left">
+                    <div className="w-9 h-9 rounded-xl bg-lime-500/25 border border-lime-400/50 text-lime-300 flex items-center justify-center group-hover:scale-105 transition-transform shadow-sm shrink-0">
+                      <QrCode className="w-5 h-5" />
                     </div>
-                    <Car className="w-5 h-5 text-slate-500" />
+                    <div>
+                      <p className="text-xs font-bold text-lime-300 flex items-center gap-1">
+                        Buka Kod QR Imbasan (Besar) <Sparkles className="w-3 h-3 text-amber-400" />
+                      </p>
+                      <p className="text-[9.5px] text-slate-300">Sentuh untuk buka kod QR saiz penuh di bahagian belakang</p>
+                    </div>
                   </div>
+                  <div className="flex items-center gap-1 text-lime-400 text-xs font-bold shrink-0">
+                    <span className="hidden sm:inline text-[10px]">Papar QR</span>
+                    <RotateCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
+                  </div>
+                </button>
+              </div>
+            ) : (
+              /* BACK OF THE CARD: ENORMOUS PROMINENT QR CODE FOR EFFORTLESS SCANNING */
+              <div className="w-full relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0c182c] via-[#112440] to-[#0d1e34] border-2 border-lime-500/40 shadow-[0_0_40px_rgba(132,204,22,0.25)] p-5 text-white flex flex-col items-center text-center">
+                {/* Background Glow */}
+                <div className="absolute top-0 right-0 w-48 h-48 bg-lime-400/15 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                {/* Protocol Header */}
+                <div className="w-full flex items-center justify-between border-b border-white/10 pb-3 mb-3 relative z-10">
+                  <InstitutionalDualLogo />
+                  <Badge className="bg-lime-500/25 text-lime-300 border-lime-400/50 text-[9px] font-mono font-bold px-2.5 py-1">
+                    ● KOD PENGESAHAN QR
+                  </Badge>
                 </div>
 
-                <div className="p-3 bg-lime-500/10 border border-lime-500/20 rounded-xl text-[10px] text-lime-200/90 leading-relaxed">
-                  ⚠️ <strong>Peraturan Kolej:</strong> Pas digital ini adalah bukti sah penginapan di Kolej Kediaman Tun Fuad, Universiti Malaysia Sabah. Wajib ditunjukkan kepada Felo, Pegawai Keselamatan, atau Staf Kolej semasa pemeriksaan.
+                {/* Student Short Identity */}
+                <div className="relative z-10 mb-2.5 space-y-0.5">
+                  <h3 className="text-sm font-extrabold text-white uppercase tracking-tight">
+                    {fullName}
+                  </h3>
+                  <p className="text-xs font-mono font-bold text-lime-300">
+                    {matricNo} &bull; <span className="text-white">{blockName} ({roomNumber})</span>
+                  </p>
                 </div>
+
+                {/* THE LARGE HIGH-CONTRAST QR CODE CONTAINER */}
+                <div className="relative z-10 my-1 p-3.5 sm:p-4 bg-white rounded-3xl shadow-[0_0_35px_rgba(255,255,255,0.2)] border-4 border-lime-400/80 group">
+                  <img 
+                    src={qrUrl} 
+                    alt="QR Pas Residen Digital KKTF" 
+                    className="w-52 h-52 sm:w-60 sm:h-60 object-contain mx-auto"
+                  />
+                  {/* Visual Corner Framing Markers */}
+                  <div className="absolute top-2 left-2 w-3.5 h-3.5 border-t-2 border-l-2 border-slate-900 rounded-tl-sm" />
+                  <div className="absolute top-2 right-2 w-3.5 h-3.5 border-t-2 border-r-2 border-slate-900 rounded-tr-sm" />
+                  <div className="absolute bottom-2 left-2 w-3.5 h-3.5 border-b-2 border-l-2 border-slate-900 rounded-bl-sm" />
+                  <div className="absolute bottom-2 right-2 w-3.5 h-3.5 border-b-2 border-r-2 border-slate-900 rounded-br-sm" />
+                </div>
+
+                {/* Security ID Badge & Instructions */}
+                <div className="relative z-10 mt-3 space-y-1">
+                  <Badge variant="outline" className="bg-slate-950/80 text-lime-300 border-lime-400/40 text-[9.5px] font-mono font-bold px-3 py-0.5 shadow-sm">
+                    ID: {matricNo}-KKTF-VERIFIED
+                  </Badge>
+                  <p className="text-[10px] text-slate-300 max-w-xs leading-tight mx-auto pt-1">
+                    Halakan kod QR ini kepada Pengimbas Felo, Warden, Pengawal Pos Kawalan, atau EXCO JAKMAS.
+                  </p>
+                </div>
+
+                {/* Quick Button to Flip Back */}
+                <button
+                  type="button"
+                  onClick={() => setIsFlipped(false)}
+                  className="mt-4 w-full bg-slate-900/80 hover:bg-slate-800 border border-slate-700 rounded-xl py-2 px-3 text-xs font-semibold text-slate-200 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <RotateCw className="w-3.5 h-3.5 text-lime-400" /> Kembali ke Muka Depan Kad
+                </button>
               </div>
             )}
 
@@ -242,14 +302,14 @@ export default function DigitalResidentPass({ student, user, triggerButton }) {
                 variant="outline" 
                 size="sm" 
                 onClick={() => setIsFlipped(!isFlipped)}
-                className="flex-1 text-xs border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 gap-1.5 rounded-xl"
+                className="flex-1 text-xs border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 gap-1.5 rounded-xl cursor-pointer"
               >
-                <RotateCw className="w-3.5 h-3.5 text-lime-400" /> {isFlipped ? 'Muka Depan' : 'Lihat Info Waris'}
+                <RotateCw className="w-3.5 h-3.5 text-lime-400" /> {isFlipped ? 'Muka Depan & Waris' : 'Papar Kod QR Besar'}
               </Button>
               <Button 
                 size="sm" 
                 onClick={handleShareOrSave}
-                className="flex-1 bg-gradient-to-r from-lime-500 to-emerald-600 hover:from-lime-600 hover:to-emerald-700 text-slate-950 font-bold text-xs gap-1.5 rounded-xl"
+                className="flex-1 bg-gradient-to-r from-lime-500 to-emerald-600 hover:from-lime-600 hover:to-emerald-700 text-slate-950 font-bold text-xs gap-1.5 rounded-xl cursor-pointer"
               >
                 <Share2 className="w-3.5 h-3.5" /> Simpan / Kongsi
               </Button>
