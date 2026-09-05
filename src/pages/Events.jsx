@@ -38,6 +38,7 @@ import { Badge } from '@/components/ui/badge';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 import { computeEffectiveRole, fetchActiveJakmasAppointment } from '@/lib/jakmas';
 import { logAudit } from '@/lib/audit';
+import { showPhoneNotification } from '@/lib/pushNotifications';
 
 const MANAGE_ROLES = ['super_admin', 'principal', 'college_admin', 'warden', 'staff', 'jakmas'];
 
@@ -231,8 +232,80 @@ export default function Events() {
   }
 
   // =========================================================================
-  // 1. ALIRAN KELULUSAN ACARA (EVENT APPROVAL FLOW)
+  // 1. ALIRAN KELULUSAN ACARA (EVENT APPROVAL & NOTIFICATION FLOW)
   // =========================================================================
+  async function dispatchEventApprovalNotifications(ev, actorUser) {
+    try {
+      const eventName = ev.event_name || 'Acara Baharu';
+      const eventDate = ev.event_date || 'Akan dimaklumkan';
+      const eventTime = ev.event_time ? ` @ ${ev.event_time}` : '';
+      const modalityStr = ev.modality || 'Bersemuka';
+      const venueStr = ev.venue || (ev.modality === 'Dalam Talian' ? (ev.platform || 'Atas Talian') : 'KKTF');
+      const meritStr = ev.merit_points ? `+${ev.merit_points} Mata Merit` : '+10 Mata Merit';
+
+      // 1. Cipta Hebahan Rasmi ke Papan Kenyataan / Announcement Board (kategori 'Event Notice')
+      // Secara automatik muncul di Dashboard Pelajar (StudentDashboard) & Halaman Announcements
+      await base44.entities.Announcement.create({
+        title: `Acara Baharu: ${eventName}`,
+        content: `Acara kolej "${eventName}" telah diluluskan rasmi oleh pihak Pengurusan/Felo KKTF dan kini dibuka untuk pendaftaran residen.\n\n📅 Tarikh: ${eventDate}${eventTime}\n📍 Mod / Lokasi: ${modalityStr} (${venueStr})\n🏆 Ganjaran: ${meritStr} Kolej\n\nSila layari menu 'Events' dalam aplikasi MyKKTF untuk mendaftar sekarang sebelum kuota penuh!`,
+        type: 'Event Notice',
+        priority: 'Important',
+        publish_date: new Date().toISOString().split('T')[0],
+        published_by: actorUser?.full_name || 'Pentadbiran Kolej Kediaman Tun Fuad',
+        approval_status: 'published',
+        poster_url: ev.poster_url || ''
+      }).catch(e => console.warn('Announcement creation fallback:', e));
+
+      // 2. Notifikasi Terus kepada Penganjur / Pemohon Kertas Cadangan (Organizer)
+      if (ev.organizer_user_id && ev.organizer_user_id !== actorUser?.id) {
+        await base44.entities.Notification.create({
+          user_id: ev.organizer_user_id,
+          title: `🎉 Kertas Cadangan Diluluskan: ${eventName}`,
+          message: `Tahniah! Acara "${eventName}" telah rasmi diluluskan oleh ${actorUser?.full_name || 'Felo Penyelaras'}. Hebahan telah disiarkan kepada semua residen dan sistem pendaftaran kini dibuka.`,
+          type: 'event',
+          link: '/events'
+        }).catch(e => console.warn('Organizer notification error:', e));
+      }
+
+      // 3. Notifikasi Dalam Aplikasi (In-App Bell) kepada Pelajar / Residen
+      const activeStudents = await base44.entities.Student.filter({ status: 'Active' }).catch(() => []);
+      const notifiedUsers = new Set();
+      if (ev.organizer_user_id) notifiedUsers.add(ev.organizer_user_id);
+      if (actorUser?.id) notifiedUsers.add(actorUser.id);
+
+      const targetStudents = (activeStudents || []).filter(s => s.user_id && !notifiedUsers.has(s.user_id));
+      await Promise.allSettled(
+        targetStudents.slice(0, 100).map(s => 
+          base44.entities.Notification.create({
+            user_id: s.user_id,
+            title: `📢 Acara Baharu: ${eventName}`,
+            message: `Acara "${eventName}" (${modalityStr}) sedia untuk pendaftaran. Rebut ${meritStr} sekarang!`,
+            type: 'event',
+            link: '/events'
+          })
+        )
+      );
+
+      // 4. Web Push Notification / Notifikasi Tolak Telefon
+      showPhoneNotification(
+        `Acara Baharu: ${eventName} 🎉`,
+        `Tarikh: ${eventDate}. Dapatkan ${meritStr}! Daftar di MyKKTF.`,
+        '/events'
+      ).catch(() => {});
+
+      // 5. Trigger broadcast email/cloud notification jika disokong
+      if (base44?.functions?.invoke) {
+        base44.functions.invoke('sendNotificationEmail', { 
+          type: 'announcement', 
+          title: `Acara Baharu: ${eventName}`, 
+          message: `Acara "${eventName}" telah diluluskan rasmi dan dibuka untuk pendaftaran. Tarikh: ${eventDate}.` 
+        }).catch(() => {});
+      }
+    } catch (dispatchErr) {
+      console.warn('Dispatch notification warning:', dispatchErr);
+    }
+  }
+
   async function handleApproveEvent(ev) {
     try {
       await base44.entities.Event.update(ev.id, { 
@@ -240,9 +313,13 @@ export default function Events() {
         status: 'Upcoming'
       });
       await logAudit(user, 'EVENT_APPROVED', 'Events', { id: ev.id, name: ev.event_name });
+      
+      // Hantar notifikasi automatik kepada residen & penganjur
+      await dispatchEventApprovalNotifications(ev, user);
+
       toast({ 
-        title: 'Acara Diluluskan! 🎉', 
-        description: `Acara "${ev.event_name}" telah diluluskan rasmi oleh pihak Pengetua/Felo.` 
+        title: 'Acara Diluluskan & Hebahan Dikeluarkan! 🎉', 
+        description: `Acara "${ev.event_name}" telah diluluskan. Notifikasi dan hebahan rasmi telah dihantar kepada residen serta penganjur.` 
       });
       init();
     } catch (err) {
@@ -269,9 +346,21 @@ export default function Events() {
         name: rejectingEvent.event_name,
         reason: rejectReason 
       });
+
+      // Beritahu penganjur / pemohon kertas cadangan tentang status penolakan
+      if (rejectingEvent.organizer_user_id) {
+        await base44.entities.Notification.create({
+          user_id: rejectingEvent.organizer_user_id,
+          title: `❌ Status Kertas Cadangan: ${rejectingEvent.event_name}`,
+          message: `Kertas cadangan bagi "${rejectingEvent.event_name}" telah ditolak oleh ${user?.full_name || 'Felo Penyelaras / Pengetua'}. Sebab: ${rejectReason || 'Sila berhubung dengan pentadbiran kolej untuk perbincangan lanjut.'}`,
+          type: 'event',
+          link: '/events'
+        }).catch(() => {});
+      }
+
       toast({ 
         title: 'Kertas Cadangan Ditolak', 
-        description: `Acara "${rejectingEvent.event_name}" telah ditandakan Ditolak.` 
+        description: `Acara "${rejectingEvent.event_name}" telah ditandakan Ditolak dan pemohon telah dimaklumkan.` 
       });
       setRejectModalOpen(false);
       setRejectingEvent(null);
@@ -594,12 +683,12 @@ export default function Events() {
     const initialApproval = isAdminRole ? 'Approved' : 'Pending';
 
     try {
-      await base44.entities.Event.create({ 
+      const createdEv = await base44.entities.Event.create({ 
         ...form, 
         organizer_user_id: user.id, 
         organizer: form.organizer || user.full_name || user.email,
         felo_approval_status: initialApproval,
-        status: initialApproval === 'Approved' ? 'Upcoming' : 'Upcoming',
+        status: 'Upcoming',
         merit_points: Number(form.merit_points) || 10
       });
 
@@ -610,9 +699,13 @@ export default function Events() {
         approval: initialApproval
       });
 
+      if (initialApproval === 'Approved') {
+        await dispatchEventApprovalNotifications(createdEv || { ...form, id: 'temp' }, user);
+      }
+
       toast({ 
-        title: initialApproval === 'Approved' ? 'Acara Berjaya Dicipta & Diluluskan! 🎉' : 'Kertas Cadangan Acara Dihantar! ⏳',
-        description: initialApproval === 'Approved' ? 'Acara sedia untuk pendaftaran peserta.' : 'Menunggu kelulusan Felo Penyelaras & Pengetua Kolej.'
+        title: initialApproval === 'Approved' ? 'Acara Berjaya Dicipta, Diluluskan & Diberitahu! 🎉' : 'Kertas Cadangan Acara Dihantar! ⏳',
+        description: initialApproval === 'Approved' ? 'Acara sedia untuk pendaftaran dan hebahan rasmi telah dihantar kepada residen.' : 'Menunggu kelulusan Felo Penyelaras & Pengetua Kolej.'
       });
 
       setShowForm(false);
