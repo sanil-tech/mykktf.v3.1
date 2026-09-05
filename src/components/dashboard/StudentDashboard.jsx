@@ -296,25 +296,54 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
 
       {/* Room Inspection 48-Hour Smart Banner */}
       {(() => {
+        // Banner hilang sepenuhnya bila status Verified
+        if (myInspection?.status === 'Verified') return null;
+
         const checkInDateStr = student?.check_in_date || student?.created_date || student?.registration_date;
         const checkInTime = checkInDateStr ? new Date(checkInDateStr).getTime() : null;
         const hoursSinceCheckIn = checkInTime ? (Date.now() - checkInTime) / (1000 * 60 * 60) : null;
 
+        // Submitted / Reviewed / Rejected — show status chip (menunggu warden)
         if (myInspection) {
+          const isRejected = myInspection.status === 'Rejected';
+          const isReviewed = myInspection.status === 'Reviewed';
+          const chipCls = isRejected
+            ? 'bg-rose-50 border-rose-200'
+            : isReviewed
+            ? 'bg-blue-50 border-blue-200'
+            : 'bg-amber-50 border-amber-200';
+          const iconCls = isRejected
+            ? 'bg-rose-100 border-rose-200 text-rose-700'
+            : isReviewed
+            ? 'bg-blue-100 border-blue-200 text-blue-700'
+            : 'bg-amber-100 border-amber-200 text-amber-700';
+          const titleCls = isRejected ? 'text-rose-800' : isReviewed ? 'text-blue-800' : 'text-amber-800';
+          const descCls = isRejected ? 'text-rose-600' : isReviewed ? 'text-blue-600' : 'text-amber-600';
+          const title = isRejected
+            ? '⚠️ Laporan Ditolak — Tindakan Diperlukan'
+            : isReviewed
+            ? '🔍 Laporan Sedang Disemak oleh Warden'
+            : '⏳ Laporan Dihantar — Menunggu Pengesahan Warden';
+          const desc = isRejected
+            ? `Sila semak nota warden dan hubungi pejabat kolej.${myInspection.notes ? ` Nota: ${myInspection.notes}` : ''}`
+            : isReviewed
+            ? 'Warden sedang menyemak laporan anda. Tindakan pembaikan akan diambil jika perlu.'
+            : 'Laporan anda berjaya dihantar. Warden/felo akan mengesahkan rekod pemeriksaan ini.';
+
           return (
-            <div className="flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 shadow-sm">
-              <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0">
-                <CheckSquare className="w-4 h-4 text-emerald-700" />
+            <div className={`flex items-center gap-2.5 border rounded-2xl px-4 py-3 shadow-sm ${chipCls}`}>
+              <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${iconCls}`}>
+                <CheckSquare className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-emerald-800">Pemeriksaan Bilik Telah Dihantar ✓</p>
-                <p className="text-[11px] text-emerald-600">
-                  Status: <span className="font-semibold">{myInspection.status}</span>
+                <p className={`text-xs font-bold ${titleCls}`}>{title}</p>
+                <p className={`text-[11px] ${descCls}`}>
+                  {desc}
                   {myInspection.inspection_date ? ` • ${myInspection.inspection_date}` : ''}
                 </p>
               </div>
               <Link to="/room-inspections" className="shrink-0">
-                <Button size="sm" variant="outline" className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 text-xs h-7 gap-1">
+                <Button size="sm" variant="outline" className={`text-xs h-7 gap-1 ${isRejected ? 'border-rose-300 text-rose-700 hover:bg-rose-100' : isReviewed ? 'border-blue-300 text-blue-700 hover:bg-blue-100' : 'border-amber-300 text-amber-700 hover:bg-amber-100'}`}>
                   <ChevronRight className="w-3 h-3" /> Lihat
                 </Button>
               </Link>
@@ -322,6 +351,7 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
           );
         }
 
+        // Belum submit — tunjuk banner amaran ikut masa
         const withinWindow = hoursSinceCheckIn === null || hoursSinceCheckIn <= 720;
         if (!withinWindow) return null;
 

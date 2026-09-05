@@ -405,25 +405,32 @@ export default function RoomInspections() {
         title="Pemeriksaan Keadaan Bilik (Room Inspection)"
         description="Pemeriksaan 8 komponen inventori bilik dalam tempoh 48 jam selepas mendaftar masuk kolej"
         actions={
-          <Button 
-            onClick={() => {
-              if (studentProfile) {
-                setForm(f => ({
-                  ...f,
-                  student_id: studentProfile.student_id || '',
-                  student_name: studentProfile.full_name || '',
-                  room_number: studentProfile.room_number || '',
-                  block_name: studentProfile.block_name || '',
-                  checklist: { ...INITIAL_CHECKLIST }
-                }));
-              }
-              setShowForm(true);
-            }}
-            className="bg-primary hover:bg-primary/90 text-white font-semibold text-xs h-9 gap-1.5 shadow-sm"
-          >
-            <Plus className="w-4 h-4" /> 
-            {isStudent ? (myInspection ? 'Kemaskini Pemeriksaan Bilik' : 'Borang Pemeriksaan (48 Jam)') : 'Pemeriksaan Baru'}
-          </Button>
+          isStudent && myInspection?.status === 'Verified' ? (
+            <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 font-medium select-none">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Pemeriksaan Telah Disahkan (Dikunci)</span>
+            </div>
+          ) : (
+            <Button 
+              onClick={() => {
+                if (studentProfile) {
+                  setForm(f => ({
+                    ...f,
+                    student_id: studentProfile.student_id || '',
+                    student_name: studentProfile.full_name || '',
+                    room_number: studentProfile.room_number || '',
+                    block_name: studentProfile.block_name || '',
+                    checklist: { ...INITIAL_CHECKLIST }
+                  }));
+                }
+                setShowForm(true);
+              }}
+              className="bg-primary hover:bg-primary/90 text-white font-semibold text-xs h-9 gap-1.5 shadow-sm"
+            >
+              <Plus className="w-4 h-4" /> 
+              {isStudent ? (myInspection ? 'Kemaskini Pemeriksaan Bilik' : 'Borang Pemeriksaan (48 Jam)') : 'Pemeriksaan Baru'}
+            </Button>
+          )
         }
       />
 
