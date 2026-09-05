@@ -224,8 +224,24 @@ export default function RoomInspections() {
       const hasDamages = damagedItems.length > 0;
       const flaggedIssues = damagedItems.map(d => `${d.name}: ${form.checklist[d.id]?.notes || 'Perlu pembaikan'}`).join(' | ');
 
+      // Resolve student_id — use any available source; fall back to user id so the required field is satisfied
+      const resolvedStudentId =
+        form.student_id ||
+        studentProfile?.student_id ||
+        studentProfile?.id ||
+        user?.student_id ||
+        user?.id ||
+        '';
+
+      // Find first photo URL among damaged items (if any)
+      const firstDamagedPhoto = damagedItems
+        .map(d => form.checklist[d.id]?.photo)
+        .find(p => p && p.trim() !== '');
+
+      const photoUrl = form.photos || firstDamagedPhoto || undefined;
+
       const inspectionPayload = {
-        student_id: form.student_id || studentProfile?.student_id || '',
+        student_id: resolvedStudentId,
         student_name: form.student_name,
         room_number: form.room_number,
         block_name: form.block_name || '',
@@ -237,12 +253,11 @@ export default function RoomInspections() {
         resident_present: true,
         notes: form.overall_notes || (hasDamages ? 'Terdapat kerosakan sedia ada dilaporkan oleh pelajar.' : 'Semua inventori bilik dalam keadaan baik.'),
         flagged_issues: flaggedIssues,
-        photos: form.photos || (damagedItems.find(d => form.checklist[d.id]?.photo) ? form.checklist[damagedItems.find(d => form.checklist[d.id]?.photo).id]?.photo : ''),
         inspected_by_user_id: user?.id || '',
         inspected_by_name: user?.full_name || user?.email || 'Pelajar',
-        // Structured checklist data stored in custom JSON field or stringified notes
         checklist_data: JSON.stringify(form.checklist),
         has_damages: hasDamages,
+        ...(photoUrl ? { photos: photoUrl } : {}),
       };
 
       await base44.entities.RoomInspection.create(inspectionPayload);
@@ -265,7 +280,9 @@ export default function RoomInspections() {
       init();
     } catch (err) {
       console.error('Failed to submit inspection:', err);
-      toast({ title: 'Gagal menghantar laporan pemeriksaan', variant: 'destructive' });
+      const apiMessage = err?.response?.data?.message || err?.message;
+      const message = apiMessage || 'Ralat tidak diketahui semasa menghantar laporan.';
+      toast({ title: 'Gagal menghantar laporan pemeriksaan', description: message, variant: 'destructive' });
     } finally {
       setSubmitting(false);
     }

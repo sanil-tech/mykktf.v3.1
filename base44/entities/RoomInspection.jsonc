@@ -73,6 +73,13 @@
     },
     "checkout_student_user_id": {
       "type": "string"
+    },
+    "checklist_data": {
+      "type": "string"
+    },
+    "has_damages": {
+      "type": "boolean",
+      "default": false
     }
   },
   "required": [
@@ -84,6 +91,16 @@
   "rls": {
     "create": {
       "$or": [
+        {
+          "user_condition": {
+            "role": "student"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        },
         {
           "user_condition": {
             "role": "jakmas"
@@ -137,6 +154,9 @@
           "user_condition": {
             "role": "jakmas"
           }
+        },
+        {
+          "data.inspected_by_user_id": "{{user.id}}"
         }
       ]
     },
