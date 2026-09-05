@@ -190,6 +190,8 @@ export default function MeritDemerit() {
     tournament_name: '',
     level: 'Kolej', // 'Kolej' | 'Universiti' | 'Negeri' | 'Kebangsaan' | 'Antarabangsa'
     achievement: 'Penyertaan', // 'Penyertaan' | 'Gangsa' | 'Perak' | 'Emas'
+    proof_type: 'Sijil Rasmi', // 'Sijil Rasmi' | 'Surat Pelepasan' | 'Papan Skor / Keputusan' | 'Gambar Podium / Pingat'
+    proof_url: '',
     custom_points: '',
     notes: ''
   });
@@ -636,6 +638,9 @@ export default function MeritDemerit() {
 
     const medalEmoji = sportsForm.achievement === 'Emas' ? '🥇' : sportsForm.achievement === 'Perak' ? '🥈' : sportsForm.achievement === 'Gangsa' ? '🥉' : '🎖️';
 
+    const isDirectStaff = Boolean(isStaff || isJakmas);
+    const initialStatus = isDirectStaff ? 'Approved' : 'Pending';
+
     const newTx = {
       id: Date.now().toString(),
       student_id: student.id,
@@ -646,11 +651,14 @@ export default function MeritDemerit() {
       tournament_name: sportsForm.tournament_name,
       level: sportsForm.level,
       achievement: sportsForm.achievement,
+      proof_type: sportsForm.proof_type || 'Sijil Rasmi',
+      proof_url: sportsForm.proof_url || '',
+      notes: sportsForm.notes || '',
       title: `${medalEmoji} ${sportsForm.achievement} (${sportsForm.level}): ${sportsForm.sport_name} - ${sportsForm.tournament_name}`,
       points: points,
       date: new Date().toISOString().split('T')[0],
-      status: 'Approved',
-      officer: currentUser?.full_name || 'Unit Sukan & Felo Penyelaras'
+      status: initialStatus,
+      officer: isDirectStaff ? (currentUser?.full_name || 'Unit Sukan & Felo Penyelaras') : 'Menunggu Pengesahan Felo'
     };
 
     setMeritTransactions(prev => [newTx, ...prev]);
@@ -663,25 +671,30 @@ export default function MeritDemerit() {
       console.warn('Failed saving sports transaction to localStorage:', e);
     }
 
-    // Persist to Student entity (merit points and mark as athlete)
-    try {
-      const curMerit = student.merit_points || 0;
-      await base44.entities.Student.update(student.id, {
-        merit_points: curMerit + points,
-        is_athlete: true
+    if (initialStatus === 'Approved') {
+      // Persist to Student entity (merit points and mark as athlete)
+      try {
+        const curMerit = student.merit_points || 0;
+        await base44.entities.Student.update(student.id, {
+          merit_points: curMerit + points,
+          is_athlete: true
+        });
+        setStudents(prev => prev.map(s => s.id === student.id ? { ...s, merit_points: curMerit + points, is_athlete: true } : s));
+      } catch (err) {
+        console.warn('Failed updating student merit & athlete status in DB:', err);
+      }
+
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { y: 0.6 }
       });
-      setStudents(prev => prev.map(s => s.id === student.id ? { ...s, merit_points: curMerit + points, is_athlete: true } : s));
-    } catch (err) {
-      console.warn('Failed updating student merit & athlete status in DB:', err);
+
+      toast.success(`Merit Sukan +${points} mata (${medalEmoji} ${sportsForm.achievement} Peringkat ${sportsForm.level}) berjaya dianugerahkan kepada atlet ${student.full_name}!`);
+    } else {
+      toast.success(`Tuntutan merit sukan berjaya dihantar! Permohonan anda kini sedang menunggu semakan Biro Sukan JAKMAS & Felo Penyelaras.`);
     }
 
-    confetti({
-      particleCount: 80,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
-
-    toast.success(`Merit Sukan +${points} mata (${medalEmoji} ${sportsForm.achievement} Peringkat ${sportsForm.level}) berjaya dianugerahkan kepada atlet ${student.full_name}!`);
     setSportsModalOpen(false);
     setSportsForm({
       student_id: '',
@@ -689,9 +702,62 @@ export default function MeritDemerit() {
       tournament_name: '',
       level: 'Kolej',
       achievement: 'Penyertaan',
+      proof_type: 'Sijil Rasmi',
+      proof_url: '',
       custom_points: '',
       notes: ''
     });
+  };
+
+  // Staff Approval of Pending Sports Merit Claims
+  const handleApproveSportsTx = async (tx) => {
+    const student = students.find(s => s.id === tx.student_id);
+    const updatedTxs = meritTransactions.map(t => t.id === tx.id ? { 
+      ...t, 
+      status: 'Approved', 
+      officer: currentUser?.full_name || 'Felo Penyelaras Sukan' 
+    } : t);
+    setMeritTransactions(updatedTxs);
+
+    // Save to localStorage
+    try {
+      localStorage.setItem('kktf_merit_transactions', JSON.stringify(updatedTxs));
+    } catch (e) {
+      console.warn('Failed saving approved transaction:', e);
+    }
+
+    // Credit student in DB
+    if (student) {
+      try {
+        const curMerit = student.merit_points || 0;
+        const newMerit = curMerit + (tx.points || 0);
+        await base44.entities.Student.update(student.id, {
+          merit_points: newMerit,
+          is_athlete: true
+        });
+        setStudents(prev => prev.map(s => s.id === student.id ? { ...s, merit_points: newMerit, is_athlete: true } : s));
+      } catch (e) {
+        console.warn('Failed updating student upon sports approval:', e);
+      }
+    }
+
+    confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+    toast.success(`Permohonan merit sukan ${tx.student_name} (+${tx.points} mata) telah disahkan dan dikreditkan!`);
+  };
+
+  const handleRejectSportsTx = (tx) => {
+    const updatedTxs = meritTransactions.map(t => t.id === tx.id ? { 
+      ...t, 
+      status: 'Rejected', 
+      officer: currentUser?.full_name || 'Felo Penyelaras Sukan' 
+    } : t);
+    setMeritTransactions(updatedTxs);
+    try {
+      localStorage.setItem('kktf_merit_transactions', JSON.stringify(updatedTxs));
+    } catch (e) {
+      console.warn('Failed saving rejected transaction:', e);
+    }
+    toast.error(`Permohonan tuntutan sukan bagi ${tx.student_name} telah ditolak.`);
   };
 
   // Sports Transactions & Filtered List
@@ -1368,13 +1434,47 @@ export default function MeritDemerit() {
               </p>
             </div>
 
-            {(isStaff || isJakmas) && (
+            {isStaff || isJakmas ? (
               <Button 
                 size="sm"
-                onClick={() => setSportsModalOpen(true)}
+                onClick={() => {
+                  setSportsForm({
+                    student_id: '',
+                    sport_name: '',
+                    tournament_name: '',
+                    level: 'Kolej',
+                    achievement: 'Penyertaan',
+                    proof_type: 'Sijil Rasmi',
+                    proof_url: '',
+                    custom_points: '',
+                    notes: ''
+                  });
+                  setSportsModalOpen(true);
+                }}
                 className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl gap-1.5 shadow-xs"
               >
                 <Plus className="w-3.5 h-3.5" /> Anugerah Merit Atlet Sukan
+              </Button>
+            ) : (
+              <Button 
+                size="sm"
+                onClick={() => {
+                  setSportsForm({
+                    student_id: myStudentProfile?.id || '',
+                    sport_name: '',
+                    tournament_name: '',
+                    level: 'Kolej',
+                    achievement: 'Penyertaan',
+                    proof_type: 'Sijil Rasmi',
+                    proof_url: '',
+                    custom_points: '',
+                    notes: ''
+                  });
+                  setSportsModalOpen(true);
+                }}
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl gap-1.5 shadow-xs"
+              >
+                <Medal className="w-3.5 h-3.5" /> Hantar Tuntutan Merit Sukan (Pelajar)
               </Button>
             )}
           </div>
@@ -1515,9 +1615,11 @@ export default function MeritDemerit() {
                 const targetStudent = students.find(s => s.id === tx.student_id || (s.student_id && s.student_id === tx.student_id));
                 const medalEmoji = tx.achievement === 'Emas' ? '🥇' : tx.achievement === 'Perak' ? '🥈' : tx.achievement === 'Gangsa' ? '🥉' : '🎖️';
                 const levelConfig = SPORTS_SCORING_MATRIX[tx.level] || SPORTS_SCORING_MATRIX.Kolej;
+                const isPending = tx.status === 'Pending';
+                const isApproved = tx.status === 'Approved';
 
                 return (
-                  <div key={tx.id} className="bg-card border border-amber-200 dark:border-amber-900/60 rounded-2xl p-4 space-y-3 relative overflow-hidden shadow-xs hover:border-amber-400 transition-all">
+                  <div key={tx.id} className={`bg-card border ${isPending ? 'border-amber-400/80 bg-amber-50/10' : 'border-amber-200 dark:border-amber-900/60'} rounded-2xl p-4 space-y-3 relative overflow-hidden shadow-xs hover:border-amber-400 transition-all`}>
                     {/* TOP ROW: ACHIEVEMENT BADGE & POINTS */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -1528,6 +1630,19 @@ export default function MeritDemerit() {
                         <Badge variant="outline" className="text-[9.5px] font-mono">
                           {levelConfig.badge || tx.level}
                         </Badge>
+                        {isPending ? (
+                          <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400 text-[9px] animate-pulse">
+                            ⏳ Menunggu Pengesahan Felo
+                          </Badge>
+                        ) : isApproved ? (
+                          <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-400 text-[9px]">
+                            ✓ Disahkan Rasmi
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-[9px]">
+                            ✕ Ditolak
+                          </Badge>
+                        )}
                       </div>
 
                       <span className="font-mono font-black text-amber-600 dark:text-amber-400 text-base shrink-0">
@@ -1556,6 +1671,52 @@ export default function MeritDemerit() {
                         <span className="font-semibold text-foreground text-right line-clamp-1">{tx.tournament_name || 'Kejohanan Sukan'}</span>
                       </div>
                     </div>
+
+                    {/* PROOF DETAILS (IF AVAILABLE) */}
+                    {(tx.proof_type || tx.proof_url || tx.notes) && (
+                      <div className="p-2.5 bg-indigo-50/20 dark:bg-indigo-950/20 rounded-xl space-y-1 text-[10.5px] border border-indigo-200/60 dark:border-indigo-900/60">
+                        <div className="flex items-center justify-between text-indigo-900 dark:text-indigo-300 font-semibold">
+                          <span>Bukti Dokumen:</span>
+                          <span className="font-bold">{tx.proof_type || 'Sijil Rasmi'}</span>
+                        </div>
+                        {tx.proof_url && (
+                          <a 
+                            href={tx.proof_url.startsWith('http') ? tx.proof_url : `https://${tx.proof_url}`} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className="text-indigo-600 dark:text-indigo-400 font-bold underline line-clamp-1 block pt-0.5"
+                          >
+                            🔗 Buka Dokumen / Sijil Bukti
+                          </a>
+                        )}
+                        {tx.notes && (
+                          <p className="text-muted-foreground italic text-[10px]">
+                            Catatan: {tx.notes}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* APPROVAL ACTIONS FOR STAFF & JAKMAS */}
+                    {isPending && (isStaff || isJakmas) && (
+                      <div className="flex items-center gap-2 pt-2 border-t border-border/60">
+                        <Button
+                          size="xs"
+                          onClick={() => handleApproveSportsTx(tx)}
+                          className="flex-1 h-7 text-[10.5px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-2xs gap-1"
+                        >
+                          <Check className="w-3 h-3" /> Sahkan & Luluskan
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => handleRejectSportsTx(tx)}
+                          className="h-7 text-[10px] font-semibold text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg"
+                        >
+                          Tolak
+                        </Button>
+                      </div>
+                    )}
 
                     {/* FOOTER & TRANSCRIPT ACTION */}
                     <div className="flex items-center justify-between pt-2 border-t border-border/60 text-[10px] text-muted-foreground">
@@ -1729,7 +1890,7 @@ export default function MeritDemerit() {
       {/* TAB 5: STUDENT PERSONAL MERIT RECORD */}
       {activeTab === 'my_record' && (
         <div className="bg-card border border-border rounded-3xl p-6 shadow-sm space-y-6 max-w-2xl mx-auto">
-          <div className="flex items-center justify-between pb-4 border-b border-border">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-border">
             <div>
               <h3 className="text-base font-bold font-heading text-foreground">
                 Buku Log Merit & Dimerit Saya
@@ -1739,9 +1900,32 @@ export default function MeritDemerit() {
               </p>
             </div>
 
-            <Badge className={`text-xs font-bold border px-3 py-1 ${myStudentProfile?.tierBadgeClass}`}>
-              {myStudentProfile?.tierLabel}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => {
+                  setSportsForm({
+                    student_id: myStudentProfile?.id || '',
+                    sport_name: '',
+                    tournament_name: '',
+                    level: 'Kolej',
+                    achievement: 'Penyertaan',
+                    proof_type: 'Sijil Rasmi',
+                    proof_url: '',
+                    custom_points: '',
+                    notes: ''
+                  });
+                  setSportsModalOpen(true);
+                }}
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold gap-1 rounded-xl shadow-xs"
+              >
+                <Medal className="w-3.5 h-3.5" /> Tuntut Merit Sukan
+              </Button>
+
+              <Badge className={`text-xs font-bold border px-3 py-1 ${myStudentProfile?.tierBadgeClass}`}>
+                {myStudentProfile?.tierLabel}
+              </Badge>
+            </div>
           </div>
 
           {/* NET SCORE DISPLAY */}
@@ -1958,29 +2142,42 @@ export default function MeritDemerit() {
         <DialogContent className="max-w-lg p-6 bg-card border-border rounded-3xl shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base font-bold font-heading text-amber-700 dark:text-amber-400 flex items-center gap-2">
-              <Medal className="w-5 h-5 text-amber-500" /> Anugerah / Rekod Mata Merit Atlet Sukan Kolej
+              <Medal className="w-5 h-5 text-amber-500" />
+              {isStaff || isJakmas ? 'Anugerah / Rekod Mata Merit Atlet Sukan Kolej' : 'Borang Tuntutan Sumbangan Merit Atlet Sukan (Mahasiswa)'}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Pengiktirafan rasmi sumbangan atlet mengikut skala merit berkadaran mengikut peringkat sukan dan pencapaian pingat.
+              {isStaff || isJakmas 
+                ? 'Pengiktirafan rasmi sumbangan atlet mengikut skala merit berkadaran mengikut peringkat sukan dan pencapaian pingat.' 
+                : 'Hantar maklumat penglibatan sukan anda berserta dokumen bukti untuk disemak oleh Biro Sukan JAKMAS & diluluskan oleh Felo Penyelaras.'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 text-xs mt-2">
             {/* PILIH PELAJAR / ATLET */}
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-foreground">Pilih Mahasiswa / Atlet *</Label>
-              <Select value={sportsForm.student_id} onValueChange={(v) => setSportsForm(f => ({ ...f, student_id: v }))}>
-                <SelectTrigger className="h-10 text-xs rounded-xl bg-background">
-                  <SelectValue placeholder="Pilih Atlet Kolej" />
-                </SelectTrigger>
-                <SelectContent>
-                  {students.map(s => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.full_name} ({s.student_id}) {s.block_name ? `• ${s.block_name}` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs font-semibold text-foreground">
+                {isStaff || isJakmas ? 'Pilih Mahasiswa / Atlet *' : 'Maklumat Mahasiswa Pemohon *'}
+              </Label>
+              {isStaff || isJakmas ? (
+                <Select value={sportsForm.student_id} onValueChange={(v) => setSportsForm(f => ({ ...f, student_id: v }))}>
+                  <SelectTrigger className="h-10 text-xs rounded-xl bg-background">
+                    <SelectValue placeholder="Pilih Atlet Kolej" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {students.map(s => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.full_name} ({s.student_id}) {s.block_name ? `• ${s.block_name}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  disabled
+                  value={`${myStudentProfile?.full_name || 'Pelajar'} (${myStudentProfile?.student_id || ''}) - ${myStudentProfile?.block_name || ''} (${myStudentProfile?.room_number || ''})`}
+                  className="h-10 text-xs rounded-xl bg-muted/60 font-semibold"
+                />
+              )}
             </div>
 
             {/* NAMA SUKAN DENGAN CADANGAN PANTAS */}
@@ -2057,6 +2254,45 @@ export default function MeritDemerit() {
               </div>
             </div>
 
+            {/* BUKTI PENYERTAAN & KEJAYAAN */}
+            <div className="p-3 bg-indigo-50/20 dark:bg-indigo-950/20 rounded-2xl border border-indigo-200 dark:border-indigo-900/60 space-y-3">
+              <div className="flex items-center gap-1.5 font-bold text-indigo-800 dark:text-indigo-300">
+                <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                <span>Dokumen Bukti Penglibatan & Kejayaan Sukan</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                Pilih jenis dokumen bukti sokongan dan sertakan pautan/nombor rujukan untuk disemak oleh Biro Sukan JAKMAS & Felo Penyelaras Sukan.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-foreground">Jenis Dokumen Bukti *</Label>
+                  <Select value={sportsForm.proof_type} onValueChange={(v) => setSportsForm(f => ({ ...f, proof_type: v }))}>
+                    <SelectTrigger className="h-9 text-xs rounded-xl bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Sijil Rasmi">📜 Sijil Penyertaan / Penghargaan Rasmi</SelectItem>
+                      <SelectItem value="Surat Pelepasan">📑 Surat Pelepasan / Pelantikan Pusat Sukan UMS</SelectItem>
+                      <SelectItem value="Papan Skor / Keputusan">📊 Papan Skor / Keputusan Rasmi Kejohanan</SelectItem>
+                      <SelectItem value="Gambar Podium / Pingat">📸 Gambar Podium / Pingat Bersama Pasukan</SelectItem>
+                      <SelectItem value="Pengesahan Jurulatih">📋 Surat Perakuan Jurulatih / Pengurus</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-foreground">Pautan Bukti / No. Siri Dokumen</Label>
+                  <Input
+                    value={sportsForm.proof_url}
+                    onChange={(e) => setSportsForm(f => ({ ...f, proof_url: e.target.value }))}
+                    placeholder="Pautan Google Drive, Dropbox, No. Siri Sijil..."
+                    className="h-9 text-xs rounded-xl bg-background"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* DYNAMIC MERIT CALCULATION PREVIEW */}
             {(() => {
               const lvlConfig = SPORTS_SCORING_MATRIX[sportsForm.level] || SPORTS_SCORING_MATRIX.Kolej;
@@ -2072,7 +2308,7 @@ export default function MeritDemerit() {
                       Peringkat {sportsForm.level} &bull; Pencapaian: {sportsForm.achievement}
                     </p>
                     <p className="text-[9.5px] text-amber-700 dark:text-amber-400 font-semibold">
-                      ✓ Termasuk automatik dalam Kumpulan Keutamaan Tier 2 (Penempatan Kolej)
+                      ✓ Selepas disahkan, atlet automatik tergolong dalam Kumpulan Keutamaan Tier 2 Kolej
                     </p>
                   </div>
                   <span className="font-mono font-black text-amber-600 dark:text-amber-400 text-2xl shrink-0">
@@ -2082,23 +2318,27 @@ export default function MeritDemerit() {
               );
             })()}
 
-            {/* PELARASAN MATA KHAS (OPTIONAL) */}
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-foreground">
-                Pelarasan Mata Merit Khas (Pilihan - Kosongkan jika guna skala piawai)
-              </Label>
-              <Input
-                type="number"
-                value={sportsForm.custom_points}
-                onChange={(e) => setSportsForm(f => ({ ...f, custom_points: e.target.value }))}
-                placeholder="Gunakan mata automatik di atas"
-                className="h-9 text-xs rounded-xl bg-background"
-              />
-            </div>
+            {/* PELARASAN MATA KHAS (OPTIONAL, ONLY FOR STAFF) */}
+            {(isStaff || isJakmas) && (
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-foreground">
+                  Pelarasan Mata Merit Khas (Pilihan - Kosongkan jika guna skala piawai)
+                </Label>
+                <Input
+                  type="number"
+                  value={sportsForm.custom_points}
+                  onChange={(e) => setSportsForm(f => ({ ...f, custom_points: e.target.value }))}
+                  placeholder="Gunakan mata automatik di atas"
+                  className="h-9 text-xs rounded-xl bg-background"
+                />
+              </div>
+            )}
 
             {/* CATATAN PENGESAHAN */}
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-foreground">Catatan / Perakuan Unit Sukan</Label>
+              <Label className="text-xs font-semibold text-foreground">
+                {isStaff || isJakmas ? 'Catatan / Perakuan Unit Sukan & Felo' : 'Catatan Tambahan Mahasiswa'}
+              </Label>
               <Textarea
                 value={sportsForm.notes}
                 onChange={(e) => setSportsForm(f => ({ ...f, notes: e.target.value }))}
@@ -2117,7 +2357,8 @@ export default function MeritDemerit() {
               onClick={handleAddSportsMerit} 
               className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl gap-1.5 shadow-xs"
             >
-              <Medal className="w-4 h-4" /> Anugerahkan Merit Atlet
+              <Medal className="w-4 h-4" /> 
+              {isStaff || isJakmas ? 'Anugerahkan Merit Atlet' : 'Hantar Tuntutan Untuk Pengesahan Felo'}
             </Button>
           </DialogFooter>
         </DialogContent>
