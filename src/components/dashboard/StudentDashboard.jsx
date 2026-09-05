@@ -46,8 +46,8 @@ function QuickAction({ to, icon: Icon, label, color, description }) {
   );
 }
 
-export default function StudentDashboard({ user, jakmasAppointment }) {
-  const [student, setStudent] = useState(null);
+export default function StudentDashboard({ user, jakmasAppointment, studentProfile }) {
+  const [student, setStudent] = useState(studentProfile || null);
   const [myLeave, setMyLeave] = useState([]);
   const [myMaint, setMyMaint] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
@@ -55,6 +55,13 @@ export default function StudentDashboard({ user, jakmasAppointment }) {
   const [readMap, setReadMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
+
+  // Kemaskini state jika props studentProfile berubah dari luar
+  useEffect(() => {
+    if (studentProfile) {
+      setStudent(prev => ({ ...(prev || {}), ...studentProfile }));
+    }
+  }, [studentProfile]);
 
   // Ambil data mesej terkini untuk saluran komuniti
   async function loadRecentChats() {
@@ -83,7 +90,9 @@ export default function StudentDashboard({ user, jakmasAppointment }) {
         if (!students.length && user?.email) {
           students = await base44.entities.Student.filter({ email: user.email });
         }
-        const myStudent = students[0] || null;
+        const myStudent = students[0] 
+          ? { ...(studentProfile || {}), ...students[0] }
+          : (studentProfile || null);
         setStudent(myStudent);
 
         const dataPromises = [
@@ -109,7 +118,7 @@ export default function StudentDashboard({ user, jakmasAppointment }) {
           const hoursPassed = (now - createTime) / (1000 * 60 * 60);
           const lastRemDate = m.last_reminder_sent_at ? m.last_reminder_sent_at.split('T')[0] : null;
 
-          if (hoursPassed >= 24 && lastRemDate !== todayDateStr) {
+          if (hoursPassed >= 24 && lastRemDate !== todayDateStr && user?.id) {
             try {
               await base44.entities.Notification.create({
                 user_id: user.id,

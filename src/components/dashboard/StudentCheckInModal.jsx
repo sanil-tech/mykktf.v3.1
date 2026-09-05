@@ -187,6 +187,27 @@ export default function StudentCheckInModal({
     setIsScanning(false);
   };
 
+  // Close handler with camera teardown and parent callback
+  const handleClose = () => {
+    stopCamera();
+    if (step === 'success' || successData) {
+      const payload = successData || {
+        block_name: selectedBlock,
+        room_number: selectedRoomNumber,
+        room_id: selectedRoomId,
+        room_status: 'Checked In',
+        resident_status: 'Active',
+        qr_verified: true
+      };
+      if (typeof onCheckInSuccess === 'function') {
+        onCheckInSuccess(payload);
+      }
+    }
+    if (typeof onClose === 'function') {
+      onClose();
+    }
+  };
+
   // When moving to QR step, trigger camera
   useEffect(() => {
     if (step === 'qr_scanning' && isOpen) {
@@ -397,6 +418,24 @@ export default function StudentCheckInModal({
         activeStudent.qr_verified_at = todayIso;
       }
 
+      // 5. TUKAR ROLE PENGGUNA KEPADA 'student' (sama seperti pengesahan oleh staf)
+      try {
+        await base44.auth.updateMe({ role: 'student' });
+        if (user) {
+          user.role = 'student';
+        }
+      } catch (roleErr) {
+        console.warn('Gagal kemaskini peranan akaun pengguna:', roleErr);
+      }
+
+      if (activeStudent?.user_id) {
+        try {
+          await base44.entities.User.update(activeStudent.user_id, { role: 'student' });
+        } catch (uErr) {
+          console.warn('Gagal kemaskini entiti User:', uErr);
+        }
+      }
+
       const verifiedPayload = {
         block_name: selectedBlock,
         room_number: selectedRoomNumber,
@@ -439,17 +478,6 @@ export default function StudentCheckInModal({
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleClose = () => {
-    stopCamera();
-    isProcessingRef.current = false;
-    if (step === 'success' && successData) {
-      if (onCheckInSuccess) {
-        onCheckInSuccess(successData);
-      }
-    }
-    onClose();
   };
 
   return (

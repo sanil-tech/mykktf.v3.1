@@ -10,24 +10,16 @@ import { InstitutionalDualLogo } from '@/components/shared/KKTFLogo';
 import { Badge } from '@/components/ui/badge';
 import { fetchActiveJakmasAppointment, computeEffectiveRole } from '@/lib/jakmas';
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Loader2, 
-  ClipboardCheck, 
   MapPin, 
-  Info, 
   Users, 
   BedDouble, 
   AlertCircle,
   KeyRound,
   Building2,
-  ScanLine,
-  Sparkles,
-  ShieldCheck,
-  CheckCircle2
+  ScanLine
 } from "lucide-react";
 import WelcomeTour from '@/components/onboarding/WelcomeTour';
 
@@ -493,8 +485,8 @@ export default function Dashboard() {
   }
 
   if (hasStudentProfile && isRoomAssigned) {
-    return <><StudentDashboard user={currentUser} />{tour}</>;
+    return <><StudentDashboard user={currentUser} studentProfile={studentProfile} />{tour}</>;
   }
 
-  return <><StudentDashboard user={currentUser} />{tour}</>;
+  return <><StudentDashboard user={currentUser} studentProfile={studentProfile} />{tour}</>;
 }
