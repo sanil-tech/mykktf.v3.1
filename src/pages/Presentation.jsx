@@ -279,18 +279,41 @@ const MANUAL_CHAPTERS = [
   {
     id: 'ch-merit-demerit',
     number: 'Bab 7',
-    title: 'Sistem Merit, Lantikan AJK & Matriks Jawatankuasa Pemilih Residen (Pengetua & Felo)',
+    title: 'Sistem Merit, Tuntutan Sukan, Lantikan AJK & Matriks Pemilih Residen',
     roleLabel: 'Semua Pengguna (Pelajar, JAKMAS, Felo & Pentadbir)',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
     icon: 'Trophy',
-    summary: 'Panduan lengkap pengumpulan merit aktiviti, tangga mata jawatan AJK JAKMAS, penapis blok jagaan felo, simulator kuota penempatan, dan semakan jawatankuasa pemilih residen.',
+    summary: 'Panduan lengkap pengumpulan merit aktiviti, tuntutan merit sukan mahasiswa (atlet kolej/negeri/negara), skala pingat, tangga mata AJK JAKMAS, penapis blok jagaan felo, simulator kuota penempatan, dan semakan jawatankuasa pemilih residen.',
     sections: [
       {
         title: '7.1 Matriks Jawatankuasa Pemilih Residen (Pengetua & Felo)',
-        content: 'Matriks Pemilih Residen (`/merit-demerit`) adalah papan kawalan strategi kolej untuk menentukan kelayakan penghunian bilik sesi hadapan secara adil dan telus. Sistem ini menggabungkan kehadiran aktiviti rasmi, markah pelantikan kepimpinan JAKMAS/AJK, inisiatif sukarelawan Dapur Siswa, atlit sukan kolej, serta penalti pemotongan dimerit tatatertib.'
+        content: 'Matriks Pemilih Residen (`/merit-demerit`) adalah papan kawalan strategi kolej untuk menentukan kelayakan penghunian bilik sesi hadapan secara adil dan telus. Sistem ini menggabungkan kehadiran aktiviti rasmi, markah pelantikan kepimpinan JAKMAS/AJK, inisiatif sukarelawan Dapur Siswa, pengiktirafan atlit sukan kolej, serta penalti pemotongan dimerit tatatertib.'
       },
       {
-        title: '7.2 Penapis Blok Jagaan Felo (1-Klik Fokus)',
+        title: '7.2 Langkah Pelajar Menuntut Merit Sukan (Sports Merit Claim)',
+        steps: [
+          'Langkah 1: Pelajar membuka modul "Merit & Dimerit" (/merit-demerit) pada telefon pintar atau komputer.',
+          'Langkah 2: Pada spanduk utama atau bar tajuk, tekan butang "🏆 Tuntut Merit Sukan".',
+          'Langkah 3: Masukkan Nama Acara / Kejohanan Sukan, Jenis Sukan (cth: Bola Sepak, Badminton, Olahraga, Catur), dan Tarikh Kejohanan.',
+          'Langkah 4: Pilih Peringkat Pertandingan: Kolej / Zon Dalaman (+10 hingga +25 mata), Antara Universiti / SUKUM (+15 hingga +35 mata), Negeri / Daerah (+25 hingga +50 mata), Kebangsaan (+40 hingga +80 mata), atau Antarabangsa (+60 hingga +100 mata).',
+          'Langkah 5: Pilih Pencapaian Pingat: 🥇 Pingat Emas (Juara), 🥈 Pingat Perak (Naib Juara), 🥉 Pingat Gangsa (Ketiga), atau 🎖️ Sijil Penyertaan Rasmi.',
+          'Langkah 6: Wajib lampirkan Dokumen Bukti Sah (format PDF, PNG, JPG atau WebP) seperti Sijil Kejohanan Rasmi, Surat Pelepasan Pusat Sukan UMS, atau Gambar Naik Podium / Kalungan Pingat.',
+          'Langkah 7: Tekan butang "Hantar Tuntutan Merit". Permohonan akan dihantar secara masa nyata ke peti masuk pengesahan Felo Penyelaras Exco Sukan & Rekreasi serta Warden Bertugas.'
+        ]
+      },
+      {
+        title: '7.3 Skala & Rubrik Rasmi Mata Merit Sukan KKTF',
+        steps: [
+          'Peringkat Antarabangsa: Emas (+100 Mata) | Perak (+85 Mata) | Gangsa (+75 Mata) | Penyertaan (+60 Mata)',
+          'Peringkat Kebangsaan (cth: SUKMA / Kejohanan Terbuka Kebangsaan): Emas (+80 Mata) | Perak (+65 Mata) | Gangsa (+55 Mata) | Penyertaan (+40 Mata)',
+          'Peringkat Negeri / Daerah (cth: SAGA / Kejohanan Terbuka Sabah): Emas (+50 Mata) | Perak (+40 Mata) | Gangsa (+35 Mata) | Penyertaan (+25 Mata)',
+          'Peringkat Antara Universiti (cth: SUKUM / MASUM / Karnival Sukan IPT): Emas (+35 Mata) | Perak (+30 Mata) | Gangsa (+25 Mata) | Penyertaan (+15 Mata)',
+          'Peringkat Kolej Kediaman (cth: Sukan Antara Blok KKTF / SUKOL): Emas (+25 Mata) | Perak (+20 Mata) | Gangsa (+15 Mata) | Penyertaan (+10 Mata)',
+          'Nota Aliran Pengesahan: Merit sukan hanya akan dikreditkan ke dalam Buku Log Merit dan Transkrip Sahsiah selepas disahkan dan diluluskan oleh Felo Penyelaras Exco Sukan & Rekreasi atau Warden.'
+        ]
+      },
+      {
+        title: '7.4 Penapis Blok Jagaan Felo (1-Klik Fokus)',
         steps: [
           'Langkah 1: Felo/Warden log masuk ke dalam sistem.',
           'Langkah 2: Pada bahagian atas jadual matriks, tekan butang "⭐ Blok Saya (Block B, Block G)".',
@@ -299,7 +322,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '7.3 Simulator Kuota Katil & Kriteria Keutamaan Bertingkat (Priority Buckets)',
+        title: '7.5 Simulator Kuota Katil & Kriteria Keutamaan Bertingkat (Priority Buckets)',
         steps: [
           'Langkah 1: Pengetua atau Pentadbir membuka tetingkap "Tetapan Kuota & Simulasi".',
           'Langkah 2: Masukkan had kuota fizikal katil (Lelaki & Perempuan).',
@@ -308,7 +331,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '7.4 Semakan Jawatankuasa Pemilih & Pelarasan Budi Bicara Felo',
+        title: '7.6 Semakan Jawatankuasa Pemilih & Pelarasan Budi Bicara Felo',
         steps: [
           'Langkah 1: Felo dan Pengetua menyemak setiap baris calon dalam jadual matriks.',
           'Langkah 2: Pada lajur "Pelarasan Panel", felo boleh menggunakan budi bicara untuk melaraskan status individu: "✓ Layak (Budi Bicara)", "⏳ Senarai Menunggu", atau "✕ Tolak Permohonan".',
@@ -316,7 +339,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '7.5 Skala Markah Lantikan AJK JAKMAS & Urusetia',
+        title: '7.7 Skala Markah Lantikan AJK JAKMAS & Urusetia',
         steps: [
           'Pengarah / Timbalan Pengarah Program Kolej: +35 Mata',
           'Setiausaha / Bendahari Acara: +30 Mata',
@@ -327,7 +350,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '7.6 Kategori Potongan Dimerit Disiplin & Jam Malam',
+        title: '7.8 Kategori Potongan Dimerit Disiplin & Jam Malam',
         content: 'Pemotongan markah dikenakan oleh felo bertugas: Lewat Jam Malam / Curfew (-10 Mata), Membawa Pelawat Tanpa Kebenaran (-20 Mata), Merokok / Vape (-30 Mata), Bising Waktu Senyap (-10 Mata), dan Bilik Kotor Semasa Spot-Check (-10 Mata).'
       }
     ]
@@ -408,14 +431,24 @@ const MANUAL_CHAPTERS = [
     roleLabel: 'Pengetua & Pentadbir Utama Sahaja',
     allowedRoles: ['principal', 'super_admin', 'college_admin'],
     icon: 'ShieldCheck',
-    summary: 'Pusat kawalan strategik Pengetua Kolej: pengesahan lantikan Felo Penyelaras Acara, kawalan penugasan blok felo berpusat, dan KPI masa nyata pangkalan data.',
+    summary: 'Pusat kawalan strategik Pengetua Kolej: watikah pelantikan Felo Penyelaras EXCO JAKMAS secara dinamik, pengesahan lantikan Felo Penyelaras Acara, kawalan penugasan blok felo berpusat, dan KPI masa nyata pangkalan data.',
     sections: [
       {
         title: '10.1 Papan Pemuka Suite Eksekutif Pengetua',
         content: 'Suite Eksekutif Pengetua di papan pemuka pentadbir menyediakan visualisasi berprestij tinggi khusus untuk Pengurusan Eksekutif Kolej. Papan ini menggabungkan tindakan berkepentingan tinggi dengan pemantauan strategik kolej.'
       },
       {
-        title: '10.2 Pengesahan Lantikan Felo Penyelaras Program (1-Klik Kelulusan)',
+        title: '10.2 Watikah Pelantikan Felo Penyelaras EXCO JAKMAS oleh Pengetua Kolej',
+        steps: [
+          'Kuasa Mutlak Pengetua: Pengetua Kolej Kediaman Tun Fuad memegang kuasa mutlak melantik Felo Penyelaras bagi memimpin dan membimbing portfolio EXCO JAKMAS kolej.',
+          'Pelantikan Fleksibel & Berbilang Portfolio: Seorang felo boleh diberi amanah menyelaras satu atau beberapa Portfolio EXCO mengikut kepakaran dan keperluan pengurusan kolej.',
+          'Pelantikan Dinamik Berasaskan Felo Berdaftar: Senarai pemilihan pegawai dijana secara dinamik daripada felo sebenar yang berdaftar dengan sistem kolej. Ini mengelakkan senarai kaku dan mengelakkan kekeliruan sekiranya terdapat felo terdahulu yang telah tamat perkhidmatan atau berpindah.',
+          'Pengurusan Status Felo: Pentadbir dan Pengetua boleh memantau status Felo ("Aktif Bertugas" vs "Tamat Perkhidmatan") secara telus pada direktori kolej.',
+          'Watikah Pentauliahan Rasmi: Felo yang dilantik menerima pentauliahan digital rasmi berserta cop mohor kolej dan pengiktirafan lencana khas "Felo Penyelaras EXCO" di bar atas serta papan pemuka mereka.'
+        ]
+      },
+      {
+        title: '10.3 Pengesahan Lantikan Felo Penyelaras Program (1-Klik Kelulusan)',
         steps: [
           'Langkah 1: Acara yang dicadangkan oleh JAKMAS dengan cadangan nama Felo Penyelaras akan muncul di Pusat Tindakan Eksekutif Pengetua.',
           'Langkah 2: Pengetua menyemak nama program dan felo yang dicadangkan.',
@@ -423,7 +456,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '10.3 Matriks Tadbir Urus Felo & Kawalan Blok Berpusat',
+        title: '10.4 Matriks Tadbir Urus Felo & Kawalan Blok Berpusat',
         steps: [
           'Penetapan Blok Berpusat: Pengetua dan Ketua Pentadbiran menetapkan blok kawalan felo di modul Block Assignment (`/block-assignment`).',
           'Paparan Profil Felo: Di halaman My Profile, felo mempunyai paparan baca-sahaja (Read-Only) bagi blok jagaan mereka demi mengekalkan integriti arahan pentadbiran.',
@@ -431,7 +464,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '10.4 Indeks Prestasi Strategik Kolej (KPI Pulse Dinamik Sebenar)',
+        title: '10.5 Indeks Prestasi Strategik Kolej (KPI Pulse Dinamik Sebenar)',
         content: 'Semua angka pada KPI Pengetua dijana 100% secara masa nyata dari pangkalan data: Kadar Penghunian Katil (%), Program Aktif & Kehadiran Mahasiswa, Sukarelawan Kebajikan Dapur Siswa Berdaftar, dan Demografi Jantina Siswa/Siswi.'
       }
     ]
@@ -514,18 +547,28 @@ const MANUAL_CHAPTERS = [
   {
     id: 'ch-warden',
     number: 'Bab 14',
-    title: 'Panduan Felo & Warden: Kelulusan Cuti, Poster QR A4 & Direktori Blok',
+    title: 'Panduan Felo & Warden: Kelulusan Cuti, Pusat Tindakan Penyelaras & Tuntutan Sukan',
     roleLabel: 'Warden & Pentadbir Sahaja',
     allowedRoles: ['warden', 'staff', 'college_admin', 'super_admin'],
     icon: 'ShieldCheck',
-    summary: 'Aliran kerja khusus felo: kelulusan cuti blok, pemantauan status terlewat (overdue), cetakan poster QR rasmi, dan semakan residen (view-only).',
+    summary: 'Aliran kerja khusus felo: kelulusan cuti blok, pusat tindakan felo penyelaras EXCO, semakan & pengesahan tuntutan merit sukan mahasiswa, cetakan poster QR rasmi, dan semakan residen (view-only).',
     sections: [
       {
         title: '14.1 Skop Kuasa & Privasi Mengikut Blok',
         content: 'Felo/Warden hanya boleh melihat permohonan cuti, laporan kerosakan, dan rekod residen bagi blok yang ditugaskan kepada mereka di bawah entiti WardenBlock (cth: Felo Blok G hanya melihat residen Blok G).'
       },
       {
-        title: '14.2 Langkah Memproses Kelulusan E-Leave',
+        title: '14.2 Pusat Tindakan Felo Penyelaras EXCO & Pengesahan Merit Sukan',
+        steps: [
+          'Lencana Felo Penyelaras: Felo yang menerima watikah lantikan Pengetua akan dipaparkan lencana berprestij "Felo Penyelaras EXCO" pada bar atas aplikasi (TopBar) dan Papan Pemuka Felo.',
+          'Paparan Portfolio Diselia: Papan Pemuka memaparkan senarai portfolio EXCO yang berada di bawah bimbingan felo berkenaan.',
+          'Pusat Tuntutan Merit Sukan Menunggu Pengesahan: Felo Penyelaras Exco Sukan & Rekreasi serta Warden boleh melihat kad notifikasi tuntutan merit sukan yang dikemukakan oleh atlet kolej.',
+          'Semakan Bukti Dokumen: Felo meneliti nama kejohanan, sukan, peringkat pertandingan, pencapaian pingat, dan membuka lampiran bukti (sijil/surat pelepasan/foto).',
+          'Kelulusan & Pengkreditan 1-Klik: Felo menekan "Luluskan Tuntutan" untuk memasukkan markah merit secara automatik ke profil pelajar berserta catatan pengesahan rasmi felo.'
+        ]
+      },
+      {
+        title: '14.3 Langkah Memproses Kelulusan E-Leave',
         steps: [
           'Langkah 1: Buka modul "E-Leave" atau "Leave Monitor".',
           'Langkah 2: Semak senarai permohonan berstatus "Pending Approval".',
@@ -534,7 +577,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '14.3 Langkah Menjana & Mencetak Poster Kod QR A4 Rasmi',
+        title: '14.4 Langkah Menjana & Mencetak Poster Kod QR A4 Rasmi',
         steps: [
           'Langkah 1: Di modul E-Leave, tekan butang "Poster QR Blok".',
           'Langkah 2: Pilih blok jagaan anda daripada menu pilihan lokasi (cth: Blok G).',
@@ -544,7 +587,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '14.4 Langkah Pengesahan Kepulangan Manual (Rondaan Blok)',
+        title: '14.5 Langkah Pengesahan Kepulangan Manual (Rondaan Blok)',
         steps: [
           'Langkah 1: Jika terdapat pelajar yang terlupa mengimbas atau kehabisan bateri, buka kad permohonan pelajar tersebut.',
           'Langkah 2: Tekan butang "Sahkan Kepulangan Pelajar (Manual Clearance)".',
@@ -552,7 +595,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '14.5 Direktori Residen (Akses Paparan Sahaja / View-Only)',
+        title: '14.6 Direktori Residen (Akses Paparan Sahaja / View-Only)',
         content: 'Warden boleh mencari nama, no. bilik, dan kontak waris kecemasan pelajar di halaman Student Management melalui butang mata (👁️). Butang Tambah, Edit, dan Padam pelajar disembunyikan sepenuhnya demi mengekalkan integriti rekod pendaftaran kolej.'
       }
     ]
@@ -560,14 +603,32 @@ const MANUAL_CHAPTERS = [
   {
     id: 'ch-jakmas',
     number: 'Bab 15',
-    title: 'Panduan EXCO JAKMAS: Pengurusan Acara, Notis & Portfolio',
+    title: 'Panduan EXCO JAKMAS: Struktur 9 Portfolio Rasmi Sesi 2025/2026 & Pengurusan Acara',
     roleLabel: 'JAKMAS & Pentadbir Sahaja',
     allowedRoles: ['jakmas', 'staff', 'college_admin', 'super_admin'],
     icon: 'ClipboardList',
-    summary: 'Panduan barisan EXCO Jawatankuasa Kebajikan Mahasiswa mengurus aktiviti kolej, draf pengumuman rasmi, dan kemajuan portfolio.',
+    summary: 'Panduan struktur 9 portfolio EXCO JAKMAS KKTF sesi 2025/2026, hubungan bimbingan Felo Penyelaras, pengurusan aktiviti kolej, draf pengumuman rasmi, dan kemajuan tugasan.',
     sections: [
       {
-        title: '15.1 Langkah Mencipta Program / Acara Kolej',
+        title: '15.1 Struktur Rasmi 9 Portfolio EXCO JAKMAS KKTF Sesi 2025/2026',
+        steps: [
+          '1. Exco Kebajikan dan Keselamatan (Dipimpin oleh Yang Dipertua - YDP): Menjaga hal ehwal kebajikan, bantuan makanan/Dapur Siswa, rondaan keselamatan blok, dan penginapan residen.',
+          '2. Exco Akademik dan Kepimpinan (Dipimpin oleh Naib Yang Dipertua - NYDP): Bengkel kecemerlangan akademik, program pembangunan modal insan, dan latihan kepimpinan mahasiswa.',
+          '3. Exco Perhubungan Korporat dan Antarabangsa (Dipimpin oleh Setiausaha Kehormat - SU): Surat-menyurat rasmi, kolaborasi agensi luar, jaringan alumni, dan program mahasiswa antarabangsa.',
+          '4. Exco Kerohanian dan Pembangunan Sahsiah (Dipimpin oleh Bendahari Kehormat): Pengurusan kewangan kolej, aktiviti keagamaan, tazkirah, kuliah moral, dan pembentukan sahsiah murni.',
+          '5. Exco Keusahawanan: Karnival keusahawanan, gerai jualan siswa, bengkel perniagaan digital, dan dana pusingan mahasiswa.',
+          '6. Exco Kesukarelawanan dan Kemasyarakatan: Misi bantuan bencana, khidmat komuniti luar bandar, aktiviti alam sekitar, dan gotong-royong perdana.',
+          '7. Exco Media dan Publisiti: Reka bentuk grafik poster digital, siaran media sosial rasmi KKTF, liputan fotografi acara, dan montaj video.',
+          '8. Exco Sukan dan Rekreasi: Kejohanan sukan antara blok (SUKOL), riadah residen, kejohanan e-sukan, dan penyelarasan tuntutan merit atlet sukan kolej.',
+          '9. Exco Kesenian dan Kebudayaan: Malam kebudayaan KKTF, persembahan seni tari/muzik tradisional, teater, dan karnival warisan etnik Sabah.'
+        ]
+      },
+      {
+        title: '15.2 Hubungan Bimbingan Bersama Felo Penyelaras Portfolio',
+        content: 'Setiap EXCO JAKMAS dibimbing secara langsung oleh Felo Penyelaras yang ditauliahkan oleh Pengetua Kolej. EXCO perlu berhubung dengan Felo Penyelaras portfolio masing-masing sebelum memulakan perancangan aktiviti, menyediakan kertas kerja, dan menyemak kelayakan peserta program.'
+      },
+      {
+        title: '15.3 Langkah Mencipta Program / Acara Kolej',
         steps: [
           'Langkah 1: Buka modul "Events" → Tekan "Tambah Acara".',
           'Langkah 2: Masukkan Nama Acara, Tarikh, Masa Mula/Tamat, Tempat (Venue), dan Had Peserta.',
@@ -576,7 +637,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '15.2 Langkah Merangka Draf Pengumuman Rasmi',
+        title: '15.4 Langkah Merangka Draf Pengumuman Rasmi',
         steps: [
           'Langkah 1: Buka modul "Announcements" → Tekan "Draf Pengumuman".',
           'Langkah 2: Pilih Kategori: Acara, Sukan, Aktiviti Pelajar, atau Umum.',
@@ -585,7 +646,7 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '15.3 Langkah Mengemaskini Tugasan Portfolio (JAKMAS Tasks)',
+        title: '15.5 Langkah Mengemaskini Tugasan Portfolio (JAKMAS Tasks)',
         steps: [
           'Langkah 1: Buka modul "My JAKMAS Tasks".',
           'Langkah 2: Semak tugasan yang diagihkan oleh penasihat kolej/pentadbir.',
@@ -598,11 +659,11 @@ const MANUAL_CHAPTERS = [
   {
     id: 'ch-admin',
     number: 'Bab 16',
-    title: 'Panduan Pentadbir & Staf: Penyelarasan Bilik, AI Knowledge & Audit',
+    title: 'Panduan Pentadbir & Staf: Penyelarasan Bilik, Pengurusan Felo, AI & Audit',
     roleLabel: 'Pentadbir Utama & Staf Sahaja',
     allowedRoles: ['staff', 'college_admin', 'super_admin'],
     icon: 'ScrollText',
-    summary: 'Pengurusan inventori bilik, penyelarasan kapasiti katil, pelantikan EXCO, muat naik dokumen AI, dan Audit Log forensik.',
+    summary: 'Pengurusan inventori bilik, penyelarasan kapasiti katil, pengurusan direktori felo berdaftar, pelantikan EXCO, muat naik dokumen AI, dan Audit Log forensik.',
     sections: [
       {
         title: '16.1 Penyelarasan Kapasiti Bilik & Katil (Room Sync)',
@@ -613,7 +674,15 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '16.2 Pangkalan Pengetahuan AI (AI Knowledge Base) & Muat Naik Dokumen',
+        title: '16.2 Pengurusan Direktori Warden & Felo Berdaftar',
+        steps: [
+          'Jemputan & Pendaftaran Felo Baharu: Pentadbir boleh menjana pautan jemputan atau mendaftarkan pegawai felo/warden baharu yang melapor diri bertugas di kolej.',
+          'Status Perkhidmatan: Membolehkan penetapan status felo kepada "Aktif Bertugas" atau "Tamat Perkhidmatan" sekiranya felo berkenaan telah tamat tempoh perkhidmatan atau bertukar kolej/jabatan.',
+          'Pencegahan Kekeliruan: Mengelakkan nama pegawai yang sudah tidak berkhidmat daripada terpilih dalam senarai lantikan Felo Penyelaras EXCO atau penugasan blok kediaman.'
+        ]
+      },
+      {
+        title: '16.3 Pangkalan Pengetahuan AI (AI Knowledge Base) & Muat Naik Dokumen',
         steps: [
           'Langkah 1: Buka modul "AI Knowledge" (Pengetahuan AI).',
           'Langkah 2: Tekan butang "Muat Naik Dokumen" untuk mengimport fail dokumen peraturan atau SOP kemasukan (.txt, .doc, .md).',
@@ -622,11 +691,11 @@ const MANUAL_CHAPTERS = [
         ]
       },
       {
-        title: '16.3 Pengurusan Pelantikan EXCO JAKMAS',
-        content: 'Pada modul "JAKMAS Management", pentadbir boleh melantik pelajar menjadi barisan pimpinan kolej, menetapkan jawatan (Yang Dipertua, Setiausaha, Bendahari, EXCO Kebajikan, dll), serta mengagihkan tugasan mengikut portfolio.'
+        title: '16.4 Pengurusan Pelantikan EXCO JAKMAS & Felo Penyelaras',
+        content: 'Pada modul pentadbiran, pegawai boleh melantik mahasiswa ke dalam 9 Portfolio EXCO JAKMAS, menyemak watikah lantikan Felo Penyelaras yang dikeluarkan oleh Pengetua Kolej, serta memantau KPI tugasan setiap biro.'
       },
       {
-        title: '16.4 Jejak Audit Log Forensik Data (Kotak Hitam Keselamatan)',
+        title: '16.5 Jejak Audit Log Forensik Data (Kotak Hitam Keselamatan)',
         content: 'Buka modul "Audit Log" untuk menyiasat sebarang aktiviti penambahan, kemaskini, atau pemadaman data merentas semua modul. Setiap tindakan direkodkan dengan identiti pengguna dan cap masa milisaat yang tidak boleh dimanipulasi.'
       }
     ]
@@ -782,6 +851,32 @@ const ALL_SLIDES = [
     ],
     roles: ['Pengetua', 'Pentadbir Utama'],
     allowedRoles: ['principal', 'super_admin', 'college_admin']
+  },
+  {
+    kind: 'feature', icon: 'Trophy', tone: 'amber',
+    title: 'Tuntutan Merit Sukan Mahasiswa & Verifikasi Felo Sukan',
+    tagline: 'Aliran tuntutan merit atlet kolej/negeri/negara berserta semakan bukti.',
+    does: [
+      'Pelajar menuntut merit sukan mengikut 5 peringkat: Kolej, Universiti, Negeri, Kebangsaan, Antarabangsa',
+      'Pengiktirafan merit bertingkat berasaskan pingat Emas, Perak, Gangsa atau Penyertaan Rasmi',
+      'Muat naik dokumen sokongan wajib: Sijil kejohanan rasmi, surat pelepasan sukan & foto podium',
+      'Notifikasi segera kepada Felo Penyelaras Exco Sukan & Rekreasi untuk verifikasi & kelulusan 1-klik'
+    ],
+    roles: ['Pelajar', 'Felo Sukan', 'Warden'],
+    allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas']
+  },
+  {
+    kind: 'feature', icon: 'BadgeCheck', tone: 'indigo',
+    title: 'Struktur 9 Portfolio EXCO JAKMAS & Watikah Felo Penyelaras',
+    tagline: 'Tadbir urus 9 portfolio rasmi 2025/2026 & pentauliahan Felo Penyelaras oleh Pengetua.',
+    does: [
+      '9 Portfolio Rasmi: Kebajikan, Akademik, Korporat, Kerohanian, Keusahawanan, Sukarelawan, Media, Sukan & Kebudayaan',
+      'Watikah Pelantikan Rasmi oleh Pengetua Kolej kepada Felo Penyelaras berdaftar',
+      'Satu Felo boleh membimbing satu atau beberapa portfolio mengikut keperluan dan kepakaran kolej',
+      'Lencana eksklusif Felo Penyelaras pada TopBar & Pusat Tindakan Penyelaras di Dashboard Felo'
+    ],
+    roles: ['Pengetua', 'Felo', 'JAKMAS', 'Admin'],
+    allowedRoles: ['principal', 'warden', 'jakmas', 'staff', 'college_admin', 'super_admin']
   },
   {
     kind: 'feature', icon: 'Trophy', tone: 'amber',
@@ -1055,7 +1150,7 @@ export default function PresentationPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="auto">Peranan Saya ({userRole})</SelectItem>
-                  <SelectItem value="all">Semua Bab (Master Guide - 11 Bab)</SelectItem>
+                  <SelectItem value="all">Semua Bab (Master Guide - 17 Bab)</SelectItem>
                   <SelectItem value="student">Panduan Pelajar</SelectItem>
                   <SelectItem value="warden">Panduan Warden / Felo</SelectItem>
                   <SelectItem value="jakmas">Panduan EXCO JAKMAS</SelectItem>
