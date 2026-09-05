@@ -21,6 +21,7 @@ import {
   ArrowRight, 
   AlertCircle, 
   FileEdit,
+  Loader2,
   Sparkles,
   CheckCircle,
   ThumbsUp,
@@ -153,6 +154,7 @@ export default function Maintenance() {
 
   // Modal States
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [refModalOpen, setRefModalOpen] = useState(false);
   const [selectedReqForRef, setSelectedReqForRef] = useState(null);
   const [inputRefNumber, setInputRefNumber] = useState('');
@@ -452,77 +454,109 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
   };
 
   // STEP 1 & 2: Save to MyKKTF with exact timestamp and Launch MyServ
-  async function handleSubmitAndLaunchMyServ() {
+  async function handleSubmitAndLaunchMyServ(openPortal = true) {
     if (!form.description) { 
       toast.error('Sila isi penerangan kerosakan'); 
       return; 
     }
 
-    let reporterName = currentUser?.full_name || currentUser?.name || currentUser?.email || 'Pelapor';
-    let reporterRoleTag = 'Pelajar';
-    if (currentUser?.role === 'warden') reporterRoleTag = 'Felo / Warden';
-    else if (currentUser?.role === 'staff') reporterRoleTag = 'Staf Pentadbiran';
-    else if (currentUser?.role === 'jakmas') reporterRoleTag = 'JAKMAS';
-    else if (currentUser?.role === 'college_admin' || currentUser?.role === 'super_admin') reporterRoleTag = 'Pentadbir';
-
-    let locationDisplay = '';
-    let roomNumber = form.room_number || '';
-    let blockName = form.block_name || '';
-
-    if (form.location_type === 'My Room') {
-      locationDisplay = myStudent?.room_number ? `Bilik ${myStudent.room_number} (${myStudent.block_name || 'Blok'})` : form.specific_location || 'Bilik Sendiri';
-      roomNumber = myStudent?.room_number || 'Bilik Sendiri';
-      blockName = myStudent?.block_name || '';
-    } else if (form.location_type === 'Student Room') {
-      locationDisplay = `Bilik ${form.room_number || '-'} (${form.block_name || 'KKTF'})`;
-      roomNumber = form.room_number || 'Bilik Pelajar';
-      blockName = form.block_name || '';
-    } else if (form.location_type === 'Common Area') {
-      locationDisplay = form.specific_location || 'Fasiliti Bersama';
-      roomNumber = 'Fasiliti Bersama';
-    } else {
-      locationDisplay = form.specific_location || form.location_type;
-      roomNumber = 'Kawasan Kolej';
+    // Launch window synchronously on click event to avoid browser popup blocker
+    let portalTab = null;
+    if (openPortal) {
+      try {
+        portalTab = window.open(UMS_MYSERV_URL, '_blank', 'noopener,noreferrer');
+      } catch (e) {
+        console.warn('Pop-up could not be opened automatically:', e);
+      }
     }
 
-    const nowIso = new Date().toISOString();
+    setSubmitting(true);
+    try {
+      let reporterName = currentUser?.full_name || currentUser?.name || currentUser?.email || 'Pelapor';
+      let reporterRoleTag = 'Pelajar';
+      if (currentUser?.role === 'warden') reporterRoleTag = 'Felo / Warden';
+      else if (currentUser?.role === 'staff') reporterRoleTag = 'Staf Pentadbiran';
+      else if (currentUser?.role === 'jakmas') reporterRoleTag = 'JAKMAS';
+      else if (currentUser?.role === 'college_admin' || currentUser?.role === 'super_admin') reporterRoleTag = 'Pentadbir';
 
-    const payload = {
-      student_id: myStudent?.id || currentUser?.id,
-      student_name: `${reporterName} [${reporterRoleTag}${blockName ? ` - ${blockName}` : ''}]`,
-      room_number: roomNumber,
-      block_name: blockName,
-      location_type: form.location_type,
-      specific_location: locationDisplay,
-      category: form.category,
-      urgency: form.urgency || 'Normal',
-      description: form.description,
-      myserv_ticket_no: '',
-      photo: form.photo || null,
-      status: 'Submitted',
-      submitted_at: nowIso
-    };
+      let locationDisplay = '';
+      let roomNumber = form.room_number || '';
+      let blockName = form.block_name || '';
 
-    const newRecord = await base44.entities.MaintenanceRequest.create(payload);
-    await logAudit(currentUser, 'MAINTENANCE_SUBMITTED', 'Maintenance', { 
-      reporter: reporterName, 
-      role: reporterRoleTag,
-      category: form.category, 
-      location: locationDisplay,
-      submitted_at: nowIso
-    });
+      if (form.location_type === 'My Room') {
+        locationDisplay = myStudent?.room_number ? `Bilik ${myStudent.room_number} (${myStudent.block_name || 'Blok'})` : form.specific_location || 'Bilik Sendiri';
+        roomNumber = myStudent?.room_number || 'Bilik Sendiri';
+        blockName = myStudent?.block_name || '';
+      } else if (form.location_type === 'Student Room') {
+        locationDisplay = `Bilik ${form.room_number || '-'} (${form.block_name || 'KKTF'})`;
+        roomNumber = form.room_number || 'Bilik Pelajar';
+        blockName = form.block_name || '';
+      } else if (form.location_type === 'Common Area') {
+        locationDisplay = form.specific_location || 'Fasiliti Bersama';
+        roomNumber = 'Fasiliti Bersama';
+      } else {
+        locationDisplay = form.specific_location || form.location_type;
+        roomNumber = 'Kawasan Kolej';
+      }
 
-    toast.success('Aduan / Rekod kerosakan disimpan! Membuka portal UMS MyServ...');
-    setDialogOpen(false);
+      const nowIso = new Date().toISOString();
 
-    // Open UMS MyServ in new window
-    window.open(UMS_MYSERV_URL, '_blank', 'noopener,noreferrer');
+      const payload = {
+        student_id: myStudent?.id || currentUser?.id,
+        student_name: `${reporterName} [${reporterRoleTag}${blockName ? ` - ${blockName}` : ''}]`,
+        room_number: roomNumber,
+        block_name: blockName,
+        location_type: form.location_type,
+        specific_location: locationDisplay,
+        category: form.category,
+        urgency: form.urgency || 'Normal',
+        description: form.description,
+        myserv_ticket_no: '',
+        photo: form.photo || null,
+        status: 'Submitted',
+        submitted_at: nowIso
+      };
 
-    // Immediately prompt student to prepare No. Rujukan
-    setSelectedReqForRef(newRecord);
-    setInputRefNumber('');
-    setRefModalOpen(true);
-    init();
+      const newRecord = await base44.entities.MaintenanceRequest.create(payload);
+      await logAudit(currentUser, 'MAINTENANCE_SUBMITTED', 'Maintenance', { 
+        reporter: reporterName, 
+        role: reporterRoleTag,
+        category: form.category, 
+        location: locationDisplay,
+        submitted_at: nowIso
+      });
+
+      if (openPortal) {
+        toast.success('Aduan disimpan! Portal UMS MyServ sedang dibuka...');
+      } else {
+        toast.success('Aduan kerosakan berjaya disimpan dalam sistem!');
+      }
+
+      // Reset form
+      setForm({
+        location_type: 'My Room',
+        room_number: '',
+        block_name: '',
+        specific_location: '',
+        category: 'Electrical',
+        urgency: 'Normal',
+        description: '',
+        photo: null
+      });
+
+      setDialogOpen(false);
+
+      // Immediately prompt user to enter/prepare No. Rujukan TAMS
+      setSelectedReqForRef(newRecord);
+      setInputRefNumber('');
+      setRefModalOpen(true);
+      init();
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal menyimpan aduan: ' + (err?.message || 'Sila cuba lagi'));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   // STEP 3: Save No Rujukan with Timestamp
@@ -1552,17 +1586,36 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4 border-t border-border mt-4">
-            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>
+          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t border-border mt-4">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setDialogOpen(false)}
+              disabled={submitting}
+              className="text-xs"
+            >
               Batal
             </Button>
             <Button 
               type="button" 
+              variant="outline"
               size="sm" 
-              onClick={handleSubmitAndLaunchMyServ}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold gap-1.5"
+              disabled={submitting}
+              onClick={() => handleSubmitAndLaunchMyServ(false)}
+              className="text-xs font-medium border-slate-300 hover:bg-slate-50"
             >
-              Simpan & Buka Portal TAMS / MyServ <ArrowRight className="w-3.5 h-3.5" />
+              Simpan Sahaja
+            </Button>
+            <Button 
+              type="button" 
+              size="sm" 
+              disabled={submitting}
+              onClick={() => handleSubmitAndLaunchMyServ(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold gap-1.5 shadow-xs"
+            >
+              {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+              {submitting ? 'Menyimpan...' : 'Simpan & Buka Portal TAMS / MyServ'}
+              {!submitting && <ArrowRight className="w-3.5 h-3.5" />}
             </Button>
           </div>
         </DialogContent>
@@ -1657,6 +1710,26 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
           </DialogHeader>
 
           <div className="space-y-3 mt-2">
+            {/* Quick helper banner to open or re-open portal */}
+            <div className="p-2.5 bg-indigo-50/90 rounded-xl border border-indigo-200/90 flex items-center justify-between gap-2 text-xs">
+              <div className="min-w-0">
+                <span className="font-semibold text-indigo-950 flex items-center gap-1">
+                  <ExternalLink className="w-3.5 h-3.5 text-indigo-600 shrink-0" /> Portal Rasmi MyServ / TAMS UMS
+                </span>
+                <span className="text-[11px] text-indigo-700 block truncate">
+                  aset.ums.edu.my/myserv/
+                </span>
+              </div>
+              <a
+                href={UMS_MYSERV_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shrink-0 transition-colors shadow-xs"
+              >
+                Buka Portal <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
               <p className="font-semibold text-slate-900">
                 Lokasi: {selectedReqForRef?.specific_location || selectedReqForRef?.room_number}
