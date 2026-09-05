@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { Wrench, CalendarOff, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare, Medal } from 'lucide-react';
+import { Wrench, CalendarOff, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare, Medal, ClipboardCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import JakmasPanel from '@/components/dashboard/JakmasPanel';
 import DigitalResidentPass from '@/components/shared/DigitalResidentPass';
@@ -50,6 +50,7 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
   const [student, setStudent] = useState(studentProfile || null);
   const [myLeave, setMyLeave] = useState([]);
   const [myMaint, setMyMaint] = useState([]);
+  const [myInspection, setMyInspection] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
   const [recentChats, setRecentChats] = useState([]); // State baharu untuk mesej komuniti live
   const [readMap, setReadMap] = useState({});
@@ -97,7 +98,8 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
 
         const dataPromises = [
           base44.entities.Announcement.list('-publish_date'),
-          user?.id ? base44.entities.AnnouncementRead.filter({ student_user_id: user.id }) : Promise.resolve([])
+          user?.id ? base44.entities.AnnouncementRead.filter({ student_user_id: user.id }) : Promise.resolve([]),
+          base44.entities.RoomInspection.list('-created_date').catch(() => [])
         ];
 
         if (myStudent) {
@@ -105,10 +107,17 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
           dataPromises.push(base44.entities.MaintenanceRequest.filter({ student_id: myStudent.student_id }, '-created_date', 5));
         }
 
-        const [ann, reads = [], leave = [], maint = []] = await Promise.all(dataPromises);
+        const [ann, reads = [], inspections = [], leave = [], maint = []] = await Promise.all(dataPromises);
 
         setMyLeave(leave);
         setMyMaint(maint);
+
+        // Cari pemeriksaan bilik pelajar ini
+        const foundInsp = Array.isArray(inspections) ? inspections.find(i => 
+          (myStudent?.student_id && i.student_id === myStudent.student_id) ||
+          (user?.id && i.inspected_by_user_id === user.id)
+        ) : null;
+        setMyInspection(foundInsp);
 
         // Daily Reminder Dispatcher for active Damage Reports (>24h without completion)
         const now = Date.now();
@@ -352,6 +361,7 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
           <QuickAction to="/leave" icon={CalendarOff} label="Mohon Cuti" description="Pelepasan balik hujung minggu" color="bg-purple-600" />
           <QuickAction to="/maintenance" icon={Wrench} label="Aduan Fasiliti" description="Laporan kerosakan bilik/blok" color="bg-amber-500" />
           <QuickAction to="/merit?claim=sports" icon={Medal} label="Tuntut Merit" description="Tuntutan atlet & sukan kolej" color="bg-amber-600" />
+          <QuickAction to="/room-inspections" icon={CheckSquare} label="Pemeriksaan Bilik" description="Semak status inspeksi bilik anda" color="bg-green-600" />
           <QuickAction to="/facilities" icon={Home} label="Tempahan" description="Bilik belajar, dewan & peralatan" color="bg-sky-600" />
           <QuickAction to="/visitors" icon={ClipboardList} label="Daftar Pelawat" description="Log kemasukan pelawat luar" color="bg-emerald-600" />
           <QuickAction to="/attendance" icon={Calendar} label="Kehadiran" description="Semak rekod kehadiran kolej" color="bg-[#132A4A]" />
