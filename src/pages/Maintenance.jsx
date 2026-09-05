@@ -90,7 +90,18 @@ const COMMON_FACILITIES = [
   'Hostel Compound / Street Lighting'
 ];
 
-const STAFF_ROLES = ['warden', 'staff', 'college_admin', 'super_admin'];
+const STAFF_ROLES = ['warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'];
+
+const COLLEGE_BLOCKS = [
+  'Block A',
+  'Block B',
+  'Block C',
+  'Block D',
+  'Block E',
+  'Block F',
+  'Block G',
+  'Block H'
+];
 
 function formatResolutionTime(hours) {
   if (!hours || isNaN(hours)) return null;
@@ -135,6 +146,7 @@ export default function Maintenance() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [myStudent, setMyStudent] = useState(null);
+  const [assignedBlocks, setAssignedBlocks] = useState([]);
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -203,6 +215,7 @@ export default function Maintenance() {
         const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
         if (wb.length > 0) {
           const blockNames = wb.map(w => w.block_name);
+          setAssignedBlocks(blockNames);
           reqs = reqs.filter(r => !r.block_name || blockNames.includes(r.block_name));
         }
       }
@@ -245,10 +258,12 @@ export default function Maintenance() {
   }
 
   const handleOpenDialog = () => {
+    const isStaffUser = currentUser && STAFF_ROLES.includes(currentUser.role);
+    const defaultBlock = assignedBlocks.length > 0 ? assignedBlocks[0] : (myStudent?.block_name || 'Block B');
     setForm({
-      location_type: 'My Room',
+      location_type: isStaffUser ? 'Student Room' : 'My Room',
       room_number: myStudent?.room_number || '',
-      block_name: myStudent?.block_name || '',
+      block_name: defaultBlock,
       specific_location: myStudent ? `Bilik ${myStudent.room_number}, ${myStudent.block_name}` : '',
       category: 'Electrical',
       urgency: 'Normal',
@@ -277,10 +292,14 @@ export default function Maintenance() {
     reader.onload = async (event) => {
       try {
         const rawBase64 = event.target.result;
-        const locName = form.location_type === 'My Room' 
-          ? (myStudent?.room_number ? `Bilik ${myStudent.room_number} (${myStudent.block_name || ''})` : form.specific_location)
-          : form.specific_location;
-        const reporterName = myStudent?.full_name || currentUser?.full_name || currentUser?.email;
+        let locName = form.specific_location;
+        if (form.location_type === 'My Room') {
+          locName = myStudent?.room_number ? `Bilik ${myStudent.room_number} (${myStudent.block_name || 'KKTF'})` : form.specific_location;
+        } else if (form.location_type === 'Student Room') {
+          locName = `Bilik ${form.room_number || '-'} (${form.block_name || 'KKTF'})`;
+        }
+
+        const reporterName = currentUser?.full_name || myStudent?.full_name || currentUser?.email;
 
         const stamped = await stampInspectionWatermark(rawBase64, {
           location: locName || 'Fasiliti Kolej KKTF',
@@ -390,21 +409,40 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
       return; 
     }
 
-    const studentName = myStudent?.full_name || currentUser?.full_name || currentUser?.email;
-    const studentId = myStudent?.id || currentUser?.id;
-    const studentMicroAddress = myStudent?.room_number ? `${myStudent.block_name || 'Blok'} - Bilik ${myStudent.room_number}` : 'N/A';
+    let reporterName = currentUser?.full_name || currentUser?.name || currentUser?.email || 'Pelapor';
+    let reporterRoleTag = 'Pelajar';
+    if (currentUser?.role === 'warden') reporterRoleTag = 'Felo / Warden';
+    else if (currentUser?.role === 'staff') reporterRoleTag = 'Staf Pentadbiran';
+    else if (currentUser?.role === 'jakmas') reporterRoleTag = 'JAKMAS';
+    else if (currentUser?.role === 'college_admin' || currentUser?.role === 'super_admin') reporterRoleTag = 'Pentadbir';
 
-    const locationDisplay = form.location_type === 'My Room'
-      ? (myStudent?.room_number ? `Bilik ${myStudent.room_number} (${myStudent.block_name})` : form.specific_location || 'Bilik Sendiri')
-      : (form.specific_location || form.location_type);
+    let locationDisplay = '';
+    let roomNumber = form.room_number || '';
+    let blockName = form.block_name || '';
+
+    if (form.location_type === 'My Room') {
+      locationDisplay = myStudent?.room_number ? `Bilik ${myStudent.room_number} (${myStudent.block_name || 'Blok'})` : form.specific_location || 'Bilik Sendiri';
+      roomNumber = myStudent?.room_number || 'Bilik Sendiri';
+      blockName = myStudent?.block_name || '';
+    } else if (form.location_type === 'Student Room') {
+      locationDisplay = `Bilik ${form.room_number || '-'} (${form.block_name || 'KKTF'})`;
+      roomNumber = form.room_number || 'Bilik Pelajar';
+      blockName = form.block_name || '';
+    } else if (form.location_type === 'Common Area') {
+      locationDisplay = form.specific_location || 'Fasiliti Bersama';
+      roomNumber = 'Fasiliti Bersama';
+    } else {
+      locationDisplay = form.specific_location || form.location_type;
+      roomNumber = 'Kawasan Kolej';
+    }
 
     const nowIso = new Date().toISOString();
 
     const payload = {
-      student_id: studentId,
-      student_name: `${studentName} [${studentMicroAddress}]`,
-      room_number: form.location_type === 'My Room' ? (myStudent?.room_number || 'My Room') : (form.room_number || 'Common Area'),
-      block_name: form.block_name || myStudent?.block_name || '',
+      student_id: myStudent?.id || currentUser?.id,
+      student_name: `${reporterName} [${reporterRoleTag}${blockName ? ` - ${blockName}` : ''}]`,
+      room_number: roomNumber,
+      block_name: blockName,
       location_type: form.location_type,
       specific_location: locationDisplay,
       category: form.category,
@@ -418,13 +456,14 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
 
     const newRecord = await base44.entities.MaintenanceRequest.create(payload);
     await logAudit(currentUser, 'MAINTENANCE_SUBMITTED', 'Maintenance', { 
-      student: studentName, 
+      reporter: reporterName, 
+      role: reporterRoleTag,
       category: form.category, 
       location: locationDisplay,
       submitted_at: nowIso
     });
 
-    toast.success('Laporan disimpan! Membuka portal UMS MyServ...');
+    toast.success('Aduan / Rekod kerosakan disimpan! Membuka portal UMS MyServ...');
     setDialogOpen(false);
 
     // Open UMS MyServ in new window
@@ -696,11 +735,26 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
           ? "Pantau aduan kerosakan kolej, selaras bersama kumpulan WhatsApp Penyelenggaraan (M&E, Civil, Cleaner, Felo) & semak No. MyServ" 
           : "Lapor kerosakan bilik atau kawasan awam kolej untuk tindakan UMS MyServ & pemantauan Felo KKTF"}
         actions={
-          !isStaff && (
-            <Button size="sm" onClick={handleOpenDialog} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-sm font-semibold">
-              <Plus className="w-4 h-4" /> Lapor Kerosakan Baru
+          <div className="flex items-center gap-2 flex-wrap">
+            {isStaff && (
+              <Button 
+                variant="outline"
+                size="sm" 
+                onClick={() => setDossierModalOpen(true)}
+                className="gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/40 shadow-xs font-semibold text-xs h-9"
+              >
+                <FileText className="w-4 h-4 text-indigo-600" /> Dossier Blok (A4)
+              </Button>
+            )}
+            <Button 
+              size="sm" 
+              onClick={handleOpenDialog} 
+              className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-sm font-semibold text-xs h-9"
+            >
+              <Plus className="w-4 h-4" /> 
+              {isStaff ? 'Rekod Aduan / Kerosakan Tapak' : 'Lapor Kerosakan Baru'}
             </Button>
-          )
+          </div>
         }
       />
 
@@ -1164,16 +1218,29 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
             </DialogDescription>
           </DialogHeader>
 
-          {myStudent && (
-            <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100 flex items-center justify-between text-xs text-indigo-900">
+          {isStaff ? (
+            <div className="p-3 bg-emerald-50/80 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800/40 flex items-center justify-between text-xs text-emerald-900 dark:text-emerald-200">
               <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-indigo-600" />
-                <span>Mikro-Alamat: <strong>{myStudent.full_name}</strong></span>
+                <User className="w-4 h-4 text-emerald-600" />
+                <span>Pelapor Rasmi: <strong>{currentUser?.full_name || currentUser?.name || currentUser?.email}</strong></span>
               </div>
-              <Badge className="bg-indigo-200/60 text-indigo-800 border-none font-mono text-[11px]">
-                {myStudent.block_name || 'Blok'} - {myStudent.room_number ? `Bilik ${myStudent.room_number}` : 'Tiada Bilik'}
+              <Badge className="bg-emerald-600 text-white border-none text-[11px] font-semibold">
+                {currentUser?.role === 'warden' ? 'Felo / Warden' : (currentUser?.role === 'jakmas' ? 'JAKMAS' : 'Staf Kolej')}
+                {assignedBlocks.length > 0 && ` (${assignedBlocks.join(', ')})`}
               </Badge>
             </div>
+          ) : (
+            myStudent && (
+              <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100 flex items-center justify-between text-xs text-indigo-900">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-indigo-600" />
+                  <span>Mikro-Alamat: <strong>{myStudent.full_name}</strong></span>
+                </div>
+                <Badge className="bg-indigo-200/60 text-indigo-800 border-none font-mono text-[11px]">
+                  {myStudent.block_name || 'Blok'} - {myStudent.room_number ? `Bilik ${myStudent.room_number}` : 'Tiada Bilik'}
+                </Badge>
+              </div>
+            )
           )}
 
           <div className="space-y-4 mt-2">
@@ -1181,11 +1248,15 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
             <div>
               <Label className="text-xs font-semibold text-slate-700">Skop Lokasi Kerosakan *</Label>
               <div className="grid grid-cols-3 gap-2 mt-1.5">
-                {[
+                {(isStaff ? [
+                  { id: 'Student Room', label: 'Bilik Pelajar' },
+                  { id: 'Common Area', label: 'Fasiliti Bersama' },
+                  { id: 'Other Facility', label: 'Kawasan Blok / Lain' }
+                ] : [
                   { id: 'My Room', label: 'Bilik Sendiri' },
                   { id: 'Common Area', label: 'Fasiliti Bersama' },
                   { id: 'Other Facility', label: 'Lokasi Lain' }
-                ].map((type) => (
+                ]).map((type) => (
                   <button
                     key={type.id}
                     type="button"
@@ -1245,6 +1316,36 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
                     value={form.specific_location} 
                     onChange={e => setForm({ ...form, specific_location: e.target.value })} 
                     className="h-9 text-xs mt-1" 
+                  />
+                </div>
+              </div>
+            ) : isStaff ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs font-medium">Pilih Blok Kediaman *</Label>
+                  <Select 
+                    value={form.block_name} 
+                    onValueChange={v => setForm({ ...form, block_name: v })}
+                  >
+                    <SelectTrigger className="h-9 text-xs mt-1 bg-card">
+                      <SelectValue placeholder="Pilih Blok" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COLLEGE_BLOCKS.map(blk => (
+                        <SelectItem key={blk} value={blk}>
+                          {blk} {assignedBlocks.includes(blk) ? '★ (Blok Jagaan)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium">Nombor Bilik Pelajar *</Label>
+                  <Input 
+                    value={form.room_number} 
+                    onChange={e => setForm({ ...form, room_number: e.target.value })} 
+                    className="h-9 text-xs mt-1 font-mono uppercase" 
+                    placeholder="cth: 204 atau B-2-04" 
                   />
                 </div>
               </div>
@@ -1646,6 +1747,8 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
         requests={requests}
         currentBlockFilter={filter}
         categoryUnitMap={CATEGORY_UNIT_MAP}
+        assignedBlocks={assignedBlocks}
+        currentUser={currentUser}
       />
     </div>
   );

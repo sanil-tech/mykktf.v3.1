@@ -38,7 +38,7 @@ export function getNavItems(role, hasJakmas = false) {
     { label: 'Check-In/Out', path: '/check-in-out', icon: 'ArrowLeftRight', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.STAFF] },
     { label: 'Leave', path: '/leave', icon: 'CalendarOff', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STUDENT] },
     { label: 'Leave Monitor', path: '/leave-monitor', icon: 'CalendarCheck', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN] },
-    { label: 'Damage Reports', path: '/maintenance', icon: 'Wrench', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.STUDENT] },
+    { label: 'Damage Reports', path: '/maintenance', icon: 'Wrench', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
     { label: 'Facilities', path: '/facilities', icon: 'Building2', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.STAFF, ROLES.STUDENT] },
     { label: 'Attendance', path: '/attendance', icon: 'ClipboardCheck', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.STAFF] },
     { label: 'Merit & Dimerit', path: '/merit-demerit', icon: 'Award', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },

@@ -15,24 +15,41 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+const COLLEGE_BLOCKS = [
+  'Block A',
+  'Block B',
+  'Block C',
+  'Block D',
+  'Block E',
+  'Block F',
+  'Block G',
+  'Block H'
+];
+
 export default function BlockInspectionDossierModal({ 
   open, 
   onOpenChange, 
   requests = [], 
   currentBlockFilter = 'all', 
-  categoryUnitMap = {} 
+  categoryUnitMap = {},
+  assignedBlocks = [],
+  currentUser = null
 }) {
-  const [selectedBlock, setSelectedBlock] = useState(currentBlockFilter === 'all' ? 'all' : currentBlockFilter);
+  const [selectedBlock, setSelectedBlock] = useState(
+    currentBlockFilter !== 'all' 
+      ? currentBlockFilter 
+      : (assignedBlocks.length > 0 ? assignedBlocks[0] : 'all')
+  );
   const [statusFilter, setStatusFilter] = useState('all');
 
-  // Extract unique blocks
+  // Extract unique blocks combining college blocks and requests
   const availableBlocks = useMemo(() => {
-    const blocks = new Set(['all']);
+    const blocks = new Set(['all', ...COLLEGE_BLOCKS]);
     requests.forEach(r => {
       if (r.block_name) blocks.add(r.block_name);
       else if (r.room_number) {
         const prefix = r.room_number.split(/[-_.]/)[0];
-        if (prefix) blocks.add(prefix.toUpperCase());
+        if (prefix && prefix.length <= 8) blocks.add(prefix.toUpperCase());
       }
     });
     return Array.from(blocks);
@@ -108,13 +125,15 @@ export default function BlockInspectionDossierModal({
           <div className="flex items-center gap-2 flex-wrap">
             {/* BLOCK SELECTOR */}
             <Select value={selectedBlock} onValueChange={setSelectedBlock}>
-              <SelectTrigger className="h-8 text-xs w-36 rounded-xl bg-background border-border">
+              <SelectTrigger className="h-8 text-xs w-44 rounded-xl bg-background border-border">
                 <SelectValue placeholder="Pilih Blok" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Semua Blok</SelectItem>
+                <SelectItem value="all">Semua Blok Dipaparkan</SelectItem>
                 {availableBlocks.filter(b => b !== 'all').map(b => (
-                  <SelectItem key={b} value={b}>{b}</SelectItem>
+                  <SelectItem key={b} value={b}>
+                    {b} {assignedBlocks.includes(b) ? '★ (Blok Jagaan)' : ''}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -158,6 +177,27 @@ export default function BlockInspectionDossierModal({
               <X className="w-4 h-4" />
             </Button>
           </div>
+        </div>
+
+        {/* SCOPE CLARIFICATION BANNER (HIDDEN IN PRINT) */}
+        <div className="px-6 py-2.5 bg-indigo-50/90 dark:bg-indigo-950/40 border-b border-indigo-100 dark:border-indigo-900/40 print:hidden flex items-center justify-between text-xs text-indigo-950 dark:text-indigo-200">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+            <span>
+              {currentUser?.role === 'warden' ? (
+                <>
+                  <strong>Skop Felo:</strong> Laporan adalah difokuskan kepada <strong>{assignedBlocks.join(', ') || 'Blok Jagaan Anda'}</strong> untuk tindakan blok masing-masing.
+                </>
+              ) : (
+                <>
+                  <strong>Skop Pentadbir:</strong> Merangkumi <strong>Semua Blok Kolej (A - H)</strong>. Anda boleh menapis atau mencetak laporan penuh kolej.
+                </>
+              )}
+            </span>
+          </div>
+          <span className="text-[11px] text-muted-foreground hidden sm:inline">
+            Status: <strong>{totalItems} Kerosakan Terpilih</strong> ({totalCompleted} Selesai)
+          </span>
         </div>
 
         {/* PRINTABLE DOSSIER BODY */}
@@ -210,6 +250,9 @@ export default function BlockInspectionDossierModal({
             </h1>
             <p className="text-xs font-bold text-indigo-900 uppercase">
               ZON PEMERIKSAAN: {selectedBlock === 'all' ? 'KESELURUHAN BLOK KKTF' : `BLOK ${selectedBlock.toUpperCase()}`}
+              {assignedBlocks.length > 0 && selectedBlock !== 'all' && assignedBlocks.includes(selectedBlock) && (
+                <span className="text-[10.5px] text-emerald-700 font-bold ml-2">(Zon Jagaan Felo Bertugas)</span>
+              )}
             </p>
           </div>
 

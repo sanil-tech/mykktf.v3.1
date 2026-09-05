@@ -28,25 +28,38 @@ if (typeof window !== 'undefined' && base44?.auth) {
     if (!realUser) return null;
 
     try {
-      const isPrivilegedAdmin = 
+      const isPrivileged = 
         realUser.role === 'super_admin' || 
         realUser.role === 'college_admin' ||
+        realUser.role === 'warden' ||
         realUser.real_role === 'super_admin' ||
-        realUser.real_role === 'college_admin';
+        realUser.real_role === 'college_admin' ||
+        realUser.real_role === 'warden';
 
       const personaOverride = localStorage.getItem('mykktf_active_persona');
       const personaBlock = localStorage.getItem('mykktf_persona_block') || 'Block B';
 
-      if (isPrivilegedAdmin && personaOverride === 'warden') {
-        return {
-          ...realUser,
-          real_role: realUser.real_role || realUser.role,
-          role: 'warden',
-          effectiveRole: 'warden',
-          is_persona_switched: true,
-          active_persona: 'warden',
-          active_warden_block: personaBlock
-        };
+      if (isPrivileged && personaOverride) {
+        if (personaOverride === 'warden') {
+          return {
+            ...realUser,
+            real_role: realUser.real_role || realUser.role,
+            role: 'warden',
+            effectiveRole: 'warden',
+            is_persona_switched: true,
+            active_persona: 'warden',
+            active_warden_block: personaBlock
+          };
+        } else if (personaOverride === 'super_admin') {
+          return {
+            ...realUser,
+            real_role: realUser.real_role || realUser.role,
+            role: 'super_admin',
+            effectiveRole: 'super_admin',
+            is_persona_switched: true,
+            active_persona: 'super_admin'
+          };
+        }
       }
     } catch (e) {}
 

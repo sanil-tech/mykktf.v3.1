@@ -33,14 +33,16 @@ export default function RolePersonaSwitcher({ user }) {
   const [targetBlock, setTargetBlock] = useState('Block B');
 
   // Check if user is eligible to use persona switcher
-  const isSuperAdminOrSwitched = 
+  const isEligible = 
     user?.role === 'super_admin' || 
     user?.real_role === 'super_admin' || 
     user?.role === 'college_admin' ||
     user?.real_role === 'college_admin' ||
+    user?.role === 'warden' ||
+    user?.real_role === 'warden' ||
     user?.is_persona_switched;
 
-  const currentPersona = user?.is_persona_switched ? 'warden' : (user?.real_role || user?.role || 'super_admin');
+  const currentPersona = user?.is_persona_switched ? user?.role : (user?.real_role || user?.role || 'super_admin');
   const currentBlock = user?.active_warden_block || localStorage.getItem('mykktf_persona_block') || 'Block B';
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export default function RolePersonaSwitcher({ user }) {
     }
   }, [user]);
 
-  if (!isSuperAdminOrSwitched) return null;
+  if (!isEligible) return null;
 
   const handleSwitchToWarden = () => {
     localStorage.setItem('mykktf_active_persona', 'warden');
@@ -67,9 +69,14 @@ export default function RolePersonaSwitcher({ user }) {
   };
 
   const handleSwitchToSuperAdmin = () => {
-    localStorage.removeItem('mykktf_active_persona');
-    toast.success('Beralih ke Mod Super Admin!', {
-      description: 'Akses penuh pentadbiran keseluruhan kolej telah diaktifkan semula.'
+    const isBaseWarden = user?.real_role === 'warden' || (!user?.real_role && user?.role === 'warden');
+    if (isBaseWarden) {
+      localStorage.setItem('mykktf_active_persona', 'super_admin');
+    } else {
+      localStorage.removeItem('mykktf_active_persona');
+    }
+    toast.success('Beralih ke Mod Pentadbir (Super Admin)!', {
+      description: 'Akses penuh pentadbiran keseluruhan kolej (Semua Blok A-H) telah diaktifkan.'
     });
     setOpen(false);
     setTimeout(() => {
