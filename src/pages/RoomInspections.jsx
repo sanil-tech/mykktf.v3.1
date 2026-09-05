@@ -49,12 +49,12 @@ export default function RoomInspections() {
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [viewing, setViewing] = useState(null);
-  const [uploadingItem, setUploadingItem] = useState(null);
-
-  // Filters for staff/warden
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBlock, setSelectedBlock] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [uploadingItem, setUploadingItem] = useState(null);
+  const [wardenNote, setWardenNote] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
   // Inspection form state
   const [form, setForm] = useState({
@@ -288,18 +288,70 @@ export default function RoomInspections() {
     }
   }
 
-  async function updateStatus(id, newStatus) {
+  async function updateStatus(id, newStatus, note = '') {
+    setActionLoading(true);
     try {
-      await base44.entities.RoomInspection.update(id, { status: newStatus });
-      await logAudit(user, `INSPECTION_${newStatus.toUpperCase()}`, 'Room Inspections', { id, status: newStatus });
-      toast({ title: `Status dikemaskini kepada: ${newStatus}` });
+      const updatePayload = { status: newStatus };
+      if (note) updatePayload.notes = note;
+
+      await base44.entities.RoomInspection.update(id, updatePayload);
+      await logAudit(user, `INSPECTION_${newStatus.toUpperCase()}`, 'Room Inspections', { id, status: newStatus, note });
+
+      // Auto-create Maintenance Request when warden reviews a damage report
+      if (newStatus === 'Reviewed' && viewing?.has_damages) {
+        try {
+          await base44.entities.MaintenanceRequest.create({
+            student_id: viewing.student_id || '',
+            student_name: viewing.student_name || '',
+            room_number: viewing.room_number || '',
+            block_name: viewing.block_name || '',
+            category: 'Room Inspection Damage',
+            specific_location: `${viewing.block_name || ''} - Bilik ${viewing.room_number}`,
+            description: `[AUTO dari Room Inspection] Kerosakan sedia ada diflagkan oleh pelajar semasa pemeriksaan masuk bilik.\n\nIsu: ${viewing.flagged_issues || '—'}\n\nCatatan Warden: ${note || '—'}`,
+            priority: 'High',
+            status: 'Pending',
+            submitted_at: new Date().toISOString(),
+            source: 'room_inspection',
+            inspection_ref_id: id,
+          });
+          toast({ title: 'Tiket Pembaikan Difailkan', description: 'Laporan kerosakan dari pemeriksaan bilik telah dihantar ke modul Maintenance secara automatik.' });
+        } catch (mErr) {
+          console.warn('Auto-maintenance request failed:', mErr);
+        }
+      }
+
+      // Notify the student about status change
+      if (viewing?.inspected_by_user_id) {
+        try {
+          const statusMsg = {
+            Reviewed: 'Laporan anda telah disemak oleh warden/felo. Tindakan pembaikan akan diambil jika perlu.',
+            Verified: 'Pemeriksaan bilik anda telah disahkan (Verified). Rekod ini akan digunakan sebagai rujukan di akhir semester.',
+            Rejected: `Laporan anda memerlukan semakan semula. Sila hubungi pejabat kolej.${note ? ` Nota: ${note}` : ''}`,
+          }[newStatus] || `Status laporan pemeriksaan bilik anda dikemaskini kepada: ${newStatus}`;
+
+          await base44.entities.Notification.create({
+            user_id: viewing.inspected_by_user_id,
+            title: `📋 Laporan Pemeriksaan Bilik — ${newStatus}`,
+            message: statusMsg,
+            type: 'general',
+            link: '/room-inspections',
+          });
+        } catch (nErr) {
+          console.warn('Notification failed:', nErr);
+        }
+      }
+
+      toast({ title: `Status dikemaskini: ${newStatus}` });
+      setWardenNote('');
       if (viewing) {
-        setViewing(v => ({ ...v, status: newStatus }));
+        setViewing(v => ({ ...v, status: newStatus, notes: note || v?.notes }));
       }
       init();
     } catch (err) {
       console.error('Failed to update inspection status:', err);
       toast({ title: 'Gagal mengemaskini status', variant: 'destructive' });
+    } finally {
+      setActionLoading(false);
     }
   }
 
@@ -332,7 +384,10 @@ export default function RoomInspections() {
   const totalInspections = inspections.length;
   const needAttentionCount = inspections.filter(i => i.visible_damage !== 'None' || (i.flagged_issues && i.flagged_issues.trim() !== '')).length;
   const verifiedCount = inspections.filter(i => i.status === 'Verified').length;
+  const reviewedCount = inspections.filter(i => i.status === 'Reviewed').length;
   const submittedCount = inspections.filter(i => i.status === 'Submitted').length;
+  const totalStudents = students.length || 1;
+  const submissionPct = Math.round((totalInspections / totalStudents) * 100);
 
   if (loading) {
     return (
@@ -508,20 +563,27 @@ export default function RoomInspections() {
           {/* Summary Metric Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Jumlah Pemeriksaan</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Jumlah Hantar</p>
               <p className="text-2xl font-black text-slate-800 mt-1">{totalInspections}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{submissionPct}% daripada {totalStudents} pelajar</p>
+              <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-full bg-sky-500 rounded-full transition-all" style={{ width: `${Math.min(submissionPct, 100)}%` }} />
+              </div>
             </div>
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs">
               <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Menunggu Semakan</p>
               <p className="text-2xl font-black text-amber-600 mt-1">{submittedCount}</p>
+              <p className="text-[10px] text-amber-400 mt-0.5">Perlu tindakan warden</p>
             </div>
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs">
-              <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Perlu Pembaikan (Damage)</p>
+              <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Ada Kerosakan</p>
               <p className="text-2xl font-black text-rose-600 mt-1">{needAttentionCount}</p>
+              <p className="text-[10px] text-rose-400 mt-0.5">{reviewedCount} telah disemak</p>
             </div>
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs">
               <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Telah Disahkan</p>
               <p className="text-2xl font-black text-emerald-600 mt-1">{verifiedCount}</p>
+              <p className="text-[10px] text-emerald-400 mt-0.5">{totalInspections > 0 ? Math.round((verifiedCount/totalInspections)*100) : 0}% selesai</p>
             </div>
           </div>
 
@@ -933,37 +995,72 @@ export default function RoomInspections() {
                 </div>
               )}
 
+              {/* Warden Notes Input */}
+              {canVerify && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700">Nota Warden / Felo (Pilihan)</Label>
+                  <textarea
+                    value={wardenNote}
+                    onChange={e => setWardenNote(e.target.value)}
+                    placeholder="Tambah nota semakan, arahan pembaikan atau sebab penolakan..."
+                    rows={2}
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-200 resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              )}
+
               {/* Management Actions */}
               {canVerify && (
-                <div className="pt-3 border-t flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-1.5">
+                <div className="pt-3 border-t space-y-3">
+                  {viewing.has_damages && viewing.status === 'Submitted' && (
+                    <div className="flex items-center gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span className="text-rose-700 font-medium">Laporan ini mengandungi kerosakan. Klik <strong>Semak &amp; Failkan Tiket</strong> untuk sahkan dan auto-failkan ke Maintenance.</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <Link to="/maintenance">
                       <Button size="sm" variant="outline" className="text-xs h-8">
-                        Buka Laporan Fasiliti <ExternalLink className="w-3 h-3 ml-1" />
+                        Lihat Modul Fasiliti <ExternalLink className="w-3 h-3 ml-1" />
                       </Button>
                     </Link>
-                  </div>
 
-                  <div className="flex items-center gap-2">
-                    {viewing.status !== 'Reviewed' && (
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        onClick={() => updateStatus(viewing.id, 'Reviewed')}
-                        className="text-xs h-8"
-                      >
-                        Tanda Disemak
-                      </Button>
-                    )}
-                    {viewing.status !== 'Verified' && (
-                      <Button 
-                        size="sm" 
-                        onClick={() => updateStatus(viewing.id, 'Verified')}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 gap-1"
-                      >
-                        <CheckCircle className="w-3.5 h-3.5" /> Sahkan Pemeriksaan
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {viewing.status !== 'Reviewed' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={actionLoading}
+                          onClick={() => updateStatus(viewing.id, 'Reviewed', wardenNote)}
+                          className="text-xs h-8 border-blue-300 text-blue-700 hover:bg-blue-50"
+                        >
+                          <FileText className="w-3.5 h-3.5 mr-1" />
+                          {viewing.has_damages ? 'Semak & Failkan Tiket' : 'Tanda Disemak'}
+                        </Button>
+                      )}
+                      {viewing.status !== 'Rejected' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={actionLoading}
+                          onClick={() => updateStatus(viewing.id, 'Rejected', wardenNote)}
+                          className="text-xs h-8 border-rose-300 text-rose-700 hover:bg-rose-50"
+                        >
+                          Tolak
+                        </Button>
+                      )}
+                      {viewing.status !== 'Verified' && (
+                        <Button
+                          size="sm"
+                          disabled={actionLoading}
+                          onClick={() => updateStatus(viewing.id, 'Verified', wardenNote)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 gap-1"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" /> Sahkan
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

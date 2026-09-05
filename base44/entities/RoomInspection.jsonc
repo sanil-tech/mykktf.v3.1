@@ -67,7 +67,8 @@
       "enum": [
         "Submitted",
         "Reviewed",
-        "Verified"
+        "Verified",
+        "Rejected"
       ],
       "default": "Submitted"
     },
