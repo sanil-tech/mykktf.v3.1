@@ -198,6 +198,7 @@ export default function Maintenance() {
     room_number: '',
     block_name: '',
     specific_location: '',
+    floor_level: '',
     category: 'Electrical',
     urgency: 'Normal',
     description: '',
@@ -495,8 +496,12 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
         roomNumber = form.room_number || 'Bilik Pelajar';
         blockName = form.block_name || '';
       } else if (form.location_type === 'Common Area') {
-        locationDisplay = form.specific_location || 'Fasiliti Bersama';
+        const parts = [form.specific_location];
+        if (form.block_name) parts.push(form.block_name);
+        if (form.floor_level) parts.push(form.floor_level);
+        locationDisplay = parts.filter(Boolean).join(' — ') || 'Fasiliti Bersama';
         roomNumber = 'Fasiliti Bersama';
+        blockName = form.block_name || '';
       } else {
         locationDisplay = form.specific_location || form.location_type;
         roomNumber = 'Kawasan Kolej';
@@ -536,6 +541,7 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
         room_number: '',
         block_name: '',
         specific_location: '',
+        floor_level: '',
         category: 'Electrical',
         urgency: 'Normal',
         description: '',
@@ -1496,8 +1502,10 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
                         ...f,
                         location_type: type.id,
                         specific_location: type.id === 'My Room' && myStudent?.room_number 
-                          ? `Bilik ${myStudent.room_number} (${myStudent.block_name || 'Blok'})` 
-                          : ''
+                          ? `Bilik ${myStudent.room_number}, ${myStudent.block_name || 'KKTF'}` 
+                          : '',
+                        block_name: type.id === 'My Room' ? (myStudent?.block_name || '') : '',
+                        floor_level: ''
                       }));
                     }}
                     className={`px-3 py-2 rounded-xl text-xs font-medium border text-center transition-all ${
@@ -1513,21 +1521,76 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
             </div>
 
             {form.location_type === 'Common Area' ? (
-              <div>
-                <Label className="text-xs font-medium">Pilih Fasiliti Bersama *</Label>
-                <Select 
-                  value={form.specific_location} 
-                  onValueChange={v => setForm({ ...form, specific_location: v })}
-                >
-                  <SelectTrigger className="h-9 text-xs mt-1 bg-card">
-                    <SelectValue placeholder="Pilih Fasiliti / Kawasan Awam" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COMMON_FACILITIES.map(fac => (
-                      <SelectItem key={fac} value={fac}>{fac}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3">
+                {/* PILIH FASILITI */}
+                <div>
+                  <Label className="text-xs font-medium">Pilih Fasiliti Bersama *</Label>
+                  <Select 
+                    value={form.specific_location} 
+                    onValueChange={v => setForm({ ...form, specific_location: v })}
+                  >
+                    <SelectTrigger className="h-9 text-xs mt-1 bg-card">
+                      <SelectValue placeholder="Pilih Fasiliti / Kawasan Awam" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COMMON_FACILITIES.map(fac => (
+                        <SelectItem key={fac} value={fac}>{fac}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* PILIH BLOK & ARAS */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs font-medium">Blok Kediaman *</Label>
+                    <Select
+                      value={form.block_name}
+                      onValueChange={v => setForm({ ...form, block_name: v })}
+                    >
+                      <SelectTrigger className="h-9 text-xs mt-1 bg-card">
+                        <SelectValue placeholder="Pilih Blok" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Semua Blok">🏢 Semua Blok (Am Kolej)</SelectItem>
+                        {COLLEGE_BLOCKS.map(blk => (
+                          <SelectItem key={blk} value={blk}>{blk}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium">Aras / Tingkat *</Label>
+                    <Select
+                      value={form.floor_level}
+                      onValueChange={v => setForm({ ...form, floor_level: v })}
+                    >
+                      <SelectTrigger className="h-9 text-xs mt-1 bg-card">
+                        <SelectValue placeholder="Pilih Aras" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Aras Bawah / Ground Floor">🏗️ Aras Bawah / Ground Floor</SelectItem>
+                        <SelectItem value="Aras 1">Aras 1</SelectItem>
+                        <SelectItem value="Aras 2">Aras 2</SelectItem>
+                        <SelectItem value="Aras 3">Aras 3</SelectItem>
+                        <SelectItem value="Aras 4">Aras 4</SelectItem>
+                        <SelectItem value="Aras 5">Aras 5</SelectItem>
+                        <SelectItem value="Aras 6">Aras 6</SelectItem>
+                        <SelectItem value="Aras 7">Aras 7</SelectItem>
+                        <SelectItem value="Bumbung / Rooftop">🔝 Bumbung / Rooftop</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {(form.specific_location || form.block_name || form.floor_level) && (
+                  <div className="flex items-center gap-1.5 text-[10.5px] text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5">
+                    <MapPin className="w-3 h-3 shrink-0" />
+                    <span className="font-medium">
+                      {[form.specific_location, form.block_name, form.floor_level].filter(Boolean).join(' — ')}
+                    </span>
+                  </div>
+                )}
               </div>
             ) : form.location_type === 'Other Facility' ? (
               <div className="grid grid-cols-2 gap-3">
