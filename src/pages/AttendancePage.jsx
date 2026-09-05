@@ -316,6 +316,11 @@ export default function AttendancePage() {
     }
   }, [qrScanOpen, scannerMode]);
 
+  // Stop scanner before unmount to prevent DOM mutation conflicts
+  useEffect(() => {
+    return () => { stopCamera(); };
+  }, []);
+
   // Unified QR / Token Attendance Processor
   async function processAttendanceToken(tokenString) {
     const rawToken = (tokenString || '').trim();
@@ -859,13 +864,14 @@ export default function AttendancePage() {
                   </div>
                 ) : (
                   <div className="flex flex-col items-center">
-                    {/* Camera Viewfinder Box */}
-                    <div 
-                      id="resident-attendance-reader" 
-                      className="w-full aspect-square max-w-[280px] bg-black rounded-3xl overflow-hidden border-2 border-primary/60 relative shadow-inner flex items-center justify-center"
-                    >
+                    {/* Camera Viewfinder Box — pure mount point for html5-qrcode; React never manages its children */}
+                    <div className="w-full aspect-square max-w-[280px] relative">
+                      <div
+                        id="resident-attendance-reader"
+                        className="w-full h-full bg-black rounded-3xl overflow-hidden border-2 border-primary/60 relative shadow-inner"
+                      />
                       {!isCameraActive && (
-                        <div className="flex flex-col items-center gap-2 text-white/70 p-4 text-center">
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/70 p-4 text-center">
                           <Loader2 className="w-8 h-8 animate-spin text-primary" />
                           <span className="text-xs font-medium">Mengaktifkan kamera peranti...</span>
                           <span className="text-[10px] text-white/50">Sila benarkan akses kamera apabila diminta</span>
@@ -933,4 +939,4 @@ export default function AttendancePage() {
       </Dialog>
     </div>
   );
-}
+}

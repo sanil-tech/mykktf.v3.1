@@ -31,7 +31,8 @@ import {
   AlertCircle,
   Globe,
   Video,
-  ExternalLink
+  ExternalLink,
+  Sparkles
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
