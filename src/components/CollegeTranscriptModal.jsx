@@ -2,12 +2,13 @@ import React from 'react';
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Printer, Award, CheckCircle2, ShieldCheck, X } from "lucide-react";
+import { printDocument } from "@/lib/printUtils";
 
 export default function CollegeTranscriptModal({ open, onOpenChange, student, attendanceRecords = [], meritTransactions = [] }) {
   if (!student) return null;
 
   const handlePrint = () => {
-    window.print();
+    printDocument();
   };
 
   const studentAttendance = attendanceRecords.filter(a => a.student_id === student.id || a.student_id === student.student_id);

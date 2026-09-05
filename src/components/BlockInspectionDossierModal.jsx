@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { printDocument } from '@/lib/printUtils';
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -106,7 +107,7 @@ export default function BlockInspectionDossierModal({
   };
 
   const handlePrint = () => {
-    window.print();
+    printDocument();
   };
 
   return (
@@ -286,6 +287,7 @@ export default function BlockInspectionDossierModal({
                   <th className="p-2 border border-slate-300 w-32">Kategori / Unit JPP</th>
                   <th className="p-2 border border-slate-300">Deskripsi Kerosakan di Tapak</th>
                   <th className="p-2 border border-slate-300 text-center w-20">Keutamaan</th>
+                  <th className="p-2 border border-slate-300 w-24">No. Telefon</th>
                   <th className="p-2 border border-slate-300 w-24">No. TAMS</th>
                   <th className="p-2 border border-slate-300 text-center w-24">Status</th>
                 </tr>
@@ -293,7 +295,7 @@ export default function BlockInspectionDossierModal({
               <tbody>
                 {filteredDossierRequests.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-6 text-center text-slate-400 italic">
+                    <td colSpan={8} className="p-6 text-center text-slate-400 italic">
                       Tiada rekod kerosakan ditemui mengikut tapisan blok yang dipilih.
                     </td>
                   </tr>
@@ -329,6 +331,20 @@ export default function BlockInspectionDossierModal({
                             <span className="text-rose-700 font-bold">Kecemasan</span>
                           ) : (
                             <span className="text-slate-600">Biasa</span>
+                          )}
+                        </td>
+                        <td className="p-1.5 border border-slate-300 font-mono text-[9px]">
+                          {r.phone_number ? (
+                            <a
+                              href={`https://wa.me/60${r.phone_number.replace(/^(\+60|60|0)/, '').replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-emerald-700 font-semibold hover:underline"
+                            >
+                              📱 +60{r.phone_number.replace(/^(\+60|60|0)/, '').replace(/\D/g, '')}
+                            </a>
+                          ) : (
+                            <span className="text-slate-400 italic">-</span>
                           )}
                         </td>
                         <td className="p-1.5 border border-slate-300 font-mono text-[9px]">

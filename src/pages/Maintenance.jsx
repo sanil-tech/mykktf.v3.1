@@ -37,7 +37,8 @@ import {
   Printer,
   FileText,
   Building2,
-  ShieldCheck
+  ShieldCheck,
+  X
 } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 import { toast } from 'sonner';
@@ -155,6 +156,7 @@ export default function Maintenance() {
   // Modal States
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [tamsReminderDismissed, setTamsReminderDismissed] = useState(false);
   const [refModalOpen, setRefModalOpen] = useState(false);
   const [selectedReqForRef, setSelectedReqForRef] = useState(null);
   const [inputRefNumber, setInputRefNumber] = useState('');
@@ -199,6 +201,7 @@ export default function Maintenance() {
     category: 'Electrical',
     urgency: 'Normal',
     description: '',
+    phone_number: '',
     photo: null
   });
 
@@ -460,7 +463,7 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
       return; 
     }
 
-    // Launch window synchronously on click event to avoid browser popup blocker
+    // Launch window SYNCHRONOUSLY before any await to avoid popup blocker
     let portalTab = null;
     if (openPortal) {
       try {
@@ -511,6 +514,7 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
         category: form.category,
         urgency: form.urgency || 'Normal',
         description: form.description,
+        phone_number: form.phone_number || '',
         myserv_ticket_no: '',
         photo: form.photo || null,
         status: 'Submitted',
@@ -526,13 +530,7 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
         submitted_at: nowIso
       });
 
-      if (openPortal) {
-        toast.success('Aduan disimpan! Portal UMS MyServ sedang dibuka...');
-      } else {
-        toast.success('Aduan kerosakan berjaya disimpan dalam sistem!');
-      }
-
-      // Reset form
+      // Reset form and close dialog
       setForm({
         location_type: 'My Room',
         room_number: '',
@@ -541,15 +539,23 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
         category: 'Electrical',
         urgency: 'Normal',
         description: '',
+        phone_number: '',
         photo: null
       });
-
       setDialogOpen(false);
 
-      // Immediately prompt user to enter/prepare No. Rujukan TAMS
-      setSelectedReqForRef(newRecord);
-      setInputRefNumber('');
-      setRefModalOpen(true);
+      if (openPortal) {
+        // Save + open portal: prompt user to enter the MyServ ref number now
+        toast.success('Aduan disimpan! Portal UMS MyServ sedang dibuka...');
+        setSelectedReqForRef(newRecord);
+        setInputRefNumber('');
+        setRefModalOpen(true);
+      } else {
+        // Save only: show success, remind via dashboard banner
+        toast.success('Aduan berjaya disimpan! Anda boleh tambah aduan lain atau daftarkan ke portal TAMS kemudian.');
+        setTamsReminderDismissed(false); // ensure reminder card is visible
+      }
+
       init();
     } catch (err) {
       console.error(err);
@@ -611,6 +617,9 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
       : '📋 *No. MyServ:* (Menunggu kemaskini pemohon)';
 
     const reporterLine = `👤 *Pelapor:* ${req.student_name || 'Residen KKTF'}`;
+    const phoneLine = req.phone_number
+      ? `📱 *No. Telefon Pengadu:* ${req.phone_number}\n🔗 *WhatsApp Terus:* https://wa.me/60${req.phone_number.replace(/^(\+60|60|0)/, '').replace(/\D/g, '')}`
+      : '📱 *No. Telefon:* (Tidak dinyatakan)';
 
     return `${urgencyHeader}
 🎯 *TINDAKAN: ${unitInfo.unit}*
@@ -619,6 +628,7 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
 🔧 *Kategori:* ${unitInfo.icon} ${req.category}
 ${refLine}
 ${reporterLine}
+${phoneLine}
 ⏱️ *Tarikh Aduan:* ${formatDateTime(req.submitted_at || req.created_date) || 'Baru'}
 
 📝 *Keterangan Kerosakan:*
@@ -992,6 +1002,66 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
         </div>
       )}
 
+      {/* TAMS REMINDER CARD — shown when there are complaints without MyServ ref */}
+      {!tamsReminderDismissed && requests.some(r => !r.myserv_ticket_no && r.status !== 'Completed') && (
+        <div className="flex items-start gap-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700/50 rounded-2xl p-4 shadow-sm">
+          <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0 mt-0.5">
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                  {requests.filter(r => !r.myserv_ticket_no && r.status !== 'Completed').length} Aduan Belum Didaftarkan ke Portal TAMS (MyServ)
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5 max-w-2xl">
+                  Aduan-aduan ini telah disimpan dalam MyKKTF tetapi belum mempunyai No. Rujukan MyServ JPP. Sila daftarkan ke portal TAMS untuk mendapatkan nombor rujukan rasmi dan membolehkan pihak JPP mengambil tindakan susulan.
+                </p>
+              </div>
+              <button
+                onClick={() => setTamsReminderDismissed(true)}
+                className="text-amber-500 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200 shrink-0 p-0.5 rounded"
+                title="Tutup peringatan ini buat sementara"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              <Button
+                size="sm"
+                onClick={() => {
+                  const pending = requests.filter(r => !r.myserv_ticket_no && r.status !== 'Completed');
+                  if (pending.length > 0) {
+                    setSelectedReqForRef(pending[0]);
+                    setInputRefNumber('');
+                    setRefModalOpen(true);
+                  }
+                }}
+                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1.5 font-semibold"
+              >
+                <Hash className="w-3.5 h-3.5" /> Masukkan No. Rujukan TAMS
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => window.open(UMS_MYSERV_URL, '_blank', 'noopener,noreferrer')}
+                className="h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/40 gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> Buka Portal MyServ
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setFilter('pending_ref')}
+                className="h-8 text-xs text-amber-600 hover:text-amber-800 dark:text-amber-400 gap-1 underline underline-offset-2"
+              >
+                Lihat semua ({requests.filter(r => !r.myserv_ticket_no && r.status !== 'Completed').length})
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SEARCH AND FILTER BAR */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 flex-wrap">
         <div className="relative w-full sm:w-72">
@@ -1087,6 +1157,18 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
                       <p className="text-[11px] text-muted-foreground truncate mt-0.5">
                         Pelapor: <span className="font-medium text-slate-700">{r.student_name}</span>
                       </p>
+                      {isStaff && r.phone_number && (
+                        <a
+                          href={`https://wa.me/60${r.phone_number.replace(/^(\+60|60|0)/, '').replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[10.5px] text-emerald-700 hover:text-emerald-900 font-medium mt-0.5"
+                          title="Hubungi pengadu melalui WhatsApp"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <span>📱</span> +60{r.phone_number.replace(/^(\+60|60|0)/, '').replace(/\D/g, '')}
+                        </a>
+                      )}
                     </div>
 
                     <div className="flex flex-col items-end gap-1 shrink-0">
@@ -1559,6 +1641,28 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
                 rows={3} 
                 placeholder="Nyatakan dengan terperinci kerosakan yang dialami..." 
               />
+            </div>
+
+            {/* NO TELEFON PENGADU */}
+            <div>
+              <Label className="text-xs font-medium flex items-center gap-1">
+                No. Telefon Pengadu
+                <span className="text-[10px] text-muted-foreground font-normal">(untuk dihubungi kontraktor JPP)</span>
+              </Label>
+              <div className="relative mt-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono select-none">+60</span>
+                <Input
+                  type="tel"
+                  value={form.phone_number}
+                  onChange={e => setForm({ ...form, phone_number: e.target.value })}
+                  className="pl-10 h-9 text-xs"
+                  placeholder="11-2345678"
+                  maxLength={15}
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Akan disertakan dalam format laporan, mesej WhatsApp, dan nota susulan untuk kemudahan kontraktor.
+              </p>
             </div>
 
             {/* LAMPIRAN FOTO DENGAN AUTO-TIMESTAMP */}

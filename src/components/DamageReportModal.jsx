@@ -1,4 +1,5 @@
 import React from 'react';
+import { printDocument } from '@/lib/printUtils';
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { 
@@ -70,7 +71,7 @@ ${request.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di l
   };
 
   const handlePrint = () => {
-    window.print();
+    printDocument();
   };
 
   return (
@@ -221,8 +222,20 @@ ${request.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di l
                   {request.student_name || 'Felo / Staf KKTF'}
                 </p>
                 <p className="text-[10px] text-slate-600 font-mono">
-                  No. Matrik / ID: {request.student_id || '-'} &bull; Tel: {request.phone_number || '-'}
+                  No. Matrik / ID: {request.student_id || '-'}
                 </p>
+                {request.phone_number ? (
+                  <a
+                    href={`https://wa.me/60${request.phone_number.replace(/^(\+60|60|0)/, '').replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-emerald-700 font-mono font-semibold hover:underline flex items-center gap-0.5 justify-end mt-0.5"
+                  >
+                    📱 +60{request.phone_number.replace(/^(\+60|60|0)/, '').replace(/\D/g, '')}
+                  </a>
+                ) : (
+                  <p className="text-[10px] text-slate-400 font-mono">Tel: -</p>
+                )}
               </div>
 
               <div>

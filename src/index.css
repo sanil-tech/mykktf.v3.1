@@ -99,43 +99,106 @@
     margin: 10mm 12mm;
   }
 
-  body {
-    background: white !important;
-    color: black !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+  /* 1. HIDE ALL WEB APP SHELL & BACKGROUND CONTENT when printing document templates */
+  #root:has(.printable-document),
+  body:has([role="dialog"]) #root,
+  body:has(.printable-document) #root,
+  body.printing-document #root {
+    display: none !important;
   }
 
-  /* Hide app frame, sidebars, navigation, modals backdrop */
+  /* 2. Hide all non-printable UI: navigation bars, sidebars, headers, action buttons, overlays, toasts */
   nav,
   aside,
   header,
   footer,
   .print\:hidden,
-  [data-radix-portal] > div:first-child:not([role="dialog"]),
-  div[data-state="open"]:not([role="dialog"]) {
+  button:not(.print\:inline-block),
+  [data-sonner-toaster],
+  [data-radix-portal] > div[data-state="open"]:not([role="dialog"]),
+  div.fixed.inset-0,
+  .shepherd-element,
+  .driver-popover {
     display: none !important;
   }
 
-  /* Printable document takes full page cleanly */
-  .printable-document {
+  /* 3. RESET Radix UI Portal and Dialog wrapper so it is no longer fixed in screen center */
+  [data-radix-portal] {
     position: static !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  div[role="dialog"] {
+    position: static !important;
+    display: block !important;
+    transform: none !important;
+    left: auto !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
     width: 100% !important;
     max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
     padding: 0 !important;
     margin: 0 !important;
-    background: white !important;
+  }
+
+  /* 4. THE OFFICIAL A4 DOCUMENT TEMPLATE STYLING */
+  .printable-document {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: #ffffff !important;
     color: #0f172a !important;
     box-shadow: none !important;
     border: none !important;
-    overflow: visible !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
-  /* Prevent page breaks inside cards and tables */
+  /* 5. Natural pagination and page breaks */
   .printable-document table,
   .printable-document tr,
-  .printable-document .border {
-    page-break-inside: avoid;
-    break-inside: avoid;
+  .printable-document .border,
+  .print-avoid-break,
+  .printable-document .rounded-xl,
+  .printable-document .rounded-2xl {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-page-break {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  /* Ensure colors, gradients, borders and logos print crisply */
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  img {
+    max-width: 100% !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }

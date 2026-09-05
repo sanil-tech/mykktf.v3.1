@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import { printDocument } from '@/lib/printUtils';
 import {
   ChevronLeft, ChevronRight, Maximize, Minimize, Presentation as PresentationIcon,
   LayoutDashboard, GraduationCap, DoorOpen, ArrowLeftRight, CalendarOff,
@@ -980,7 +981,7 @@ export default function PresentationPage() {
   }
 
   function handlePrintManual() {
-    window.print();
+    printDocument();
   }
 
   const slide = displaySlides[currentSlide] || displaySlides[0];
