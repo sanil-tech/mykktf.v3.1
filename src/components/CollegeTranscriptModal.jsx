@@ -189,17 +189,28 @@ export default function CollegeTranscriptModal({ open, onOpenChange, student, at
                       </tr>
                     ))}
 
-                    {studentExtraTxs.filter(t => t.type === 'Merit').map((tx, idx) => (
-                      <tr key={`tx-${idx}`} className="border-b border-slate-200 bg-amber-50/20">
-                        <td className="p-2 border border-slate-200 font-mono text-center">{studentAttendance.length + idx + 1}</td>
-                        <td className="p-2 border border-slate-200 font-semibold text-slate-900">{tx.title}</td>
-                        <td className="p-2 border border-slate-200 text-indigo-800 font-bold">AJK Pelaksana / Urusetia</td>
-                        <td className="p-2 border border-slate-200 text-emerald-700 font-semibold flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" /> Perakuan Felo & Pengetua
-                        </td>
-                        <td className="p-2 border border-slate-200 text-center font-mono font-bold text-emerald-700">+{tx.points}</td>
-                      </tr>
-                    ))}
+                    {studentExtraTxs.filter(t => t.type === 'Merit').map((tx, idx) => {
+                      const isSports = tx.category === 'Sukan' || tx.sport_name || (tx.title && tx.title.toLowerCase().includes('sukan'));
+                      return (
+                        <tr key={`tx-${idx}`} className={`border-b border-slate-200 ${isSports ? 'bg-amber-100/30' : 'bg-amber-50/20'}`}>
+                          <td className="p-2 border border-slate-200 font-mono text-center">{studentAttendance.length + idx + 1}</td>
+                          <td className="p-2 border border-slate-200 font-semibold text-slate-900">{tx.title}</td>
+                          <td className="p-2 border border-slate-200 text-indigo-800 font-bold">
+                            {isSports ? (
+                              <span className="text-amber-800 font-extrabold flex items-center gap-1">
+                                🏅 Atlet Sukan {tx.sport_name ? `(${tx.sport_name})` : ''}
+                              </span>
+                            ) : (
+                              'AJK Pelaksana / Urusetia'
+                            )}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-emerald-700 font-semibold flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> {isSports ? 'Perakuan Unit Sukan & Felo' : 'Perakuan Felo & Pengetua'}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-center font-mono font-bold text-emerald-700">+{tx.points}</td>
+                        </tr>
+                      );
+                    })}
                   </>
                 )}
               </tbody>

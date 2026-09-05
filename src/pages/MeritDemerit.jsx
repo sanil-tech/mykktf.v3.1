@@ -25,10 +25,80 @@ import {
   TrendingUp,
   ArrowUpRight,
   ArrowDownRight,
-  Printer
+  Printer,
+  Medal,
+  Activity,
+  Flame,
+  Globe,
+  Flag,
+  Landmark,
+  School,
+  Check,
+  Star,
+  UserCheck
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
 import CollegeTranscriptModal from '@/components/CollegeTranscriptModal';
+
+// SCORING RUBRIC MATRIX FOR COLLEGE ATHLETES & SPORTS PARTICIPATION
+export const SPORTS_SCORING_MATRIX = {
+  Kolej: {
+    label: 'Peringkat Kolej (SUKOL / Antara Blok)',
+    badge: '🏢 Kolej',
+    description: 'Kejohanan sukan dalaman kolej kediaman atau antara blok/kolej.',
+    scores: {
+      Penyertaan: 10,
+      Gangsa: 15,
+      Perak: 20,
+      Emas: 25
+    }
+  },
+  Universiti: {
+    label: 'Peringkat Universiti (SUKUM / Kejohanan UMS)',
+    badge: '🎓 Universiti',
+    description: 'Kejohanan sukan rasmi anjuran Pusat Sukan UMS atau antara fakulti/institusi.',
+    scores: {
+      Penyertaan: 15,
+      Gangsa: 25,
+      Perak: 30,
+      Emas: 35
+    }
+  },
+  Negeri: {
+    label: 'Peringkat Negeri (SAGA / Terbuka Negeri)',
+    badge: '🏛️ Negeri',
+    description: 'Mewakili daerah/bahagian ke Sukan Sabah (SAGA) atau kejohanan terbuka peringkat negeri.',
+    scores: {
+      Penyertaan: 25,
+      Gangsa: 35,
+      Perak: 40,
+      Emas: 50
+    }
+  },
+  Kebangsaan: {
+    label: 'Peringkat Kebangsaan (MASUM / SUKMA / Sirkit Kebangsaan)',
+    badge: '🇲🇾 Kebangsaan',
+    description: 'Mewakili UMS ke MASUM atau mewakili negeri ke Sukan Malaysia (SUKMA) & kejohanan kebangsaan.',
+    scores: {
+      Penyertaan: 40,
+      Gangsa: 55,
+      Perak: 65,
+      Emas: 80
+    }
+  },
+  Antarabangsa: {
+    label: 'Peringkat Antarabangsa (AUG / Sukan SEA / Kejohanan Serantau)',
+    badge: '🌍 Antarabangsa',
+    description: 'Mewakili negara ke ASEAN University Games (AUG), Sukan SEA, atau kejohanan antarabangsa rasmi.',
+    scores: {
+      Penyertaan: 60,
+      Gangsa: 80,
+      Perak: 90,
+      Emas: 100
+    }
+  }
+};
 
 // DEFAULT SCORING RUBRIC (Can be modified dynamically by College Administrator)
 const DEFAULT_RUBRIC = {
@@ -42,6 +112,32 @@ const DEFAULT_RUBRIC = {
   event_attendance: { label: 'Kehadiran Program Kolej (Imbas QR Pas)', defaultPoints: 10, category: 'Penyertaan' },
   gotong_royong: { label: 'Gotong-Royong Perdana / Aktiviti Blok', defaultPoints: 15, category: 'Khidmat Kolej' },
   surau_activity: { label: 'Penglibatan Aktiviti Surau & Kerohanian', defaultPoints: 5, category: 'Kerohanian' },
+
+  // MERIT: SPORTS & ATHLETES (PENYERTAAN & PENCAPAIAN PINGAT)
+  sports_college_participate: { label: 'Sukan Peringkat Kolej (Penyertaan)', defaultPoints: 10, category: 'Sukan' },
+  sports_college_bronze: { label: 'Sukan Peringkat Kolej (Pingat Gangsa)', defaultPoints: 15, category: 'Sukan' },
+  sports_college_silver: { label: 'Sukan Peringkat Kolej (Pingat Perak)', defaultPoints: 20, category: 'Sukan' },
+  sports_college_gold: { label: 'Sukan Peringkat Kolej (Pingat Emas)', defaultPoints: 25, category: 'Sukan' },
+
+  sports_univ_participate: { label: 'Sukan Peringkat Universiti (Penyertaan)', defaultPoints: 15, category: 'Sukan' },
+  sports_univ_bronze: { label: 'Sukan Peringkat Universiti (Pingat Gangsa)', defaultPoints: 25, category: 'Sukan' },
+  sports_univ_silver: { label: 'Sukan Peringkat Universiti (Pingat Perak)', defaultPoints: 30, category: 'Sukan' },
+  sports_univ_gold: { label: 'Sukan Peringkat Universiti (Pingat Emas)', defaultPoints: 35, category: 'Sukan' },
+
+  sports_state_participate: { label: 'Sukan Peringkat Negeri (Penyertaan)', defaultPoints: 25, category: 'Sukan' },
+  sports_state_bronze: { label: 'Sukan Peringkat Negeri (Pingat Gangsa)', defaultPoints: 35, category: 'Sukan' },
+  sports_state_silver: { label: 'Sukan Peringkat Negeri (Pingat Perak)', defaultPoints: 40, category: 'Sukan' },
+  sports_state_gold: { label: 'Sukan Peringkat Negeri (Pingat Emas)', defaultPoints: 50, category: 'Sukan' },
+
+  sports_national_participate: { label: 'Sukan Peringkat Kebangsaan (Penyertaan)', defaultPoints: 40, category: 'Sukan' },
+  sports_national_bronze: { label: 'Sukan Peringkat Kebangsaan (Pingat Gangsa)', defaultPoints: 55, category: 'Sukan' },
+  sports_national_silver: { label: 'Sukan Peringkat Kebangsaan (Pingat Perak)', defaultPoints: 65, category: 'Sukan' },
+  sports_national_gold: { label: 'Sukan Peringkat Kebangsaan (Pingat Emas)', defaultPoints: 80, category: 'Sukan' },
+
+  sports_intl_participate: { label: 'Sukan Peringkat Antarabangsa (Penyertaan)', defaultPoints: 60, category: 'Sukan' },
+  sports_intl_bronze: { label: 'Sukan Peringkat Antarabangsa (Pingat Gangsa)', defaultPoints: 80, category: 'Sukan' },
+  sports_intl_silver: { label: 'Sukan Peringkat Antarabangsa (Pingat Perak)', defaultPoints: 90, category: 'Sukan' },
+  sports_intl_gold: { label: 'Sukan Peringkat Antarabangsa (Pingat Emas)', defaultPoints: 100, category: 'Sukan' },
 
   // DEMERIT: DISCIPLINARY VIOLATIONS
   curfew_violation: { label: 'Lewat Masuk Jam Malam (Curfew)', defaultPoints: -10, category: 'Disiplin' },
@@ -85,6 +181,21 @@ export default function MeritDemerit() {
   const [showQuotaConfigModal, setShowQuotaConfigModal] = useState(false);
   const [transcriptModalOpen, setTranscriptModalOpen] = useState(false);
   const [selectedStudentForTranscript, setSelectedStudentForTranscript] = useState(null);
+
+  // Sports Merit Modal & Filters State
+  const [sportsModalOpen, setSportsModalOpen] = useState(false);
+  const [sportsForm, setSportsForm] = useState({
+    student_id: '',
+    sport_name: '',
+    tournament_name: '',
+    level: 'Kolej', // 'Kolej' | 'Universiti' | 'Negeri' | 'Kebangsaan' | 'Antarabangsa'
+    achievement: 'Penyertaan', // 'Penyertaan' | 'Gangsa' | 'Perak' | 'Emas'
+    custom_points: '',
+    notes: ''
+  });
+  const [sportsFilterLevel, setSportsFilterLevel] = useState('all');
+  const [sportsFilterMedal, setSportsFilterMedal] = useState('all');
+  const [sportsSearch, setSportsSearch] = useState('');
 
   // Modals for Committee & Demerit
   const [committeeModalOpen, setCommitteeModalOpen] = useState(false);
@@ -152,13 +263,33 @@ export default function MeritDemerit() {
           student_id: m.student_id,
           student_name: m.student_name,
           type: 'Demerit',
+          category: 'Disiplin',
           title: m.offence_category || 'Kesalahan Disiplin',
           points: m.demerit_points ? -Math.abs(m.demerit_points) : -15,
           date: m.incident_date || m.created_date?.split('T')[0] || new Date().toISOString().split('T')[0],
           status: m.status || 'Approved',
           officer: m.recorded_by || 'Felo Bertugas'
         }));
-        setMeritTransactions(txs);
+
+        // Load custom / sports / committee transactions from localStorage
+        let localTxs = [];
+        try {
+          const stored = localStorage.getItem('kktf_merit_transactions');
+          if (stored) {
+            localTxs = JSON.parse(stored);
+          }
+        } catch (e) {
+          console.warn('Failed to parse local merit transactions:', e);
+        }
+
+        const combinedTxs = [...txs];
+        localTxs.forEach(lt => {
+          if (!combinedTxs.some(t => t.id === lt.id)) {
+            combinedTxs.unshift(lt);
+          }
+        });
+
+        setMeritTransactions(combinedTxs);
 
         // Set default tab strictly according to role:
         // Pengetua, Felo & Admin -> Selection Matrix
@@ -204,6 +335,13 @@ export default function MeritDemerit() {
     const extraMerit = studentTxs.filter(t => t.type === 'Merit').reduce((acc, curr) => acc + (curr.points || 0), 0);
     const demerit = studentTxs.filter(t => t.type === 'Demerit').reduce((acc, curr) => acc + Math.abs(curr.points || 0), 0);
 
+    // Specific calculation for Sports merits
+    const sportsTxs = studentTxs.filter(t => t.category === 'Sukan' || (t.title && t.title.toLowerCase().includes('sukan')) || t.sport_name);
+    const sportsMerit = sportsTxs.reduce((acc, curr) => acc + (curr.points || 0), 0);
+    const sportsCount = sportsTxs.length;
+    const hasWonSportsMedal = sportsTxs.some(t => ['Emas', 'Perak', 'Gangsa'].includes(t.achievement) || (t.title && (t.title.includes('Emas') || t.title.includes('Perak') || t.title.includes('Gangsa'))));
+    const isAthlete = Boolean(st.is_athlete || sportsMerit > 0 || sportsTxs.length > 0 || (st.programme && st.programme.toLowerCase().includes('sukan')));
+
     // Harmonize with recorded Student.merit_points
     const recordedProfileMerit = st.merit_points || 0;
     const totalPositiveMerit = Math.max(recordedProfileMerit, attendanceMerit + extraMerit);
@@ -226,19 +364,25 @@ export default function MeritDemerit() {
       qualification = 'Senarai Menunggu (Kekosongan Bersyarat)';
     }
 
-    // Priority Category Detection
+    // Priority Category Detection (Athletes get Priority Tier 2 in College Selection Matrix!)
     let priorityCategory = 'Residen Umum (Merit)';
     let priorityTier = 4;
 
     const isJakmasOrLeader = st.is_jakmas || (st.roles && st.roles.includes('jakmas')) || extraMerit >= 35;
-    const isVolunteerOrAthlete = st.is_volunteer || st.is_athlete || (st.programme && st.programme.toLowerCase().includes('sukan'));
+    const isVolunteer = st.is_volunteer;
     const isCommittee = extraMerit >= 20;
 
     if (isJakmasOrLeader) {
       priorityCategory = '👑 JAKMAS / Ketua Blok';
       priorityTier = 1;
-    } else if (isVolunteerOrAthlete) {
-      priorityCategory = '🍲 Dapur Siswa / Atlit';
+    } else if (isAthlete && hasWonSportsMedal) {
+      priorityCategory = '🏅 Atlet Kolej (Pemenang Pingat)';
+      priorityTier = 2;
+    } else if (isAthlete) {
+      priorityCategory = '🏃 Atlet Sukan Kolej';
+      priorityTier = 2;
+    } else if (isVolunteer) {
+      priorityCategory = '🍲 Dapur Siswa / Sukarelawan';
       priorityTier = 2;
     } else if (isCommittee) {
       priorityCategory = '👥 Urusetia & AJK Program';
@@ -250,6 +394,10 @@ export default function MeritDemerit() {
       attendedCount,
       attendanceMerit,
       extraMerit,
+      sportsMerit,
+      sportsCount,
+      isAthlete,
+      hasWonSportsMedal,
       demerit,
       netScore,
       tier,
@@ -463,9 +611,104 @@ export default function MeritDemerit() {
     }
 
     setMeritTransactions(prev => [newTx, ...prev]);
+    try {
+      const stored = JSON.parse(localStorage.getItem('kktf_merit_transactions') || '[]');
+      localStorage.setItem('kktf_merit_transactions', JSON.stringify([newTx, ...stored]));
+    } catch (e) {
+      console.warn('Error saving local transaction:', e);
+    }
     toast.success(`Dimerit ${points} mata direkodkan bagi ${student.full_name}.`);
     setDemeritModalOpen(false);
   };
+
+  // Submit Sports Participation & Medal Merit
+  const handleAddSportsMerit = async () => {
+    if (!sportsForm.student_id || !sportsForm.sport_name || !sportsForm.tournament_name) {
+      toast.error('Sila pilih atlet, nama sukan, dan nama kejohanan.');
+      return;
+    }
+    const student = students.find(s => s.id === sportsForm.student_id);
+    if (!student) return;
+
+    const levelConfig = SPORTS_SCORING_MATRIX[sportsForm.level] || SPORTS_SCORING_MATRIX.Kolej;
+    const defaultPts = levelConfig.scores[sportsForm.achievement] || 10;
+    const points = Number(sportsForm.custom_points) > 0 ? Number(sportsForm.custom_points) : defaultPts;
+
+    const medalEmoji = sportsForm.achievement === 'Emas' ? '🥇' : sportsForm.achievement === 'Perak' ? '🥈' : sportsForm.achievement === 'Gangsa' ? '🥉' : '🎖️';
+
+    const newTx = {
+      id: Date.now().toString(),
+      student_id: student.id,
+      student_name: student.full_name,
+      type: 'Merit',
+      category: 'Sukan',
+      sport_name: sportsForm.sport_name,
+      tournament_name: sportsForm.tournament_name,
+      level: sportsForm.level,
+      achievement: sportsForm.achievement,
+      title: `${medalEmoji} ${sportsForm.achievement} (${sportsForm.level}): ${sportsForm.sport_name} - ${sportsForm.tournament_name}`,
+      points: points,
+      date: new Date().toISOString().split('T')[0],
+      status: 'Approved',
+      officer: currentUser?.full_name || 'Unit Sukan & Felo Penyelaras'
+    };
+
+    setMeritTransactions(prev => [newTx, ...prev]);
+
+    // Persist to localStorage
+    try {
+      const stored = JSON.parse(localStorage.getItem('kktf_merit_transactions') || '[]');
+      localStorage.setItem('kktf_merit_transactions', JSON.stringify([newTx, ...stored]));
+    } catch (e) {
+      console.warn('Failed saving sports transaction to localStorage:', e);
+    }
+
+    // Persist to Student entity (merit points and mark as athlete)
+    try {
+      const curMerit = student.merit_points || 0;
+      await base44.entities.Student.update(student.id, {
+        merit_points: curMerit + points,
+        is_athlete: true
+      });
+      setStudents(prev => prev.map(s => s.id === student.id ? { ...s, merit_points: curMerit + points, is_athlete: true } : s));
+    } catch (err) {
+      console.warn('Failed updating student merit & athlete status in DB:', err);
+    }
+
+    confetti({
+      particleCount: 80,
+      spread: 70,
+      origin: { y: 0.6 }
+    });
+
+    toast.success(`Merit Sukan +${points} mata (${medalEmoji} ${sportsForm.achievement} Peringkat ${sportsForm.level}) berjaya dianugerahkan kepada atlet ${student.full_name}!`);
+    setSportsModalOpen(false);
+    setSportsForm({
+      student_id: '',
+      sport_name: '',
+      tournament_name: '',
+      level: 'Kolej',
+      achievement: 'Penyertaan',
+      custom_points: '',
+      notes: ''
+    });
+  };
+
+  // Sports Transactions & Filtered List
+  const sportsTransactions = meritTransactions.filter(t => t.category === 'Sukan' || (t.title && t.title.toLowerCase().includes('sukan')) || t.sport_name);
+
+  const filteredSportsTransactions = sportsTransactions.filter(t => {
+    const matchesSearch = !sportsSearch || 
+      (t.student_name && t.student_name.toLowerCase().includes(sportsSearch.toLowerCase())) ||
+      (t.sport_name && t.sport_name.toLowerCase().includes(sportsSearch.toLowerCase())) ||
+      (t.tournament_name && t.tournament_name.toLowerCase().includes(sportsSearch.toLowerCase())) ||
+      (t.title && t.title.toLowerCase().includes(sportsSearch.toLowerCase()));
+
+    const matchesLevel = sportsFilterLevel === 'all' || t.level === sportsFilterLevel;
+    const matchesMedal = sportsFilterMedal === 'all' || t.achievement === sportsFilterMedal;
+
+    return matchesSearch && matchesLevel && matchesMedal;
+  });
 
   // 1-Click Export for UMS SMP System
   const handleExportSMP = () => {
@@ -521,6 +764,15 @@ export default function MeritDemerit() {
                 className="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-bold gap-1.5 rounded-xl shadow-xs"
               >
                 <Plus className="w-4 h-4" /> Lantik AJK / Sekretariat
+              </Button>
+            )}
+
+            {(isStaff || isJakmas) && (
+              <Button 
+                onClick={() => setSportsModalOpen(true)}
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold gap-1.5 rounded-xl shadow-xs"
+              >
+                <Medal className="w-4 h-4" /> Anugerah Merit Atlet Sukan
               </Button>
             )}
 
@@ -662,6 +914,22 @@ export default function MeritDemerit() {
             <span>2. Rekod Dimerit Disiplin</span>
           </button>
         )}
+
+        {/* TAB: SPORTS & ATHLETES MERIT (SEMUA PENGGUNA - STAF, JAKMAS, RESIDEN) */}
+        <button
+          onClick={() => setActiveTab('sports')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'sports' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Medal className="w-4 h-4 text-amber-500" />
+          <span>Pengiktirafan Atlet & Sukan Kolej</span>
+          {sportsTransactions.length > 0 && (
+            <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono font-bold">
+              {sportsTransactions.length}
+            </span>
+          )}
+        </button>
 
         {/* TAB: RUBRIC SETTINGS */}
         <button
@@ -1083,6 +1351,236 @@ export default function MeritDemerit() {
         </div>
       )}
 
+      {/* TAB: SPORTS & ATHLETES MERIT DASHBOARD */}
+      {activeTab === 'sports' && (
+        <div className="bg-card border border-border rounded-3xl p-5 shadow-sm space-y-5">
+          {/* BANNER & HEADER */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
+            <div>
+              <div className="flex items-center gap-2">
+                <Medal className="w-5 h-5 text-amber-500" />
+                <h3 className="text-base font-bold font-heading text-foreground">
+                  Pusat Pengiktirafan & Merit Atlet Sukan Kolej Kediaman Tun Fuad
+                </h3>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Penghargaan rasmi atlet kolej mengikut peringkat kejohanan (Kolej, Universiti, Negeri, Kebangsaan, Antarabangsa) & pencapaian pingat.
+              </p>
+            </div>
+
+            {(isStaff || isJakmas) && (
+              <Button 
+                size="sm"
+                onClick={() => setSportsModalOpen(true)}
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl gap-1.5 shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" /> Anugerah Merit Atlet Sukan
+              </Button>
+            )}
+          </div>
+
+          {/* 4 SUMMARY STAT CARDS */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div className="bg-amber-500/10 border border-amber-400/30 rounded-2xl p-3.5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl font-black">
+                🥇
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">Pingat Emas</p>
+                <p className="text-2xl font-black font-heading text-foreground">
+                  {sportsTransactions.filter(t => t.achievement === 'Emas' || t.title?.includes('Emas')).length}
+                </p>
+                <p className="text-[10px] text-muted-foreground">Juara Kejohanan</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-500/10 border border-slate-400/30 rounded-2xl p-3.5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-slate-500/20 text-slate-600 dark:text-slate-300 flex items-center justify-center text-xl font-black">
+                🥈
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Pingat Perak</p>
+                <p className="text-2xl font-black font-heading text-foreground">
+                  {sportsTransactions.filter(t => t.achievement === 'Perak' || t.title?.includes('Perak')).length}
+                </p>
+                <p className="text-[10px] text-muted-foreground">Naib Juara</p>
+              </div>
+            </div>
+
+            <div className="bg-amber-700/10 border border-amber-600/30 rounded-2xl p-3.5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-700/20 text-amber-700 dark:text-amber-400 flex items-center justify-center text-xl font-black">
+                🥉
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400">Pingat Gangsa</p>
+                <p className="text-2xl font-black font-heading text-foreground">
+                  {sportsTransactions.filter(t => t.achievement === 'Gangsa' || t.title?.includes('Gangsa')).length}
+                </p>
+                <p className="text-[10px] text-muted-foreground">Tempat Ketiga</p>
+              </div>
+            </div>
+
+            <div className="bg-indigo-500/10 border border-indigo-400/30 rounded-2xl p-3.5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xl font-black">
+                🏃
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Atlet Aktif</p>
+                <p className="text-2xl font-black font-heading text-foreground">
+                  {new Set(sportsTransactions.map(t => t.student_id)).size}
+                </p>
+                <p className="text-[10px] text-muted-foreground">Wakil Kolej / Sukan</p>
+              </div>
+            </div>
+          </div>
+
+          {/* POLICY EXPLANATION CALLOUT */}
+          <div className="p-3.5 bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-indigo-500/10 border border-amber-400/40 rounded-2xl text-xs space-y-1">
+            <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300">
+              <Trophy className="w-4 h-4 text-amber-500" />
+              <span>Dasar Keutamaan Penempatan Atlet Kolej (Priority Tier 2):</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Mahasiswa yang menyumbang bakti sebagai atlet kolej dan memenangi pingat diperuntukkan mata merit mengikut skala rasmi universiti dan dimasukkan terus ke dalam <strong>Kumpulan Keutamaan Tier 2 (Atlit Sukan Kolej)</strong> dalam Matriks Pemilihan Penempatan Residen sesi hadapan.
+            </p>
+          </div>
+
+          {/* SEARCH & FILTER BAR */}
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="relative flex-1 w-full">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={sportsSearch}
+                onChange={(e) => setSportsSearch(e.target.value)}
+                placeholder="Cari nama atlet, acara sukan, atau kejohanan..."
+                className="pl-9 h-9 text-xs rounded-xl bg-background"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Select value={sportsFilterLevel} onValueChange={setSportsFilterLevel}>
+                <SelectTrigger className="h-9 text-xs w-full sm:w-40 rounded-xl bg-background">
+                  <SelectValue placeholder="Peringkat" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Peringkat</SelectItem>
+                  <SelectItem value="Kolej">🏢 Kolej</SelectItem>
+                  <SelectItem value="Universiti">🎓 Universiti</SelectItem>
+                  <SelectItem value="Negeri">🏛️ Negeri</SelectItem>
+                  <SelectItem value="Kebangsaan">🇲🇾 Kebangsaan</SelectItem>
+                  <SelectItem value="Antarabangsa">🌍 Antarabangsa</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={sportsFilterMedal} onValueChange={setSportsFilterMedal}>
+                <SelectTrigger className="h-9 text-xs w-full sm:w-40 rounded-xl bg-background">
+                  <SelectValue placeholder="Pencapaian" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Pencapaian</SelectItem>
+                  <SelectItem value="Emas">🥇 Emas</SelectItem>
+                  <SelectItem value="Perak">🥈 Perak</SelectItem>
+                  <SelectItem value="Gangsa">🥉 Gangsa</SelectItem>
+                  <SelectItem value="Penyertaan">🎖️ Penyertaan</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* ATHLETE RECORDS LIST */}
+          {filteredSportsTransactions.length === 0 ? (
+            <div className="p-8 text-center bg-muted/20 border border-dashed border-border rounded-2xl space-y-2">
+              <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-500 mx-auto flex items-center justify-center">
+                <Medal className="w-6 h-6" />
+              </div>
+              <p className="text-xs font-bold text-foreground">Tiada rekod merit sukan dijumpai</p>
+              <p className="text-[11px] text-muted-foreground">
+                {sportsTransactions.length === 0 
+                  ? 'Belum ada rekod penyertaan atau pingat sukan didaftarkan untuk sesi ini.' 
+                  : 'Tiada rekod sepadan dengan carian atau penapis yang dipilih.'}
+              </p>
+              {(isStaff || isJakmas) && sportsTransactions.length === 0 && (
+                <Button
+                  size="sm"
+                  onClick={() => setSportsModalOpen(true)}
+                  className="mt-2 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Rekod Sumbangan Atlet Pertama
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredSportsTransactions.map(tx => {
+                const targetStudent = students.find(s => s.id === tx.student_id || (s.student_id && s.student_id === tx.student_id));
+                const medalEmoji = tx.achievement === 'Emas' ? '🥇' : tx.achievement === 'Perak' ? '🥈' : tx.achievement === 'Gangsa' ? '🥉' : '🎖️';
+                const levelConfig = SPORTS_SCORING_MATRIX[tx.level] || SPORTS_SCORING_MATRIX.Kolej;
+
+                return (
+                  <div key={tx.id} className="bg-card border border-amber-200 dark:border-amber-900/60 rounded-2xl p-4 space-y-3 relative overflow-hidden shadow-xs hover:border-amber-400 transition-all">
+                    {/* TOP ROW: ACHIEVEMENT BADGE & POINTS */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-400/40 text-[10px] font-bold flex items-center gap-1">
+                          <span>{medalEmoji}</span>
+                          <span>{tx.achievement || 'Penyertaan'}</span>
+                        </Badge>
+                        <Badge variant="outline" className="text-[9.5px] font-mono">
+                          {levelConfig.badge || tx.level}
+                        </Badge>
+                      </div>
+
+                      <span className="font-mono font-black text-amber-600 dark:text-amber-400 text-base shrink-0">
+                        +{tx.points} Mata
+                      </span>
+                    </div>
+
+                    {/* STUDENT BIODATA */}
+                    <div>
+                      <p className="font-extrabold text-sm text-foreground line-clamp-1">
+                        {tx.student_name}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground font-mono">
+                        {targetStudent?.student_id || tx.student_id} {targetStudent?.block_name ? `• ${targetStudent.block_name} (${targetStudent.room_number || ''})` : ''}
+                      </p>
+                    </div>
+
+                    {/* SPORT & TOURNAMENT DETAILS */}
+                    <div className="p-2.5 bg-muted/40 rounded-xl space-y-1 text-xs border border-border/50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground text-[10px] uppercase font-bold">Acara Sukan:</span>
+                        <span className="font-bold text-foreground">{tx.sport_name || 'Acara Sukan'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground text-[10px] uppercase font-bold">Kejohanan:</span>
+                        <span className="font-semibold text-foreground text-right line-clamp-1">{tx.tournament_name || 'Kejohanan Sukan'}</span>
+                      </div>
+                    </div>
+
+                    {/* FOOTER & TRANSCRIPT ACTION */}
+                    <div className="flex items-center justify-between pt-2 border-t border-border/60 text-[10px] text-muted-foreground">
+                      <span className="font-mono">Tarikh: {tx.date}</span>
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => {
+                          const cand = targetStudent || { id: tx.student_id, full_name: tx.student_name };
+                          setSelectedStudentForTranscript(cand);
+                          setTranscriptModalOpen(true);
+                        }}
+                        className="h-6 px-2 text-[10px] font-bold text-primary hover:bg-primary/10 gap-1 rounded-lg"
+                      >
+                        <Printer className="w-3 h-3" /> Transkrip
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* TAB 4: CONFIGURABLE SCORING RUBRIC */}
       {activeTab === 'rubric' && (
         <div className="bg-card border border-border rounded-3xl p-6 shadow-sm space-y-6">
@@ -1093,6 +1591,56 @@ export default function MeritDemerit() {
             <p className="text-xs text-muted-foreground mt-1">
               Skala mata ini boleh diubahsuai oleh Pentadbiran Kolej mengikut ketetapan mesyuarat pengurusan tanpa perlu mengubah kod sistem.
             </p>
+          </div>
+
+          {/* VISUAL SPORTS SCORING MATRIX TABLE */}
+          <div className="p-4 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-card rounded-2xl border border-amber-300 dark:border-amber-900/60 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Medal className="w-5 h-5 text-amber-500" />
+                <div>
+                  <h4 className="font-extrabold text-sm text-foreground">
+                    Jadual Skala Pemarkahan Rasmi Atlet & Sukan Kolej (Berkadaran Peringkat & Pingat)
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground">
+                    Penetapan mata merit rasmi bagi menghargai sumbangan atlet yang mewakili Kolej Kediaman Tun Fuad dan Universiti Malaysia Sabah.
+                  </p>
+                </div>
+              </div>
+              <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400 font-bold text-xs shrink-0">
+                🏆 Keutamaan Tier 2 Kolej
+              </Badge>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-muted/70 text-left border-b border-border text-[11px]">
+                    <th className="p-2.5 font-bold text-foreground">Peringkat Kejohanan</th>
+                    <th className="p-2.5 font-bold text-foreground">Contoh Kejohanan & Skop</th>
+                    <th className="p-2.5 font-bold text-center text-slate-700 dark:text-slate-300">Penyertaan</th>
+                    <th className="p-2.5 font-bold text-center text-amber-800 dark:text-amber-400">Gangsa 🥉</th>
+                    <th className="p-2.5 font-bold text-center text-slate-600 dark:text-slate-300">Perak 🥈</th>
+                    <th className="p-2.5 font-bold text-center text-amber-600 dark:text-amber-300">Emas 🥇</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {Object.entries(SPORTS_SCORING_MATRIX).map(([lvlKey, lvlData]) => (
+                    <tr key={lvlKey} className="hover:bg-muted/30 transition-colors">
+                      <td className="p-2.5 font-bold text-foreground flex items-center gap-1.5 whitespace-nowrap">
+                        <span className="text-sm">{lvlData.badge.split(' ')[0]}</span>
+                        <span>{lvlKey}</span>
+                      </td>
+                      <td className="p-2.5 text-muted-foreground text-[11px]">{lvlData.description}</td>
+                      <td className="p-2.5 text-center font-mono font-bold text-foreground">+{lvlData.scores.Penyertaan}</td>
+                      <td className="p-2.5 text-center font-mono font-bold text-amber-700 dark:text-amber-400">+{lvlData.scores.Gangsa}</td>
+                      <td className="p-2.5 text-center font-mono font-bold text-slate-700 dark:text-slate-300">+{lvlData.scores.Perak}</td>
+                      <td className="p-2.5 text-center font-mono font-black text-amber-600 dark:text-amber-300">+{lvlData.scores.Emas}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1224,6 +1772,22 @@ export default function MeritDemerit() {
             <div className="p-3 bg-muted/40 rounded-xl border border-border flex items-center justify-between">
               <span>Jawatan AJK & Kepimpinan JAKMAS</span>
               <span className="font-mono font-bold text-emerald-600">+{myStudentProfile?.extraMerit || 0} Mata</span>
+            </div>
+
+            <div className="p-3 bg-amber-50/40 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-900/60 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Medal className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <div>
+                  <span className="font-medium text-foreground">Pencapaian & Penyertaan Sukan Kolej</span>
+                  <p className="text-[10px] text-muted-foreground">{myStudentProfile?.sportsCount || 0} Penglibatan Kejohanan</p>
+                </div>
+                {myStudentProfile?.isAthlete && (
+                  <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400/40 text-[9px] font-bold">
+                    {myStudentProfile?.hasWonSportsMedal ? '🏅 Pemenang Pingat' : '🏃 Atlet Sukan'}
+                  </Badge>
+                )}
+              </div>
+              <span className="font-mono font-bold text-amber-600 dark:text-amber-400">+{myStudentProfile?.sportsMerit || 0} Mata</span>
             </div>
 
             <div className="p-3 bg-rose-50/20 dark:bg-rose-950/20 rounded-xl border border-rose-200 dark:border-rose-900 flex items-center justify-between text-rose-700 dark:text-rose-400">
@@ -1384,6 +1948,176 @@ export default function MeritDemerit() {
             </Button>
             <Button size="sm" variant="destructive" onClick={handleAddDemerit} className="font-bold rounded-xl">
               Rekodkan Dimerit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL: ANUGERAH MERIT ATLET SUKAN KOLEJ */}
+      <Dialog open={sportsModalOpen} onOpenChange={setSportsModalOpen}>
+        <DialogContent className="max-w-lg p-6 bg-card border-border rounded-3xl shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold font-heading text-amber-700 dark:text-amber-400 flex items-center gap-2">
+              <Medal className="w-5 h-5 text-amber-500" /> Anugerah / Rekod Mata Merit Atlet Sukan Kolej
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Pengiktirafan rasmi sumbangan atlet mengikut skala merit berkadaran mengikut peringkat sukan dan pencapaian pingat.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 text-xs mt-2">
+            {/* PILIH PELAJAR / ATLET */}
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-foreground">Pilih Mahasiswa / Atlet *</Label>
+              <Select value={sportsForm.student_id} onValueChange={(v) => setSportsForm(f => ({ ...f, student_id: v }))}>
+                <SelectTrigger className="h-10 text-xs rounded-xl bg-background">
+                  <SelectValue placeholder="Pilih Atlet Kolej" />
+                </SelectTrigger>
+                <SelectContent>
+                  {students.map(s => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.full_name} ({s.student_id}) {s.block_name ? `• ${s.block_name}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* NAMA SUKAN DENGAN CADANGAN PANTAS */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-foreground">Acara Sukan *</Label>
+              <Input
+                value={sportsForm.sport_name}
+                onChange={(e) => setSportsForm(f => ({ ...f, sport_name: e.target.value }))}
+                placeholder="Cth: Bola Sepak, Badminton, Olahraga, Renang..."
+                className="h-9 text-xs rounded-xl bg-background"
+              />
+              <div className="flex flex-wrap gap-1 pt-0.5">
+                {['Bola Sepak', 'Badminton', 'Futsal', 'Olahraga', 'Sepak Takraw', 'Bola Tampar', 'Bola Jaring', 'Renang', 'Catur', 'Ping Pong', 'Ragbi', 'Silat'].map(sp => (
+                  <button
+                    key={sp}
+                    type="button"
+                    onClick={() => setSportsForm(f => ({ ...f, sport_name: sp }))}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-medium border transition-colors ${
+                      sportsForm.sport_name === sp 
+                        ? 'bg-amber-500 text-white border-amber-500' 
+                        : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    {sp}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* NAMA KEJOHANAN */}
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-foreground">Nama Kejohanan / Pertandingan *</Label>
+              <Input
+                value={sportsForm.tournament_name}
+                onChange={(e) => setSportsForm(f => ({ ...f, tournament_name: e.target.value }))}
+                placeholder="Cth: SUKOL KKTF 2026 / SUKUM UMS / Sukan Sabah SAGA / MASUM / AUG"
+                className="h-9 text-xs rounded-xl bg-background"
+              />
+            </div>
+
+            {/* GRID PERINGKAT & PENCAPAIAN */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* PERINGKAT */}
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-foreground">Peringkat Kejohanan *</Label>
+                <Select value={sportsForm.level} onValueChange={(v) => setSportsForm(f => ({ ...f, level: v }))}>
+                  <SelectTrigger className="h-10 text-xs rounded-xl bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Kolej">🏢 Kolej (SUKOL / Blok)</SelectItem>
+                    <SelectItem value="Universiti">🎓 Universiti (SUKUM / UMS)</SelectItem>
+                    <SelectItem value="Negeri">🏛️ Negeri (SAGA / Terbuka)</SelectItem>
+                    <SelectItem value="Kebangsaan">🇲🇾 Kebangsaan (MASUM / SUKMA)</SelectItem>
+                    <SelectItem value="Antarabangsa">🌍 Antarabangsa (AUG / SEA)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* PENCAPAIAN PINGAT */}
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-foreground">Pencapaian / Pingat *</Label>
+                <Select value={sportsForm.achievement} onValueChange={(v) => setSportsForm(f => ({ ...f, achievement: v }))}>
+                  <SelectTrigger className="h-10 text-xs rounded-xl bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Penyertaan">🎖️ Penyertaan Sah</SelectItem>
+                    <SelectItem value="Gangsa">🥉 Pingat Gangsa (Ke-3)</SelectItem>
+                    <SelectItem value="Perak">🥈 Pingat Perak (Naib Juara)</SelectItem>
+                    <SelectItem value="Emas">🥇 Pingat Emas (Juara)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* DYNAMIC MERIT CALCULATION PREVIEW */}
+            {(() => {
+              const lvlConfig = SPORTS_SCORING_MATRIX[sportsForm.level] || SPORTS_SCORING_MATRIX.Kolej;
+              const autoPts = lvlConfig.scores[sportsForm.achievement] || 10;
+              const finalPts = Number(sportsForm.custom_points) > 0 ? Number(sportsForm.custom_points) : autoPts;
+              return (
+                <div className="p-3 bg-amber-500/10 border border-amber-400/40 rounded-2xl flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                      Kiraan Merit Berkadaran Automatik:
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Peringkat {sportsForm.level} &bull; Pencapaian: {sportsForm.achievement}
+                    </p>
+                    <p className="text-[9.5px] text-amber-700 dark:text-amber-400 font-semibold">
+                      ✓ Termasuk automatik dalam Kumpulan Keutamaan Tier 2 (Penempatan Kolej)
+                    </p>
+                  </div>
+                  <span className="font-mono font-black text-amber-600 dark:text-amber-400 text-2xl shrink-0">
+                    +{finalPts} Mata
+                  </span>
+                </div>
+              );
+            })()}
+
+            {/* PELARASAN MATA KHAS (OPTIONAL) */}
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-foreground">
+                Pelarasan Mata Merit Khas (Pilihan - Kosongkan jika guna skala piawai)
+              </Label>
+              <Input
+                type="number"
+                value={sportsForm.custom_points}
+                onChange={(e) => setSportsForm(f => ({ ...f, custom_points: e.target.value }))}
+                placeholder="Gunakan mata automatik di atas"
+                className="h-9 text-xs rounded-xl bg-background"
+              />
+            </div>
+
+            {/* CATATAN PENGESAHAN */}
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-foreground">Catatan / Perakuan Unit Sukan</Label>
+              <Textarea
+                value={sportsForm.notes}
+                onChange={(e) => setSportsForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Cth: Mewakili Kolej Kediaman Tun Fuad dalam Kejohanan Badminton Beregu Lelaki..."
+                className="text-xs h-16 rounded-xl bg-background"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="mt-6 flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setSportsModalOpen(false)} className="rounded-xl">
+              Batal
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={handleAddSportsMerit} 
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl gap-1.5 shadow-xs"
+            >
+              <Medal className="w-4 h-4" /> Anugerahkan Merit Atlet
             </Button>
           </DialogFooter>
         </DialogContent>
