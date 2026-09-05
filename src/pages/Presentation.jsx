@@ -855,8 +855,9 @@ export default function PresentationPage() {
   const [activeChapter, setActiveChapter] = useState('ch-intro');
   const [mobileTocOpen, setMobileTocOpen] = useState(false);
 
-  // Determine user's effective role
-  const userRole = user?.role || 'student';
+  // Determine user's effective role (defaulting 'user' to 'student')
+  const rawRole = user?.role;
+  const userRole = (!rawRole || rawRole === 'user') ? 'student' : rawRole;
   const isJakmas = Boolean(user?.jakmasAppointment);
   const effectiveRole = isJakmas ? 'jakmas' : userRole;
   const isAdmin = userRole === 'super_admin' || userRole === 'college_admin' || userRole === 'principal' || Boolean(user?.isGuestDemo);
@@ -865,11 +866,13 @@ export default function PresentationPage() {
   const [rolePerspective, setRolePerspective] = useState(user?.isGuestDemo ? 'all' : 'auto');
 
   const activePerspective = rolePerspective === 'auto' ? effectiveRole : rolePerspective;
+  const normalizedPerspective = (!activePerspective || activePerspective === 'user') ? 'student' : activePerspective;
 
   // Filter chapters based on role perspective
   const roleFilteredChapters = MANUAL_CHAPTERS.filter(ch => {
-    if (activePerspective === 'all') return true;
-    return ch.allowedRoles.includes(activePerspective);
+    if (normalizedPerspective === 'all') return true;
+    return ch.allowedRoles.includes(normalizedPerspective) || 
+           (normalizedPerspective === 'student' && ch.allowedRoles.includes('student'));
   });
 
   // Further filter by search query
@@ -880,6 +883,13 @@ export default function PresentationPage() {
            ch.summary.toLowerCase().includes(q) ||
            ch.sections.some(s => s.title.toLowerCase().includes(q) || (s.content && s.content.toLowerCase().includes(q)));
   });
+
+  // Ensure activeChapter is valid within current displayChapters
+  useEffect(() => {
+    if (displayChapters.length > 0 && !displayChapters.some(c => c.id === activeChapter)) {
+      setActiveChapter(displayChapters[0].id);
+    }
+  }, [displayChapters, activeChapter]);
 
   // Active chapter helpers & mobile navigation
   const currentChapterIndex = displayChapters.findIndex(c => c.id === activeChapter);
@@ -932,14 +942,15 @@ export default function PresentationPage() {
 
   // Filter slides based on active perspective
   const displaySlides = ALL_SLIDES.filter(sl => {
-    if (activePerspective === 'all') return true;
-    return sl.allowedRoles.includes(activePerspective);
+    if (normalizedPerspective === 'all') return true;
+    return sl.allowedRoles.includes(normalizedPerspective) ||
+           (normalizedPerspective === 'student' && sl.allowedRoles.includes('student'));
   });
 
   // Ensure currentSlide is within bounds when switching perspective
   useEffect(() => {
     setCurrentSlide(0);
-  }, [activePerspective]);
+  }, [normalizedPerspective]);
 
   // Keyboard navigation for slide deck
   const handleKeyDown = useCallback((e) => {
@@ -1195,7 +1206,7 @@ export default function PresentationPage() {
                   <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                     Bab Panduan ({displayChapters.length})
                   </p>
-                  {activePerspective === 'student' && (
+                  {normalizedPerspective === 'student' && (
                     <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">Pelajar</span>
                   )}
                 </div>
