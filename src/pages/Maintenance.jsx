@@ -35,7 +35,8 @@ import {
   Flame,
   Printer,
   FileText,
-  Building2
+  Building2,
+  ShieldCheck
 } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 import { toast } from 'sonner';
@@ -220,12 +221,60 @@ export default function Maintenance() {
         }
       }
     } else {
-      const students = await base44.entities.Student.filter({ email: user.email });
-      const student = students[0] || null;
+      let student = null;
+      if (user?.id) {
+        const byUid = await base44.entities.Student.filter({ user_id: user.id });
+        if (byUid.length > 0) student = byUid[0];
+      }
+      if (!student && user?.email) {
+        const byEmail = await base44.entities.Student.filter({ email: user.email });
+        if (byEmail.length > 0) student = byEmail[0];
+      }
       setMyStudent(student);
-      reqs = student
-        ? await base44.entities.MaintenanceRequest.filter({ student_id: student.id })
-        : [];
+
+      // Multi-key query to fetch all complaints created by this student
+      const queryPromises = [];
+      if (student?.id) {
+        queryPromises.push(base44.entities.MaintenanceRequest.filter({ student_id: student.id }));
+      }
+      if (student?.student_id && student.student_id !== student.id) {
+        queryPromises.push(base44.entities.MaintenanceRequest.filter({ student_id: student.student_id }));
+      }
+      if (user?.id && user.id !== student?.id) {
+        queryPromises.push(base44.entities.MaintenanceRequest.filter({ student_id: user.id }));
+      }
+
+      const queryResults = await Promise.all(queryPromises);
+      const combined = [];
+      const seenIds = new Set();
+      queryResults.flat().forEach(item => {
+        if (item && item.id && !seenIds.has(item.id)) {
+          seenIds.add(item.id);
+          combined.push(item);
+        }
+      });
+
+      // Strict client-side isolation filter: ONLY allow requests owned by this student
+      const validStudentKeys = [
+        String(user?.id || '').toLowerCase(),
+        String(user?.email || '').toLowerCase(),
+        String(student?.id || '').toLowerCase(),
+        String(student?.student_id || '').toLowerCase()
+      ].filter(Boolean);
+
+      reqs = combined.filter(r => {
+        const rId = String(r.student_id || '').toLowerCase();
+        const rName = String(r.student_name || '').toLowerCase();
+        const rCreatedBy = String(r.created_by || '').toLowerCase();
+        return validStudentKeys.some(k => 
+          rId === k || 
+          rCreatedBy === k || 
+          rName.includes(k)
+        );
+      });
+
+      // Sort newest first
+      reqs.sort((a, b) => new Date(b.submitted_at || b.created_date || 0) - new Date(a.submitted_at || a.created_date || 0));
       
       // Auto-dispatch daily reminder notification to student if active unconfirmed report > 24 hours
       const now = Date.now();
@@ -682,6 +731,29 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
 
   // SEARCH AND FILTER LOGIC
   const filtered = requests.filter(r => {
+    // STRICT SECURITY ISOLATION FOR STUDENTS:
+    // A student MUST ONLY EVER see their own complaints
+    if (!isStaff) {
+      const studentKeys = [
+        String(currentUser?.id || '').toLowerCase(),
+        String(currentUser?.email || '').toLowerCase(),
+        String(myStudent?.id || '').toLowerCase(),
+        String(myStudent?.student_id || '').toLowerCase()
+      ].filter(Boolean);
+
+      const rStudentId = String(r.student_id || '').toLowerCase();
+      const rStudentName = String(r.student_name || '').toLowerCase();
+      const rCreatedBy = String(r.created_by || '').toLowerCase();
+
+      const isOwner = studentKeys.some(k => 
+        rStudentId === k || 
+        rCreatedBy === k || 
+        rStudentName.includes(k)
+      );
+
+      if (!isOwner) return false;
+    }
+
     if (filter === 'all') {
       // keep
     } else if (filter === 'pending_ref') {
@@ -730,10 +802,10 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
     <div className="space-y-6">
       {/* SINGLE CLEAN HEADER */}
       <PageHeader
-        title="Laporan Kerosakan & Pemantauan JPP"
+        title={isStaff ? "Laporan Kerosakan & Pemantauan JPP" : "Aduan Kerosakan Saya"}
         description={isStaff 
           ? "Pantau aduan kerosakan kolej, selaras bersama kumpulan WhatsApp Penyelenggaraan (M&E, Civil, Cleaner, Felo) & semak No. MyServ" 
-          : "Lapor kerosakan bilik atau kawasan awam kolej untuk tindakan UMS MyServ & pemantauan Felo KKTF"}
+          : "Pantau status aduan kerosakan anda sendiri, semak No. MyServ & buat pengesahan siap pembaikan di bilik anda."}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             {isStaff && (
@@ -802,8 +874,8 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
         </div>
       </div>
 
-      {/* MONITORING STATS TILES (STAFF & ADMIN) */}
-      {isStaff && (
+      {/* MONITORING STATS TILES (STAFF & ADMIN) vs STUDENT PERSONAL STATS */}
+      {isStaff ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm">
             <div className="flex items-center justify-between">
@@ -841,6 +913,49 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
             <p className="text-[10px] text-muted-foreground mt-0.5">Telah siap & diuji di lokasi</p>
           </div>
         </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground font-medium">Aduan Aktif Saya</span>
+                <Wrench className="w-4 h-4 text-indigo-600" />
+              </div>
+              <p className="text-xl font-heading font-bold text-foreground mt-1">{totalActive}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Sedang diproses / dibaiki</p>
+            </div>
+
+            <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground font-medium">Ada No. TAMS / MyServ</span>
+                <CheckCircle2 className="w-4 h-4 text-blue-600" />
+              </div>
+              <p className="text-xl font-heading font-bold text-blue-600 mt-1">{totalWithRef}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Telah didaftar ke JPP</p>
+            </div>
+
+            <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm col-span-2 sm:col-span-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground font-medium">Selesai & Berjaya</span>
+                <CheckCircle className="w-4 h-4 text-emerald-600" />
+              </div>
+              <p className="text-xl font-heading font-bold text-emerald-600 mt-1">{totalCompleted}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Kerosakan telah siap dibaiki</p>
+            </div>
+          </div>
+
+          <div className="p-3 bg-sky-50/80 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/40 rounded-2xl flex items-center justify-between text-xs text-sky-900 dark:text-sky-200">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-sky-600 shrink-0" />
+              <span>
+                <strong>Paparan Privasi Pelajar:</strong> Anda hanya melihat status bagi aduan kerosakan yang didaftarkan atas akaun anda sendiri.
+              </span>
+            </div>
+            <Badge className="bg-sky-200/70 dark:bg-sky-900/60 text-sky-900 dark:text-sky-200 border-none text-[10px] font-mono font-bold">
+              {requests.length} Rekod Anda
+            </Badge>
+          </div>
+        </div>
       )}
 
       {/* SEARCH AND FILTER BAR */}
@@ -861,7 +976,7 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
               <SelectValue placeholder="Tapis Status & Keutamaan" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Semua Laporan ({requests.length})</SelectItem>
+              <SelectItem value="all">{isStaff ? `Semua Laporan (${requests.length})` : `Semua Aduan Saya (${requests.length})`}</SelectItem>
               <SelectItem value="overdue">🚨 Perlu Susulan (&ge;3 Hari) ({totalOverdue})</SelectItem>
               <SelectItem value="pending_ref">Menunggu No. TAMS</SelectItem>
               <SelectItem value="has_ref">Telah Ada No. TAMS</SelectItem>

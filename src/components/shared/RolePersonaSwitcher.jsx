@@ -32,15 +32,10 @@ export default function RolePersonaSwitcher({ user }) {
   const [open, setOpen] = useState(false);
   const [targetBlock, setTargetBlock] = useState('Block B');
 
-  // Check if user is eligible to use persona switcher
-  const isEligible = 
-    user?.role === 'super_admin' || 
-    user?.real_role === 'super_admin' || 
-    user?.role === 'college_admin' ||
-    user?.real_role === 'college_admin' ||
-    user?.role === 'warden' ||
-    user?.real_role === 'warden' ||
-    user?.is_persona_switched;
+  // Only sanil@ums.edu.my is allowed to have access to dual mode (RolePersonaSwitcher)
+  const isSanil = 
+    user?.email?.toLowerCase() === 'sanil@ums.edu.my' || 
+    user?.real_email?.toLowerCase() === 'sanil@ums.edu.my';
 
   const currentPersona = user?.is_persona_switched ? user?.role : (user?.real_role || user?.role || 'super_admin');
   const currentBlock = user?.active_warden_block || localStorage.getItem('mykktf_persona_block') || 'Block B';
@@ -54,7 +49,7 @@ export default function RolePersonaSwitcher({ user }) {
     }
   }, [user]);
 
-  if (!isEligible) return null;
+  if (!isSanil) return null;
 
   const handleSwitchToWarden = () => {
     localStorage.setItem('mykktf_active_persona', 'warden');

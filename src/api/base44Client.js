@@ -28,18 +28,18 @@ if (typeof window !== 'undefined' && base44?.auth) {
     if (!realUser) return null;
 
     try {
-      const isPrivileged = 
-        realUser.role === 'super_admin' || 
-        realUser.role === 'college_admin' ||
-        realUser.role === 'warden' ||
-        realUser.real_role === 'super_admin' ||
-        realUser.real_role === 'college_admin' ||
-        realUser.real_role === 'warden';
+      const isSanil = 
+        realUser?.email?.toLowerCase() === 'sanil@ums.edu.my' ||
+        realUser?.real_email?.toLowerCase() === 'sanil@ums.edu.my';
+
+      if (!isSanil) {
+        return realUser;
+      }
 
       const personaOverride = localStorage.getItem('mykktf_active_persona');
       const personaBlock = localStorage.getItem('mykktf_persona_block') || 'Block B';
 
-      if (isPrivileged && personaOverride) {
+      if (personaOverride) {
         if (personaOverride === 'warden') {
           return {
             ...realUser,
@@ -77,12 +77,16 @@ if (typeof window !== 'undefined' && base44?.auth) {
   };
 }
 
-// Intercept WardenBlock query when active persona is set to warden
+// Intercept WardenBlock query when active persona is set to warden (only for sanil@ums.edu.my)
 if (typeof window !== 'undefined' && base44?.entities?.WardenBlock) {
   const originalWbFilter = base44.entities.WardenBlock.filter.bind(base44.entities.WardenBlock);
   base44.entities.WardenBlock.filter = async (query = {}, sort, limit) => {
     let results = await originalWbFilter(query, sort, limit);
     try {
+      const activeUser = await base44.auth.me();
+      const isSanil = activeUser?.email?.toLowerCase() === 'sanil@ums.edu.my' || activeUser?.real_email?.toLowerCase() === 'sanil@ums.edu.my';
+      if (!isSanil) return results;
+
       const personaOverride = localStorage.getItem('mykktf_active_persona');
       const personaBlock = localStorage.getItem('mykktf_persona_block') || 'Block B';
       if (personaOverride === 'warden' && personaBlock) {
