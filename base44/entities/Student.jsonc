@@ -63,7 +63,9 @@
       "type": "string",
       "enum": [
         "Checked In",
-        "Checked Out"
+        "Checked Out",
+        "Pending Verification",
+        "Pending Key"
       ],
       "default": "Checked Out"
     },
@@ -98,6 +100,16 @@
     "user_id": {
       "type": "string",
       "description": "Linked User account ID"
+    },
+    "qr_verified": {
+      "type": "boolean",
+      "default": false
+    },
+    "qr_verified_at": {
+      "type": "string"
+    },
+    "resident_status": {
+      "type": "string"
     }
   },
   "required": [

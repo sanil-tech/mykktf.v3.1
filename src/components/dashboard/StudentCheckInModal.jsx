@@ -396,6 +396,7 @@ export default function StudentCheckInModal({
           check_in_date: todayDate,
           room_status: 'Checked In',
           resident_status: 'Active',
+          status: 'Active',
           qr_verified: true,
           qr_verified_at: todayIso,
           verification_source: verificationSource
@@ -408,8 +409,16 @@ export default function StudentCheckInModal({
         activeStudent.check_in_date = todayDate;
         activeStudent.room_status = 'Checked In';
         activeStudent.resident_status = 'Active';
+        activeStudent.status = 'Active';
         activeStudent.qr_verified = true;
         activeStudent.qr_verified_at = todayIso;
+      }
+
+      if (activeStudent?.student_id) {
+        localStorage.setItem(`kktf_verified_${activeStudent.student_id}`, 'true');
+      }
+      if (user?.email) {
+        localStorage.setItem(`kktf_verified_${user.email}`, 'true');
       }
 
       // 5. TUKAR ROLE PENGGUNA KEPADA 'student' (sama seperti pengesahan oleh staf)

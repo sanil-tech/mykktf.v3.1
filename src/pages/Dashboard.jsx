@@ -93,8 +93,9 @@ export default function Dashboard() {
         const effectiveRole = computeEffectiveRole(user?.role, appt);
 
         // --- PENGAMBILAN DATA REAL-TIME ---
+        let allStudents = [];
         try {
-          const allStudents = await base44.entities.Student.filter({});
+          allStudents = await base44.entities.Student.filter({});
           const checkedIn = allStudents.filter(s => s.block_name && s.room_number && s.room_status === 'Checked In').length;
           const pendingRoom = allStudents.filter(s => !s.block_name || !s.room_number || s.room_status !== 'Checked In').length;
 
@@ -168,31 +169,46 @@ export default function Dashboard() {
         }
         
         if (studs.length > 0 && studs[0]?.student_id) {
-          // Jika ada lebih dari satu rekod (contohnya ujian demo berulang), utamakan rekod yang sudah qr_verified
-          const s = studs.find(st => st.qr_verified === true || st.qr_verified === 'true' || st.qr_verified === 1 || st.qr_verified === '1') || studs[0];
+          // Jika ada lebih dari satu rekod (contohnya ujian demo berulang), utamakan rekod yang sudah Checked In atau qr_verified
+          const s = studs.find(st => 
+            String(st.room_status || '').trim().toLowerCase() === 'checked in' ||
+            st.qr_verified === true || st.qr_verified === 'true' || st.qr_verified === 1 || st.qr_verified === '1'
+          ) || studs[0];
           setStudentProfile(s);
           setHasStudentProfile(true);
 
-          // PENGESAHAN KETAT (ANTI-BYPASS):
-          // Pelajar HANYA dibenarkan masuk ke Dashboard Residen Aktif jika:
-          // 1. Mempunyai penempatan blok & bilik
-          // 2. Telah melalui imbasan QR fizikal kolej yang sah (qr_verified sah)
-          const isQrVerified = s.qr_verified === true || s.qr_verified === 'true' || s.qr_verified === 1 || s.qr_verified === '1' || Boolean(s.qr_verified && s.qr_verified !== 'false');
+          // PENGESAHAN STATUS RESIDEN:
+          // Pelajar dibenarkan masuk ke Dashboard Residen Aktif jika:
+          // 1. Mempunyai penempatan blok & nombor bilik
+          // 2. Status bilik ialah 'Checked In' ATAU cop qr_verified sah ATAU rekod peranti sah
           const hasRoom = Boolean(s.block_name && s.room_number);
-          const isStrictlyVerified = hasRoom && isQrVerified;
+          const isRoomCheckedIn = String(s.room_status || '').trim().toLowerCase() === 'checked in';
+          const isQrVerified = s.qr_verified === true || s.qr_verified === 'true' || s.qr_verified === 1 || s.qr_verified === '1' || Boolean(s.qr_verified && s.qr_verified !== 'false');
+          const isLocalVerified = Boolean(
+            (s.student_id && localStorage.getItem(`kktf_verified_${s.student_id}`) === 'true') ||
+            (user?.email && localStorage.getItem(`kktf_verified_${user.email}`) === 'true')
+          );
 
-          // Selaraskan status di database jika qr_verified telah sah tetapi status teks tertinggal
+          const isStrictlyVerified = hasRoom && (isRoomCheckedIn || isQrVerified || isLocalVerified);
+
+          // Selaraskan status di database jika sudah sah
           if (isStrictlyVerified) {
-            const isRoomCheckedIn = String(s.room_status || '').trim().toLowerCase() === 'checked in';
+            if (s.student_id) localStorage.setItem(`kktf_verified_${s.student_id}`, 'true');
+            if (user?.email) localStorage.setItem(`kktf_verified_${user.email}`, 'true');
+
             const isResidentActive = String(s.resident_status || '').trim().toLowerCase() === 'active';
+            const isStatusActive = String(s.status || '').trim().toLowerCase() === 'active';
             
-            if (!isRoomCheckedIn || !isResidentActive || !s.user_id) {
+            if (!isRoomCheckedIn || !isResidentActive || !isStatusActive || !s.user_id || !s.qr_verified) {
               s.room_status = 'Checked In';
               s.resident_status = 'Active';
+              s.status = 'Active';
+              s.qr_verified = true;
               if (user?.id) s.user_id = user.id;
               base44.entities.Student.update(s.id, {
                 room_status: 'Checked In',
                 resident_status: 'Active',
+                status: 'Active',
                 qr_verified: true,
                 user_id: s.user_id || user?.id || ''
               }).catch(e => console.warn('Sync verified status error:', e));

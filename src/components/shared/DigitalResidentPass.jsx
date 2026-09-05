@@ -31,7 +31,7 @@ export default function DigitalResidentPass({ student, user, triggerButton }) {
   const phone = student?.phone || 'N/A';
   const emergencyPhone = student?.parent_phone || student?.emergency_contact || 'N/A';
   const vehicleReg = student?.vehicle_reg || '';
-  const isCheckedIn = (student?.room_status === 'Checked In') && Boolean(student?.qr_verified);
+  const isCheckedIn = (student?.room_status === 'Checked In') || Boolean(student?.qr_verified);
 
   // Verification Payload for QR
   const verificationPayload = encodeURIComponent(`UMS-KKTF-PASS|${matricNo}|${blockName}|${roomNumber}|ACTIVE20252026`);
