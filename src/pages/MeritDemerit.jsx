@@ -2474,6 +2474,18 @@ export default function MeritDemerit() {
                 className="text-xs h-16 rounded-xl bg-background"
               />
             </div>
+
+            {/* FELO PENYELARAS SUKAN RASMI (WATIKAH PENGETUA SESI 2025/2026) */}
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl space-y-1">
+              <p className="text-[10px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                Felo Penyelaras Exco Sukan & Rekreasi (Watikah Pengetua):
+              </p>
+              <p className="text-[10.5px] text-muted-foreground leading-relaxed">
+                Tuntutan ini akan disahkan oleh salah seorang Felo Penyelaras Sukan KKTF: 
+                <strong className="text-foreground"> En. Asru Lakmal, En. Saniyil Bansai, Cik Narvinna, Cik Noor Aznadira</strong>.
+              </p>
+            </div>
           </div>
 
           <DialogFooter className="mt-6 flex gap-2">

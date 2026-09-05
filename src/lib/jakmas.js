@@ -35,12 +35,231 @@ export const JAKMAS_TASK_STATUSES = [
 
 export const JAKMAS_TASK_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
+// Official JAKMAS Exco Portfolios KKTF Sesi 2025/2026 (Watikah Pengetua)
+export const DEFAULT_EXCO_PORTFOLIOS = [
+  'Exco Kebajikan dan Keselamatan (YDP)',
+  'Exco Akademik dan Kepimpinan (NYDP)',
+  'Exco Perhubungan Korporat dan Antarabangsa (SU)',
+  'Exco Kerohanian dan Pembangunan Sahsiah (Bendahari)',
+  'Exco Keusahawanan',
+  'Exco Kesukarelawanan dan Kemasyarakatan',
+  'Exco Media dan Publisiti',
+  'Exco Sukan dan Rekreasi',
+  'Exco Kesenian dan Kebudayaan'
+];
+
+export const OFFICIAL_EXCO_METADATA = [
+  { id: 'exco_1', name: 'Exco Kebajikan dan Keselamatan (YDP)', shortName: 'Kebajikan & Keselamatan', attachedRole: 'YDP', icon: 'HeartHandshake', color: 'emerald' },
+  { id: 'exco_2', name: 'Exco Akademik dan Kepimpinan (NYDP)', shortName: 'Akademik & Kepimpinan', attachedRole: 'NYDP', icon: 'GraduationCap', color: 'blue' },
+  { id: 'exco_3', name: 'Exco Perhubungan Korporat dan Antarabangsa (SU)', shortName: 'Perhubungan Korporat & Antarabangsa', attachedRole: 'SU', icon: 'Globe', color: 'cyan' },
+  { id: 'exco_4', name: 'Exco Kerohanian dan Pembangunan Sahsiah (Bendahari)', shortName: 'Kerohanian & Pembangunan Sahsiah', attachedRole: 'Bendahari', icon: 'Sparkles', color: 'amber' },
+  { id: 'exco_5', name: 'Exco Keusahawanan', shortName: 'Keusahawanan', attachedRole: 'Exco', icon: 'Briefcase', color: 'indigo' },
+  { id: 'exco_6', name: 'Exco Kesukarelawanan dan Kemasyarakatan', shortName: 'Kesukarelawanan & Kemasyarakatan', attachedRole: 'Exco', icon: 'Users', color: 'rose' },
+  { id: 'exco_7', name: 'Exco Media dan Publisiti', shortName: 'Media & Publisiti', attachedRole: 'Exco', icon: 'Megaphone', color: 'purple' },
+  { id: 'exco_8', name: 'Exco Sukan dan Rekreasi', shortName: 'Sukan & Rekreasi', attachedRole: 'Exco', icon: 'Medal', color: 'orange' },
+  { id: 'exco_9', name: 'Exco Kesenian dan Kebudayaan', shortName: 'Kesenian & Kebudayaan', attachedRole: 'Exco', icon: 'Award', color: 'pink' }
+];
+
 export function isJakmasAdmin(role) {
-  return role === 'super_admin' || role === 'college_admin';
+  return role === 'super_admin' || role === 'college_admin' || role === 'principal';
 }
 
 export function todayISO() {
   return new Date().toISOString().split('T')[0];
+}
+
+// Helpers for Felo Penyelaras Exco JAKMAS (Appointed directly by Pengetua Kolej Kediaman Tun Fuad)
+export function getStoredFeloExcoAppointments() {
+  try {
+    const raw = localStorage.getItem('kktf_felo_exco_appointments');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length >= 7) return parsed;
+    }
+  } catch (e) {}
+
+  // Senarai Rasmi Penyelarasan Felo Mengikut Exco JAKMAS KKTF Sesi 2025/2026
+  const officialAppointments = [
+    {
+      id: 'felo-saniyil',
+      fellow_user_id: 'felo-saniyil',
+      fellow_name: 'En. Saniyil Bansai',
+      fellow_email: 'saniyil@ums.edu.my',
+      block_assigned: 'Blok A',
+      portfolios: [
+        'Exco Kebajikan dan Keselamatan (YDP)',
+        'Exco Sukan dan Rekreasi'
+      ],
+      appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
+      appointment_date: '2025-08-01',
+      academic_session: 'Sesi 2025/2026',
+      term_end: '2026-07-31',
+      status: 'active',
+      letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/01',
+      notes: 'Penyelaras Kebajikan & Keselamatan serta Pengesah Tuntutan Merit Sukan Kolej.'
+    },
+    {
+      id: 'felo-an-shaharizuan',
+      fellow_user_id: 'felo-an-shaharizuan',
+      fellow_name: 'Ts. Dr. An Mohd Shaharizuan',
+      fellow_email: 'shaharizuan@ums.edu.my',
+      block_assigned: 'Blok D',
+      portfolios: [
+        'Exco Kebajikan dan Keselamatan (YDP)',
+        'Exco Akademik dan Kepimpinan (NYDP)',
+        'Exco Kerohanian dan Pembangunan Sahsiah (Bendahari)',
+        'Exco Keusahawanan'
+      ],
+      appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
+      appointment_date: '2025-08-01',
+      academic_session: 'Sesi 2025/2026',
+      term_end: '2026-07-31',
+      status: 'active',
+      letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/02',
+      notes: 'Penyelaras Kepimpinan, Akademik, Sahsiah & Keusahawanan Mahasiswa.'
+    },
+    {
+      id: 'felo-hafizie',
+      fellow_user_id: 'felo-hafizie',
+      fellow_name: 'En. Hafizie Potera',
+      fellow_email: 'hafizie@ums.edu.my',
+      block_assigned: 'Blok C',
+      portfolios: [
+        'Exco Kebajikan dan Keselamatan (YDP)',
+        'Exco Perhubungan Korporat dan Antarabangsa (SU)',
+        'Exco Kesenian dan Kebudayaan'
+      ],
+      appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
+      appointment_date: '2025-08-01',
+      academic_session: 'Sesi 2025/2026',
+      term_end: '2026-07-31',
+      status: 'active',
+      letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/03',
+      notes: 'Penyelaras Kebajikan, Hubungan Korporat/Antarabangsa & Seni Budaya.'
+    },
+    {
+      id: 'felo-norazilah',
+      fellow_user_id: 'felo-norazilah',
+      fellow_name: 'Puan Norazilah Tuman',
+      fellow_email: 'norazilah@ums.edu.my',
+      block_assigned: 'Blok B',
+      portfolios: [
+        'Exco Akademik dan Kepimpinan (NYDP)',
+        'Exco Perhubungan Korporat dan Antarabangsa (SU)',
+        'Exco Keusahawanan',
+        'Exco Kesukarelawanan dan Kemasyarakatan'
+      ],
+      appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
+      appointment_date: '2025-08-01',
+      academic_session: 'Sesi 2025/2026',
+      term_end: '2026-07-31',
+      status: 'active',
+      letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/04',
+      notes: 'Penyelaras Akademik, Kesukarelawanan, Keusahawanan & Perhubungan Korporat.'
+    },
+    {
+      id: 'felo-narvinna',
+      fellow_user_id: 'felo-narvinna',
+      fellow_name: 'Cik Narvinna',
+      fellow_email: 'narvinna@ums.edu.my',
+      block_assigned: 'Blok E',
+      portfolios: [
+        'Exco Kerohanian dan Pembangunan Sahsiah (Bendahari)',
+        'Exco Kesukarelawanan dan Kemasyarakatan',
+        'Exco Sukan dan Rekreasi'
+      ],
+      appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
+      appointment_date: '2025-08-01',
+      academic_session: 'Sesi 2025/2026',
+      term_end: '2026-07-31',
+      status: 'active',
+      letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/05',
+      notes: 'Penyelaras Kerohanian, Kesukarelawanan & Pengesah Sukan/Rekreasi.'
+    },
+    {
+      id: 'felo-aznadira',
+      fellow_user_id: 'felo-aznadira',
+      fellow_name: 'Cik Noor Aznadira',
+      fellow_email: 'aznadira@ums.edu.my',
+      block_assigned: 'Blok F',
+      portfolios: [
+        'Exco Kesukarelawanan dan Kemasyarakatan',
+        'Exco Sukan dan Rekreasi'
+      ],
+      appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
+      appointment_date: '2025-08-01',
+      academic_session: 'Sesi 2025/2026',
+      term_end: '2026-07-31',
+      status: 'active',
+      letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/06',
+      notes: 'Penyelaras Program Kesukarelawanan & Pengesah Tuntutan Sukan Kolej.'
+    },
+    {
+      id: 'felo-asru',
+      fellow_user_id: 'felo-asru',
+      fellow_name: 'En. Asru Lakmal',
+      fellow_email: 'asru@ums.edu.my',
+      block_assigned: 'Blok G',
+      portfolios: [
+        'Exco Media dan Publisiti',
+        'Exco Sukan dan Rekreasi',
+        'Exco Kesenian dan Kebudayaan'
+      ],
+      appointed_by: 'Pengetua Kolej Kediaman Tun Fuad',
+      appointment_date: '2025-08-01',
+      academic_session: 'Sesi 2025/2026',
+      term_end: '2026-07-31',
+      status: 'active',
+      letter_ref: 'UMS/KKTF/WATIKAH-FELO/2025/07',
+      notes: 'Penyelaras Media, Seni Budaya & Pengesah Rasmi Sukan/Rekreasi Kolej.'
+    }
+  ];
+
+  try {
+    localStorage.setItem('kktf_felo_exco_appointments', JSON.stringify(officialAppointments));
+  } catch (e) {}
+
+  return officialAppointments;
+}
+
+export function saveStoredFeloExcoAppointment(appointment, actorUser) {
+  const current = getStoredFeloExcoAppointments();
+  const existsIdx = current.findIndex(a => a.id === appointment.id);
+  let updated;
+  if (existsIdx >= 0) {
+    updated = [...current];
+    updated[existsIdx] = { 
+      ...updated[existsIdx], 
+      ...appointment, 
+      updated_at: new Date().toISOString(),
+      updated_by: actorUser?.full_name || actorUser?.email
+    };
+  } else {
+    const newEntry = {
+      ...appointment,
+      id: appointment.id || `felo-exco-${Date.now()}`,
+      appointed_by: actorUser?.full_name || 'Pengetua Kolej Kediaman Tun Fuad',
+      appointment_date: appointment.appointment_date || todayISO(),
+      created_at: new Date().toISOString(),
+      status: appointment.status || 'active'
+    };
+    updated = [newEntry, ...current];
+  }
+  try {
+    localStorage.setItem('kktf_felo_exco_appointments', JSON.stringify(updated));
+  } catch (e) {
+    console.warn('Failed saving felo exco appointment:', e);
+  }
+  return updated;
+}
+
+export function deleteStoredFeloExcoAppointment(id) {
+  const current = getStoredFeloExcoAppointments();
+  const updated = current.filter(a => a.id !== id);
+  try {
+    localStorage.setItem('kktf_felo_exco_appointments', JSON.stringify(updated));
+  } catch (e) {}
+  return updated;
 }
 
 /**
