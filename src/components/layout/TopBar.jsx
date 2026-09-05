@@ -67,8 +67,12 @@ export default function TopBar({ onMenuClick, user }) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-2 h-9 px-2">
-              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center">
-                <User className="w-3.5 h-3.5 text-primary-foreground" />
+              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center overflow-hidden">
+                {user?.profile_photo ? (
+                  <img src={user.profile_photo} alt={user.full_name || 'User'} className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-3.5 h-3.5 text-primary-foreground" />
+                )}
               </div>
               <div className="hidden sm:block text-left">
                 <p className="text-xs font-medium leading-none flex items-center gap-1">

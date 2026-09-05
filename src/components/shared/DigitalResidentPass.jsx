@@ -121,9 +121,19 @@ export default function DigitalResidentPass({ student, user, triggerButton }) {
                 <div className="flex gap-3.5 items-center relative z-10 mb-4">
                   {/* Photo Frame with Holographic Smart Chip */}
                   <div className="relative shrink-0">
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-950 border-2 border-lime-400/70 flex flex-col items-center justify-center text-lime-400 shadow-md overflow-hidden">
-                      <User className="w-10 h-10 text-slate-300" />
-                      <span className="text-[7.5px] font-mono text-slate-400 uppercase mt-0.5">RESIDEN</span>
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-950 border-2 border-lime-400/70 flex flex-col items-center justify-center text-lime-400 shadow-md overflow-hidden relative">
+                      {(student?.profile_photo || user?.profile_photo) ? (
+                        <img 
+                          src={student?.profile_photo || user?.profile_photo} 
+                          alt={fullName} 
+                          className="w-full h-full object-cover" 
+                        />
+                      ) : (
+                        <>
+                          <User className="w-10 h-10 text-slate-300" />
+                          <span className="text-[7.5px] font-mono text-slate-400 uppercase mt-0.5">RESIDEN</span>
+                        </>
+                      )}
                     </div>
                     {/* Gold Smart Chip */}
                     <div className="absolute -bottom-1.5 -right-1.5 w-6 h-5 rounded-md bg-gradient-to-br from-amber-300 via-amber-400 to-amber-600 border border-amber-200 shadow-xs flex items-center justify-center">

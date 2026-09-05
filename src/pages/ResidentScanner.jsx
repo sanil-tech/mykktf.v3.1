@@ -760,8 +760,12 @@ export default function ResidentScanner() {
           {scannedStudent && (
             <div className="p-5 space-y-4 text-xs">
               <div className="flex gap-3 items-center pb-3 border-b border-border">
-                <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground shrink-0 border border-border">
-                  <User className="w-7 h-7" />
+                <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground shrink-0 border border-border overflow-hidden">
+                  {scannedStudent.profile_photo ? (
+                    <img src={scannedStudent.profile_photo} alt={scannedStudent.full_name} className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-7 h-7" />
+                  )}
                 </div>
                 <div className="space-y-0.5 min-w-0 flex-1">
                   <p className="font-heading font-extrabold text-sm text-foreground truncate uppercase">
