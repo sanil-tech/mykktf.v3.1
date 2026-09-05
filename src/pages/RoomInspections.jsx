@@ -217,14 +217,22 @@ export default function RoomInspections() {
       return;
     }
 
+    // Block jika sudah Verified — rekod dikunci
+    if (myInspection?.status === 'Verified') {
+      toast({ 
+        title: 'Pemeriksaan Telah Disahkan', 
+        description: 'Rekod pemeriksaan bilik anda telah disahkan oleh warden dan tidak boleh diubah.',
+        variant: 'destructive' 
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
-      // Calculate summary metrics
       const damagedItems = INVENTORY_ITEMS.filter(it => form.checklist[it.id]?.status === 'Perlu Pembaikan');
       const hasDamages = damagedItems.length > 0;
       const flaggedIssues = damagedItems.map(d => `${d.name}: ${form.checklist[d.id]?.notes || 'Perlu pembaikan'}`).join(' | ');
 
-      // Resolve student_id — use any available source; fall back to user id so the required field is satisfied
       const resolvedStudentId =
         form.student_id ||
         studentProfile?.student_id ||
@@ -233,7 +241,6 @@ export default function RoomInspections() {
         user?.id ||
         '';
 
-      // Find first photo URL among damaged items (if any)
       const firstDamagedPhoto = damagedItems
         .map(d => form.checklist[d.id]?.photo)
         .find(p => p && p.trim() !== '');
@@ -260,21 +267,40 @@ export default function RoomInspections() {
         ...(photoUrl ? { photos: photoUrl } : {}),
       };
 
-      await base44.entities.RoomInspection.create(inspectionPayload);
+      const isUpdate = !!myInspection?.id;
 
-      await logAudit(user, 'ROOM_INSPECTION_SUBMITTED', 'Room Inspections', {
-        room: form.room_number,
-        block: form.block_name,
-        hasDamages,
-        flaggedIssues
-      });
-
-      toast({ 
-        title: 'Pemeriksaan Bilik Berjaya Dihantar',
-        description: hasDamages 
-          ? 'Laporan kerosakan sedia ada telah direkodkan untuk pengesahan pihak kolej.' 
-          : 'Pemeriksaan inventori bilik selesai dan disahkan.'
-      });
+      if (isUpdate) {
+        // Kemaskini rekod sedia ada — elakkan duplicate
+        await base44.entities.RoomInspection.update(myInspection.id, inspectionPayload);
+        await logAudit(user, 'ROOM_INSPECTION_UPDATED', 'Room Inspections', {
+          id: myInspection.id,
+          room: form.room_number,
+          block: form.block_name,
+          hasDamages,
+          flaggedIssues
+        });
+        toast({ 
+          title: 'Pemeriksaan Bilik Dikemaskini',
+          description: hasDamages 
+            ? 'Laporan kerosakan anda telah dikemaskini dan dihantar semula untuk semakan warden.' 
+            : 'Rekod pemeriksaan bilik anda telah dikemaskini.'
+        });
+      } else {
+        // Create rekod baru (hantar pertama kali)
+        await base44.entities.RoomInspection.create(inspectionPayload);
+        await logAudit(user, 'ROOM_INSPECTION_SUBMITTED', 'Room Inspections', {
+          room: form.room_number,
+          block: form.block_name,
+          hasDamages,
+          flaggedIssues
+        });
+        toast({ 
+          title: 'Pemeriksaan Bilik Berjaya Dihantar',
+          description: hasDamages 
+            ? 'Laporan kerosakan sedia ada telah direkodkan untuk pengesahan pihak kolej.' 
+            : 'Pemeriksaan inventori bilik selesai dan disahkan.'
+        });
+      }
 
       setShowForm(false);
       init();
