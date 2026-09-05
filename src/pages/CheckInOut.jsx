@@ -11,7 +11,10 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Archive, LogIn, LogOut, Search, User, Loader2, Calendar, QrCode, Printer } from 'lucide-react';
+import { 
+  Archive, LogIn, LogOut, Search, User, Loader2, Calendar, QrCode, Printer,
+  Users, CheckCircle2, ShieldCheck, AlertCircle, Building2, KeyRound, Sparkles
+} from 'lucide-react';
 import SurveyModal from '@/components/SurveyModal';
 import TablePagination from '@/components/shared/TablePagination';
 import { InstitutionalDualLogo } from '@/components/shared/KKTFLogo';
@@ -61,6 +64,12 @@ export default function CheckInOut() {
   // Pagination States
   const [ciPage, setCiPage] = useState(1);
   const [coPage, setCoPage] = useState(1);
+
+  // Live Resident Roster Filter & Pagination States
+  const [rosterSearch, setRosterSearch] = useState('');
+  const [rosterBlockFilter, setRosterBlockFilter] = useState('all');
+  const [rosterStatusFilter, setRosterStatusFilter] = useState('all');
+  const [rosterPage, setRosterPage] = useState(1);
 
   useEffect(() => {
     setCiPage(1);
@@ -401,6 +410,156 @@ export default function CheckInOut() {
   const dateStr = now.toISOString().split('T')[0];
   const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
+  const rosterBlocks = useMemo(() => {
+    return [...new Set(students.map(s => s.block_name).filter(Boolean))].sort();
+  }, [students]);
+
+  const stats = useMemo(() => {
+    const active = students.filter(s => String(s.resident_status || '').toLowerCase() !== 'archived');
+    const checkedIn = active.filter(s => 
+      (s.qr_verified === true || s.qr_verified === 'true' || s.qr_verified === 1) && 
+      String(s.room_status || '').toLowerCase() === 'checked in'
+    ).length;
+    const pendingQr = active.filter(s => 
+      s.block_name && s.room_number && 
+      (!s.qr_verified || String(s.room_status || '').toLowerCase() === 'pending verification')
+    ).length;
+    const pendingKey = active.filter(s => 
+      !s.block_name || String(s.room_status || '').toLowerCase() === 'pending key'
+    ).length;
+    return {
+      total: active.length,
+      checkedIn,
+      pendingQr,
+      pendingKey
+    };
+  }, [students]);
+
+  const filteredActiveResidents = useMemo(() => {
+    return students.filter(s => {
+      const isArchived = String(s.resident_status || '').toLowerCase() === 'archived';
+      if (isArchived) return false;
+
+      // Status filter
+      if (rosterStatusFilter === 'checked_in') {
+        const isCheckedIn = (s.qr_verified === true || s.qr_verified === 'true' || s.qr_verified === 1) && 
+                            String(s.room_status || '').toLowerCase() === 'checked in';
+        if (!isCheckedIn) return false;
+      } else if (rosterStatusFilter === 'pending_qr') {
+        const isPendingQr = s.block_name && s.room_number && 
+                            (!s.qr_verified || String(s.room_status || '').toLowerCase() === 'pending verification');
+        if (!isPendingQr) return false;
+      } else if (rosterStatusFilter === 'pending_key') {
+        const isPendingKey = !s.block_name || String(s.room_status || '').toLowerCase() === 'pending key';
+        if (!isPendingKey) return false;
+      }
+
+      // Block filter
+      if (rosterBlockFilter !== 'all' && s.block_name !== rosterBlockFilter) {
+        return false;
+      }
+
+      // Search query
+      if (rosterSearch.trim()) {
+        const q = rosterSearch.toLowerCase().trim();
+        const matchName = (s.full_name || '').toLowerCase().includes(q);
+        const matchMatric = (s.student_id || '').toLowerCase().includes(q);
+        const matchRoom = (s.room_number || '').toLowerCase().includes(q);
+        const matchPhone = (s.phone || '').toLowerCase().includes(q);
+        if (!matchName && !matchMatric && !matchRoom && !matchPhone) return false;
+      }
+
+      return true;
+    });
+  }, [students, rosterSearch, rosterBlockFilter, rosterStatusFilter]);
+
+  const totalRosterPages = Math.ceil(filteredActiveResidents.length / PAGE_SIZE);
+  const safeRosterPage = Math.min(rosterPage, totalRosterPages || 1);
+  const paginatedResidents = filteredActiveResidents.slice((safeRosterPage - 1) * PAGE_SIZE, safeRosterPage * PAGE_SIZE);
+
+  async function handleQuickCounterActivation(student) {
+    if (submitting) return;
+    if (!student.block_name || !student.room_number) {
+      handleSelectStudent(student);
+      setCiForm({
+        room_id: '',
+        check_in_date: dateStr,
+        check_in_time: timeStr,
+        semester: selectedSemesterFilter,
+        notes: ''
+      });
+      setCiDialog(true);
+      return;
+    }
+    const confirmAct = window.confirm(`Sahkan pengaktifan fizikal kaunter untuk ${student.full_name} (${student.student_id}) di ${student.block_name} Bilik ${student.room_number}?`);
+    if (!confirmAct) return;
+
+    setSubmitting(true);
+    try {
+      const todayDate = new Date().toISOString().split('T')[0];
+      const curTime = `${new Date().getHours().toString().padStart(2, '0')}:${new Date().getMinutes().toString().padStart(2, '0')}`;
+      
+      const targetRoom = rooms.find(r => r.block_name === student.block_name && String(r.room_number) === String(student.room_number));
+      const roomId = targetRoom?.id || student.room_id || '';
+
+      await base44.entities.CheckIn.create({
+        student_id: student.id,
+        room_id: roomId,
+        room_number: student.room_number,
+        block_name: student.block_name,
+        check_in_date: todayDate,
+        check_in_time: curTime,
+        semester: selectedSemesterFilter,
+        notes: `Pengesahan fizikal di Kaunter Kunci oleh Staf (${currentUser?.full_name || 'Staf'})`,
+        student_name: student.full_name || ''
+      });
+
+      await base44.entities.Student.update(student.id, {
+        room_status: 'Checked In',
+        resident_status: 'Active',
+        status: 'Active',
+        qr_verified: true,
+        qr_verified_at: new Date().toISOString()
+      });
+
+      if (targetRoom) {
+        const nextOcc = (targetRoom.current_occupancy || 0) + 1;
+        await base44.entities.Room.update(targetRoom.id, {
+          current_occupancy: nextOcc,
+          status: nextOcc >= (targetRoom.capacity || 4) ? 'Full' : 'Occupied'
+        }).catch(() => {});
+      }
+
+      await logAudit(currentUser, 'COUNTER_MANUAL_CHECKIN', 'Check-In/Out', {
+        student: student.full_name,
+        student_id: student.student_id,
+        room: student.room_number,
+        block: student.block_name
+      });
+
+      toast({ title: 'Pengaktifan Berjaya', description: `Status residen ${student.full_name} telah diaktifkan secara sah di kaunter.` });
+      await load();
+      dispatchGlobalRefresh();
+    } catch (err) {
+      toast({ title: 'Ralat Pengaktifan Kaunter', description: err.message, variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleTriggerCheckOut(student) {
+    resetSearchState();
+    handleSelectStudent(student);
+    setCoForm({
+      check_out_date: dateStr,
+      check_out_time: timeStr,
+      room_condition: 'Good',
+      semester: selectedSemesterFilter,
+      damage_assessment: ''
+    });
+    setCoDialog(true);
+  }
+
   const displayCheckIns = checkIns.filter(ci => (ci.semester || 'Sem1_2526') === selectedSemesterFilter);
   const displayCheckOuts = checkOuts.filter(co => (co.semester || 'Sem1_2526') === selectedSemesterFilter);
 
@@ -454,11 +613,268 @@ export default function CheckInOut() {
         </div>
       </div>
 
-      <Tabs defaultValue="checkins">
-        <TabsList className="mb-4">
-          <TabsTrigger value="checkins">Check-Ins</TabsTrigger>
-          <TabsTrigger value="checkouts">Check-Outs</TabsTrigger>
+      <Tabs defaultValue="active_residents">
+        <TabsList className="mb-4 flex-wrap h-auto p-1 gap-1">
+          <TabsTrigger value="active_residents" className="flex items-center gap-1.5 text-xs">
+            <Users className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Residen Aktif & Status Bilik</span>
+            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-muted">
+              {stats.total}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="checkins" className="flex items-center gap-1.5 text-xs">
+            <LogIn className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Log Check-In</span>
+            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-muted">
+              {displayCheckIns.length}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="checkouts" className="flex items-center gap-1.5 text-xs">
+            <LogOut className="w-3.5 h-3.5 text-rose-600" />
+            <span>Log Check-Out</span>
+            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-muted">
+              {displayCheckOuts.length}
+            </Badge>
+          </TabsTrigger>
         </TabsList>
+
+        {/* TAB 1: RESIDEN AKTIF & STATUS BILIK */}
+        <TabsContent value="active_residents" className="space-y-4">
+          {/* STATS CARDS */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-card border rounded-2xl p-3.5 shadow-xs">
+              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                <Users className="w-4 h-4 text-indigo-600" />
+                <span className="text-xs font-semibold">Semua Residen</span>
+              </div>
+              <p className="text-2xl font-black text-foreground font-mono">{stats.total}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Berdaftar dalam sistem</p>
+            </div>
+
+            <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-2xl p-3.5 shadow-xs">
+              <div className="flex items-center gap-2 text-emerald-700 mb-1">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-semibold">Aktif (QR Sah)</span>
+              </div>
+              <p className="text-2xl font-black text-emerald-800 font-mono">{stats.checkedIn}</p>
+              <p className="text-[10px] text-emerald-600 mt-0.5">Penempatan & pas sah</p>
+            </div>
+
+            <div className="bg-amber-50/50 border border-amber-200/80 rounded-2xl p-3.5 shadow-xs">
+              <div className="flex items-center gap-2 text-amber-700 mb-1">
+                <AlertCircle className="w-4 h-4 text-amber-600" />
+                <span className="text-xs font-semibold">Menunggu QR</span>
+              </div>
+              <p className="text-2xl font-black text-amber-800 font-mono">{stats.pendingQr}</p>
+              <p className="text-[10px] text-amber-600 mt-0.5">Bilik siap, belum imbas</p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 shadow-xs">
+              <div className="flex items-center gap-2 text-slate-600 mb-1">
+                <KeyRound className="w-4 h-4 text-slate-500" />
+                <span className="text-xs font-semibold">Menunggu Kunci</span>
+              </div>
+              <p className="text-2xl font-black text-slate-800 font-mono">{stats.pendingKey}</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Prapendaftaran awal</p>
+            </div>
+          </div>
+
+          {/* FILTER TOOLBAR */}
+          <div className="bg-card border rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
+              <Input
+                placeholder="Cari nama pelajar, no matrik, bilik, telefon..."
+                value={rosterSearch}
+                onChange={(e) => {
+                  setRosterSearch(e.target.value);
+                  setRosterPage(1);
+                }}
+                className="pl-9 h-9 text-xs"
+              />
+            </div>
+
+            <div className="flex gap-2 flex-wrap items-center">
+              <Select value={rosterBlockFilter} onValueChange={(v) => { setRosterBlockFilter(v); setRosterPage(1); }}>
+                <SelectTrigger className="h-9 text-xs w-[130px]">
+                  <SelectValue placeholder="Semua Blok" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Blok</SelectItem>
+                  {rosterBlocks.map(b => (
+                    <SelectItem key={b} value={b}>{b}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={rosterStatusFilter} onValueChange={(v) => { setRosterStatusFilter(v); setRosterPage(1); }}>
+                <SelectTrigger className="h-9 text-xs w-[160px]">
+                  <SelectValue placeholder="Semua Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Status</SelectItem>
+                  <SelectItem value="checked_in">🟢 Aktif (QR Sah)</SelectItem>
+                  <SelectItem value="pending_qr">🟡 Menunggu QR</SelectItem>
+                  <SelectItem value="pending_key">⚪ Menunggu Kunci</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {(rosterSearch || rosterBlockFilter !== 'all' || rosterStatusFilter !== 'all') && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => {
+                    setRosterSearch('');
+                    setRosterBlockFilter('all');
+                    setRosterStatusFilter('all');
+                    setRosterPage(1);
+                  }}
+                  className="h-9 text-xs text-muted-foreground"
+                >
+                  Reset
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* TABLE OF RESIDENTS */}
+          {filteredActiveResidents.length === 0 ? (
+            <EmptyState icon={Users} title="Tiada rekod residen sepadan dengan tapisan" />
+          ) : (
+            <div className="bg-card border rounded-2xl overflow-hidden shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b bg-muted/40 text-muted-foreground font-semibold">
+                      <th className="text-left px-4 py-3">Pelajar</th>
+                      <th className="text-left px-4 py-3">Fakulti & Tahun</th>
+                      <th className="text-left px-4 py-3">Bilik & Blok</th>
+                      <th className="text-left px-4 py-3">Status Pengaktifan</th>
+                      <th className="text-right px-4 py-3">Tindakan Kaunter</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {paginatedResidents.map((st) => {
+                      const isCheckedIn = (st.qr_verified === true || st.qr_verified === 'true' || st.qr_verified === 1) && String(st.room_status || '').toLowerCase() === 'checked in';
+                      const isPendingQr = st.block_name && st.room_number && (!st.qr_verified || String(st.room_status || '').toLowerCase() === 'pending verification');
+                      const isPendingKey = !st.block_name || String(st.room_status || '').toLowerCase() === 'pending key';
+
+                      return (
+                        <tr key={st.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="font-bold text-foreground">{st.full_name}</div>
+                            <div className="text-[11px] text-muted-foreground font-mono">
+                              {st.student_id} &bull; {st.gender || 'N/A'}
+                            </div>
+                            {st.phone && (
+                              <div className="text-[10px] text-slate-500 mt-0.5">
+                                Tel: {st.phone}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="truncate max-w-[200px] text-foreground font-medium">{st.faculty || '-'}</div>
+                            <div className="text-[11px] text-muted-foreground">Tahun {st.year_of_study || '1'}</div>
+                          </td>
+                          <td className="px-4 py-3">
+                            {st.block_name && st.room_number ? (
+                              <div className="space-y-0.5">
+                                <span className="font-bold text-indigo-900 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded font-mono text-xs inline-block">
+                                  {st.block_name} - Bilik {st.room_number}
+                                </span>
+                              </div>
+                            ) : (
+                              <Badge variant="outline" className="text-slate-500 border-slate-300 text-[10px]">
+                                Belum Ditetapkan
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {isCheckedIn ? (
+                              <div className="space-y-0.5">
+                                <Badge className="bg-emerald-600 text-white text-[10px] gap-1 px-2 py-0.5">
+                                  <CheckCircle2 className="w-3 h-3" /> Aktif (QR Sah)
+                                </Badge>
+                                {st.qr_verified_at && (
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {new Date(st.qr_verified_at).toLocaleDateString('ms-MY')}
+                                  </p>
+                                )}
+                              </div>
+                            ) : isPendingQr ? (
+                              <div className="space-y-0.5">
+                                <Badge className="bg-amber-500/20 text-amber-800 border-amber-300 text-[10px] gap-1 px-2 py-0.5 font-bold">
+                                  <AlertCircle className="w-3 h-3 text-amber-600" /> Menunggu QR
+                                </Badge>
+                                <p className="text-[10px] text-slate-500">Pintu Utama / Kaunter</p>
+                              </div>
+                            ) : isPendingKey ? (
+                              <div className="space-y-0.5">
+                                <Badge variant="outline" className="text-slate-600 border-slate-300 text-[10px] gap-1 px-2 py-0.5">
+                                  <KeyRound className="w-3 h-3" /> Menunggu Kunci
+                                </Badge>
+                                <p className="text-[10px] text-slate-500">Prapendaftaran Awal</p>
+                              </div>
+                            ) : (
+                              <Badge variant="secondary" className="text-[10px]">
+                                {st.room_status || 'Registered'}
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                              {isCheckedIn ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={submitting}
+                                  onClick={() => handleTriggerCheckOut(st)}
+                                  className="h-7 text-xs text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                                >
+                                  <LogOut className="w-3 h-3 mr-1" /> Check-Out
+                                </Button>
+                              ) : isPendingQr ? (
+                                <Button
+                                  size="sm"
+                                  disabled={submitting}
+                                  onClick={() => handleQuickCounterActivation(st)}
+                                  className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+                                >
+                                  <ShieldCheck className="w-3 h-3 mr-1" /> Sahkan Kaunter
+                                </Button>
+                              ) : isPendingKey ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={submitting}
+                                  onClick={() => {
+                                    handleSelectStudent(st);
+                                    setCiForm({
+                                      room_id: '',
+                                      check_in_date: dateStr,
+                                      check_in_time: timeStr,
+                                      semester: selectedSemesterFilter,
+                                      notes: ''
+                                    });
+                                    setCiDialog(true);
+                                  }}
+                                  className="h-7 text-xs text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                >
+                                  <LogIn className="w-3 h-3 mr-1" /> Tetapkan Bilik
+                                </Button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <TablePagination page={safeRosterPage} totalPages={totalRosterPages} onPageChange={setRosterPage} />
+            </div>
+          )}
+        </TabsContent>
 
         <TabsContent value="checkins">
           {displayCheckIns.length === 0 ? (

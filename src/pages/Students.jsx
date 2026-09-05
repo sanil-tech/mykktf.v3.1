@@ -53,7 +53,26 @@ export default function Students() {
     } else {
       data = await base44.entities.Student.list('-created_date');
     }
-    setStudents(data);
+    // Selaraskan nombor waris dan emergency contact jika salah satu kosong
+    const syncedData = data.map(s => {
+      const resolved = s.emergency_contact || s.parent_phone || '';
+      return {
+        ...s,
+        parent_phone: s.parent_phone || resolved,
+        emergency_contact: s.emergency_contact || resolved
+      };
+    });
+    setStudents(syncedData);
+
+    // Auto-update ke pangkalan data jika salah satu belum ada
+    syncedData.forEach(async (s) => {
+      if ((!s.emergency_contact && s.parent_phone) || (!s.parent_phone && s.emergency_contact)) {
+        try {
+          const ph = s.parent_phone || s.emergency_contact;
+          await base44.entities.Student.update(s.id, { parent_phone: ph, emergency_contact: ph });
+        } catch (eSync) {}
+      }
+    });
     setLoading(false);
   }
 
@@ -86,7 +105,14 @@ export default function Students() {
       toast({ title: 'Akses Ditolak', description: 'Warden hanya mempunyai akses paparan (view-only).', variant: 'destructive' });
       return;
     }
-    setForm({ ...emptyForm, ...s }); 
+    const resolvedEmergency = s.emergency_contact || s.parent_phone || '';
+    const resolvedParentPhone = s.parent_phone || s.emergency_contact || '';
+    setForm({ 
+      ...emptyForm, 
+      ...s,
+      parent_phone: resolvedParentPhone,
+      emergency_contact: resolvedEmergency
+    }); 
     setEditId(s.id); 
     setDialogOpen(true); 
   }
@@ -100,13 +126,23 @@ export default function Students() {
       toast({ title: 'Error', description: 'Sila lengkapkan maklumat wajib (*)', variant: 'destructive' });
       return;
     }
+
+    // Selaraskan emergency_contact dengan parent_phone
+    const resolvedEmergency = form.emergency_contact || form.parent_phone || '';
+    const resolvedParentPhone = form.parent_phone || form.emergency_contact || '';
+    const payload = {
+      ...form,
+      parent_phone: resolvedParentPhone,
+      emergency_contact: resolvedEmergency
+    };
+
     if (editId) {
-      await base44.entities.Student.update(editId, form);
-      await logAudit(user, 'STUDENT_UPDATED', 'Students', { id: editId, name: form.full_name, student_id: form.student_id });
+      await base44.entities.Student.update(editId, payload);
+      await logAudit(user, 'STUDENT_UPDATED', 'Students', { id: editId, name: payload.full_name, student_id: payload.student_id });
       toast({ title: 'Profil pelajar berjaya dikemaskini' });
     } else {
-      await base44.entities.Student.create(form);
-      await logAudit(user, 'STUDENT_CREATED', 'Students', { name: form.full_name, student_id: form.student_id });
+      await base44.entities.Student.create(payload);
+      await logAudit(user, 'STUDENT_CREATED', 'Students', { name: payload.full_name, student_id: payload.student_id });
       toast({ title: 'Pelajar berjaya ditambah' });
     }
     setDialogOpen(false);
@@ -299,10 +335,38 @@ export default function Students() {
             <div><Label className="text-xs">Phone *</Label><Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="h-9 text-sm mt-1" /></div>
             <div><Label className="text-xs">Email *</Label><Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="h-9 text-sm mt-1" /></div>
             <div><Label className="text-xs">Parent/Guardian</Label><Input value={form.parent_name} onChange={e => setForm({ ...form, parent_name: e.target.value })} className="h-9 text-sm mt-1" /></div>
-            <div><Label className="text-xs">Parent Phone</Label><Input value={form.parent_phone} onChange={e => setForm({ ...form, parent_phone: e.target.value })} className="h-9 text-sm mt-1" /></div>
+            <div>
+              <Label className="text-xs">Parent Phone (No. Waris)</Label>
+              <Input 
+                value={form.parent_phone} 
+                onChange={e => {
+                  const val = e.target.value;
+                  setForm(prev => ({
+                    ...prev,
+                    parent_phone: val,
+                    emergency_contact: (!prev.emergency_contact || prev.emergency_contact === prev.parent_phone) ? val : prev.emergency_contact
+                  }));
+                }} 
+                className="h-9 text-sm mt-1" 
+              />
+            </div>
             <div><Label className="text-xs">Block Name</Label><Input value={form.block_name} onChange={e => setForm({ ...form, block_name: e.target.value })} className="h-9 text-sm mt-1" /></div>
             <div><Label className="text-xs">Room Number</Label><Input value={form.room_number} onChange={e => setForm({ ...form, room_number: e.target.value })} className="h-9 text-sm mt-1" /></div>
-            <div><Label className="text-xs">Emergency Contact</Label><Input value={form.emergency_contact} onChange={e => setForm({ ...form, emergency_contact: e.target.value })} className="h-9 text-sm mt-1" /></div>
+            <div>
+              <Label className="text-xs">Emergency Contact</Label>
+              <Input 
+                value={form.emergency_contact} 
+                onChange={e => {
+                  const val = e.target.value;
+                  setForm(prev => ({
+                    ...prev,
+                    emergency_contact: val,
+                    parent_phone: (!prev.parent_phone || prev.parent_phone === prev.emergency_contact) ? val : prev.parent_phone
+                  }));
+                }} 
+                className="h-9 text-sm mt-1" 
+              />
+            </div>
             <div><Label className="text-xs">Vehicle Reg</Label><Input value={form.vehicle_reg} onChange={e => setForm({ ...form, vehicle_reg: e.target.value })} className="h-9 text-sm mt-1" /></div>
             <div>
               <Label className="text-xs">Status</Label>

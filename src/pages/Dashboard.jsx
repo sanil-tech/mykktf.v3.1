@@ -262,8 +262,11 @@ export default function Dashboard() {
 
     setSubmitting(true);
     try {
+      const pPhone = form.parent_phone || form.emergency_contact || '';
       await base44.entities.Student.create({ 
         ...form, 
+        parent_phone: pPhone,
+        emergency_contact: pPhone,
         user_id: currentUser.id,
         email: currentUser.email
       });

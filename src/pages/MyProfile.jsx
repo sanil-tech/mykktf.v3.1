@@ -169,8 +169,24 @@ export default function MyProfile() {
         await base44.entities.Student.update(s.id, { user_id: user.id });
         s.user_id = user.id;
       }
-      setStudent(s);
-      setForm(s ? { ...s } : {
+      const syncEmergency = s ? (s.emergency_contact || s.parent_phone || '') : '';
+      const syncParentPhone = s ? (s.parent_phone || s.emergency_contact || '') : '';
+      const hydratedStudent = s ? {
+        ...s,
+        parent_phone: syncParentPhone,
+        emergency_contact: syncEmergency
+      } : null;
+
+      // Auto update entity jika salah satu field belum tersimpan dalam DB
+      if (s && ((!s.emergency_contact && s.parent_phone) || (!s.parent_phone && s.emergency_contact))) {
+        base44.entities.Student.update(s.id, {
+          parent_phone: syncParentPhone,
+          emergency_contact: syncEmergency
+        }).catch(() => {});
+      }
+
+      setStudent(hydratedStudent);
+      setForm(hydratedStudent ? { ...hydratedStudent } : {
         student_id: '', full_name: user.full_name || '', ic_passport: '', gender: 'Male',
         date_of_birth: '', faculty: '', programme: '', year_of_study: 1, semester: '', session: '',
         phone: '', email: user.email || '', block_name: '', room_number: '',
@@ -217,10 +233,17 @@ export default function MyProfile() {
 
     if (isStudentRole) {
       const { room_id, block_name, room_number, ...personalData } = form;
+      const phoneSync = form.parent_phone || form.emergency_contact || '';
+      const finalPersonalData = {
+        ...personalData,
+        parent_phone: phoneSync,
+        emergency_contact: phoneSync,
+        user_id: currentUser.id
+      };
       if (student) {
-        await base44.entities.Student.update(student.id, { ...personalData, user_id: currentUser.id });
+        await base44.entities.Student.update(student.id, finalPersonalData);
       } else {
-        const created = await base44.entities.Student.create({ ...personalData, user_id: currentUser.id });
+        const created = await base44.entities.Student.create(finalPersonalData);
         setStudent(created);
       }
     } else {
@@ -610,7 +633,15 @@ export default function MyProfile() {
             </div>
             <div>
               <Label className="text-xs">Nombor Telefon Waris *</Label>
-              <Input value={form?.parent_phone || ''} onChange={e => setForm({ ...form, parent_phone: e.target.value })} className="h-9 text-xs mt-1" />
+              <Input 
+                value={form?.parent_phone || form?.emergency_contact || ''} 
+                onChange={e => {
+                  const val = e.target.value;
+                  setForm({ ...form, parent_phone: val, emergency_contact: val });
+                }} 
+                placeholder="cth: 01X-XXXXXXX"
+                className="h-9 text-xs mt-1" 
+              />
             </div>
             <div>
               <Label className="text-xs">No. Pendaftaran Kenderaan (No. Plat)</Label>

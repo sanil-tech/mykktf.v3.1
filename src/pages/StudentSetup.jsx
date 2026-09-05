@@ -92,7 +92,13 @@ export default function StudentSetup({ user, onComplete }) {
   }, []);
 
   function set(field, value) {
-    setForm(f => ({ ...f, [field]: value }));
+    if (field === 'parent_phone') {
+      setForm(f => ({ ...f, parent_phone: value, emergency_contact: value }));
+    } else if (field === 'emergency_contact') {
+      setForm(f => ({ ...f, emergency_contact: value, parent_phone: value }));
+    } else {
+      setForm(f => ({ ...f, [field]: value }));
+    }
     setErrors(e => ({ ...e, [field]: '' }));
   }
 
@@ -151,8 +157,11 @@ export default function StudentSetup({ user, onComplete }) {
       const roomId = selectedRoom?.id || form.room_id || '';
 
       // 1. Create or Update Student Resident record (Pre-registration)
+      const phoneSync = form.parent_phone || form.emergency_contact || '';
       const studentData = {
         ...form,
+        parent_phone: phoneSync,
+        emergency_contact: phoneSync,
         user_id: user?.id || form.user_id || '',
         email: (user?.email || form.email || '').trim(),
         block_name: knowsRoom ? form.block_name : '',
