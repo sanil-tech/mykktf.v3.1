@@ -30,7 +30,9 @@ import {
   FileCheck2,
   Lock,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  SwitchCamera,
+  Upload
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -61,6 +63,10 @@ export default function ResidentScanner() {
   const [spotCheckStatus, setSpotCheckStatus] = useState('Patuh Peraturan');
   const [savingLog, setSavingLog] = useState(false);
 
+  // Camera device states
+  const [availableCameras, setAvailableCameras] = useState([]);
+  const [activeCameraId, setActiveCameraId] = useState('');
+  const fileInputRef = useRef(null);
   const html5QrCodeRef = useRef(null);
 
   useEffect(() => {
@@ -152,42 +158,161 @@ export default function ResidentScanner() {
     }
   };
 
-  const startCamera = async () => {
+  const stopCamera = async () => {
+    if (html5QrCodeRef.current) {
+      try {
+        if (html5QrCodeRef.current.isScanning) {
+          await html5QrCodeRef.current.stop();
+        }
+        await html5QrCodeRef.current.clear();
+      } catch (err) {
+        console.warn('Error stopping camera:', err);
+      }
+      html5QrCodeRef.current = null;
+    }
+    setIsScanning(false);
+  };
+
+  const startCamera = async (camId = null) => {
     setCameraError('');
-    setIsScanning(true);
+
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setCameraError('Kamera tidak disokong pada pelayar ini atau memerlukan sambungan selamat (HTTPS). Sila gunakan Carian Manual.');
+      return;
+    }
 
     try {
-      if (!html5QrCodeRef.current) {
-        html5QrCodeRef.current = new Html5Qrcode('qr-reader-container');
+      // 1. Cleanly stop and reset any previous instance
+      await stopCamera();
+
+      // 2. Set isScanning state so the mounting container is rendered
+      setIsScanning(true);
+
+      // 3. Small timeout to allow DOM node to mount firmly
+      await new Promise((r) => setTimeout(r, 200));
+
+      const streamElement = document.getElementById('qr-camera-stream');
+      if (!streamElement) {
+        throw new Error('Elemen kamera tidak ditemui dalam DOM.');
       }
 
-      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-      await html5QrCodeRef.current.start(
-        { facingMode: 'environment' },
-        config,
-        (decodedText) => {
-          handleQrDecoded(decodedText);
-        },
-        (errorMessage) => {
-          // scanning frame
+      const qrScanner = new Html5Qrcode('qr-camera-stream');
+      html5QrCodeRef.current = qrScanner;
+
+      // 4. Discover available cameras
+      let selectedId = camId || activeCameraId;
+      try {
+        const cams = await Html5Qrcode.getCameras();
+        if (cams && cams.length > 0) {
+          setAvailableCameras(cams);
+          if (!selectedId) {
+            // Find back camera if available, else first camera
+            const back = cams.find((c) =>
+              c.label.toLowerCase().includes('back') ||
+              c.label.toLowerCase().includes('rear') ||
+              c.label.toLowerCase().includes('belakang') ||
+              c.label.toLowerCase().includes('environment')
+            );
+            selectedId = back ? back.id : cams[0].id;
+          }
+          setActiveCameraId(selectedId);
         }
-      );
+      } catch (camErr) {
+        console.warn('Could not enumerate cameras, falling back to facingMode:', camErr);
+      }
+
+      const qrConfig = {
+        fps: 15,
+        qrbox: (viewfinderWidth, viewfinderHeight) => {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          const qrboxSize = Math.floor(minEdge * 0.75);
+          return { width: Math.min(qrboxSize, 280), height: Math.min(qrboxSize, 280) };
+        },
+        aspectRatio: 1.0,
+        showTorchButtonIfSupported: true
+      };
+
+      // Try camera by ID first, then fallback to environment or user facingMode
+      if (selectedId) {
+        try {
+          await qrScanner.start(
+            selectedId,
+            qrConfig,
+            (decodedText) => handleQrDecoded(decodedText),
+            () => {}
+          );
+          return;
+        } catch (idErr) {
+          console.warn('Start with camera ID failed, attempting fallback to facingMode...', idErr);
+        }
+      }
+
+      // Fallback 1: facingMode environment
+      try {
+        await qrScanner.start(
+          { facingMode: 'environment' },
+          qrConfig,
+          (decodedText) => handleQrDecoded(decodedText),
+          () => {}
+        );
+      } catch (envErr) {
+        console.warn('FacingMode environment failed, attempting user facingMode...', envErr);
+        // Fallback 2: facingMode user (e.g. laptop webcam)
+        await qrScanner.start(
+          { facingMode: 'user' },
+          qrConfig,
+          (decodedText) => handleQrDecoded(decodedText),
+          () => {}
+        );
+      }
     } catch (err) {
       console.error('Camera start error:', err);
-      setCameraError('Gagal mengakses kamera peranti. Sila benarkan kebenaran kamera atau gunakan carian manual.');
-      setIsScanning(false);
+      let msg = 'Gagal mengakses kamera peranti. ';
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        msg += 'Kebenaran kamera disekat. Sila benarkan akses kamera dalam tetapan pelayar anda.';
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        msg += 'Tiada kamera dikesan pada peranti anda.';
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        msg += 'Kamera sedang digunakan oleh aplikasi lain.';
+      } else if (err.name === 'OverconstrainedError') {
+        msg += 'Konfigurasi kamera tidak disokong oleh perkakasan.';
+      } else {
+        msg += 'Sila pastikan kebenaran kamera diberikan atau gunakan carian manual di bawah.';
+      }
+      setCameraError(msg);
+      await stopCamera();
     }
   };
 
-  const stopCamera = async () => {
-    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-      try {
-        await html5QrCodeRef.current.stop();
-      } catch (err) {
-        console.error('Error stopping camera:', err);
-      }
+  const handleSwitchCamera = () => {
+    if (availableCameras.length <= 1) return;
+    const currentIndex = availableCameras.findIndex((c) => c.id === activeCameraId);
+    const nextIndex = (currentIndex + 1) % availableCameras.length;
+    const nextCamId = availableCameras[nextIndex].id;
+    setActiveCameraId(nextCamId);
+    startCamera(nextCamId);
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      await stopCamera();
+      setIsScanning(true);
+      await new Promise((r) => setTimeout(r, 150));
+
+      const tempScanner = new Html5Qrcode('qr-camera-stream');
+      const decodedText = await tempScanner.scanFile(file, true);
+      handleQrDecoded(decodedText);
+      await tempScanner.clear();
+    } catch (err) {
+      console.error('File scan error:', err);
+      toast.error('Kod QR tidak dapat dikesan dalam gambar tersebut. Sila cuba gambar lain atau gunakan carian manual.');
+      await stopCamera();
+    } finally {
+      if (e.target) e.target.value = '';
     }
-    setIsScanning(false);
   };
 
   const handleQrDecoded = (decodedText) => {
@@ -196,23 +321,32 @@ export default function ResidentScanner() {
     // Stop camera temporarily to avoid spamming multiple reads
     stopCamera();
 
+    let cleanText = decodedText ? decodedText.trim() : '';
+    try {
+      cleanText = decodeURIComponent(cleanText);
+    } catch (e) {}
+
     // Parse decoded string:
     // Formats:
     // 1) "UMS-KKTF-PASS|BP23110045|Block G|Bilik G-B.05|ACTIVE20252026"
     // 2) "KKTF-PASS:BP23110045:Block G:Bilik G-B.05:VERIFIED"
-    // 3) Raw Matric number e.g. "BP23110045"
+    // 3) URL e.g. "https://.../BP23110045"
+    // 4) Raw Matric number e.g. "BP23110045"
     let parsedMatric = '';
-    if (decodedText.includes('|')) {
-      const parts = decodedText.split('|');
+    if (cleanText.includes('|')) {
+      const parts = cleanText.split('|');
       parsedMatric = parts[1] || '';
-    } else if (decodedText.includes(':')) {
-      const parts = decodedText.split(':');
+    } else if (cleanText.includes(':')) {
+      const parts = cleanText.split(':');
       parsedMatric = parts[1] || '';
+    } else if (cleanText.includes('/')) {
+      const parts = cleanText.split('/');
+      parsedMatric = parts[parts.length - 1] || '';
     } else {
-      parsedMatric = decodedText.trim();
+      parsedMatric = cleanText;
     }
 
-    processStudentVerification(parsedMatric);
+    processStudentVerification(parsedMatric.trim());
   };
 
   const handleManualSearch = () => {
@@ -438,14 +572,21 @@ export default function ResidentScanner() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT: LIVE CAMERA VIEW */}
         <div className="lg:col-span-2 bg-card border border-border rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center min-h-[380px] relative overflow-hidden">
+          {/* CAMERA FEED WRAPPER */}
           <div 
-            id="qr-reader-container" 
-            className={`w-full max-w-sm aspect-square rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center relative border-2 ${
+            className={`w-full max-w-sm aspect-square rounded-2xl overflow-hidden bg-slate-950 relative border-2 transition-all ${
               isScanning ? 'border-lime-500 shadow-[0_0_25px_rgba(132,204,22,0.3)]' : 'border-slate-800'
             }`}
           >
+            {/* The dedicated mount div for Html5Qrcode - React NEVER puts children inside it */}
+            <div 
+              id="qr-camera-stream" 
+              className={`w-full h-full ${isScanning ? 'block' : 'hidden'}`}
+            />
+
+            {/* Visual placeholder when NOT scanning */}
             {!isScanning && (
-              <div className="text-center p-6 space-y-3">
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 space-y-3 z-10 bg-slate-950">
                 <div className="w-16 h-16 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center mx-auto text-slate-400">
                   <Camera className="w-8 h-8 text-lime-400" />
                 </div>
@@ -457,33 +598,82 @@ export default function ResidentScanner() {
                 </div>
               </div>
             )}
+
+            {/* Active Scanner Laser & Reticle Animation when scanning */}
+            {isScanning && (
+              <div className="absolute inset-0 pointer-events-none z-20 flex flex-col items-center justify-center">
+                <div className="w-48 h-48 sm:w-56 sm:h-56 border-2 border-dashed border-lime-400/80 rounded-2xl relative">
+                  <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-lime-400" />
+                  <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-lime-400" />
+                  <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-lime-400" />
+                  <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-lime-400" />
+                  {/* Animated Scanning Laser Line */}
+                  <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-lime-400 to-transparent shadow-[0_0_8px_#a3e635] animate-pulse absolute top-1/2 -translate-y-1/2" />
+                </div>
+                <span className="text-[11px] font-semibold text-lime-400 bg-slate-900/80 px-2.5 py-0.5 rounded-full mt-3">
+                  Halakan ke Kod QR Pelajar
+                </span>
+              </div>
+            )}
           </div>
 
           {/* CAMERA ERROR NOTICE */}
           {cameraError && (
-            <div className="mt-3 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>{cameraError}</span>
+            <div className="mt-3 p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl text-xs text-red-700 dark:text-red-300 flex items-start gap-2.5 max-w-md w-full">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+              <div className="space-y-1">
+                <p className="font-bold">Ralat Kamera:</p>
+                <p className="leading-relaxed">{cameraError}</p>
+              </div>
             </div>
           )}
 
           {/* SCANNER CONTROLS */}
           <div className="mt-5 flex flex-wrap items-center justify-center gap-3 w-full">
+            <input 
+              ref={fileInputRef} 
+              type="file" 
+              accept="image/*" 
+              className="hidden" 
+              onChange={handleFileUpload} 
+            />
+
             {!isScanning ? (
-              <Button 
-                onClick={startCamera}
-                className="bg-gradient-to-r from-lime-600 via-lime-500 to-emerald-600 hover:from-lime-700 hover:to-emerald-700 text-slate-950 font-bold text-xs gap-2 px-6 h-11 rounded-xl shadow-lg shadow-lime-500/20"
-              >
-                <Camera className="w-4 h-4 text-slate-950" /> Buka Kamera Pengimbas QR
-              </Button>
+              <>
+                <Button 
+                  onClick={() => startCamera()}
+                  className="bg-gradient-to-r from-lime-600 via-lime-500 to-emerald-600 hover:from-lime-700 hover:to-emerald-700 text-slate-950 font-bold text-xs gap-2 px-6 h-11 rounded-xl shadow-lg shadow-lime-500/20"
+                >
+                  <Camera className="w-4 h-4 text-slate-950" /> Buka Kamera Pengimbas QR
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs font-semibold gap-2 px-4 h-11 rounded-xl border-slate-300 dark:border-slate-700"
+                  title="Pilih gambar atau tangkap layar kod QR dari peranti"
+                >
+                  <Upload className="w-4 h-4 text-slate-600 dark:text-slate-300" /> Imbas Gambar QR
+                </Button>
+              </>
             ) : (
-              <Button 
-                variant="destructive"
-                onClick={stopCamera}
-                className="text-xs font-bold gap-2 px-6 h-11 rounded-xl"
-              >
-                <RotateCcw className="w-4 h-4" /> Hentikan Kamera
-              </Button>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button 
+                  variant="destructive"
+                  onClick={stopCamera}
+                  className="text-xs font-bold gap-2 px-6 h-11 rounded-xl"
+                >
+                  <RotateCcw className="w-4 h-4" /> Hentikan Kamera
+                </Button>
+                {availableCameras.length > 1 && (
+                  <Button
+                    variant="outline"
+                    onClick={handleSwitchCamera}
+                    className="text-xs font-semibold gap-2 px-4 h-11 rounded-xl"
+                  >
+                    <SwitchCamera className="w-4 h-4 text-lime-500" /> Tukar Kamera ({availableCameras.length})
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         </div>
