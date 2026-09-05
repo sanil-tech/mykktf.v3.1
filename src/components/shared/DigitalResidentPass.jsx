@@ -4,23 +4,17 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Building2, 
-  MapPin, 
   Phone, 
   ShieldCheck, 
   QrCode, 
   User, 
   RotateCw, 
   Sparkles, 
-  CheckCircle2, 
   Car, 
   HeartHandshake,
-  Download,
-  Share2,
-  Lock,
-  Calendar,
-  Layers
+  Share2
 } from 'lucide-react';
-import { KKTFLogo, UMSLogo, InstitutionalDualLogo } from '@/components/shared/KKTFLogo';
+import { InstitutionalDualLogo } from '@/components/shared/KKTFLogo';
 import { toast } from 'sonner';
 
 export default function DigitalResidentPass({ student, user, triggerButton }) {
@@ -36,6 +30,7 @@ export default function DigitalResidentPass({ student, user, triggerButton }) {
   const yearOfStudy = student?.year_of_study ? `Tahun ${student.year_of_study}` : 'Tahun 1';
   const phone = student?.phone || 'N/A';
   const emergencyPhone = student?.parent_phone || student?.emergency_contact || 'N/A';
+  const vehicleReg = student?.vehicle_reg || '';
   const isCheckedIn = (student?.room_status === 'Checked In') && Boolean(student?.qr_verified);
 
   // Verification Payload for QR

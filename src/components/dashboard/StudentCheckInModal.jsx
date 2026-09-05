@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,18 +8,13 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { 
-  Camera, 
   ScanLine, 
   CheckCircle2, 
   Building2, 
-  DoorClosed, 
   AlertCircle, 
-  Sparkles, 
   ShieldCheck, 
   RotateCw, 
-  KeyRound, 
-  QrCode,
-  XCircle,
+  KeyRound,
   Loader2
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
