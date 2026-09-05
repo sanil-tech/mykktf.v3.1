@@ -568,11 +568,11 @@ export default function Events() {
     }
   }
 
-  const role = user?.effectiveRole;
+  const role = user?.effectiveRole || user?.role;
   const canManage = user && MANAGE_ROLES.includes(role);
-  const isPrincipalOrAdmin = user && ['super_admin', 'principal', 'college_admin'].includes(user.role);
-  const isFeloCoordinatorOrAdmin = user && ['super_admin', 'principal', 'college_admin', 'warden'].includes(user.role);
-  const isStudent = role === 'student';
+  const isPrincipalOrAdmin = user && ['super_admin', 'principal', 'college_admin'].includes(user?.role);
+  const isFeloCoordinatorOrAdmin = user && ['super_admin', 'principal', 'college_admin', 'warden'].includes(user?.role);
+  const isStudent = !canManage || role === 'student';
 
   if (loading) return <div><PageHeader title="Acara & Program Kolej" description="Memuatkan senarai acara..." /><CardGridSkeleton count={6} /></div>;
 
@@ -580,7 +580,11 @@ export default function Events() {
     <div className="space-y-6">
       <PageHeader
         title="Acara & Program Kolej (Events)"
-        description="Pengurusan aktiviti kolej, kelulusan Felo Penyelaras & Pengetua, semakan kehadiran QR, dan merit automatik."
+        description={
+          canManage 
+            ? "Pengurusan aktiviti kolej, kelulusan Felo Penyelaras & Pengetua, semakan kehadiran QR, dan merit automatik."
+            : "Sertai program kolej, kumpul mata merit residen untuk tawaran penginapan kolej, dan semak status penyertaan anda."
+        }
         actions={canManage && (
           <Button size="sm" onClick={() => setShowForm(true)} className="rounded-xl font-bold bg-[#132644] hover:bg-[#1a335c] text-white gap-1.5 shadow-xs">
             <Plus className="w-4 h-4" /> Cipta Acara Baharu
@@ -641,60 +645,88 @@ export default function Events() {
                     </div>
                   </div>
 
-                  {/* STATUS KELULUSAN FELO / PENGETUA */}
-                  <div className={`p-3 rounded-2xl border text-xs space-y-1.5 transition-all ${
-                    isApproved 
-                      ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/60'
-                      : isRejected
-                      ? 'bg-rose-50/30 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/60'
-                      : 'bg-amber-50/30 dark:bg-amber-950/20 border-amber-300 dark:border-amber-900/60'
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 text-foreground">
-                        <UserCog className="w-3.5 h-3.5 text-primary" /> Felo Penyelaras:
-                      </span>
-                      <Badge className={`text-[9px] font-bold ${
-                        isApproved 
-                          ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-400/40' 
-                          : isRejected
-                          ? 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-400/40'
-                          : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400/40 animate-pulse'
-                      }`}>
-                        {isApproved ? '✓ Diluluskan' : isRejected ? '✕ Ditolak' : '⏳ Menunggu Kelulusan'}
-                      </Badge>
-                    </div>
-
-                    <p className="font-bold text-xs text-foreground">
-                      {ev.felo_coordinator_name || 'Pejabat Pentadbiran Felo KKTF'}
-                    </p>
-
-                    {isRejected && ev.rejection_reason && (
-                      <p className="text-[11px] text-rose-700 dark:text-rose-300 italic">
-                        Catatan Penolakan: "{ev.rejection_reason}"
-                      </p>
-                    )}
-
-                    {/* BUTANG TINDAKAN KELULUSAN (PENGETUA / FELO / ADMIN) */}
-                    {!isApproved && !isRejected && isFeloCoordinatorOrAdmin && (
-                      <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-amber-200/50 dark:border-amber-900/40">
-                        <Button
-                          size="sm"
-                          onClick={() => handleApproveEvent(ev)}
-                          className="h-8 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl gap-1 shadow-xs"
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" /> Luluskan
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openRejectModal(ev)}
-                          className="h-8 text-xs font-bold text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-xl gap-1"
-                        >
-                          <XCircle className="w-3.5 h-3.5" /> Tolak
-                        </Button>
+                  {/* KHAS PAPARAN PELAJAR: GANJARAN & SUMBANGAN MATA MERIT (TANPA MAKLUMAT FELO PENYELARAS) */}
+                  {!canManage && (
+                    <div className="p-3.5 rounded-2xl border bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border-emerald-500/30 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                          <Award className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Sumbangan Mata Merit
+                        </span>
+                        <Badge className="bg-emerald-600 text-white dark:bg-emerald-500 font-extrabold text-xs px-2.5 py-0.5 shadow-xs">
+                          +{meritValue} Merit
+                        </Badge>
                       </div>
-                    )}
-                  </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        Penyertaan aktif dalam program ini menyumbang <span className="font-bold text-foreground">+{meritValue} mata merit</span> bagi memenuhi syarat kelayakan tawaran bilik Kolej Kediaman Tun Fuad semester hadapan.
+                      </p>
+                      {isAttended ? (
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 pt-1.5 border-t border-emerald-500/20">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Kehadiran Disahkan • +{meritValue} Merit Telah Dikreditkan
+                        </div>
+                      ) : isRegistered ? (
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400 pt-1.5 border-t border-emerald-500/20">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Pendaftaran Berjaya • Sila imbas Kod QR di lokasi acara untuk tuntut merit
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {/* KHAS PENTADBIR / FELO / PENGETUA / JAKMAS: STATUS KELULUSAN FELO / PENGETUA */}
+                  {canManage && (
+                    <div className={`p-3 rounded-2xl border text-xs space-y-1.5 transition-all ${
+                      isApproved 
+                        ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/60'
+                        : isRejected
+                        ? 'bg-rose-50/30 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/60'
+                        : 'bg-amber-50/30 dark:bg-amber-950/20 border-amber-300 dark:border-amber-900/60'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 text-foreground">
+                          <UserCog className="w-3.5 h-3.5 text-primary" /> Felo Penyelaras:
+                        </span>
+                        <Badge className={`text-[9px] font-bold ${
+                          isApproved 
+                            ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-400/40' 
+                            : isRejected
+                            ? 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-400/40'
+                            : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400/40 animate-pulse'
+                        }`}>
+                          {isApproved ? '✓ Diluluskan' : isRejected ? '✕ Ditolak' : '⏳ Menunggu Kelulusan'}
+                        </Badge>
+                      </div>
+
+                      <p className="font-bold text-xs text-foreground">
+                        {ev.felo_coordinator_name || 'Pejabat Pentadbiran Felo KKTF'}
+                      </p>
+
+                      {isRejected && ev.rejection_reason && (
+                        <p className="text-[11px] text-rose-700 dark:text-rose-300 italic">
+                          Catatan Penolakan: "{ev.rejection_reason}"
+                        </p>
+                      )}
+
+                      {/* BUTANG TINDAKAN KELULUSAN (PENGETUA / FELO / ADMIN) */}
+                      {!isApproved && !isRejected && isFeloCoordinatorOrAdmin && (
+                        <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-amber-200/50 dark:border-amber-900/40">
+                          <Button
+                            size="sm"
+                            onClick={() => handleApproveEvent(ev)}
+                            className="h-8 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl gap-1 shadow-xs"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" /> Luluskan
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openRejectModal(ev)}
+                            className="h-8 text-xs font-bold text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-xl gap-1"
+                          >
+                            <XCircle className="w-3.5 h-3.5" /> Tolak
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* ACTION BUTTONS (PENGANJUR & PESERTA) */}
                   <div className="flex flex-wrap gap-2 mt-auto pt-2">
@@ -740,9 +772,21 @@ export default function Events() {
 
                     {/* STUDENT ACTIONS */}
                     {isStudent && isApproved && ev.registration_status === 'Open' && !isRegistered && !isAttended && !isFull && (
-                      <Button size="sm" className="w-full text-xs h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl gap-1.5" onClick={() => register(ev)}>
-                        <UserCheck className="w-4 h-4" /> Daftar Penyertaan (+{meritValue} Merit)
+                      <Button size="sm" className="w-full text-xs h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl gap-1.5 shadow-xs" onClick={() => register(ev)}>
+                        <UserCheck className="w-4 h-4" /> Daftar Program (+{meritValue} Merit)
                       </Button>
+                    )}
+
+                    {isStudent && !isApproved && (
+                      <div className="w-full text-center p-2 rounded-xl bg-muted/60 text-muted-foreground text-xs font-medium">
+                        Pendaftaran akan dibuka setelah kelulusan rasmi pentadbiran kolej.
+                      </div>
+                    )}
+
+                    {isStudent && isApproved && isFull && !isRegistered && (
+                      <div className="w-full text-center p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 text-xs font-semibold">
+                        Kouta penyertaan program telah penuh ({ev.current_registrations}/{ev.registration_limit})
+                      </div>
                     )}
 
                     {isStudent && isRegistered && !isAttended && (
