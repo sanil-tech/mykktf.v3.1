@@ -417,7 +417,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <p className="text-xs text-amber-300/90 font-medium pt-1">
-                ⚠️ Sila ambil kunci fizikal di kaunter pejabat kolej untuk mengetahui blok & nombor bilik anda.
+                ⚠️ Sila ambil kunci fizikal di <strong>Kaunter Kunci</strong> untuk mengetahui blok & nombor bilik anda.
               </p>
             )}
           </div>
@@ -427,7 +427,7 @@ export default function Dashboard() {
             <p className="font-bold text-slate-200 text-[11px] uppercase tracking-wider">3 Langkah Pengaktifan Residen:</p>
             <div className="flex items-start gap-2.5">
               <span className="w-5 h-5 rounded-full bg-slate-800 text-lime-400 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 border border-slate-700">1</span>
-              <p>Ambil kunci fizikal di <strong>Kaunter Utama Pentadbiran KKTF</strong>.</p>
+              <p>Ambil kunci fizikal di <strong>Kaunter Kunci</strong>.</p>
             </div>
             <div className="flex items-start gap-2.5">
               <span className="w-5 h-5 rounded-full bg-slate-800 text-lime-400 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 border border-slate-700">2</span>
@@ -442,15 +442,24 @@ export default function Dashboard() {
           {/* Main Call to Action Button */}
           <Button 
             onClick={() => setShowCheckInModal(true)}
-            className="w-full h-12 bg-gradient-to-r from-lime-500 to-emerald-600 hover:from-lime-600 hover:to-emerald-700 text-slate-950 font-black text-sm rounded-2xl shadow-[0_0_25px_rgba(132,204,22,0.3)] flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.01]"
+            className="w-full min-h-12 py-3 px-4 bg-gradient-to-r from-lime-500 to-emerald-600 hover:from-lime-600 hover:to-emerald-700 text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-[0_0_25px_rgba(132,204,22,0.3)] flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.01]"
           >
-            <ScanLine className="w-5 h-5 text-slate-950" />
-            {studentProfile?.block_name ? "📷 Imbas Kod QR Pengaktifan Residen" : "🔑 Tetapkan Bilik & Aktifkan Residen"}
+            {studentProfile?.block_name ? (
+              <>
+                <ScanLine className="w-4 h-4 shrink-0 text-slate-950" />
+                <span>Imbas Kod QR Pengaktifan Residen</span>
+              </>
+            ) : (
+              <>
+                <KeyRound className="w-4 h-4 shrink-0 text-slate-950" />
+                <span>Tetapkan Bilik & Aktifkan Residen</span>
+              </>
+            )}
           </Button>
 
-          <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400">
-            <MapPin className="w-3.5 h-3.5 text-red-400" />
-            <span>Lokasi: Kompleks Kolej Kediaman Tun Fuad (KKTF), UMS</span>
+          <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400 text-center px-2">
+            <MapPin className="w-3.5 h-3.5 text-red-400 shrink-0" />
+            <span>Lokasi: Dewan Serbaguna Kolej Kediaman Tun Fuad (KKTF), UMS</span>
           </div>
         </div>
 

@@ -803,7 +803,7 @@ export default function CheckInOut() {
               Kod QR Pengaktifan Residen KKTF
             </h3>
             <p className="text-xs text-slate-500">
-              Pamerkan di Kaunter Penyerahan Kunci atau Pintu Masuk Blok untuk pengaktifan residen fizikal kali pertama.
+              Pamerkan di Kaunter Kunci (Dewan Serbaguna) atau Pintu Masuk Blok untuk pengaktifan residen fizikal kali pertama.
             </p>
           </div>
 

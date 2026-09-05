@@ -490,7 +490,7 @@ export default function StudentSetup({ user, onComplete }) {
                 <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-2xl flex items-center gap-2.5 text-amber-900">
                   <Info className="w-4 h-4 text-amber-600 shrink-0" />
                   <p className="text-[11px] leading-relaxed">
-                    Profil anda akan disimpan. Selepas mengambil kunci fizikal di kaunter pentadbiran kolej, anda boleh masukkan bilik dan imbas Kod QR Pengaktifan Residen untuk mengaktifkan pas kolej.
+                    Profil anda akan disimpan. Selepas mengambil kunci fizikal di <strong>Kaunter Kunci (Dewan Serbaguna KKTF)</strong>, anda boleh masukkan bilik dan imbas Kod QR Pengaktifan Residen untuk mengaktifkan pas kolej.
                   </p>
                 </div>
               ) : form.block_name && form.room_number ? (
@@ -499,7 +499,7 @@ export default function StudentSetup({ user, onComplete }) {
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                     <div>
                       <p className="text-xs font-bold">Bilik Dipilih: {form.block_name} - Bilik {form.room_number}</p>
-                      <p className="text-[10px] text-emerald-700">Imbas Kod QR Pengaktifan Residen di kaunter kolej untuk mengaktifkan pas kehadiran fizikal.</p>
+                      <p className="text-[10px] text-emerald-700">Imbas Kod QR Pengaktifan Residen di Kaunter Kunci untuk mengaktifkan pas kehadiran fizikal.</p>
                     </div>
                   </div>
                   <Badge className="bg-emerald-600 text-white text-[10px] px-2 py-0.5">

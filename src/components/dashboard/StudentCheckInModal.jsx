@@ -347,8 +347,8 @@ export default function StudentCheckInModal({
             {step === 'success' && 'Tahniah! Residen Aktif Kolej'}
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-300 mt-0.5">
-            {step === 'room_selection' && 'Pilih blok & nombor bilik mengikut kunci fizikal yang telah diserahkan di kaunter.'}
-            {step === 'qr_scanning' && 'Halakan kamera ke Kod QR Pengaktifan Residen yang dipaparkan di kaunter atau blok anda.'}
+            {step === 'room_selection' && 'Pilih blok & nombor bilik mengikut kunci fizikal yang telah diserahkan di Kaunter Kunci.'}
+            {step === 'qr_scanning' && 'Halakan kamera ke Kod QR Pengaktifan Residen yang dipaparkan di Kaunter Kunci atau blok anda.'}
             {step === 'success' && 'Pengaktifan residen fizikal disahkan. Pas Residen Digital anda sedia digunakan.'}
           </DialogDescription>
         </div>
@@ -361,7 +361,7 @@ export default function StudentCheckInModal({
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2.5 text-amber-900 text-xs">
                 <KeyRound className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                 <p>
-                  Sila masukkan <strong>Blok dan Nombor Bilik</strong> yang tertera pada tag kunci fizikal anda daripada pihak kolej.
+                  Sila masukkan <strong>Blok dan Nombor Bilik</strong> yang tertera pada tag kunci fizikal anda daripada <strong>Kaunter Kunci</strong>.
                 </p>
               </div>
 
@@ -480,7 +480,7 @@ export default function StudentCheckInModal({
               </div>
 
               <p className="text-[11px] text-slate-500 text-center leading-tight">
-                Imbas kod QR pada poster <strong>"Pengaktifan Residen KKTF"</strong> di kaunter atau blok kediaman anda.
+                Imbas kod QR pada poster <strong>"Pengaktifan Residen KKTF"</strong> di Kaunter Kunci atau blok kediaman anda.
               </p>
 
               {/* MANUAL CODE ENTRY AS BACKUP */}
