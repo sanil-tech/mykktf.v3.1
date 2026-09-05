@@ -37,56 +37,14 @@ export function toWhatsAppNumber(phone) {
   return digits ? `60${digits}` : '';
 }
 
-// Senarai blok rasmi KKTF & pemetaan felo piawai kolej jika belum ada dalam DB
-const OFFICIAL_BLOCKS = ['Block A', 'Block B', 'Block C', 'Block D', 'Block E', 'Block M'];
-
-const DEFAULT_BLOCK_WARDENS = {
+// Pemetaan felo sah yang diketahui (Block B: Puan Norazilah binti Tuman) jika belum ada dalam pangkalan data
+const KNOWN_WARDENS = {
   'block b': {
     warden_name: 'Puan Norazilah binti Tuman',
     warden_email: 'zeela@ums.edu.my',
     phone: '0165097489',
     block_name: 'Block B',
     appointment_term: 'Sesi 2025/2026 (1 Ogos 2025 – 31 Julai 2026)',
-    role_title: 'Pegawai Felo / Warden KKTF'
-  },
-  'block a': {
-    warden_name: 'Dr. Mohd Firdaus bin Ramli',
-    warden_email: 'firdaus.ramli@ums.edu.my',
-    phone: '0198123456',
-    block_name: 'Block A',
-    appointment_term: 'Sesi 2025/2026',
-    role_title: 'Pegawai Felo / Warden KKTF'
-  },
-  'block c': {
-    warden_name: 'En. Khairul Anuar bin Osman',
-    warden_email: 'khairul.anuar@ums.edu.my',
-    phone: '0138876543',
-    block_name: 'Block C',
-    appointment_term: 'Sesi 2025/2026',
-    role_title: 'Pegawai Felo / Warden KKTF'
-  },
-  'block d': {
-    warden_name: 'Puan Siti Zubaidah binti Hassan',
-    warden_email: 'sitizubaidah@ums.edu.my',
-    phone: '0149981234',
-    block_name: 'Block D',
-    appointment_term: 'Sesi 2025/2026',
-    role_title: 'Pegawai Felo / Warden KKTF'
-  },
-  'block e': {
-    warden_name: 'Dr. Ahmad Syakir bin Zakaria',
-    warden_email: 'syakir.zakaria@ums.edu.my',
-    phone: '0128765432',
-    block_name: 'Block E',
-    appointment_term: 'Sesi 2025/2026',
-    role_title: 'Pegawai Felo / Warden KKTF'
-  },
-  'block m': {
-    warden_name: 'Puan Norazilah binti Tuman',
-    warden_email: 'zeela@ums.edu.my',
-    phone: '0165097489',
-    block_name: 'Block M',
-    appointment_term: 'Sesi 2025/2026',
     role_title: 'Pegawai Felo / Warden KKTF'
   }
 };
@@ -96,9 +54,7 @@ export default function Contact() {
   const [currentUser, setCurrentUser] = useState(null);
   const [studentProfile, setStudentProfile] = useState(null);
   const [wardenAssignments, setWardenAssignments] = useState([]);
-  const [activeBlockView, setActiveBlockView] = useState('Block B');
   const [loading, setLoading] = useState(true);
-  const [showAllDirectory, setShowAllDirectory] = useState(false);
 
   // Quick message form state
   const [messageForm, setMessageForm] = useState({
@@ -114,21 +70,15 @@ export default function Contact() {
         setLoading(true);
         const [user, students, wBlocks] = await Promise.all([
           base44.auth.me(),
-          base44.entities.Student.list(),
-          base44.entities.WardenBlock.list()
+          base44.entities.Student.list().catch(() => []),
+          base44.entities.WardenBlock.list().catch(() => [])
         ]);
         setCurrentUser(user);
         setWardenAssignments(wBlocks || []);
 
         if (user) {
-          const myStud = (students || []).find(s => s.email === user.email || s.user_id === user.id);
-          setStudentProfile(myStud);
-
-          if (myStud && myStud.block_name) {
-            setActiveBlockView(myStud.block_name);
-          } else {
-            setActiveBlockView('Block B');
-          }
+          const myStud = (students || []).find(s => s.email === user.email || s.user_id === user.id || s.student_id === user.student_id);
+          setStudentProfile(myStud || null);
         }
       } catch (err) {
         console.error("Gagal memuatkan data perhubungan:", err);
@@ -139,57 +89,54 @@ export default function Contact() {
     loadContactData();
   }, []);
 
-  // Resolves fellow information for any given block (DB entity first, fallback to institutional collegiate directory)
+  // Blok kediaman rasmi bagi residen aktif yang sedang log masuk
+  const residentBlock = studentProfile?.block_name || currentUser?.block_name || (currentUser?.role === 'warden' ? currentUser?.active_warden_block : '') || '';
+
+  // Mencari maklumat felo yang ditugaskan khusus bagi blok jagaan residen sahaja
   const resolveFeloForBlock = (targetBlock) => {
     if (!targetBlock) return null;
-    const norm = targetBlock.trim().toLowerCase();
+    const norm = targetBlock.trim().toLowerCase().replace(/^blok\s*/i, 'block ');
 
-    // 1. Semak padanan langsung daripada pangkalan data WardenBlock
-    const dbMatch = wardenAssignments.find(w => w.block_name && w.block_name.trim().toLowerCase() === norm);
+    // 1. Semak padanan langsung daripada rekod pangkalan data WardenBlock
+    const dbMatch = wardenAssignments.find(w => {
+      if (!w.block_name) return false;
+      const wbNorm = w.block_name.trim().toLowerCase().replace(/^blok\s*/i, 'block ');
+      return wbNorm === norm;
+    });
+
     if (dbMatch) {
       const cachedPhone = localStorage.getItem(`warden_phone_${dbMatch.warden_user_id}`);
       const cachedTerm = localStorage.getItem(`warden_term_${dbMatch.warden_user_id}`);
-      const allAssignedBlocks = wardenAssignments
-        .filter(w => w.warden_user_id === dbMatch.warden_user_id)
-        .map(w => w.block_name);
 
       return {
         warden_name: dbMatch.warden_name || 'Pegawai Felo KKTF',
-        warden_email: dbMatch.warden_email || 'zeela@ums.edu.my',
+        warden_email: dbMatch.warden_email || '',
         phone: cachedPhone || dbMatch.phone || dbMatch.whatsapp_number || '0165097489',
         block_name: dbMatch.block_name,
         appointment_term: cachedTerm || dbMatch.appointment_term || 'Sesi 2025/2026',
-        managed_blocks: allAssignedBlocks.length > 0 ? allAssignedBlocks : [dbMatch.block_name],
+        role_title: 'Pegawai Felo / Warden KKTF',
         is_live_db: true
       };
     }
 
-    // 2. Semak direktori standard kolej jika belum ada dalam pangkalan data
-    const def = DEFAULT_BLOCK_WARDENS[norm];
-    if (def) {
-      const cachedPhone = localStorage.getItem(`warden_phone_norazilah`);
+    // 2. Semak rekod rasmi felo Blok B jika belum dimasukkan dalam WardenBlock pangkalan data
+    const known = KNOWN_WARDENS[norm];
+    if (known) {
+      const cachedPhone = localStorage.getItem('warden_phone_norazilah');
+      const cachedTerm = localStorage.getItem('warden_term_norazilah');
       return {
-        ...def,
-        phone: cachedPhone || def.phone,
-        managed_blocks: [def.block_name],
+        ...known,
+        phone: cachedPhone || known.phone,
+        appointment_term: cachedTerm || known.appointment_term,
         is_live_db: false
       };
     }
 
-    // 3. Fallback jika blok baharu belum ada penetapan
-    return {
-      warden_name: 'Pejabat Pentadbiran Felo KKTF',
-      warden_email: 'kktf@ums.edu.my',
-      phone: '0127922979',
-      block_name: targetBlock,
-      appointment_term: 'Sesi 2025/2026',
-      managed_blocks: [targetBlock],
-      is_live_db: false
-    };
+    // 3. Jika tiada lantikan dalam pangkalan data atau rekod rasmi: pulangkan null (tiada lantikan felo)
+    return null;
   };
 
-  const currentFelo = resolveFeloForBlock(activeBlockView);
-  const studentAssignedFelo = studentProfile?.block_name ? resolveFeloForBlock(studentProfile.block_name) : null;
+  const currentFelo = residentBlock ? resolveFeloForBlock(residentBlock) : null;
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -287,181 +234,173 @@ export default function Contact() {
       </div>
 
       {/* ========================================================================= */}
-      {/* SEKSYEN 1: PEGAWAI FELO / WARDEN BLOK (DINAMIK MENGIKUT BLOK PELAJAR)     */}
+      {/* SEKSYEN 1: PEGAWAI FELO / WARDEN BLOK (MENGIKUT BLOK PELAJAR SAHAJA)       */}
       {/* ========================================================================= */}
-      <Card className="border-indigo-100 dark:border-indigo-900/60 bg-gradient-to-br from-indigo-50/40 via-card to-background shadow-sm hover:shadow-md transition-all rounded-3xl overflow-hidden">
-        <CardHeader className="pb-3 border-b border-indigo-100/70 dark:border-indigo-950/60 bg-indigo-50/30 dark:bg-indigo-950/20">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <Card className="border-indigo-100 dark:border-indigo-900/60 bg-gradient-to-br from-indigo-50/30 via-card to-background shadow-xs hover:shadow-sm transition-all rounded-3xl overflow-hidden">
+        <CardHeader className="pb-3 border-b border-indigo-100/70 dark:border-indigo-950/60 bg-indigo-50/20 dark:bg-indigo-950/10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <div className="flex items-center gap-2">
                 <CardTitle className="text-base font-bold font-heading text-foreground flex items-center gap-2">
                   <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /> 
                   Pegawai Felo / Warden Blok Jagaan Anda
                 </CardTitle>
-                <Badge className="bg-indigo-600 text-white text-[10px] font-bold">
-                  {studentProfile?.block_name === activeBlockView ? 'Blok Kediaman Anda' : `Paparan: ${activeBlockView}`}
-                </Badge>
               </div>
-              <CardDescription className="text-xs mt-0.5">
-                Maklumat perhubungan felo dipetakan mengikut blok jagaan masing-masing bagi kebajikan, kelulusan cuti, dan keselamatan residen.
+              <CardDescription className="text-xs mt-0.5 text-muted-foreground">
+                Maklumat perhubungan pegawai felo bertugas yang mengurus kebajikan, kelulusan permohonan dan keselamatan di blok kediaman anda.
               </CardDescription>
             </div>
 
-            {/* Selector Cepat Blok */}
-            <div className="flex items-center gap-1.5 bg-background p-1.5 rounded-2xl border border-border shadow-2xs">
-              <span className="text-[11px] text-muted-foreground font-semibold px-2">Pilih Blok:</span>
-              <div className="flex flex-wrap gap-1">
-                {OFFICIAL_BLOCKS.map(blk => (
-                  <button
-                    key={blk}
-                    onClick={() => setActiveBlockView(blk)}
-                    className={`px-2.5 py-1 text-xs font-bold rounded-xl transition-all ${
-                      activeBlockView === blk
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/70'
-                    }`}
-                  >
-                    {blk.replace('Block ', 'Blok ')}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {residentBlock && (
+              <Badge className="bg-indigo-600 hover:bg-indigo-600 text-white text-xs font-bold px-3 py-1 self-start sm:self-auto shrink-0 shadow-2xs">
+                🏢 {residentBlock} {studentProfile?.room_number ? `— Bilik ${studentProfile.room_number}` : ''}
+              </Badge>
+            )}
           </div>
         </CardHeader>
 
         <CardContent className="pt-4">
-          {currentFelo && (
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 p-4 bg-background border border-indigo-100 dark:border-indigo-900/60 rounded-2xl shadow-2xs">
-              <div className="flex items-start sm:items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white font-extrabold flex items-center justify-center text-xl shadow-md shrink-0 border border-indigo-300 dark:border-indigo-600">
-                  {currentFelo.warden_name ? currentFelo.warden_name.charAt(0) : 'F'}
+          {currentFelo ? (
+            /* JIKA ADA FELO DILANTIK */
+            <div className="p-4 sm:p-5 bg-background border border-indigo-100 dark:border-indigo-900/60 rounded-2xl shadow-2xs">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                {/* Info Felo */}
+                <div className="flex items-start sm:items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white font-extrabold flex items-center justify-center text-xl shadow-md shrink-0 border border-indigo-300 dark:border-indigo-600">
+                    {currentFelo.warden_name ? currentFelo.warden_name.charAt(0) : 'F'}
+                  </div>
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-bold text-base text-foreground truncate">
+                        {currentFelo.warden_name}
+                      </h3>
+                      <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200">
+                        {currentFelo.appointment_term || 'Sesi 2025/2026'}
+                      </Badge>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      {currentFelo.warden_email && (
+                        <span className="flex items-center gap-1">
+                          <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                          {currentFelo.warden_email}
+                        </span>
+                      )}
+                      <span className="font-mono font-bold text-foreground flex items-center gap-1">
+                        📱 {currentFelo.phone}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <span className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                        Kawal Selia: <strong>{residentBlock}</strong>
+                      </span>
+                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Felo Bertugas Blok Anda
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action buttons (Clean responsive layout, no clipping) */}
+                <div className="flex flex-wrap items-center gap-2 pt-2 lg:pt-0 shrink-0">
+                  <a 
+                    href={getFeloWhatsAppLink(currentFelo, residentBlock)} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="flex-1 sm:flex-none"
+                  >
+                    <Button 
+                      size="sm" 
+                      className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl gap-1.5 shadow-xs px-4 h-9"
+                    >
+                      <MessageCircle className="w-4 h-4" /> WhatsApp Felo (1-Klik)
+                    </Button>
+                  </a>
+
+                  <a 
+                    href={`tel:${currentFelo.phone}`} 
+                    className="flex-1 sm:flex-none"
+                  >
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      className="w-full sm:w-auto text-xs font-bold rounded-xl gap-1.5 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 px-4 h-9"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Panggil Felo
+                    </Button>
+                  </a>
+
+                  <Button 
+                    size="sm" 
+                    variant="secondary"
+                    onClick={() => navigate('/chat')}
+                    className="flex-1 sm:flex-none text-xs font-bold rounded-xl gap-1.5 px-4 h-9 text-foreground"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 text-muted-foreground" /> In-App Chat
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : residentBlock ? (
+            /* JIKA RESIDEN ADA BLOK TETAPI BELUM ADA LANTIKAN FELO DALAM BLOK INI */
+            <div className="p-5 bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/60 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl shrink-0 border border-amber-500/20">
+                  <ShieldAlert className="w-6 h-6" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-bold text-base text-foreground">
-                      {currentFelo.warden_name}
-                    </h3>
-                    <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200">
-                      {currentFelo.appointment_term || 'Sesi 2025/2026'}
+                    <h4 className="font-bold text-sm sm:text-base text-foreground">
+                      Tiada Lantikan Felo / Warden bagi {residentBlock}
+                    </h4>
+                    <Badge variant="outline" className="text-[10px] font-bold border-amber-300 text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50">
+                      Belum Dilantik
                     </Badge>
                   </div>
-                  
-                  <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-2">
-                    <span>{currentFelo.warden_email}</span>
-                    <span>&bull;</span>
-                    <span className="font-mono font-bold text-foreground flex items-center gap-1">
-                      📱 {currentFelo.phone}
-                    </span>
+                  <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed">
+                    Buat masa ini, belum ada rekod pelantikan Pegawai Felo atau Warden rasmi yang didaftarkan bagi <strong>{residentBlock}</strong>. Untuk sebarang urusan kebajikan, kelulusan cuti (E-Leave), atau bantuan mendesak, sila hubungi terus Pejabat Pentadbiran KKTF atau talian hotline keselamatan kampus.
                   </p>
-                  
-                  <div className="flex items-center gap-2 pt-0.5">
-                    <span className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-lg border border-indigo-200 dark:border-indigo-800">
-                      🏢 Kawal Selia: <strong>{activeBlockView}</strong>
-                    </span>
-                    {studentProfile?.block_name === activeBlockView && (
-                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Felo Blok Anda (Bilik {studentProfile.room_number || '-'})
-                      </span>
-                    )}
-                  </div>
                 </div>
               </div>
 
-              {/* Action buttons */}
-              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
-                <a 
-                  href={getFeloWhatsAppLink(currentFelo, activeBlockView)} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="flex-1 md:flex-none"
-                >
-                  <Button 
-                    size="sm" 
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl gap-1.5 shadow-xs px-4"
-                  >
-                    <MessageCircle className="w-4 h-4" /> WhatsApp Felo (1-Klik)
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0 pt-1 sm:pt-0">
+                <a href="tel:088329053" className="flex-1 sm:flex-none">
+                  <Button size="sm" variant="outline" className="w-full text-xs font-bold rounded-xl gap-1.5 border-border hover:bg-background h-9">
+                    <Phone className="w-3.5 h-3.5 text-primary" /> Hubungi Pejabat KKTF
                   </Button>
                 </a>
-
-                <a 
-                  href={`tel:${currentFelo.phone}`} 
-                  className="flex-1 md:flex-none"
-                >
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="w-full text-xs font-bold rounded-xl gap-1.5 border-indigo-200 hover:bg-indigo-50 dark:hover:bg-indigo-950"
-                  >
-                    <Phone className="w-3.5 h-3.5 text-indigo-600" /> Panggil Felo
+                <a href="tel:0127922979" className="flex-1 sm:flex-none">
+                  <Button size="sm" className="w-full bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl gap-1.5 shadow-xs h-9">
+                    <Phone className="w-3.5 h-3.5" /> Hotline Keselamatan
                   </Button>
                 </a>
-
-                <Button 
-                  size="sm" 
-                  variant="ghost"
-                  onClick={() => navigate('/chat')}
-                  className="flex-1 md:flex-none text-xs font-bold rounded-xl gap-1 text-muted-foreground"
-                >
-                  In-App Chat
-                </Button>
               </div>
             </div>
-          )}
+          ) : (
+            /* JIKA RESIDEN BELUM ADA PENETAPAN BLOK DALAM PROFIL */
+            <div className="p-5 bg-muted/40 border border-border rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-muted text-muted-foreground flex items-center justify-center text-xl shrink-0 border border-border">
+                  <Building2 className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-bold text-sm sm:text-base text-foreground">
+                    Blok Kediaman Belum Ditetapkan
+                  </h4>
+                  <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed">
+                    Profil anda belum mempunyai rekod penetapan blok kediaman rasmi. Sila lengkapkan pendaftaran bilik atau kemaskini profil residen anda bagi membolehkan sistem memaparkan pegawai felo jagaan blok anda.
+                  </p>
+                </div>
+              </div>
 
-          {/* Collapsible Full Directory by Block */}
-          <div className="mt-3 pt-3 border-t border-indigo-100/60 dark:border-indigo-900/40 flex items-center justify-between">
-            <p className="text-[11px] text-muted-foreground italic">
-              💡 <em>Memerlukan bantuan felo dari blok lain? Anda boleh menukar butang blok di atas atau buka senarai direktori penuh.</em>
-            </p>
-            <Button
-              variant="link"
-              size="sm"
-              onClick={() => setShowAllDirectory(!showAllDirectory)}
-              className="text-indigo-600 dark:text-indigo-400 text-xs font-bold p-0 h-auto"
-            >
-              {showAllDirectory ? 'Sembunyikan Direktori Semua Blok ▲' : 'Lihat Direktori Semua Blok KKTF ▼'}
-            </Button>
-          </div>
-
-          {showAllDirectory && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3 pt-2">
-              {OFFICIAL_BLOCKS.map(blk => {
-                const f = resolveFeloForBlock(blk);
-                const isMy = studentProfile?.block_name === blk;
-                return (
-                  <div key={blk} className={`p-3 rounded-2xl border text-xs space-y-1.5 transition-all ${
-                    isMy 
-                      ? 'bg-indigo-50/70 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 shadow-2xs' 
-                      : 'bg-card border-border hover:border-indigo-200'
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-indigo-900 dark:text-indigo-200">{blk}</span>
-                      {isMy && <Badge className="bg-indigo-600 text-[10px]">Blok Anda</Badge>}
-                    </div>
-                    <p className="font-semibold text-foreground truncate">{f.warden_name}</p>
-                    <p className="text-muted-foreground font-mono text-[11px] flex items-center gap-1">
-                      📱 {f.phone}
-                    </p>
-                    <div className="pt-1 flex gap-1.5">
-                      <a 
-                        href={getFeloWhatsAppLink(f, blk)} 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className="flex-1"
-                      >
-                        <Button size="sm" className="w-full h-7 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg gap-1">
-                          <MessageCircle className="w-3 h-3" /> WhatsApp
-                        </Button>
-                      </a>
-                      <a href={`tel:${f.phone}`} className="flex-1">
-                        <Button size="sm" variant="outline" className="w-full h-7 text-[11px] font-bold rounded-lg gap-1">
-                          <Phone className="w-3 h-3 text-indigo-600" /> Panggil
-                        </Button>
-                      </a>
-                    </div>
-                  </div>
-                );
-              })}
+              <Button 
+                size="sm" 
+                onClick={() => navigate('/profile')} 
+                className="w-full sm:w-auto text-xs font-bold rounded-xl gap-1.5 shrink-0 h-9"
+              >
+                <User className="w-3.5 h-3.5" /> Kemaskini Profil Residen
+              </Button>
             </div>
           )}
         </CardContent>
