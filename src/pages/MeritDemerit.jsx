@@ -751,6 +751,17 @@ export default function MeritDemerit() {
           is_athlete: true
         });
         setStudents(prev => prev.map(s => s.id === student.id ? { ...s, merit_points: newMerit, is_athlete: true } : s));
+
+        // Dispatch in-app notification to student
+        if (student.user_id) {
+          await base44.entities.Notification.create({
+            user_id: student.user_id,
+            title: `🏅 Tuntutan Merit Sukan Disahkan! (+${tx.points} Mata)`,
+            message: `Tahniah! Tuntutan sumbangan sukan anda bagi "${tx.sport_name || tx.tournament_name}" telah disahkan oleh ${currentUser?.full_name || 'Felo Penyelaras Sukan'}. Mata merit telah dikreditkan ke transkrip anda.`,
+            type: 'event',
+            link: '/merit?tab=my_record'
+          }).catch(() => {});
+        }
       } catch (e) {
         console.warn('Failed updating student upon sports approval:', e);
       }
@@ -760,7 +771,8 @@ export default function MeritDemerit() {
     toast.success(`Permohonan merit sukan ${tx.student_name} (+${tx.points} mata) telah disahkan dan dikreditkan!`);
   };
 
-  const handleRejectSportsTx = (tx) => {
+  const handleRejectSportsTx = async (tx) => {
+    const student = students.find(s => s.id === tx.student_id);
     const updatedTxs = meritTransactions.map(t => t.id === tx.id ? { 
       ...t, 
       status: 'Rejected', 
@@ -772,6 +784,17 @@ export default function MeritDemerit() {
     } catch (e) {
       console.warn('Failed saving rejected transaction:', e);
     }
+
+    if (student?.user_id) {
+      await base44.entities.Notification.create({
+        user_id: student.user_id,
+        title: `Status Tuntutan Merit Sukan`,
+        message: `Permohonan tuntutan sukan bagi "${tx.sport_name || tx.tournament_name}" tidak diluluskan. Sila rujuk Biro Sukan JAKMAS atau Felo Penyelaras untuk semakan bukti.`,
+        type: 'event',
+        link: '/merit?tab=my_record'
+      }).catch(() => {});
+    }
+
     toast.error(`Permohonan tuntutan sukan bagi ${tx.student_name} telah ditolak.`);
   };
 
