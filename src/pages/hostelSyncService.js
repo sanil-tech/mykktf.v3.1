@@ -14,9 +14,13 @@ export async function verifyAndSyncOccupancy(apiInstance = null) {
 
   const tasks = rooms
     .map((room) => {
-      const actualOccupancy = students.filter(
-        (s) => String(s.room_id) === String(room.id)
-      ).length;
+      const actualOccupancy = students.filter((s) => {
+        const isArchived = String(s.resident_status || '').toLowerCase() === 'archived';
+        const isCheckedOut = String(s.room_status || '').toLowerCase() === 'checked out';
+        if (isArchived || isCheckedOut) return false;
+        return String(s.room_id) === String(room.id) ||
+               (s.block_name === room.block_name && String(s.room_number) === String(room.room_number));
+      }).length;
       const correctStatus = computeStatus(actualOccupancy, room.capacity || 4);
 
       if (

@@ -36,7 +36,15 @@ export default function WardenDashboard({ user }) {
   const [stats, setStats] = useState({ totalStudents: 0, occupiedRooms: 0, vacantRooms: 0, activeComplaints: 0 });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { 
+    load(); 
+
+    const handleRefresh = () => {
+      load();
+    };
+    window.addEventListener('KRMS_MODULES_REFRESH', handleRefresh);
+    return () => window.removeEventListener('KRMS_MODULES_REFRESH', handleRefresh);
+  }, [user]);
 
   async function load() {
     setLoading(true);

@@ -371,10 +371,21 @@ export default function CheckInOut() {
       });
 
       if (room) {
-        const nextOcc = Math.max(0, (room.current_occupancy || 0) - 1);
+        // Kira baki sebenar penghuni aktif dalam bilik untuk ketepatan 100%
+        const remainingOccupants = students.filter(s => 
+          String(s.id) !== String(selectedStudent.id) &&
+          (String(s.room_id) === String(room.id) || (s.block_name === room.block_name && String(s.room_number) === String(room.room_number))) &&
+          String(s.room_status || '').toLowerCase() !== 'checked out' &&
+          String(s.resident_status || '').toLowerCase() !== 'archived'
+        ).length;
+
+        const nextStatus = remainingOccupants === 0 
+          ? 'Available' 
+          : (remainingOccupants >= (room.capacity || 4) ? 'Full' : 'Occupied');
+
         await base44.entities.Room.update(room.id, {
-          current_occupancy: nextOcc,
-          status: nextOcc === 0 ? 'Available' : 'Occupied',
+          current_occupancy: remainingOccupants,
+          status: nextStatus,
         }).catch(() => {});
       }
 

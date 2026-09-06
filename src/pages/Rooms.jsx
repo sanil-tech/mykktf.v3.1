@@ -115,7 +115,13 @@ export default function Rooms() {
       // INTEGRITI DATA CHECK AUTOMATIK
       let repairCount = 0;
       const autoRepairPromises = freshRooms.map(async (room) => {
-        const actualOccupancy = freshStudents.filter(s => String(s.room_id) === String(room.id)).length;
+        const actualOccupancy = freshStudents.filter(s => {
+          const isArchived = String(s.resident_status || '').toLowerCase() === 'archived';
+          const isCheckedOut = String(s.room_status || '').toLowerCase() === 'checked out';
+          if (isArchived || isCheckedOut) return false;
+          return String(s.room_id) === String(room.id) || 
+                 (s.block_name === room.block_name && String(s.room_number) === String(room.room_number));
+        }).length;
         const currentDerivedStatus = determineStatus(room, actualOccupancy);
 
         if (Number(room.current_occupancy) !== actualOccupancy || room.status !== currentDerivedStatus) {
@@ -207,7 +213,13 @@ export default function Rooms() {
   };
 
   const getRoomMetrics = (room) => {
-    const assignedStudents = students.filter(s => String(s.room_id) === String(room.id));
+    const assignedStudents = students.filter(s => {
+      const isArchived = String(s.resident_status || '').toLowerCase() === 'archived';
+      const isCheckedOut = String(s.room_status || '').toLowerCase() === 'checked out';
+      if (isArchived || isCheckedOut) return false;
+      return String(s.room_id) === String(room.id) || 
+             (s.block_name === room.block_name && String(s.room_number) === String(room.room_number));
+    });
     const actualOccupancy = assignedStudents.length;
     const capacity = Number(room.capacity || 4);
     

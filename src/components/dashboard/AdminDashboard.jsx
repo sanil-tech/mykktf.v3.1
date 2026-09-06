@@ -123,6 +123,15 @@ export default function AdminDashboard({ user }) {
 
   useEffect(() => {
     fetchDashboardData();
+
+    const handleGlobalRefresh = () => {
+      fetchDashboardData();
+    };
+
+    window.addEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
+    return () => {
+      window.removeEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
+    };
   }, []);
 
   // 📊 LOGIK PENAPISAN KAD (Punca Kebenaran Tunggal / Single Source of Truth)
