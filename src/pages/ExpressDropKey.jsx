@@ -55,26 +55,19 @@ export default function ExpressDropKey() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const userRole = (user?.role || user?.effectiveRole || 'student').toLowerCase();
-  const userEmail = (user?.email || '').toLowerCase();
-  const isPrincipal = userRole === 'principal' || userEmail.includes('nurfadilah');
-  const isSuperAdmin = userRole === 'super_admin' || userEmail.includes('sanil');
-  const isCollegeAdmin = userRole === 'college_admin';
-  const isStaff = userRole === 'staff';
-  const isWarden = userRole === 'warden' && !isPrincipal && !isSuperAdmin;
+  const rawRole = (user?.role || user?.effectiveRole || '').toLowerCase().trim();
+  const email = (user?.email || '').toLowerCase().trim();
 
-  const isStaffOrAdmin = isPrincipal || isSuperAdmin || isCollegeAdmin || isStaff;
+  // Explicit check for Principal, Super Admin, College Admin, Staff, Warden
+  const isPrincipal = rawRole === 'principal' || email === 'nurfadilahdarmansah@gmail.com' || email.includes('nurfadilah');
+  const isSuperAdmin = rawRole === 'super_admin' || email === 'sanil@ums.edu.my';
+  const isCollegeAdmin = rawRole === 'college_admin';
+  const isStaff = rawRole === 'staff';
+  const isWarden = rawRole === 'warden' && !isPrincipal && !isSuperAdmin;
 
-  // Toggle View Mode: 'admin' (lalai untuk staf/pengetua) vs 'student' (lalai untuk pelajar)
-  const [viewMode, setViewMode] = useState(isStaffOrAdmin ? 'admin' : 'student');
-
-  useEffect(() => {
-    if (isStaffOrAdmin) {
-      setViewMode('admin');
-    } else {
-      setViewMode('student');
-    }
-  }, [user?.role, user?.effectiveRole, user?.email]);
+  // Strict separation: Admin vs Student (Pelajar hanya melihat paparan pelajar, Pentadbir untuk pentadbir)
+  const isAdmin = !isWarden && (isPrincipal || isSuperAdmin || isCollegeAdmin || isStaff);
+  const isStudent = !isAdmin && !isWarden;
 
   // Data States
   const [student, setStudent] = useState(null);
@@ -239,83 +232,53 @@ export default function ExpressDropKey() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      {/* HEADER UTAMA BERSAMA TOGGLE PENTADBIR */}
+      {/* HEADER UTAMA: DISESUAIKAN MENGIKUT PERANAN (TIADA CROSSOVER) */}
       <PageHeader
         title={
           isWarden
             ? 'Express Drop-Key Check-Out'
-            : viewMode === 'admin'
+            : isAdmin
               ? 'Pusat Pengurusan Peti Drop-Key (Pentadbiran)'
               : 'Express Drop-Key Check-Out'
         }
         description={
           isWarden
             ? 'Makluman bidang kuasa dan aliran tugas berkaitan penyerahan kunci kolej.'
-            : viewMode === 'admin'
+            : isAdmin
               ? 'Pengesahan fizikal serahan kunci bilik di Peti Drop-Key oleh Staf Pentadbiran Pejabat KKTF.'
               : 'Sistem serahan kunci pantas kolej kediaman di luar waktu pejabat dan hujung minggu.'
         }
         actions={
-          isWarden ? null : (
+          isAdmin ? (
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Butang Toggle View Mode untuk Pentadbir */}
-              {isStaffOrAdmin && (
-                <div className="bg-muted p-1 rounded-xl border flex items-center gap-1">
-                  <Button
-                    variant={viewMode === 'admin' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('admin')}
-                    className={`h-7 text-xs font-semibold rounded-lg ${
-                      viewMode === 'admin' ? 'bg-indigo-600 text-white shadow-xs' : 'text-muted-foreground'
-                    }`}
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Pusat Pentadbir
-                  </Button>
-                  <Button
-                    variant={viewMode === 'student' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('student')}
-                    className={`h-7 text-xs font-semibold rounded-lg ${
-                      viewMode === 'student' ? 'bg-indigo-600 text-white shadow-xs' : 'text-muted-foreground'
-                    }`}
-                  >
-                    <Users className="w-3.5 h-3.5 mr-1" /> Paparan Pelajar
-                  </Button>
-                </div>
-              )}
-
-              {viewMode === 'admin' ? (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowPosterModal(true)}
-                    className="h-9 text-xs gap-1.5 border-border bg-card shadow-xs"
-                  >
-                    <Printer className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Cetak Poster Peti QR</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={refreshAllData}
-                    disabled={loading}
-                    className="h-9 text-xs gap-1.5 border-border bg-card shadow-xs"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 text-slate-600 ${loading ? 'animate-spin' : ''}`} />
-                    <span>Muat Semula</span>
-                  </Button>
-                </>
-              ) : (
-                <Link to="/contact">
-                  <Button variant="outline" size="sm" className="h-9 text-xs gap-1.5 border-border">
-                    <PhoneCall className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Hotline Kolej</span>
-                  </Button>
-                </Link>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPosterModal(true)}
+                className="h-9 text-xs gap-1.5 border-border bg-card shadow-xs"
+              >
+                <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Cetak Poster Peti QR</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refreshAllData}
+                disabled={loading}
+                className="h-9 text-xs gap-1.5 border-border bg-card shadow-xs"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-slate-600 ${loading ? 'animate-spin' : ''}`} />
+                <span>Muat Semula</span>
+              </Button>
             </div>
-          )
+          ) : isStudent ? (
+            <Link to="/contact">
+              <Button variant="outline" size="sm" className="h-9 text-xs gap-1.5 border-border">
+                <PhoneCall className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Hotline Kolej</span>
+              </Button>
+            </Link>
+          ) : null
         }
       />
 
@@ -359,7 +322,7 @@ export default function ExpressDropKey() {
       {/* ========================================================================= */}
       {/* PAPARAN 1: PUSAT PENTADBIRAN (ADMIN / PENGETUA / STAF PEJABAT)             */}
       {/* ========================================================================= */}
-      {!isWarden && viewMode === 'admin' && (
+      {isAdmin && (
         <div className="space-y-6">
           {/* BANNER RINGKAS PERANAN STAF */}
           <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white rounded-3xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -675,7 +638,7 @@ export default function ExpressDropKey() {
       {/* ========================================================================= */}
       {/* PAPARAN 2: ALIRAN PERMOHONAN PELAJAR (STUDENT VIEW)                       */}
       {/* ========================================================================= */}
-      {!isWarden && viewMode === 'student' && (
+      {isStudent && (
         <div className="space-y-6">
           {/* BANNER STATUS WAKTU OPERASI (PEJABAT VS LUAR WAKTU PEJABAT) */}
           <div className={`p-4 sm:p-5 rounded-2xl border shadow-xs transition-all ${
