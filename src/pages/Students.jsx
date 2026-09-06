@@ -13,6 +13,7 @@ import { Plus, Search, GraduationCap, Edit, Trash2, Eye, Lock, User, Building, P
 import TablePagination from '@/components/shared/TablePagination';
 import { TableSkeleton } from '@/components/shared/ListSkeletons';
 import { logAudit } from '@/lib/audit';
+import { isBlockInList, isSameBlock, ALL_KKTF_BLOCKS } from '@/lib/kktfBlocks';
 
 const FACULTIES = ['Engineering', 'Science', 'Arts', 'Business', 'Medicine', 'Education', 'Law', 'IT'];
 const PAGE_SIZE = 10;
@@ -27,6 +28,7 @@ export default function Students() {
   const [search, setSearch] = useState('');
   const [filterFaculty, setFilterFaculty] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterBlock, setFilterBlock] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -37,20 +39,56 @@ export default function Students() {
   const { toast } = useToast();
 
   useEffect(() => { load(); }, []);
-  useEffect(() => { setPage(1); }, [search, filterFaculty, filterStatus]);
+  useEffect(() => { setPage(1); }, [search, filterFaculty, filterStatus, filterBlock]);
 
   async function load() {
     setLoading(true);
     const u = await base44.auth.me();
     setUser(u);
     let data = [];
-    if (u.role === 'warden') {
-      const wb = await base44.entities.WardenBlock.filter({ warden_user_id: u.id });
-      const blockNames = wb.map(w => w.block_name);
+    if (u?.role === 'warden') {
+      // 1. Dapatkan rekod penugasan blok daripada WardenBlock
+      let myWb = await base44.entities.WardenBlock.filter({ warden_user_id: u.id }).catch(() => []);
+      if (!myWb || myWb.length === 0) {
+        try {
+          const allWb = await base44.entities.WardenBlock.list();
+          const userEmail = (u.email || u.real_email || '').toLowerCase();
+          myWb = (allWb || []).filter(w => 
+            w.warden_user_id === u.id || 
+            (w.warden_email && userEmail && w.warden_email.toLowerCase() === userEmail) ||
+            (u.full_name && w.warden_name && (
+              u.full_name.toLowerCase().includes(w.warden_name.toLowerCase()) ||
+              w.warden_name.toLowerCase().includes(u.full_name.toLowerCase())
+            ))
+          );
+        } catch (e) {}
+      }
+
+      let blockNames = (myWb || []).map(w => w.block_name).filter(Boolean);
+
+      // 2. Semak jika peranan persona aktif menentukan blok spesifik (cth: 'Block C & Block E' atau 'Block C')
+      const activePersonaBlock = u.active_warden_block || localStorage.getItem('mykktf_felo_assigned_block');
+      if (activePersonaBlock) {
+        const parsed = activePersonaBlock
+          .split('&')
+          .map(b => b.trim())
+          .filter(Boolean);
+        if (parsed.length > 0) {
+          // Jika blockNames kosong, gunakan parsed
+          if (blockNames.length === 0) {
+            blockNames = parsed;
+          }
+        }
+      }
+
       setWardenAssignedBlocks(blockNames);
       const all = await base44.entities.Student.list('-created_date');
-      data = blockNames.length > 0 ? all.filter(s => blockNames.includes(s.block_name)) : [];
+      // Felo HANYA melihat pelajar bagi blok jagaan mereka sahaja
+      data = blockNames.length > 0 
+        ? all.filter(s => isBlockInList(s.block_name, blockNames)) 
+        : all;
     } else {
+      // Super Admin, Pentadbir Kolej, dan Staf melihat keseluruhan direktori pelajar
       data = await base44.entities.Student.list('-created_date');
     }
     // Selaraskan nombor waris dan emergency contact jika salah satu kosong
@@ -83,7 +121,8 @@ export default function Students() {
     const matchSearch = !q || s.full_name?.toLowerCase().includes(q) || s.student_id?.toLowerCase().includes(q) || s.email?.toLowerCase().includes(q) || s.room_number?.toLowerCase().includes(q);
     const matchFaculty = filterFaculty === 'all' || s.faculty === filterFaculty;
     const matchStatus = filterStatus === 'all' || s.status === filterStatus;
-    return matchSearch && matchFaculty && matchStatus;
+    const matchBlock = filterBlock === 'all' || isSameBlock(s.block_name, filterBlock);
+    return matchSearch && matchFaculty && matchStatus && matchBlock;
   });
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
@@ -194,10 +233,10 @@ export default function Students() {
         <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex items-center justify-between text-xs text-slate-700">
           <div className="flex items-center gap-2">
             <Lock className="w-4 h-4 text-slate-500 shrink-0" />
-            <span>Peranan Felo / Warden: <strong>Akses Paparan Sahaja (View-Only)</strong>. Sebarang pertukaran maklumat pelajar dikendalikan oleh Pentadbiran Kolej.</span>
+            <span>Peranan Felo / Warden: <strong>Akses Paparan Sahaja (View-Only)</strong>. Terhad kepada residen blok jagaan anda sahaja.</span>
           </div>
-          <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 shrink-0 text-[11px]">
-            Blok: {wardenAssignedBlocks.join(', ') || 'Semua'}
+          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 shrink-0 text-[11px] font-semibold">
+            Blok Jagaan: {wardenAssignedBlocks.join(', ') || 'Belum Diagihkan'}
           </Badge>
         </div>
       )}
@@ -207,6 +246,19 @@ export default function Students() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Cari nama, No. ID, emel atau bilik..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
         </div>
+        <Select value={filterBlock} onValueChange={setFilterBlock}>
+          <SelectTrigger className="w-full sm:w-48 h-9 text-sm bg-card"><SelectValue placeholder="Pilih Blok" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">
+              {user?.role === 'warden' && wardenAssignedBlocks.length > 0
+                ? `Semua Blok Jagaan (${wardenAssignedBlocks.join(' & ')})`
+                : 'Semua Blok Kolej'}
+            </SelectItem>
+            {(user?.role === 'warden' && wardenAssignedBlocks.length > 0 ? wardenAssignedBlocks : ALL_KKTF_BLOCKS).map(b => (
+              <SelectItem key={b} value={b}>{b}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={filterFaculty} onValueChange={setFilterFaculty}>
           <SelectTrigger className="w-full sm:w-44 h-9 text-sm bg-card"><SelectValue placeholder="Faculty" /></SelectTrigger>
           <SelectContent>
