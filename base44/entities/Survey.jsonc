@@ -21,22 +21,57 @@
       "type": "string"
     },
     "room_satisfaction": {
-      "type": "number"
+      "type": "number",
+      "description": "Keadaan Bilik & Perabot (Room Condition & Furniture)"
+    },
+    "cleanliness_satisfaction": {
+      "type": "number",
+      "description": "Kebersihan Tandas & Kawasan Sepunya (Washroom & Common Area Cleanliness)"
+    },
+    "maintenance_satisfaction": {
+      "type": "number",
+      "description": "Kepantasan Penyelenggaraan Kerosakan (Maintenance & Repair Response)"
     },
     "facility_satisfaction": {
-      "type": "number"
+      "type": "number",
+      "description": "Kualiti Fasiliti & Kemudahan Kolej (Facilities & Amenities)"
     },
     "internet_satisfaction": {
-      "type": "number"
+      "type": "number",
+      "description": "Kestabilan Internet Wi-Fi UMS (Wi-Fi Connectivity)"
     },
     "staff_satisfaction": {
-      "type": "number"
+      "type": "number",
+      "description": "Layanan Pentadbiran & Felo Blok (Staff & Warden Welfare Care)"
+    },
+    "staff_warden_satisfaction": {
+      "type": "number",
+      "description": "Layanan Pentadbiran & Felo Blok"
     },
     "security_satisfaction": {
-      "type": "number"
+      "type": "number",
+      "description": "Keselamatan & Kawalan Pengawal (Safety & Security)"
+    },
+    "checkout_process_satisfaction": {
+      "type": "number",
+      "description": "Kelancaran Check-In / Express Drop-Key (Check-In/Out & Drop-Key Process)"
     },
     "overall_satisfaction": {
-      "type": "number"
+      "type": "number",
+      "description": "Kepuasan Keseluruhan Penginapan (Overall Residential Experience)"
+    },
+    "returning_sem2_intent": {
+      "type": "string",
+      "enum": [
+        "yes",
+        "no",
+        "unsure"
+      ],
+      "description": "Hasrat Menginap Semula Semester 2 (Intention to Return for Sem 2)"
+    },
+    "best_aspect": {
+      "type": "string",
+      "description": "Aspek Terbaik / Yang Dihargai Sepanjang Menetap di KKTF"
     },
     "comments": {
       "type": "string"
@@ -77,6 +112,11 @@
         {
           "user_condition": {
             "role": "staff"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "warden"
           }
         },
         {
