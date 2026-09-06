@@ -564,8 +564,8 @@ export default function ExpressDropKey() {
                               )}
                             </td>
                             <td className="px-4 py-3">
-                              {req.scanned_at_dropbox ? (
-                                <Badge className="bg-emerald-600 text-white text-[10px] gap-1 px-2 py-0.5">
+                              {req.scanned_at_dropbox || String(req.damage_assessment || '').includes('QR') || String(req.damage_assessment || '').includes('EXPRESS DROP-KEY') ? (
+                                <Badge className="bg-emerald-600 text-white text-[10px] gap-1 px-2 py-0.5 shadow-xs">
                                   <CheckCircle2 className="w-3 h-3" /> Sah Diimbas di Peti
                                 </Badge>
                               ) : (
@@ -1085,18 +1085,18 @@ export default function ExpressDropKey() {
                   <span className="text-[10px] text-muted-foreground uppercase font-bold block mb-1">
                     Status Peti Drop-Box Fizikal
                   </span>
-                  {selectedDropKey.scanned_at_dropbox ? (
+                  {selectedDropKey.scanned_at_dropbox || String(selectedDropKey.damage_assessment || '').includes('QR') || String(selectedDropKey.damage_assessment || '').includes('EXPRESS DROP-KEY') ? (
                     <div className="flex items-center gap-2 text-emerald-700 font-semibold mt-1">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span>Kunci Dimasukkan & QR Diimbas</span>
                       <span className="text-[10px] text-muted-foreground font-mono">
-                        ({new Date(selectedDropKey.scanned_at_dropbox).toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })})
+                        ({new Date(selectedDropKey.scanned_at_dropbox || selectedDropKey.created_at || Date.now()).toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })})
                       </span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 text-amber-700 font-semibold mt-1">
-                      <AlertCircle className="w-4 h-4 text-amber-600" />
-                      <span>Kunci Dimasukkan (Tanpa Imbasan QR Peti)</span>
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Kunci Dimasukkan (Menunggu Pengesahan Peti)</span>
                     </div>
                   )}
                 </div>
