@@ -17,6 +17,18 @@ import { ALL_KKTF_BLOCKS, isSameBlock } from '@/lib/kktfBlocks';
 
 const ADMIN_ROLES = ['super_admin', 'college_admin', 'principal'];
 
+function isPrincipalWarden(w) {
+  if (!w) return false;
+  const email = (w.email || w.warden_email || '').toLowerCase();
+  const name = (w.full_name || w.warden_name || w.name || '').toLowerCase();
+  const role = (w.role || '').toLowerCase();
+  return role === 'principal' ||
+         email === 'nurfadilahdarmansah@gmail.com' ||
+         email.includes('pengetua') ||
+         name.includes('nurfadilah') ||
+         name.includes('pengetua');
+}
+
 export default function BlockAssignment() {
   const [assignments, setAssignments] = useState([]);
   const [blocks, setBlocks] = useState([]);
@@ -89,17 +101,7 @@ export default function BlockAssignment() {
       }
     } catch (e) {}
 
-    // Ensure current user (e.g. Sanil / Super Admin) is available for Pengetua to assign
-    if (u && !wardensList.some(w => w.id === u.id || (w.email && u.email && w.email.toLowerCase() === u.email.toLowerCase()))) {
-      wardensList.push({
-        id: u.id,
-        full_name: u.full_name || u.email,
-        email: u.email,
-        role: u.role
-      });
-    }
-
-    // Also include any wardens already in assignments
+    // Also include any wardens already in assignments (except principal)
     if (Array.isArray(a)) {
       a.forEach(assign => {
         if (assign.warden_user_id && !wardensList.some(w => w.id === assign.warden_user_id)) {
@@ -111,6 +113,39 @@ export default function BlockAssignment() {
         }
       });
     }
+
+    // Include current user if eligible and not principal
+    if (u && !isPrincipalWarden(u) && !wardensList.some(w => w.id === u.id || (w.email && u.email && w.email.toLowerCase() === u.email.toLowerCase()))) {
+      wardensList.push({
+        id: u.id,
+        full_name: u.full_name || u.email,
+        email: u.email,
+        role: u.role
+      });
+    }
+
+    // JAMINAN KUKUH: Pastikan akaun Sanil (Super Admin / Felo) sentiasa wujud dalam senarai lantikan Pengetua
+    const sanilIndex = wardensList.findIndex(w => w.email && w.email.toLowerCase() === 'sanil@ums.edu.my');
+    if (sanilIndex === -1) {
+      const sanilAssign = Array.isArray(a) ? a.find(assign => assign.warden_email && assign.warden_email.toLowerCase() === 'sanil@ums.edu.my') : null;
+      const sanilId = (u?.email?.toLowerCase() === 'sanil@ums.edu.my' && u.id) || sanilAssign?.warden_user_id || 'usr_sanil_super_admin';
+      wardensList.unshift({
+        id: sanilId,
+        full_name: 'SANIYIL BIN BANSAI',
+        email: 'sanil@ums.edu.my',
+        role: 'super_admin'
+      });
+    } else {
+      if (!wardensList[sanilIndex].full_name || wardensList[sanilIndex].full_name.includes('@')) {
+        wardensList[sanilIndex].full_name = 'SANIYIL BIN BANSAI';
+      }
+    }
+
+    // KECUALIKAN Pengetua daripada senarai felo penerima blok
+    wardensList = wardensList.filter(w => !isPrincipalWarden(w));
+
+    // Susun mengikut abjad
+    wardensList.sort((x, y) => (x.full_name || x.email || '').localeCompare(y.full_name || y.email || ''));
 
     setAssignments(Array.isArray(a) ? a : []);
     setBlocks(fullBlocks);
@@ -203,8 +238,25 @@ export default function BlockAssignment() {
         <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Plus className="w-4 h-4" /> New Assignment</h3>
         <div className="flex flex-col sm:flex-row gap-3">
           <Select value={form.warden_user_id} onValueChange={v => setForm(f => ({ ...f, warden_user_id: v }))}>
-            <SelectTrigger className="flex-1"><SelectValue placeholder="Select Warden" /></SelectTrigger>
-            <SelectContent>{wardens.map(w => <SelectItem key={w.id} value={w.id}>{w.full_name || w.email}</SelectItem>)}</SelectContent>
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder="Pilih Felo / Warden" />
+            </SelectTrigger>
+            <SelectContent>
+              {wardens.map(w => (
+                <SelectItem key={w.id} value={w.id} className="cursor-pointer">
+                  <div className="flex flex-col text-left py-0.5">
+                    <span className="font-semibold text-sm text-foreground">
+                      {w.full_name?.replace(/[\r\n\t]+/g, ' ').trim() || w.email}
+                    </span>
+                    {w.email && (
+                      <span className="text-[11px] text-muted-foreground">
+                        {w.email} {w.role === 'super_admin' ? '• Super Admin / Felo' : ''}
+                      </span>
+                    )}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
           <Popover>
             <PopoverTrigger asChild>

@@ -18,10 +18,21 @@ export default async function(req) {
 
     const users = await base44.asServiceRole.entities.User.list();
     const wardens = users
-      .filter(u => u.role === 'warden')
+      .filter(u => {
+        const email = (u.email || '').toLowerCase();
+        const name = (u.full_name || '').toLowerCase();
+        const isUserPrincipal = u.role === 'principal' || email.includes('nurfadilah') || email.includes('pengetua') || name.includes('nurfadilah') || name.includes('pengetua');
+        if (isUserPrincipal) return false;
+        return (
+          u.role === 'warden' || 
+          u.role === 'felo' || 
+          email === 'sanil@ums.edu.my' ||
+          u.role === 'super_admin'
+        );
+      })
       .map(u => ({
         id: u.id,
-        full_name: u.full_name || '',
+        full_name: u.full_name || u.email || '',
         email: u.email || '',
         role: u.role,
       }));
