@@ -38,6 +38,9 @@ import {
   Camera,
   Keyboard,
   Loader2,
+  Megaphone,
+  TrendingUp,
+  Send,
   X
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -281,6 +284,95 @@ export default function Events() {
 
   // Principal Event Dossier / Review Modal State
   const [selectedEventForReview, setSelectedEventForReview] = useState(null);
+
+  // Organizer Announcement Blast Modal State (Hebahan Program Khas Sekiranya Kurang Peserta)
+  const [blastModalOpen, setBlastModalOpen] = useState(false);
+  const [blastingEvent, setBlastingEvent] = useState(null);
+  const [blastMessage, setBlastMessage] = useState('');
+  const [isBlasting, setIsBlasting] = useState(false);
+
+  function openBlastModal(ev) {
+    if (!ev) return;
+    const limit = Number(ev.registration_limit) || 50;
+    const regCount = Number(ev.registered_count ?? ev.current_registrations ?? 0);
+    const remaining = Math.max(0, limit - regCount);
+    const meritValue = ev.merit_points ? Number(ev.merit_points) : 10;
+    
+    setBlastingEvent(ev);
+    setBlastMessage(
+      `Peringatan kepada semua residen KKTF!\n\nPendaftaran untuk program "${ev.event_name}" kini sedang dibuka. Masih terdapat ${remaining} kekosongan kuota (daripada sasaran ${limit} peserta).\n\n📅 Tarikh: ${ev.event_date || 'Akan Datang'}${ev.event_time ? ` · ${ev.event_time}` : ''}\n📍 Tempat: ${ev.venue || 'KKTF'}\n🏆 Ganjaran: +${meritValue} Mata Merit Kolej\n\nSila daftar segera dalam menu 'Events' aplikasi MyKKTF sebelum kuota penuh!`
+    );
+    setBlastModalOpen(true);
+  }
+
+  async function handleConfirmBlast() {
+    if (!blastingEvent) return;
+    setIsBlasting(true);
+    try {
+      const ev = blastingEvent;
+      const meritValue = ev.merit_points ? Number(ev.merit_points) : 10;
+
+      // 1. Cipta Hebahan Rasmi ke Papan Kenyataan / Announcement Board
+      await base44.entities.Announcement.create({
+        title: `📢 Peringatan Pendaftaran: ${ev.event_name}`,
+        content: blastMessage,
+        type: 'Event Notice',
+        priority: 'Important',
+        publish_date: new Date().toISOString().split('T')[0],
+        published_by: user?.full_name || 'Urusetia Program KKTF',
+        approval_status: 'published',
+        poster_url: ev.poster_url || ''
+      }).catch(e => console.warn('Announcement creation fallback:', e));
+
+      // 2. Hantar Notifikasi Dalam Aplikasi (In-App Bell) kepada Pelajar
+      const activeStudents = await base44.entities.Student.filter({ status: 'Active' }).catch(() => []);
+      const notifiedUsers = new Set();
+      if (user?.id) notifiedUsers.add(user.id);
+
+      const targetStudents = (activeStudents || []).filter(s => s.user_id && !notifiedUsers.has(s.user_id));
+      await Promise.allSettled(
+        targetStudents.slice(0, 150).map(s => 
+          base44.entities.Notification.create({
+            user_id: s.user_id,
+            title: `📢 Hebahan Peringatan: ${ev.event_name}`,
+            message: `Kekosongan masih dibuka untuk "${ev.event_name}". Rebut +${meritValue} Merit Kolej sekarang!`,
+            type: 'event',
+            link: '/events'
+          })
+        )
+      );
+
+      // 3. Web Push Notification telefon
+      showPhoneNotification(
+        `📢 Peringatan: ${ev.event_name}`,
+        `Kekosongan pendaftaran masih dibuka (+${meritValue} Merit). Sila daftar segera di MyKKTF!`,
+        '/events'
+      ).catch(() => {});
+
+      await logAudit(user, 'EVENT_ANNOUNCEMENT_BLASTED', 'Events', {
+        event_id: ev.id,
+        event_name: ev.event_name,
+        target_count: targetStudents.length
+      });
+
+      toast({
+        title: '🎉 Hebahan Peringatan Berjaya Disiarkan!',
+        description: `Notis hebahan untuk "${ev.event_name}" telah dipaparkan di Papan Kenyataan & notifikasi dihantar kepada ${targetStudents.length} residen.`
+      });
+
+      setBlastModalOpen(false);
+      setBlastingEvent(null);
+    } catch (err) {
+      console.error('Ralat menyiarkan hebahan:', err);
+      toast({
+        title: 'Ralat menyiarkan hebahan',
+        description: 'Sila cuba lagi atau hubungi pentadbir kolej.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsBlasting(false);
+    }
+  }
 
   // Student QR Scanner Modal State & Refs
   const [studentScanModalOpen, setStudentScanModalOpen] = useState(false);
@@ -599,24 +691,89 @@ export default function Events() {
       const u = raw ? { ...raw, effectiveRole: computeEffectiveRole(raw.role, appt), jakmasAppointment: appt } : null;
       setUser(u);
       
-      const [evs, sList, wBlocks] = await Promise.all([
+      const [evs, sList, wBlocks, allRegs, allAtts] = await Promise.all([
         base44.entities.Event.list('-event_date'),
         base44.entities.Student.list(),
-        base44.entities.WardenBlock.list().catch(() => [])
+        base44.entities.WardenBlock.list().catch(() => []),
+        base44.entities.EventRegistration.list().catch(() => []),
+        base44.entities.Attendance.list().catch(() => [])
       ]);
       
-      const enhancedEvs = (evs || []).map(ev => {
-        try {
-          const meta = JSON.parse(localStorage.getItem(`mykktf_event_meta_${ev.id}`) || '{}');
-          return {
-            ...ev,
-            modality: meta.modality || ev.modality,
-            platform: meta.platform || ev.platform,
-            meeting_link: meta.meeting_link || ev.meeting_link
-          };
-        } catch (e) {
-          return ev;
+      // Petakan pendaftaran awal dan kehadiran sebenar mengikut event_id / event_name
+      const regMap = {};
+      const attMap = {};
+
+      (allRegs || []).forEach(r => {
+        if (r.status === 'Cancelled') return;
+        const eId = r.event_id;
+        const eName = (r.event_name || '').trim().toLowerCase();
+        
+        if (eId) {
+          if (!regMap[eId]) regMap[eId] = [];
+          regMap[eId].push(r);
         }
+        if (eName) {
+          if (!regMap[eName]) regMap[eName] = [];
+          regMap[eName].push(r);
+        }
+      });
+
+      (allAtts || []).forEach(a => {
+        if (a.status !== 'Present') return;
+        const eId = a.event_id;
+        const eName = (a.event_name || '').trim().toLowerCase();
+
+        if (eId) {
+          if (!attMap[eId]) attMap[eId] = new Set();
+          attMap[eId].add(a.student_id || a.student_name);
+        }
+        if (eName) {
+          if (!attMap[eName]) attMap[eName] = new Set();
+          attMap[eName].add(a.student_id || a.student_name);
+        }
+      });
+
+      const enhancedEvs = (evs || []).map(ev => {
+        let meta = {};
+        try {
+          meta = JSON.parse(localStorage.getItem(`mykktf_event_meta_${ev.id}`) || '{}');
+        } catch (e) {}
+
+        const evNameLower = (ev.event_name || '').trim().toLowerCase();
+        
+        // Pendaftaran awal: Kira rekod EventRegistration aktif yang unik
+        const regsForEv = regMap[ev.id] || regMap[evNameLower] || [];
+        const uniqueRegs = new Set();
+        regsForEv.forEach(r => {
+          const sKey = r.student_user_id || r.student_id || r.student_name;
+          if (sKey) uniqueRegs.add(sKey);
+        });
+        const registeredCount = Math.max(uniqueRegs.size, Number(ev.current_registrations) || 0);
+
+        // Kehadiran sebenar (Imbas Kod QR): Kira pelajar unik yang sah hadir
+        const attendedSet = new Set(attMap[ev.id] || attMap[evNameLower] || []);
+        regsForEv.forEach(r => {
+          if (r.status === 'Attended') {
+            const sKey = r.student_user_id || r.student_id || r.student_name;
+            if (sKey) attendedSet.add(sKey);
+          }
+        });
+        const attendedCount = attendedSet.size;
+
+        // Sekiranya pendaftaran DB semasa berbeza daripada bilangan sebenar, kemas kini secara senyap
+        if (ev.current_registrations !== registeredCount && ev.id && uniqueRegs.size > 0) {
+          base44.entities.Event.update(ev.id, { current_registrations: registeredCount }).catch(() => {});
+        }
+
+        return {
+          ...ev,
+          modality: meta.modality || ev.modality,
+          platform: meta.platform || ev.platform,
+          meeting_link: meta.meeting_link || ev.meeting_link,
+          registered_count: registeredCount,
+          attended_count: attendedCount,
+          current_registrations: registeredCount
+        };
       });
 
       setEvents(enhancedEvs);
@@ -670,9 +827,12 @@ export default function Events() {
         }
         setStudent(currentStudent);
 
-        // Muatkan pendaftaran acara pengguna ini
-        const regs = await base44.entities.EventRegistration.filter({ student_user_id: u.id }).catch(() => []);
-        setMyRegistrations(regs || []);
+        // Muatkan pendaftaran acara pengguna ini (cepat melalui allRegs atau fallback filter)
+        const userRegs = (allRegs || []).filter(r => 
+          (u.id && r.student_user_id === u.id) ||
+          (currentStudent.student_id && r.student_id === currentStudent.student_id)
+        );
+        setMyRegistrations(userRegs.length > 0 ? userRegs : (await base44.entities.EventRegistration.filter({ student_user_id: u.id }).catch(() => [])));
       }
     } catch (err) {
       console.error("Ralat memuatkan acara:", err);
@@ -1005,7 +1165,11 @@ export default function Events() {
       }).catch(() => {});
 
       setMyRegistrations(prev => [...prev, newReg || regPayload]);
-      setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, current_registrations: (Number(e.current_registrations) || 0) + 1 } : e));
+      setEvents(prev => prev.map(e => e.id === ev.id ? { 
+        ...e, 
+        registered_count: (Number(e.registered_count ?? e.current_registrations) || 0) + 1,
+        current_registrations: (Number(e.current_registrations) || 0) + 1 
+      } : e));
 
       toast({ 
         title: `Berjaya mendaftar untuk ${ev.event_name}! 🎉`,
@@ -1028,6 +1192,11 @@ export default function Events() {
     try {
       await base44.entities.EventRegistration.update(reg.id, { status: 'Cancelled' });
       await base44.entities.Event.update(ev.id, { current_registrations: Math.max(0, (ev.current_registrations || 1) - 1) });
+      setEvents(prev => prev.map(e => e.id === ev.id ? { 
+        ...e, 
+        registered_count: Math.max(0, (Number(e.registered_count ?? e.current_registrations) || 1) - 1),
+        current_registrations: Math.max(0, (e.current_registrations || 1) - 1) 
+      } : e));
       toast({ title: 'Pendaftaran acara dibatalkan' });
       init();
     } catch (err) {
@@ -1347,15 +1516,137 @@ export default function Events() {
                       <span>{ev.event_date}{ev.event_time ? ` · ${ev.event_time}` : ''}</span>
                     </div>
 
-                    <div className="flex items-center justify-between pt-1 border-t border-border/50">
-                      <span className="flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5 text-primary" />
-                        {ev.current_registrations || 0}{ev.registration_limit ? `/${ev.registration_limit}` : ''} Peserta
-                      </span>
-                      <Badge className="bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 border-emerald-400/40 text-[10px] font-bold">
-                        +{meritValue} Merit
-                      </Badge>
-                    </div>
+                    {/* METRIK PENYERTAAN: DAFTAR AWAL VS KEHADIRAN SEBENAR */}
+                    {(() => {
+                      const regCount = Number(ev.registered_count ?? ev.current_registrations ?? 0);
+                      const attCount = Number(ev.attended_count ?? 0);
+                      const limit = Number(ev.registration_limit) || 50;
+                      const regPct = limit > 0 ? Math.round((regCount / limit) * 100) : 0;
+                      const attRate = regCount > 0 ? Math.round((attCount / regCount) * 100) : 0;
+
+                      return (
+                        <div className="pt-2 border-t border-border/60 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                              <Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                              Penyertaan Peserta
+                            </span>
+                            <Badge className="bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 border-emerald-400/40 text-[10px] font-bold">
+                              +{meritValue} Merit
+                            </Badge>
+                          </div>
+
+                          {/* 2 KOTAK STATISTIK: DAFTAR AWAL & HADIR SEBENAR */}
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            {/* KOTAK 1: PESERTA BERDAFTAR AWAL (RSVP) */}
+                            <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+                              <div className="flex items-center justify-between text-[10px] text-muted-foreground font-semibold">
+                                <span>Daftar Awal</span>
+                                <UserCheck className="w-3 h-3 text-blue-500" />
+                              </div>
+                              <div className="flex items-baseline gap-1 mt-0.5">
+                                <span className="text-sm font-extrabold text-foreground font-mono">
+                                  {regCount}
+                                </span>
+                                <span className="text-[10.5px] text-muted-foreground font-mono">
+                                  / {limit}
+                                </span>
+                              </div>
+                              <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1.5">
+                                <div 
+                                  className={`h-full transition-all rounded-full ${
+                                    regPct >= 90 ? 'bg-rose-500' : regPct >= 50 ? 'bg-emerald-500' : 'bg-blue-500'
+                                  }`}
+                                  style={{ width: `${Math.min(100, regPct)}%` }}
+                                />
+                              </div>
+                              <p className="text-[9.5px] text-muted-foreground mt-1 truncate">
+                                {isFull ? 'Kuota Penuh' : `${Math.max(0, limit - regCount)} kekosongan (${regPct}%)`}
+                              </p>
+                            </div>
+
+                            {/* KOTAK 2: KEHADIRAN SEBENAR (IMBAS QR DI LOKASI) */}
+                            <div className="p-2 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/40">
+                              <div className="flex items-center justify-between text-[10px] text-emerald-800 dark:text-emerald-300 font-semibold">
+                                <span>Hadir Sebenar</span>
+                                <QrCode className="w-3 h-3 text-emerald-600" />
+                              </div>
+                              <div className="flex items-baseline gap-1 mt-0.5">
+                                <span className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300 font-mono">
+                                  {attCount}
+                                </span>
+                                <span className="text-[10.5px] text-emerald-600/80 dark:text-emerald-400/80 font-mono">
+                                  Hadir
+                                </span>
+                              </div>
+                              <div className="w-full bg-emerald-200/60 dark:bg-emerald-900/60 h-1.5 rounded-full overflow-hidden mt-1.5">
+                                <div 
+                                  className="h-full bg-emerald-600 dark:bg-emerald-400 transition-all rounded-full"
+                                  style={{ width: `${Math.min(100, attRate)}%` }}
+                                />
+                              </div>
+                              <p className="text-[9.5px] text-emerald-700 dark:text-emerald-400 mt-1 font-medium truncate">
+                                {statusInfo.key === 'upcoming' 
+                                  ? (regCount > 0 ? 'Menunggu hari program' : 'Belum berlangsung')
+                                  : `${attRate}% pendaftar hadir`}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* KHAS PENGANJUR / PENTADBIRAN: STATUS HEBAHAN & KUOTA */}
+                          {canManage && isApproved && statusInfo.key === 'upcoming' && (
+                            <div>
+                              {regPct < 40 ? (
+                                <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 space-y-1.5">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-bold flex items-center gap-1 text-amber-700 dark:text-amber-300">
+                                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                      Pendaftaran Rendah ({regPct}%)
+                                    </span>
+                                    <Badge variant="outline" className="text-[9px] bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-300">
+                                      Perlu Hebahan
+                                    </Badge>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground leading-snug">
+                                    Pendaftar awal masih kurang. Disyorkan menyiarkan hebahan peringatan kepada residen.
+                                  </p>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => openBlastModal(ev)}
+                                    className="w-full h-7 text-[10.5px] bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg gap-1.5 shadow-2xs"
+                                  >
+                                    <Megaphone className="w-3.5 h-3.5" /> Hebahkan Program Sekarang
+                                  </Button>
+                                </div>
+                              ) : regPct < 85 ? (
+                                <div className="p-1.5 px-2.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 flex items-center justify-between text-[10.5px]">
+                                  <span className="font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-1">
+                                    <CheckCircle2 className="w-3 h-3 text-blue-600 shrink-0" />
+                                    Sambutan Baik ({regCount}/{limit} terisi)
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => openBlastModal(ev)}
+                                    className="text-blue-700 dark:text-blue-300 font-bold underline hover:opacity-80 text-[10px]"
+                                  >
+                                    Siar Hebahan
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="p-1.5 px-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 flex items-center justify-between text-[10.5px]">
+                                  <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                    Kuota {isFull ? 'Penuh' : 'Hampir Penuh'} ({regPct}%)
+                                  </span>
+                                  <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0">Sedia Berlangsung</Badge>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* DIRECT JOIN LINK FOR ONLINE / HYBRID SESSIONS */}
                     {(modalityInfo.modality === 'Dalam Talian' || modalityInfo.modality === 'Hibrid') && (modalityInfo.meeting_link || ev.meeting_link) && (isRegistered || isAttended || canManage) && (
