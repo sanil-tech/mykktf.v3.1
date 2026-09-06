@@ -226,6 +226,7 @@ export default function Maintenance() {
 
   async function init() {
     setLoading(true);
+    let reqs = [];
     const user = await base44.auth.me();
     setCurrentUser(user);
     const isPrincipalUser = user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.role === 'principal' || user?.effectiveRole === 'principal';
