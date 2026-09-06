@@ -57,11 +57,13 @@ export default function RolePersonaSwitcher({ user }) {
       if (myWb.length > 0) {
         const assignedNames = myWb.map(w => w.block_name).filter(Boolean);
         const saved = localStorage.getItem('mykktf_felo_assigned_block');
-        if (saved && assignedNames.includes(saved)) {
+        const combinedOption = assignedNames.length > 1 ? assignedNames.join(' & ') : assignedNames[0];
+        
+        if (saved && (assignedNames.includes(saved) || saved === combinedOption)) {
           setSelectedBlock(saved);
         } else {
-          setSelectedBlock(assignedNames[0]);
-          localStorage.setItem('mykktf_felo_assigned_block', assignedNames[0]);
+          setSelectedBlock(combinedOption);
+          localStorage.setItem('mykktf_felo_assigned_block', combinedOption);
         }
       } else {
         setSelectedBlock('');
@@ -243,12 +245,15 @@ export default function RolePersonaSwitcher({ user }) {
                               <Building2 className="w-3.5 h-3.5 text-emerald-600" /> Pilih Blok Bertugas:
                             </span>
                             <Select value={selectedBlock} onValueChange={setSelectedBlock}>
-                              <SelectTrigger className="h-8 text-xs w-40 bg-background">
+                              <SelectTrigger className="h-8 text-xs min-w-44 bg-background">
                                 <SelectValue placeholder="Pilih Blok" />
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value={officialBlockNames.join(' & ')}>
+                                  Semua Blok Jagaan ({officialBlockNames.join(' & ')})
+                                </SelectItem>
                                 {officialBlockNames.map(block => (
-                                  <SelectItem key={block} value={block}>{block}</SelectItem>
+                                  <SelectItem key={block} value={block}>{block} sahaja</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
