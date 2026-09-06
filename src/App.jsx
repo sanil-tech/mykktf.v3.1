@@ -137,6 +137,7 @@ const AuthenticatedApp = () => {
           <Route path="/hotline" element={<Contact />} />
           <Route path="/drop-key" element={<ExpressDropKey />} />
           <Route path="/express-checkout" element={<ExpressDropKey />} />
+          <Route path="/express-drop-key" element={<ExpressDropKey />} />
         </Route>
       </Route>
 

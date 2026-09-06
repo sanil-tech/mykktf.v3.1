@@ -36,6 +36,7 @@ import {
   KeyRound,
   Clock
 } from "lucide-react";
+import { fetchAndSyncDropKeyRequests } from '@/lib/dropKeyHelper';
 
 export default function AdminDashboard({ user }) {
   const navigate = useNavigate();
@@ -124,34 +125,10 @@ export default function AdminDashboard({ user }) {
       setDisciplineRecords(discData || []);
       setAttendances(attData || []);
 
-      // Ambil permohonan drop-key daripada localStorage + CheckOut DB
+      // Ambil permohonan drop-key terus dari pangkalan data Base44 (Sumber Utama)
       try {
-        const localRequests = JSON.parse(localStorage.getItem('kktf_drop_key_requests') || '[]');
-        // Gabungkan dengan rekod CheckOut dari DB
-        const dbCheckouts = await base44.entities.CheckOut.list('-created_date').catch(() => []);
-        const dbPending = (dbCheckouts || []).filter(c =>
-          c.status === 'pending_verification' ||
-          String(c.room_condition || '').includes('Drop-Key') ||
-          String(c.damage_assessment || '').includes('Drop-Key')
-        ).map(c => ({
-          id: `dk_db_${c.id}`,
-          checkout_record_id: c.id,
-          student_name: c.student_name || 'Pelajar',
-          student_matric: c.student_matric || '',
-          block_name: c.block_name || '',
-          room_number: c.room_number || '',
-          checkout_date: c.check_out_date || '',
-          status: c.status || 'pending_verification',
-          created_at: c.created_date || new Date().toISOString(),
-          source: 'db'
-        }));
-        // Gabungkan: utamakan local (lebih lengkap), tambah DB jika tiada dalam local
-        const localIds = new Set(localRequests.map(r => r.checkout_record_id || r.id));
-        const merged = [
-          ...localRequests,
-          ...dbPending.filter(d => !localIds.has(d.checkout_record_id) && !localIds.has(d.id))
-        ];
-        setDropKeyRequests(merged);
+        const syncedRequests = await fetchAndSyncDropKeyRequests();
+        setDropKeyRequests(syncedRequests || []);
       } catch (dkErr) {
         console.warn('Gagal ambil drop-key requests:', dkErr);
       }
@@ -577,7 +554,7 @@ export default function AdminDashboard({ user }) {
                   ))}
                   <Button
                     size="sm"
-                    onClick={() => navigate('/express-drop-key')}
+                    onClick={() => navigate('/drop-key')}
                     className="w-full h-8 text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white rounded-xl gap-1.5 shadow-xs mt-1"
                   >
                     <KeyRound className="w-3.5 h-3.5" /> Semak & Luluskan Permohonan
