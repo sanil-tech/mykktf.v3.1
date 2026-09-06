@@ -10,27 +10,56 @@ export default async function(req) {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    let sp = await base44.entities.Student.filter({ user_id: user.id });
-    if (!sp.length) sp = await base44.entities.Student.filter({ email: user.email });
-    const s = sp[0];
+    const body = await req.json().catch(() => ({}));
+    let targetBlock = body?.block_name;
 
-    if (!s || !s.block_name) {
+    if (!targetBlock) {
+      let sp = await base44.entities.Student.filter({ user_id: user.id });
+      if (!sp.length) sp = await base44.entities.Student.filter({ email: user.email });
+      const s = sp[0];
+      targetBlock = s?.block_name;
+    }
+
+    if (!targetBlock) {
       return Response.json({
         wardens: [],
+        staff: [],
         block_name: null,
-        message: 'Blok kediaman belum ditetapkan untuk profil anda.'
+        message: 'Blok kediaman belum ditetapkan.'
       });
     }
 
-    const wardens = await base44.asServiceRole.entities.WardenBlock.filter({ block_name: s.block_name });
+    const cleanTarget = targetBlock.replace(/^(block|blok)\s+/i, '').trim().toLowerCase();
+
+    // Fetch all warden assignments via service role
+    const allWardenBlocks = await base44.asServiceRole.entities.WardenBlock.list().catch(() => []);
+    const matchingWardens = allWardenBlocks.filter(w => {
+      const cleanW = (w.block_name || '').replace(/^(block|blok)\s+/i, '').trim().toLowerCase();
+      return cleanW === cleanTarget;
+    });
+
+    let staffMembers = [];
+    if (body?.include_staff) {
+      const allUsers = await base44.asServiceRole.entities.User.list().catch(() => []);
+      staffMembers = allUsers
+        .filter(u => ['staff', 'college_admin', 'super_admin'].includes(u.role))
+        .map(u => ({
+          id: u.id,
+          name: u.full_name || u.email,
+          email: u.email,
+          role: u.role
+        }));
+    }
 
     return Response.json({
-      block_name: s.block_name,
-      wardens: wardens.map(w => ({
+      block_name: targetBlock,
+      wardens: matchingWardens.map(w => ({
         id: w.warden_user_id,
         name: w.warden_name || 'Warden',
+        email: w.warden_email || '',
         block: `Blok ${w.block_name}`
-      }))
+      })),
+      staff: staffMembers
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });

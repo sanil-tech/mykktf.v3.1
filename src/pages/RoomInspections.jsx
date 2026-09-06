@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,8 @@ import {
   Plus, CheckCircle, AlertTriangle, Eye, ShieldCheck, Clock, 
   Lightbulb, Zap, Key, Eye as WindowIcon, Bed, 
   Layers, Archive, BookOpen, Camera, Check, RefreshCw,
-  Search, Filter, Building, FileText, ArrowRight, ExternalLink
+  Search, Filter, Building, FileText, ArrowRight, ExternalLink,
+  ShieldAlert, Building2, Wrench
 } from 'lucide-react';
 import { logAudit } from '@/lib/audit';
 import { Link } from 'react-router-dom';
@@ -20,8 +21,41 @@ const STATUS_COLORS = {
   Submitted: 'bg-amber-100 text-amber-800 border-amber-200',
   Reviewed: 'bg-blue-100 text-blue-800 border-blue-200',
   Verified: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  Rejected: 'bg-rose-100 text-rose-800 border-rose-200',
   'Needs Attention': 'bg-rose-100 text-rose-800 border-rose-200',
 };
+
+// Normalization helpers for block comparison (handles "Block M", "Blok M", "M")
+export function normalizeBlock(name) {
+  if (!name) return '';
+  return String(name).trim().toLowerCase().replace(/^(block|blok)\s+/i, '');
+}
+
+export function isSameBlock(b1, b2) {
+  if (!b1 || !b2) return false;
+  if (String(b1).toLowerCase() === String(b2).toLowerCase()) return true;
+  return normalizeBlock(b1) === normalizeBlock(b2);
+}
+
+export function isBlockInList(blockName, blockList = []) {
+  if (!blockName || !Array.isArray(blockList) || blockList.length === 0) return false;
+  return blockList.some(b => isSameBlock(b, blockName));
+}
+
+// Map reported damage items to valid MaintenanceRequest categories
+export function inferMaintenanceCategory(flaggedIssues = '', checklistData = {}) {
+  const text = (flaggedIssues + ' ' + Object.keys(checklistData).join(' ')).toLowerCase();
+  if (text.includes('suis') || text.includes('soket') || text.includes('lampu') || text.includes('elektrik')) {
+    return 'Electrical';
+  }
+  if (text.includes('paip') || text.includes('sinki') || text.includes('tandas') || text.includes('bocor')) {
+    return 'Plumbing';
+  }
+  if (text.includes('katil') || text.includes('tilam') || text.includes('almari') || text.includes('meja') || text.includes('kerusi') || text.includes('tombol') || text.includes('tingkap')) {
+    return 'Furniture';
+  }
+  return 'Furniture';
+}
 
 // The 8 official inventory items specified in handbook section 4.2
 const INVENTORY_ITEMS = [
@@ -45,6 +79,8 @@ export default function RoomInspections() {
   const [studentProfile, setStudentProfile] = useState(null);
   const [inspections, setInspections] = useState([]);
   const [students, setStudents] = useState([]);
+  const [allBlocks, setAllBlocks] = useState([]);
+  const [wardenBlocks, setWardenBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -78,13 +114,52 @@ export default function RoomInspections() {
       const u = await base44.auth.me();
       setUser(u);
 
-      const [inspList, studs] = await Promise.all([
+      const [inspList, studs, blkList] = await Promise.all([
         base44.entities.RoomInspection.list('-created_date').catch(() => []),
         base44.entities.Student.list().catch(() => []),
+        base44.entities.Block.list().catch(() => []),
       ]);
 
       setInspections(Array.isArray(inspList) ? inspList : []);
       setStudents(Array.isArray(studs) ? studs : []);
+      setAllBlocks(Array.isArray(blkList) ? blkList : []);
+
+      // If user is warden / felo, find their officially assigned blocks
+      const isUserFelo = u && (u.role === 'warden' || u.role === 'felo');
+      let myBlocks = [];
+
+      if (isUserFelo) {
+        try {
+          const wb = await base44.entities.WardenBlock.filter({ warden_user_id: u.id }).catch(() => []);
+          let foundWb = wb;
+          if (!foundWb || foundWb.length === 0) {
+            const allWb = await base44.entities.WardenBlock.list().catch(() => []);
+            foundWb = (allWb || []).filter(w =>
+              w.warden_user_id === u.id ||
+              (w.warden_email && u.email && w.warden_email.toLowerCase() === u.email.toLowerCase()) ||
+              (u.full_name && w.warden_name && (
+                u.full_name.toLowerCase().includes(w.warden_name.toLowerCase()) ||
+                w.warden_name.toLowerCase().includes(u.full_name.toLowerCase())
+              ))
+            );
+          }
+          myBlocks = (foundWb || []).map(w => w.block_name).filter(Boolean);
+        } catch (wbErr) {
+          console.warn('Failed querying WardenBlock:', wbErr);
+        }
+
+        // Check fallback direct attributes on user object
+        if (myBlocks.length === 0) {
+          if (u.block_name) myBlocks.push(u.block_name);
+          if (u.assigned_block) myBlocks.push(u.assigned_block);
+          if (u.active_warden_block) myBlocks.push(u.active_warden_block);
+        }
+
+        setWardenBlocks(myBlocks);
+        if (myBlocks.length === 1) {
+          setSelectedBlock(myBlocks[0]);
+        }
+      }
 
       // If student, find their profile
       if (u) {
@@ -119,7 +194,20 @@ export default function RoomInspections() {
   }
 
   const isStudent = !user?.role || user?.role === 'student' || user?.role === 'user';
-  const canVerify = user && ['super_admin', 'principal', 'college_admin', 'warden', 'staff', 'jakmas'].includes(user.role);
+  const isStaffOrAdmin = user && ['super_admin', 'principal', 'college_admin', 'staff'].includes(user.role);
+  const isFelo = user && (user.role === 'warden' || user.role === 'felo');
+  const canVerify = isStaffOrAdmin || isFelo || user?.role === 'jakmas';
+
+  // Helper to test if the current user has authority to act on a specific inspection
+  function canUserActOnInspection(ins) {
+    if (!ins || !user) return false;
+    if (isStaffOrAdmin) return true; // Staf Pentadbiran Kolej & Super Admin can manage all blocks
+    if (isFelo) {
+      // Felo can ONLY manage their assigned block(s)
+      return isBlockInList(ins.block_name, wardenBlocks);
+    }
+    return false;
+  }
 
   // Student's own inspection record if already submitted
   const myInspection = inspections.find(i => 
@@ -212,6 +300,15 @@ export default function RoomInspections() {
   }
 
   async function submitInspection() {
+    if (!isStudent) {
+      toast({ 
+        title: 'Akses Dihadkan', 
+        description: 'Fungsi menghantar laporan pemeriksaan bilik hanya dibuka untuk pelajar yang mendaftar masuk.',
+        variant: 'destructive' 
+      });
+      return;
+    }
+
     if (!form.student_name || !form.room_number) {
       toast({ title: 'Sila lengkapkan nama dan nombor bilik', variant: 'destructive' });
       return;
@@ -221,7 +318,7 @@ export default function RoomInspections() {
     if (myInspection?.status === 'Verified') {
       toast({ 
         title: 'Pemeriksaan Telah Disahkan', 
-        description: 'Rekod pemeriksaan bilik anda telah disahkan oleh warden dan tidak boleh diubah.',
+        description: 'Rekod pemeriksaan bilik anda telah disahkan oleh warden/felo dan tidak boleh diubah.',
         variant: 'destructive' 
       });
       return;
@@ -282,7 +379,7 @@ export default function RoomInspections() {
         toast({ 
           title: 'Pemeriksaan Bilik Dikemaskini',
           description: hasDamages 
-            ? 'Laporan kerosakan anda telah dikemaskini dan dihantar semula untuk semakan warden.' 
+            ? 'Laporan kerosakan anda telah dikemaskini dan dihantar kepada Felo blok jagaan anda untuk tindakan semakan.' 
             : 'Rekod pemeriksaan bilik anda telah dikemaskini.'
         });
       } else {
@@ -297,9 +394,61 @@ export default function RoomInspections() {
         toast({ 
           title: 'Pemeriksaan Bilik Berjaya Dihantar',
           description: hasDamages 
-            ? 'Laporan kerosakan sedia ada telah direkodkan untuk pengesahan pihak kolej.' 
+            ? 'Laporan kerosakan telah diserahkan kepada Felo blok anda dan staf untuk tindakan lanjut.' 
             : 'Pemeriksaan inventori bilik selesai dan disahkan.'
         });
+      }
+
+      // Hantar notifikasi HANYA kepada Felo blok berkenaan dan staf kolej
+      try {
+        const notifPayloads = [];
+        const notifiedUserIds = new Set();
+
+        const wardenRes = await base44.functions.invoke('getBlockWardens', { 
+          block_name: form.block_name, 
+          include_staff: true 
+        }).catch(() => null);
+
+        const blockWardens = wardenRes?.data?.wardens || wardenRes?.wardens || [];
+        const staffMembers = wardenRes?.data?.staff || wardenRes?.staff || [];
+
+        // Notifikasi untuk Felo Blok ini sahaja
+        for (const w of blockWardens) {
+          if (w.id && !notifiedUserIds.has(w.id)) {
+            notifiedUserIds.add(w.id);
+            notifPayloads.push({
+              user_id: w.id,
+              title: hasDamages 
+                ? `⚠️ Laporan Kerosakan Bilik: ${form.block_name} (${form.room_number})`
+                : `📋 Pemeriksaan Bilik: ${form.block_name} (${form.room_number})`,
+              message: hasDamages
+                ? `Pelajar ${form.student_name} (${form.room_number}) melaporkan kerosakan inventori di blok kawal selia anda (${form.block_name}). Sila buat semakan untuk tindakan pembaikan.`
+                : `Pelajar ${form.student_name} telah selesai pemeriksaan inventori bagi ${form.block_name} - Bilik ${form.room_number}. Semua item dalam keadaan baik.`,
+              type: 'general',
+              link: '/room-inspections',
+            });
+          }
+        }
+
+        // Notifikasi untuk Staf Pentadbiran Kolej
+        for (const st of staffMembers) {
+          if (st.id && !notifiedUserIds.has(st.id)) {
+            notifiedUserIds.add(st.id);
+            notifPayloads.push({
+              user_id: st.id,
+              title: `📋 Pemeriksaan Bilik: ${form.block_name} - Bilik ${form.room_number}`,
+              message: `Pelajar ${form.student_name} telah menghantar pemeriksaan bilik (${form.block_name} - ${form.room_number})${hasDamages ? ' dengan kerosakan diflagkan' : ''}. Ditugaskan kepada Felo ${form.block_name} dan Staf.`,
+              type: 'general',
+              link: '/room-inspections',
+            });
+          }
+        }
+
+        for (const p of notifPayloads) {
+          await base44.entities.Notification.create(p).catch(err => console.warn('Gagal menghantar notifikasi:', err));
+        }
+      } catch (notifErr) {
+        console.warn('Ralat menghantar notifikasi pemeriksaan bilik:', notifErr);
       }
 
       setShowForm(false);
@@ -314,49 +463,75 @@ export default function RoomInspections() {
     }
   }
 
-  async function updateStatus(id, newStatus, note = '') {
+  // Update status (Reviewed / Verified / Rejected) with block-scoping check
+  async function updateStatus(id, newStatus, note = '', targetInspection = null) {
+    const currentIns = targetInspection || viewing;
+    if (!currentIns) return;
+
+    // Semak bidang kuasa blok: hanya Felo blok berkenaan atau Staf Pentadbiran boleh membuat tindakan
+    if (!canUserActOnInspection(currentIns)) {
+      toast({
+        title: 'Tiada Kebenaran',
+        description: `Tindakan bagi ${currentIns.block_name || 'blok ini'} hanya boleh dilakukan oleh Felo ${currentIns.block_name || ''} atau Staf Pentadbiran Kolej.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setActionLoading(true);
     try {
       const updatePayload = { status: newStatus };
       if (note) updatePayload.notes = note;
 
       await base44.entities.RoomInspection.update(id, updatePayload);
-      await logAudit(user, `INSPECTION_${newStatus.toUpperCase()}`, 'Room Inspections', { id, status: newStatus, note });
+      await logAudit(user, `INSPECTION_${newStatus.toUpperCase()}`, 'Room Inspections', { 
+        id, 
+        status: newStatus, 
+        block: currentIns.block_name,
+        room: currentIns.room_number,
+        note 
+      });
 
-      // Auto-create Maintenance Request when warden reviews a damage report
-      if (newStatus === 'Reviewed' && viewing?.has_damages) {
+      // Auto-create Maintenance Request (Damage Report) when reviewed or verified with damages
+      if (newStatus === 'Reviewed' && currentIns?.has_damages) {
         try {
+          const cat = inferMaintenanceCategory(currentIns.flagged_issues);
           await base44.entities.MaintenanceRequest.create({
-            student_id: viewing.student_id || '',
-            student_name: viewing.student_name || '',
-            room_number: viewing.room_number || '',
-            block_name: viewing.block_name || '',
-            category: 'Room Inspection Damage',
-            specific_location: `${viewing.block_name || ''} - Bilik ${viewing.room_number}`,
-            description: `[AUTO dari Room Inspection] Kerosakan sedia ada diflagkan oleh pelajar semasa pemeriksaan masuk bilik.\n\nIsu: ${viewing.flagged_issues || '—'}\n\nCatatan Warden: ${note || '—'}`,
+            student_id: currentIns.student_id || '',
+            student_name: currentIns.student_name || '',
+            room_number: currentIns.room_number || '',
+            block_name: currentIns.block_name || '',
+            category: cat,
+            location_type: 'My Room',
+            specific_location: `${currentIns.block_name || ''} - Bilik ${currentIns.room_number}`,
+            description: `[Laporan Kerosakan dari Pemeriksaan Bilik]\nKerosakan diflagkan oleh pelajar: ${currentIns.flagged_issues || '—'}\n\nCatatan Felo/Pegawai: ${note || 'Telah disemak oleh Felo/Staf'}\nPemeriksa: ${user?.full_name || user?.email || 'Felo'} (${isFelo ? `Felo ${currentIns.block_name || ''}` : 'Staf Pentadbiran'})`,
             priority: 'High',
-            status: 'Pending',
+            status: 'Submitted',
             submitted_at: new Date().toISOString(),
             source: 'room_inspection',
             inspection_ref_id: id,
+            ...(currentIns.photos ? { photo: currentIns.photos } : {})
           });
-          toast({ title: 'Tiket Pembaikan Difailkan', description: 'Laporan kerosakan dari pemeriksaan bilik telah dihantar ke modul Maintenance secara automatik.' });
+          toast({ 
+            title: 'Laporan Kerosakan Berjaya Difailkan', 
+            description: `Aduan penyelenggaraan (${cat}) telah difailkan secara automatik ke modul Maintenance.` 
+          });
         } catch (mErr) {
-          console.warn('Auto-maintenance request failed:', mErr);
+          console.warn('Auto-maintenance request creation warning:', mErr);
         }
       }
 
       // Notify the student about status change
-      if (viewing?.inspected_by_user_id) {
+      if (currentIns?.inspected_by_user_id) {
         try {
           const statusMsg = {
-            Reviewed: 'Laporan anda telah disemak oleh warden/felo. Tindakan pembaikan akan diambil jika perlu.',
-            Verified: 'Pemeriksaan bilik anda telah disahkan (Verified). Rekod ini akan digunakan sebagai rujukan di akhir semester.',
-            Rejected: `Laporan anda memerlukan semakan semula. Sila hubungi pejabat kolej.${note ? ` Nota: ${note}` : ''}`,
+            Reviewed: `Laporan pemeriksaan bilik anda telah disemak oleh ${isFelo ? `Felo ${currentIns.block_name || ''}` : 'Staf Kolej'}. Tindakan aduan kerosakan telah difailkan untuk pembaikan.`,
+            Verified: 'Pemeriksaan bilik anda telah disahkan (Verified). Rekod ini menjadi rujukan rasmi keadaan bilik semasa anda masuk.',
+            Rejected: `Laporan anda memerlukan semakan semula. Sila hubungi Felo ${currentIns.block_name || ''} atau pejabat kolej.${note ? ` Nota: ${note}` : ''}`,
           }[newStatus] || `Status laporan pemeriksaan bilik anda dikemaskini kepada: ${newStatus}`;
 
           await base44.entities.Notification.create({
-            user_id: viewing.inspected_by_user_id,
+            user_id: currentIns.inspected_by_user_id,
             title: `📋 Laporan Pemeriksaan Bilik — ${newStatus}`,
             message: statusMsg,
             type: 'general',
@@ -381,6 +556,62 @@ export default function RoomInspections() {
     }
   }
 
+  // Explicit damage report creation button action
+  async function createDamageTicketDirect(ins, note = '') {
+    if (!ins) return;
+    if (!canUserActOnInspection(ins)) {
+      toast({
+        title: 'Tiada Kebenaran',
+        description: `Hanya Felo ${ins.block_name || ''} atau Staf Pentadbiran yang dibenarkan memfailkan kerosakan bagi bilik ini.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const cat = inferMaintenanceCategory(ins.flagged_issues);
+      await base44.entities.MaintenanceRequest.create({
+        student_id: ins.student_id || '',
+        student_name: ins.student_name || '',
+        room_number: ins.room_number || '',
+        block_name: ins.block_name || '',
+        category: cat,
+        location_type: 'My Room',
+        specific_location: `${ins.block_name || ''} - Bilik ${ins.room_number}`,
+        description: `[Aduan Kerosakan dari Pemeriksaan Bilik]\nKerosakan diflagkan oleh pelajar: ${ins.flagged_issues || '—'}\n\nCatatan Felo: ${note || wardenNote || 'Tindakan susulan kerosakan semasa mendaftar bilik'}\nDisediakan oleh: ${user?.full_name || user?.email} (${isFelo ? `Felo ${ins.block_name}` : 'Staf Pentadbiran'})`,
+        priority: 'High',
+        status: 'Submitted',
+        submitted_at: new Date().toISOString(),
+        source: 'room_inspection',
+        inspection_ref_id: ins.id,
+        ...(ins.photos ? { photo: ins.photos } : {})
+      });
+
+      // Update inspection to Reviewed if still Submitted
+      if (ins.status === 'Submitted') {
+        await base44.entities.RoomInspection.update(ins.id, { 
+          status: 'Reviewed',
+          notes: note || wardenNote ? `[Aduan Kerosakan Difailkan] ${note || wardenNote}` : '[Aduan Kerosakan Difailkan ke Modul Maintenance]'
+        });
+        if (viewing) {
+          setViewing(v => ({ ...v, status: 'Reviewed' }));
+        }
+      }
+
+      toast({
+        title: 'Aduan Kerosakan Berjaya Difailkan',
+        description: `Laporan kerosakan (${cat}) bagi ${ins.block_name} Bilik ${ins.room_number} telah dihantar ke modul Maintenance.`
+      });
+      init();
+    } catch (err) {
+      console.error('Failed creating damage ticket:', err);
+      toast({ title: 'Gagal memfailkan tiket', description: err.message, variant: 'destructive' });
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   // Parse checklist data from string if available
   function parseChecklist(inspection) {
     if (!inspection) return {};
@@ -392,28 +623,64 @@ export default function RoomInspections() {
     return {};
   }
 
-  // Filtered inspections for management
-  const filteredInspections = inspections.filter(ins => {
-    const matchesSearch = 
-      !searchQuery ||
-      ins.student_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ins.student_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ins.room_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ins.block_name?.toLowerCase().includes(searchQuery.toLowerCase());
+  // Scoped inspections:
+  // - Students: only see their own inspection
+  // - Felo: ONLY see inspections matching their assigned block(s)
+  // - Staff / Admin: see all blocks
+  const accessibleInspections = useMemo(() => {
+    if (isStudent) {
+      return myInspection ? [myInspection] : [];
+    }
+    if (isFelo) {
+      if (wardenBlocks.length === 0) return [];
+      return inspections.filter(ins => isBlockInList(ins.block_name, wardenBlocks));
+    }
+    return inspections;
+  }, [inspections, isStudent, isFelo, wardenBlocks, myInspection]);
 
-    const matchesBlock = selectedBlock === 'ALL' || ins.block_name === selectedBlock;
-    const matchesStatus = selectedStatus === 'ALL' || ins.status === selectedStatus;
+  // Scoped students count for progress percentage
+  const scopedStudentsCount = useMemo(() => {
+    if (isFelo && wardenBlocks.length > 0) {
+      const bs = students.filter(s => isBlockInList(s.block_name, wardenBlocks));
+      return bs.length || 1;
+    }
+    return students.length || 1;
+  }, [students, isFelo, wardenBlocks]);
 
-    return matchesSearch && matchesBlock && matchesStatus;
-  });
+  // List of blocks available for filtering
+  const availableFilterBlocks = useMemo(() => {
+    if (isFelo && wardenBlocks.length > 0) {
+      return wardenBlocks;
+    }
+    const blkNames = new Set(allBlocks.map(b => b.block_name).filter(Boolean));
+    inspections.forEach(i => { if (i.block_name) blkNames.add(i.block_name); });
+    ['Block A', 'Block B', 'Block C', 'Block D', 'Block E', 'Block M'].forEach(b => blkNames.add(b));
+    return Array.from(blkNames).sort();
+  }, [isFelo, wardenBlocks, allBlocks, inspections]);
 
-  const totalInspections = inspections.length;
-  const needAttentionCount = inspections.filter(i => i.visible_damage !== 'None' || (i.flagged_issues && i.flagged_issues.trim() !== '')).length;
-  const verifiedCount = inspections.filter(i => i.status === 'Verified').length;
-  const reviewedCount = inspections.filter(i => i.status === 'Reviewed').length;
-  const submittedCount = inspections.filter(i => i.status === 'Submitted').length;
-  const totalStudents = students.length || 1;
-  const submissionPct = Math.round((totalInspections / totalStudents) * 100);
+  // Filtered inspections for management list
+  const filteredInspections = useMemo(() => {
+    return accessibleInspections.filter(ins => {
+      const matchesSearch = 
+        !searchQuery ||
+        ins.student_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ins.student_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ins.room_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ins.block_name?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesBlock = selectedBlock === 'ALL' || isSameBlock(ins.block_name, selectedBlock);
+      const matchesStatus = selectedStatus === 'ALL' || ins.status === selectedStatus;
+
+      return matchesSearch && matchesBlock && matchesStatus;
+    });
+  }, [accessibleInspections, searchQuery, selectedBlock, selectedStatus]);
+
+  const totalInspections = accessibleInspections.length;
+  const needAttentionCount = accessibleInspections.filter(i => i.visible_damage !== 'None' || (i.flagged_issues && i.flagged_issues.trim() !== '')).length;
+  const verifiedCount = accessibleInspections.filter(i => i.status === 'Verified').length;
+  const reviewedCount = accessibleInspections.filter(i => i.status === 'Reviewed').length;
+  const submittedCount = accessibleInspections.filter(i => i.status === 'Submitted').length;
+  const submissionPct = Math.round((totalInspections / scopedStudentsCount) * 100);
 
   if (loading) {
     return (
@@ -431,12 +698,30 @@ export default function RoomInspections() {
         title="Pemeriksaan Keadaan Bilik (Room Inspection)"
         description="Pemeriksaan 8 komponen inventori bilik dalam tempoh 48 jam selepas mendaftar masuk kolej"
         actions={
-          isStudent && myInspection?.status === 'Verified' ? (
+          isFelo ? (
+            // Felo: papar blok kawal selia
+            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-700 font-semibold select-none">
+              <Building2 className="w-4 h-4 text-indigo-600" />
+              <span>
+                {wardenBlocks.length > 0 
+                  ? `Felo Bertugas: ${wardenBlocks.join(', ')}` 
+                  : 'Felo Bertugas — Tiada Blok Ditugaskan'}
+              </span>
+            </div>
+          ) : isStaffOrAdmin ? (
+            // Pentadbir/Staf Kolej: papar mod pantau semua blok
+            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700 font-semibold select-none">
+              <ShieldCheck className="w-4 h-4 text-blue-600" />
+              <span>Mod Pemantauan — Pentadbir / Staf (Semua Blok)</span>
+            </div>
+          ) : isStudent && myInspection?.status === 'Verified' ? (
+            // Pelajar: rekod dikunci selepas Verified
             <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 font-medium select-none">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
               <span>Pemeriksaan Telah Disahkan (Dikunci)</span>
             </div>
-          ) : (
+          ) : isStudent ? (
+            // Pelajar: boleh hantar / kemaskini
             <Button 
               onClick={() => {
                 if (studentProfile) {
@@ -454,9 +739,9 @@ export default function RoomInspections() {
               className="bg-primary hover:bg-primary/90 text-white font-semibold text-xs h-9 gap-1.5 shadow-sm"
             >
               <Plus className="w-4 h-4" /> 
-              {isStudent ? (myInspection ? 'Kemaskini Pemeriksaan Bilik' : 'Borang Pemeriksaan (48 Jam)') : 'Pemeriksaan Baru'}
+              {myInspection ? 'Kemaskini Pemeriksaan Bilik' : 'Borang Pemeriksaan (48 Jam)'}
             </Button>
-          )
+          ) : null
         }
       />
 
@@ -478,19 +763,27 @@ export default function RoomInspections() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
-            {isStudent && myInspection ? (
+            {canVerify ? (
+              // Pentadbir/Felo: tunjuk stats ringkas mengikut skop
+              <div className="flex flex-col items-end gap-1 text-right">
+                <span className="text-xs font-bold text-amber-300">
+                  {submittedCount} menunggu semakan {isFelo && wardenBlocks.length > 0 ? `(${wardenBlocks.join(', ')})` : ''}
+                </span>
+                <span className="text-[11px] text-slate-300">{verifiedCount} telah disahkan • {needAttentionCount} ada kerosakan</span>
+              </div>
+            ) : isStudent && myInspection ? (
               <div className="flex items-center gap-2 bg-emerald-500/20 border border-emerald-400/40 px-4 py-2.5 rounded-xl text-emerald-200 text-xs font-semibold">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
                 <span>Pemeriksaan Anda Telah Direkodkan ({myInspection.status})</span>
               </div>
-            ) : (
+            ) : isStudent ? (
               <Button 
                 onClick={() => setShowForm(true)}
                 className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs h-10 px-5 gap-2 shadow-sm"
               >
                 <CheckCircle className="w-4 h-4" /> Mulakan Pemeriksaan Bilik
               </Button>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -593,12 +886,27 @@ export default function RoomInspections() {
       {/* Staff / Warden / Admin Section: Metrics & Table */}
       {canVerify && (
         <div className="space-y-4">
+          {/* Felo Jurisdiction Alert */}
+          {isFelo && (
+            <div className="p-3.5 bg-indigo-50/70 border border-indigo-200/80 rounded-xl text-xs flex items-center justify-between flex-wrap gap-2 text-indigo-900">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>
+                  Bidang Kuasa Felo: Anda hanya memantau dan mengesahkan rekod bagi <strong>{wardenBlocks.length > 0 ? wardenBlocks.join(', ') : 'blok yang ditugaskan'}</strong> sahaja.
+                </span>
+              </div>
+              <span className="text-[11px] text-indigo-700 font-semibold bg-white px-2.5 py-1 rounded-md border border-indigo-200">
+                {wardenBlocks.length > 0 ? `Kawal Selia: ${wardenBlocks.join(', ')}` : 'Sila hubungi pentadbir untuk tugasan blok'}
+              </span>
+            </div>
+          )}
+
           {/* Summary Metric Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Jumlah Hantar</p>
               <p className="text-2xl font-black text-slate-800 mt-1">{totalInspections}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">{submissionPct}% daripada {totalStudents} pelajar</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{submissionPct}% daripada {scopedStudentsCount} pelajar {isFelo && wardenBlocks.length > 0 ? `(${wardenBlocks.join(', ')})` : ''}</p>
               <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden">
                 <div className="h-full bg-sky-500 rounded-full transition-all" style={{ width: `${Math.min(submissionPct, 100)}%` }} />
               </div>
@@ -606,7 +914,7 @@ export default function RoomInspections() {
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs">
               <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Menunggu Semakan</p>
               <p className="text-2xl font-black text-amber-600 mt-1">{submittedCount}</p>
-              <p className="text-[10px] text-amber-400 mt-0.5">Perlu tindakan warden</p>
+              <p className="text-[10px] text-amber-400 mt-0.5">{isFelo ? `Tindakan Felo ${wardenBlocks.join(', ')}` : 'Perlu tindakan pentadbir/staf'}</p>
             </div>
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs">
               <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Ada Kerosakan</p>
@@ -634,12 +942,16 @@ export default function RoomInspections() {
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Select value={selectedBlock} onValueChange={setSelectedBlock}>
-                <SelectTrigger className="h-9 text-xs w-[130px]">
-                  <SelectValue placeholder="Semua Blok" />
+                <SelectTrigger className="h-9 text-xs w-[140px]">
+                  <SelectValue placeholder="Pilih Blok" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">Semua Blok</SelectItem>
-                  {['Block A', 'Block B', 'Block C', 'Block D', 'Block E'].map(b => (
+                  {(!isFelo || wardenBlocks.length > 1) && (
+                    <SelectItem value="ALL">
+                      {isFelo ? 'Semua Blok Jagaan' : 'Semua Blok'}
+                    </SelectItem>
+                  )}
+                  {availableFilterBlocks.map(b => (
                     <SelectItem key={b} value={b}>{b}</SelectItem>
                   ))}
                 </SelectContent>
@@ -654,6 +966,7 @@ export default function RoomInspections() {
                   <SelectItem value="Submitted">Submitted</SelectItem>
                   <SelectItem value="Reviewed">Reviewed</SelectItem>
                   <SelectItem value="Verified">Verified</SelectItem>
+                  <SelectItem value="Rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -661,7 +974,7 @@ export default function RoomInspections() {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={() => { setSearchQuery(''); setSelectedBlock('ALL'); setSelectedStatus('ALL'); }}
+                  onClick={() => { setSearchQuery(''); setSelectedBlock(isFelo && wardenBlocks.length === 1 ? wardenBlocks[0] : 'ALL'); setSelectedStatus('ALL'); }}
                   className="text-xs text-slate-500 h-9 px-2"
                 >
                   Reset
@@ -747,8 +1060,8 @@ export default function RoomInspections() {
         </div>
       )}
 
-      {/* Inspection Submission / Form Dialog */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      {/* Inspection Submission / Form Dialog - Only accessible to students */}
+      <Dialog open={showForm && isStudent} onOpenChange={open => { if (!open) setShowForm(false); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -1028,14 +1341,34 @@ export default function RoomInspections() {
                 </div>
               )}
 
+              {/* Block Authority & Jurisdiction Banner */}
+              {canVerify && !canUserActOnInspection(viewing) && (
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs flex items-start gap-2.5 text-amber-900">
+                  <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Had Bidang Kuasa Blok</p>
+                    <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                      Pemeriksaan bilik ini adalah bagi <strong>{viewing.block_name || 'blok lain'}</strong>. Anda log masuk sebagai Felo bagi <strong>{wardenBlocks.join(', ') || 'blok berbeza'}</strong>. Pengesahan dan tindakan aduan kerosakan bilik ini hanya boleh diambil oleh <strong>Felo {viewing.block_name}</strong> atau <strong>Staf Pentadbiran Kolej</strong>.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {canVerify && canUserActOnInspection(viewing) && isFelo && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs flex items-center gap-2 text-emerald-800">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Anda adalah <strong>Felo {viewing.block_name}</strong>. Anda berkuasa menyemak, mengesahkan dan memfailkan aduan kerosakan bagi bilik ini.</span>
+                </div>
+              )}
+
               {/* Warden Notes Input */}
-              {canVerify && (
+              {canVerify && canUserActOnInspection(viewing) && (
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-700">Nota Warden / Felo (Pilihan)</Label>
+                  <Label className="text-xs font-semibold text-slate-700">Nota Semakan {isFelo ? `Felo (${viewing.block_name})` : 'Pegawai / Staf'}</Label>
                   <textarea
                     value={wardenNote}
                     onChange={e => setWardenNote(e.target.value)}
-                    placeholder="Tambah nota semakan, arahan pembaikan atau sebab penolakan..."
+                    placeholder="Tambah nota semakan, arahan pembaikan atau ulasan lanjut..."
                     rows={2}
                     className="w-full text-xs p-2.5 rounded-lg border border-slate-200 resize-none focus:outline-none focus:ring-1 focus:ring-primary"
                   />
@@ -1045,56 +1378,84 @@ export default function RoomInspections() {
               {/* Management Actions */}
               {canVerify && (
                 <div className="pt-3 border-t space-y-3">
-                  {viewing.has_damages && viewing.status === 'Submitted' && (
-                    <div className="flex items-center gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs">
-                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span className="text-rose-700 font-medium">Laporan ini mengandungi kerosakan. Klik <strong>Semak &amp; Failkan Tiket</strong> untuk sahkan dan auto-failkan ke Maintenance.</span>
+                  {canUserActOnInspection(viewing) ? (
+                    <>
+                      {viewing.has_damages && viewing.status === 'Submitted' && (
+                        <div className="flex items-center gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs">
+                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span className="text-rose-700 font-medium">Laporan ini mengandungi kerosakan. Klik <strong>Failkan Aduan Kerosakan</strong> untuk failkan ke modul Maintenance dan rekodkan semakan.</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <Link to="/maintenance">
+                          <Button size="sm" variant="outline" className="text-xs h-8">
+                            Lihat Modul Fasiliti <ExternalLink className="w-3 h-3 ml-1" />
+                          </Button>
+                        </Link>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {viewing.has_damages && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={actionLoading}
+                              onClick={() => createDamageTicketDirect(viewing, wardenNote)}
+                              className="text-xs h-8 border-rose-300 text-rose-800 bg-rose-50/60 hover:bg-rose-100 font-bold"
+                            >
+                              <Wrench className="w-3.5 h-3.5 mr-1 text-rose-600" />
+                              Failkan Aduan Kerosakan
+                            </Button>
+                          )}
+
+                          {viewing.status !== 'Reviewed' && !viewing.has_damages && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={actionLoading}
+                              onClick={() => updateStatus(viewing.id, 'Reviewed', wardenNote, viewing)}
+                              className="text-xs h-8 border-blue-300 text-blue-700 hover:bg-blue-50 font-semibold"
+                            >
+                              <FileText className="w-3.5 h-3.5 mr-1" />
+                              Tanda Disemak
+                            </Button>
+                          )}
+
+                          {viewing.status !== 'Rejected' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={actionLoading}
+                              onClick={() => updateStatus(viewing.id, 'Rejected', wardenNote, viewing)}
+                              className="text-xs h-8 border-rose-300 text-rose-700 hover:bg-rose-50"
+                            >
+                              Tolak
+                            </Button>
+                          )}
+
+                          {viewing.status !== 'Verified' && (
+                            <Button
+                              size="sm"
+                              disabled={actionLoading}
+                              onClick={() => updateStatus(viewing.id, 'Verified', wardenNote, viewing)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 gap-1 shadow-xs"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" /> Sahkan (Verified)
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-between py-2 text-xs text-slate-500">
+                      <span className="italic text-amber-700 font-medium">
+                        Tindakan pengesahan dan aduan kerosakan dinyahdayakan (pemeriksaan ini di luar blok kawal selia anda).
+                      </span>
+                      <Button size="sm" variant="outline" onClick={() => setViewing(null)} className="text-xs h-8">
+                        Tutup
+                      </Button>
                     </div>
                   )}
-
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <Link to="/maintenance">
-                      <Button size="sm" variant="outline" className="text-xs h-8">
-                        Lihat Modul Fasiliti <ExternalLink className="w-3 h-3 ml-1" />
-                      </Button>
-                    </Link>
-
-                    <div className="flex items-center gap-2">
-                      {viewing.status !== 'Reviewed' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={actionLoading}
-                          onClick={() => updateStatus(viewing.id, 'Reviewed', wardenNote)}
-                          className="text-xs h-8 border-blue-300 text-blue-700 hover:bg-blue-50"
-                        >
-                          <FileText className="w-3.5 h-3.5 mr-1" />
-                          {viewing.has_damages ? 'Semak & Failkan Tiket' : 'Tanda Disemak'}
-                        </Button>
-                      )}
-                      {viewing.status !== 'Rejected' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={actionLoading}
-                          onClick={() => updateStatus(viewing.id, 'Rejected', wardenNote)}
-                          className="text-xs h-8 border-rose-300 text-rose-700 hover:bg-rose-50"
-                        >
-                          Tolak
-                        </Button>
-                      )}
-                      {viewing.status !== 'Verified' && (
-                        <Button
-                          size="sm"
-                          disabled={actionLoading}
-                          onClick={() => updateStatus(viewing.id, 'Verified', wardenNote)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 gap-1"
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" /> Sahkan
-                        </Button>
-                      )}
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
