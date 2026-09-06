@@ -47,7 +47,9 @@ import {
   fetchAndSyncDropKeyRequests,
   getStudentActiveDropKeyRequest, 
   approveDropKeyRequest, 
-  rejectDropKeyRequest 
+  rejectDropKeyRequest,
+  isTestStudentDropKey,
+  purgeTestStudentData
 } from '@/lib/dropKeyHelper';
 import StudentCheckOutModal from '@/components/dashboard/StudentCheckOutModal';
 import SurveyModal from '@/components/SurveyModal';
@@ -114,7 +116,8 @@ export default function ExpressDropKey() {
 
       // Load and synchronize drop-key requests from Base44 CheckOut entity + localStorage
       const requests = await fetchAndSyncDropKeyRequests();
-      setDropKeyRequests(requests);
+      const cleanRealRequests = (requests || []).filter(r => !isTestStudentDropKey(r));
+      setDropKeyRequests(cleanRealRequests);
 
       // Padanan profil pelajar yang tepat
       let found = null;
@@ -141,16 +144,16 @@ export default function ExpressDropKey() {
         );
       }
 
-      // Fallback jaminan untuk akaun pelajar aktif (cth: sanilbans)
-      if (!found && isStudent) {
+      // Jaminan profil untuk pelajar aktif (hanya berdasarkan data sebenar pengguna)
+      if (!found && isStudent && (user?.student_id || user?.full_name)) {
         found = {
-          id: user?.student_id || user?.id || 'stud_active',
-          student_id: user?.student_id || 'BI22110001',
-          full_name: user?.full_name || 'Pelajar Residen',
+          id: user?.student_id || user?.id || 'stud_user',
+          student_id: user?.student_id || user?.matric_number || '',
+          full_name: user?.full_name || user?.email?.split('@')[0] || 'Pelajar',
           email: user?.email || '',
-          block_name: user?.block_name || 'Blok A',
-          room_number: user?.room_number || 'A-101',
-          room_status: 'Checked In',
+          block_name: user?.block_name || '',
+          room_number: user?.room_number || '',
+          room_status: user?.room_status || 'Checked In',
           resident_status: 'Active'
         };
       }
@@ -159,7 +162,7 @@ export default function ExpressDropKey() {
       if (found) {
         let req = getStudentActiveDropKeyRequest(found.id, found.student_id);
         if (!req) {
-          req = (requests || []).find(r => 
+          req = (cleanRealRequests || []).find(r => 
             (String(r.student_id) === String(found.id) || (found.student_id && String(r.student_matric || r.student_id).toLowerCase() === String(found.student_id).toLowerCase())) &&
             r.status === 'pending_verification'
           ) || null;
@@ -175,7 +178,10 @@ export default function ExpressDropKey() {
 
   // Langganan Acara Global Secara Masa Nyata (Real-Time Live Sync)
   useEffect(() => {
-    refreshAllData();
+    // Purge sebarang rekod test student pada permulaan supaya pangkalan data sentiasa bersih
+    purgeTestStudentData().finally(() => {
+      refreshAllData();
+    });
 
     const handleGlobalSync = () => {
       refreshAllData();
@@ -318,7 +324,11 @@ export default function ExpressDropKey() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={refreshAllData}
+                onClick={async () => {
+                  await purgeTestStudentData();
+                  await refreshAllData();
+                  toast({ title: 'Data Dikemaskini', description: 'Data serahan kunci disegerakkan dan rekod ujian disingkirkan.' });
+                }}
                 disabled={loading}
                 className="h-9 text-xs gap-1.5 border-border bg-card shadow-xs"
               >

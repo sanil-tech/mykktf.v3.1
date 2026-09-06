@@ -117,11 +117,69 @@ export default async function(req: Request) {
       });
     }
 
+    // ─── HELPER: PENGESAN DATA TEST STUDENT ──────────────────────────────────
+    const isTestRecord = (c: any) => {
+      if (!c) return false;
+      const name = String(c.student_name || '').toLowerCase().trim();
+      const matric = String(c.student_matric || c.student_id || '').toLowerCase().trim();
+      const dbId = String(c.student_id || '').toLowerCase().trim();
+      const notes = String(c.notes || '').toLowerCase();
+      return (
+        name === 'pelajar residen' ||
+        name === 'test student' ||
+        name === 'student test' ||
+        matric === 'student' ||
+        matric === 'test' ||
+        matric === 'stud_active' ||
+        matric === 'bi22110001' ||
+        dbId === 'student' ||
+        dbId === 'stud_active' ||
+        notes.includes('"local_id":"dk_test')
+      );
+    };
+
+    // ─── ACTION: PURGE TEST DATA (Hapuskan Semua Rekod Test Student) ───────────
+    if (action === 'purge_test_data') {
+      const allCheckouts = await base44.asServiceRole.entities.CheckOut.list('-created_date').catch(() => []);
+      const testCheckouts = (allCheckouts || []).filter(isTestRecord);
+      await Promise.all(testCheckouts.map(c => base44.asServiceRole.entities.CheckOut.delete(c.id).catch(() => {})));
+
+      const allStudents = await base44.asServiceRole.entities.Student.list().catch(() => []);
+      const testStudents = (allStudents || []).filter((s: any) => {
+        const name = String(s.full_name || '').toLowerCase().trim();
+        const matric = String(s.student_id || '').toLowerCase().trim();
+        return name === 'pelajar residen' || name === 'test student' || matric === 'student' || matric === 'stud_active';
+      });
+      await Promise.all(testStudents.map((s: any) => base44.asServiceRole.entities.Student.delete(s.id).catch(() => {})));
+
+      return Response.json({
+        success: true,
+        deletedCheckouts: testCheckouts.length,
+        deletedStudents: testStudents.length
+      });
+    }
+
     // ─── ACTION 2: LIST & DEDUPLICATE (Senarai Bersih Tanpa Rekod Pendua) ─────
     if (action === 'list') {
       const allCheckouts = await base44.asServiceRole.entities.CheckOut.list('-created_date').catch(() => []);
       
-      const dropKeyCheckouts = (allCheckouts || []).filter(c =>
+      // Padam dan singkirkan sebarang rekod test student
+      const testCheckoutsToDelete: string[] = [];
+      const cleanAllCheckouts = (allCheckouts || []).filter(c => {
+        if (isTestRecord(c)) {
+          if (c.id) testCheckoutsToDelete.push(c.id);
+          return false;
+        }
+        return true;
+      });
+
+      if (testCheckoutsToDelete.length > 0) {
+        Promise.all(testCheckoutsToDelete.map(id => 
+          base44.asServiceRole.entities.CheckOut.delete(id).catch(() => {})
+        )).catch(() => {});
+      }
+
+      const dropKeyCheckouts = cleanAllCheckouts.filter(c =>
         c.status === 'pending_verification' ||
         String(c.room_condition || '').includes('Drop-Key') ||
         String(c.damage_assessment || '').includes('DROP-KEY') ||
@@ -159,13 +217,19 @@ export default async function(req: Request) {
         )).catch(() => {});
       }
 
-      const pendingStudents = await base44.asServiceRole.entities.Student.filter({ room_status: 'Pending Verification' }).catch(() => []);
+      const rawPendingStudents = await base44.asServiceRole.entities.Student.filter({ room_status: 'Pending Verification' }).catch(() => []);
+      const pendingStudents = (rawPendingStudents || []).filter((s: any) => {
+        const name = String(s.full_name || '').toLowerCase().trim();
+        const matric = String(s.student_id || '').toLowerCase().trim();
+        return name !== 'pelajar residen' && name !== 'test student' && matric !== 'student' && matric !== 'stud_active';
+      });
 
       return Response.json({
         success: true,
         checkouts: uniqueCheckouts,
         pendingStudents,
-        cleanedDuplicatesCount: duplicateIdsToDelete.length
+        cleanedDuplicatesCount: duplicateIdsToDelete.length,
+        cleanededTestCount: testCheckoutsToDelete.length
       });
     }
 

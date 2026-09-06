@@ -166,7 +166,7 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
         student_db_id: student?.id || '',
         // student_id = nombor matrik pelajar (BM00008482 dll)
         student_id: student?.student_id || user?.student_id || '',
-        student_name: student?.full_name || user?.full_name || 'Pelajar Residen',
+        student_name: student?.full_name || user?.full_name || 'Pelajar',
         student_matric: student?.student_id || user?.student_id || '',
         student_phone: student?.phone || user?.phone || '',
         student_email: student?.email || user?.email || '',

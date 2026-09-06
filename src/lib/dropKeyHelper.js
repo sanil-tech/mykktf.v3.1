@@ -4,7 +4,74 @@ import { logAudit } from '@/lib/audit';
 const STORAGE_KEY = 'kktf_drop_key_requests';
 
 /**
- * Mengambil semua permohonan Drop-Key Check-Out daripada localStorage (dengan pembersihan rekod pendua)
+ * Pengesan rekod ujian / dummy test student ('Pelajar Residen', 'student', 'stud_active', dll.)
+ */
+export function isTestStudentDropKey(req) {
+  if (!req) return false;
+  const name = String(req.student_name || req.full_name || '').toLowerCase().trim();
+  const matric = String(req.student_matric || req.student_id || '').toLowerCase().trim();
+  const dbId = String(req.student_db_id || '').toLowerCase().trim();
+  const id = String(req.id || '').toLowerCase().trim();
+
+  return (
+    name === 'pelajar residen' ||
+    name === 'test student' ||
+    name === 'student test' ||
+    matric === 'student' ||
+    matric === 'test' ||
+    matric === 'stud_active' ||
+    matric === 'bi22110001' ||
+    dbId === 'student' ||
+    dbId === 'stud_active' ||
+    id.includes('test') ||
+    id === 'dk_test_1' ||
+    id.startsWith('dk_st_student')
+  );
+}
+
+/**
+ * Memadamkan semua rekod dummy / test student daripada CheckOut, Student, dan localStorage
+ */
+export async function purgeTestStudentData() {
+  try {
+    // 1. Panggil backend function untuk pembersihan pantas kebal RLS
+    if (base44?.functions?.invoke) {
+      await base44.functions.invoke('manageDropKey', { action: 'purge_test_data' }).catch(() => {});
+    }
+
+    // 2. Padam sebarang CheckOut dengan data test student secara terus
+    const allCheckouts = await base44.entities.CheckOut.list('-created_date').catch(() => []);
+    const testCheckouts = (allCheckouts || []).filter(isTestStudentDropKey);
+    await Promise.all(testCheckouts.map(c => base44.entities.CheckOut.delete(c.id).catch(() => {})));
+
+    // 3. Padam rekod dummy dalam Student entity jika ada
+    const allStudents = await base44.entities.Student.list().catch(() => []);
+    const testStudents = (allStudents || []).filter(isTestStudentDropKey);
+    await Promise.all(testStudents.map(s => base44.entities.Student.delete(s.id).catch(() => {})));
+
+    // 4. Bersihkan localStorage
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const clean = parsed.filter(r => !isTestStudentDropKey(r));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
+        }
+      }
+    } catch (e) {}
+
+    window.dispatchEvent(new CustomEvent('DROP_KEY_UPDATED'));
+    window.dispatchEvent(new CustomEvent('KRMS_MODULES_REFRESH'));
+    return true;
+  } catch (err) {
+    console.error('Ralat purge test student:', err);
+    return false;
+  }
+}
+
+/**
+ * Mengambil semua permohonan Drop-Key Check-Out daripada localStorage (dengan pembersihan rekod pendua dan test data)
  */
 export function getDropKeyRequests() {
   try {
@@ -13,10 +80,12 @@ export function getDropKeyRequests() {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
 
-    // Deduplikasi rekod local storage
+    // Deduplikasi rekod local storage dan singkirkan test student
     const seen = new Set();
     const cleanList = [];
     for (const r of parsed) {
+      if (isTestStudentDropKey(r)) continue;
+
       const studentKey = String(r.student_matric || r.student_id || r.student_name || '').toLowerCase().trim();
       const roomKey = `${r.block_name || ''}_${r.room_number || ''}`.toLowerCase().trim();
       const dedupeKey = r.status === 'pending_verification'
@@ -63,13 +132,19 @@ export async function fetchAndSyncDropKeyRequests() {
     // ── 2. Query Entity CheckOut secara terus jika backend function kosong ─────
     if (!dropKeyCheckouts || dropKeyCheckouts.length === 0) {
       const allCheckouts = await base44.entities.CheckOut.list('-created_date').catch(() => []);
-      dropKeyCheckouts = (allCheckouts || []).filter(c =>
-        c.status === 'pending_verification' ||
-        String(c.room_condition || '').includes('Drop-Key') ||
-        String(c.damage_assessment || '').includes('DROP-KEY') ||
-        String(c.damage_assessment || '').includes('Express Drop-Key') ||
-        String(c.damage_assessment || '').includes('[EXPRESS DROP-KEY]')
-      );
+      dropKeyCheckouts = (allCheckouts || []).filter(c => {
+        if (isTestStudentDropKey(c)) {
+          if (c.id) base44.entities.CheckOut.delete(c.id).catch(() => {});
+          return false;
+        }
+        return (
+          c.status === 'pending_verification' ||
+          String(c.room_condition || '').includes('Drop-Key') ||
+          String(c.damage_assessment || '').includes('DROP-KEY') ||
+          String(c.damage_assessment || '').includes('Express Drop-Key') ||
+          String(c.damage_assessment || '').includes('[EXPRESS DROP-KEY]')
+        );
+      });
     }
 
     // ── 3. Tukar rekod CheckOut ke format drop-key request ────────────────────
@@ -146,6 +221,7 @@ export async function fetchAndSyncDropKeyRequests() {
 
     const synthesizedFromStudents = [];
     for (const s of (allStudents || [])) {
+      if (isTestStudentDropKey(s)) continue;
       const isPending = s.room_status === 'Pending Verification' || s.room_status === 'Pending Drop-Key Verification';
       const matricKey = String(s.student_id || '').toLowerCase();
       const idKey = String(s.id);
@@ -159,7 +235,7 @@ export async function fetchAndSyncDropKeyRequests() {
           checkout_record_id: meta.active_drop_key_id || '',
           student_id: s.student_id || '',
           student_db_id: s.id,
-          student_name: s.full_name || 'Pelajar Residen',
+          student_name: s.full_name || 'Pelajar',
           student_matric: s.student_id || '',
           student_email: s.email || '',
           student_phone: s.phone || '',
@@ -209,11 +285,20 @@ export async function fetchAndSyncDropKeyRequests() {
       ...localOnly
     ];
 
-    // ── 7. DEDUKLIKASI KETAT: TUTUP SEMUA ENTRY BERGANDA (HANYA 1 REKOD TERKINI) ───
+    // ── 7. DEDUKLIKASI KETAT & PENYINGKIRAN REKOD TEST STUDENT ────────────────
     const seenPendingKeys = new Set();
     const deduplicated = [];
 
     for (const req of rawMerged) {
+      if (isTestStudentDropKey(req)) {
+        // Padam rekod test ini daripada pangkalan data secara senyap
+        const dbId = req.checkout_record_id || (req.id && !req.id.startsWith('dk_') ? req.id : null);
+        if (dbId) {
+          base44.entities.CheckOut.delete(dbId).catch(() => {});
+        }
+        continue;
+      }
+
       const matricKey = String(req.student_matric || req.student_id || req.student_name || '').toLowerCase().trim();
       const roomKey = `${req.block_name || ''}_${req.room_number || ''}`.toLowerCase().trim();
       
@@ -277,7 +362,7 @@ export async function submitDropKeyRequest(data) {
   }
 
   const primaryPayload = {
-    student_id: studentDbId || data.student_matric || data.student_id || 'student',
+    student_id: studentDbId || data.student_matric || data.student_id || '',
     room_id: data.room_id || 'room_dropkey',
     check_out_date: data.checkout_date || new Date().toISOString().split('T')[0],
     check_out_time: data.checkout_time || `${new Date().getHours().toString().padStart(2, '0')}:${new Date().getMinutes().toString().padStart(2, '0')}`,
@@ -290,7 +375,7 @@ export async function submitDropKeyRequest(data) {
       data.reason ? `Sebab: ${data.reason}` : '',
       localId ? `LocalID: ${localId}` : ''
     ].filter(Boolean).join(' | '),
-    student_name: data.student_name || 'Pelajar Residen',
+    student_name: data.student_name || data.student_matric || 'Pelajar',
     student_matric: data.student_matric || data.student_id || '',
     room_number: data.room_number || '',
     block_name: data.block_name || '',
@@ -341,8 +426,8 @@ export async function submitDropKeyRequest(data) {
       console.warn('Percubaan 1 simpan CheckOut gagal, mencuba fallback schema bersih:', dbErr);
       try {
         dbCheckout = await base44.entities.CheckOut.create({
-          student_id: studentDbId || data.student_matric || 'student',
-          student_name: data.student_name || 'Pelajar Residen',
+          student_id: studentDbId || data.student_matric || '',
+          student_name: data.student_name || data.student_matric || 'Pelajar',
           room_id: data.room_id || 'room_dropkey',
           room_number: data.room_number || 'Bilik',
           block_name: data.block_name || 'Blok',
@@ -392,7 +477,7 @@ export async function submitDropKeyRequest(data) {
     checkout_record_id: dbCheckout?.id || data.checkout_record_id || '',
     student_id: data.student_matric || data.student_id,
     student_db_id: studentDbId,
-    student_name: data.student_name || 'Pelajar Residen',
+    student_name: data.student_name || data.student_matric || 'Pelajar',
     student_matric: data.student_matric || data.student_id || '',
     student_phone: data.student_phone || '',
     student_email: data.student_email || '',
