@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { fetchActiveJakmasAppointment, computeEffectiveRole } from '@/lib/jakmas';
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
+import PostCheckOutDashboard from '@/components/dashboard/PostCheckOutDashboard';
+import SurveyModal from '@/components/SurveyModal';
 import { 
   Loader2, 
   MapPin, 
@@ -43,6 +45,11 @@ export default function Dashboard() {
   const [studentProfile, setStudentProfile] = useState(null);
   const [hasStudentProfile, setHasStudentProfile] = useState(false);
   const [isRoomAssigned, setIsRoomAssigned] = useState(false); 
+  const [isStudentCheckedOut, setIsStudentCheckedOut] = useState(false);
+  const [checkoutRecord, setCheckoutRecord] = useState(null);
+  const [surveyRecord, setSurveyRecord] = useState(null);
+  const [hasCompletedSurvey, setHasCompletedSurvey] = useState(false);
+  const [showSurveyModal, setShowSurveyModal] = useState(false);
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -197,6 +204,60 @@ export default function Dashboard() {
 
           const isStrictlyVerified = hasRoom && isQrVerified && isRoomCheckedIn && !isPending;
 
+          // Semak sama ada pelajar telah check-out (sama ada status 'Checked Out' atau ada rekod CheckOut yang sah)
+          let latestCheckout = null;
+          try {
+            const checkouts = await base44.entities.CheckOut.filter({ student_id: s.student_id }, '-check_out_date');
+            if (checkouts && checkouts.length > 0) {
+              latestCheckout = checkouts[0];
+            }
+          } catch (chkErr) {
+            console.warn('Gagal memuat turun rekod checkout:', chkErr);
+          }
+
+          if (!latestCheckout) {
+            try {
+              const rawDropKeys = localStorage.getItem('kktf_drop_key_requests');
+              if (rawDropKeys) {
+                const parsed = JSON.parse(rawDropKeys);
+                const myReq = parsed.find(r => 
+                  (r.student_matric === s.student_id || r.student_id === s.id) &&
+                  r.status === 'approved'
+                );
+                if (myReq) {
+                  latestCheckout = {
+                    student_id: s.student_id,
+                    student_name: s.full_name,
+                    block_name: myReq.block_name,
+                    room_number: myReq.room_number,
+                    check_out_date: myReq.checkout_date,
+                    check_out_time: myReq.checkout_time,
+                    status: 'approved'
+                  };
+                }
+              }
+            } catch (e) {}
+          }
+
+          let latestSurvey = null;
+          try {
+            const surveys = await base44.entities.Survey.filter({ student_id: s.student_id }, '-created_date');
+            if (surveys && surveys.length > 0) {
+              latestSurvey = surveys[0];
+            }
+          } catch (survErr) {
+            console.warn('Gagal memuat turun rekod survey:', survErr);
+          }
+
+          setCheckoutRecord(latestCheckout);
+          setSurveyRecord(latestSurvey);
+          setHasCompletedSurvey(Boolean(latestSurvey));
+
+          const studentCheckedOut = String(s.room_status || '').trim().toLowerCase() === 'checked out' ||
+            (Boolean(latestCheckout) && !isStrictlyVerified);
+
+          setIsStudentCheckedOut(studentCheckedOut);
+
           // Selaraskan status di database jika sudah sah melalui imbasan QR
           if (isStrictlyVerified) {
             const isResidentActive = String(s.resident_status || '').trim().toLowerCase() === 'active';
@@ -220,8 +281,8 @@ export default function Dashboard() {
                 base44.entities.User.update(user.id, { role: 'student' }).catch(() => {});
               }
             }
-          } else {
-            // Jika belum disahkan tetapi datang dari prapendaftaran/setup,
+          } else if (!studentCheckedOut) {
+            // Jika belum disahkan (dan bukan checkout) tetapi datang dari prapendaftaran/setup,
             // automatik buka popup pengimbas QR pintu utama untuk kemudahan pelajar
             if (sessionStorage.getItem('open_resident_qr_modal') === 'true') {
               sessionStorage.removeItem('open_resident_qr_modal');
@@ -429,6 +490,55 @@ export default function Dashboard() {
 
   if (!hasStudentProfile) {
     return <StudentSetup user={currentUser} onComplete={() => window.location.reload()} />;
+  }
+
+  // ====================================================================
+  // 🎓 JIKA PELAJAR TELAH CHECK-OUT (PASCA CHECK-OUT & PERALIHAN SEMESTER)
+  // ====================================================================
+  // Mengelakkan paparan kembali kepada 'Pusat Pengaktifan Residen' yang mengelirukan!
+  // Memaparkan Hub Maklum Balas Kajian Kepuasan Pelajar dan Portal Kemasukan Semula Sem 2.
+  if (hasStudentProfile && isStudentCheckedOut && !isRoomAssigned) {
+    return (
+      <>
+        <PostCheckOutDashboard
+          user={currentUser}
+          student={studentProfile}
+          checkoutRecord={checkoutRecord}
+          surveyRecord={surveyRecord}
+          hasCompletedSurvey={hasCompletedSurvey}
+          onOpenSurvey={() => setShowSurveyModal(true)}
+          onOpenCheckInSem2={() => setShowCheckInModal(true)}
+        />
+        <SurveyModal
+          open={showSurveyModal}
+          onClose={() => setShowSurveyModal(false)}
+          onComplete={async () => {
+            setHasCompletedSurvey(true);
+            setShowSurveyModal(false);
+            try {
+              const updatedSurv = await base44.entities.Survey.filter({ student_id: studentProfile?.student_id }, '-created_date');
+              if (updatedSurv?.length > 0) setSurveyRecord(updatedSurv[0]);
+            } catch (e) {}
+          }}
+          user={currentUser}
+          student={studentProfile}
+          checkoutId={checkoutRecord?.id || ''}
+        />
+        <StudentCheckInModal 
+          isOpen={showCheckInModal}
+          onClose={() => setShowCheckInModal(false)}
+          student={studentProfile}
+          user={currentUser}
+          onCheckInSuccess={(updated) => {
+            setStudentProfile(prev => ({ ...prev, ...updated }));
+            setIsRoomAssigned(true);
+            setIsStudentCheckedOut(false);
+            setShowCheckInModal(false);
+          }}
+        />
+        {tour}
+      </>
+    );
   }
 
   if (hasStudentProfile && !isRoomAssigned) {

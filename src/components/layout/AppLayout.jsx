@@ -12,6 +12,7 @@ export default function AppLayout({ user }) {
   const [collapsed, setCollapsed] = useState(false);
   const [jakmasAppointment, setJakmasAppointment] = useState(null);
   const [isStudentVerified, setIsStudentVerified] = useState(true);
+  const [isStudentCheckedOut, setIsStudentCheckedOut] = useState(false);
 
   const baseRole = user?.role || 'student';
   const isStudentBase = !baseRole || baseRole === 'student' || baseRole === 'user';
@@ -30,6 +31,7 @@ export default function AppLayout({ user }) {
   useEffect(() => {
     if (!isStudentBase || hasJakmas) {
       setIsStudentVerified(true);
+      setIsStudentCheckedOut(false);
       return;
     }
 
@@ -54,9 +56,13 @@ export default function AppLayout({ user }) {
           const isRoomCheckedIn = String(s.room_status || '').trim().toLowerCase() === 'checked in';
           const isPending = String(s.room_status || '').trim().toLowerCase() === 'pending verification' ||
                             String(s.room_status || '').trim().toLowerCase() === 'pending key';
+          const isCheckedOut = String(s.room_status || '').trim().toLowerCase() === 'checked out';
+
           setIsStudentVerified(hasRoom && isQrVerified && isRoomCheckedIn && !isPending);
+          setIsStudentCheckedOut(isCheckedOut);
         } else {
           setIsStudentVerified(false);
+          setIsStudentCheckedOut(false);
         }
       } catch (err) {
         console.warn('AppLayout verification check error:', err);
@@ -71,9 +77,20 @@ export default function AppLayout({ user }) {
     window.location.reload();
   };
 
-  // Sekat laluan modul jika pelajar belum mengimbas QR di pintu utama
-  const publicAllowedPaths = ['/', '/guide', '/buku-panduan', '/presentation', '/contact', '/hotline'];
-  const isBlockedRoute = isStudentBase && !hasJakmas && !isStudentVerified && !publicAllowedPaths.includes(location.pathname);
+  // Sekat laluan modul jika pelajar belum mengimbas QR di pintu utama,
+  // TETAPI benarkan akses kepada modul yang berkaitan bagi pelajar yang telah check out
+  const baseAllowedPaths = ['/', '/guide', '/buku-panduan', '/presentation', '/contact', '/hotline'];
+  const checkedOutAllowedPaths = [
+    ...baseAllowedPaths,
+    '/express-drop-key',
+    '/merit-demerit',
+    '/discipline',
+    '/profile',
+    '/survey-analytics'
+  ];
+
+  const allowedPaths = isStudentCheckedOut ? checkedOutAllowedPaths : baseAllowedPaths;
+  const isBlockedRoute = isStudentBase && !hasJakmas && !isStudentVerified && !allowedPaths.includes(location.pathname);
 
   if (isBlockedRoute) {
     return <Navigate to="/" replace />;
@@ -85,6 +102,7 @@ export default function AppLayout({ user }) {
         userRole={effectiveRole}
         hasJakmas={hasJakmas}
         isStudentVerified={isStudentVerified}
+        isStudentCheckedOut={isStudentCheckedOut}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         collapsed={collapsed}

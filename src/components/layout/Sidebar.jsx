@@ -19,7 +19,16 @@ const iconMap = {
   CheckSquare, PhoneCall, KeyRound
 };
 
-export default function Sidebar({ userRole, hasJakmas, isStudentVerified = true, open, onClose, collapsed, onToggleCollapse }) {
+export default function Sidebar({ 
+  userRole, 
+  hasJakmas, 
+  isStudentVerified = true, 
+  isStudentCheckedOut = false,
+  open, 
+  onClose, 
+  collapsed, 
+  onToggleCollapse 
+}) {
   const location = useLocation();
   const navItems = getNavItems(userRole, hasJakmas);
 
@@ -60,7 +69,20 @@ export default function Sidebar({ userRole, hasJakmas, isStudentVerified = true,
           {navItems.map(item => {
             const Icon = iconMap[item.icon];
             const active = location.pathname === item.path;
-            const isRestricted = !isStudentVerified && item.path !== '/' && item.path !== '/guide' && item.path !== '/contact';
+            const isAllowedWhenCheckedOut = isStudentCheckedOut && [
+              '/',
+              '/guide',
+              '/buku-panduan',
+              '/contact',
+              '/hotline',
+              '/express-drop-key',
+              '/merit-demerit',
+              '/discipline',
+              '/profile',
+              '/survey-analytics'
+            ].includes(item.path);
+
+            const isRestricted = !isStudentVerified && !isAllowedWhenCheckedOut && item.path !== '/' && item.path !== '/guide' && item.path !== '/contact';
 
             if (isRestricted) {
               return (
