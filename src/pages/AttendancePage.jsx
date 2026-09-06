@@ -4,12 +4,11 @@ import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { 
-  Plus, 
   ClipboardCheck, 
   QrCode, 
   ScanLine, 
@@ -41,7 +40,6 @@ export default function AttendancePage() {
   const [students, setStudents] = useState([]);
   const [realEvents, setRealEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [qrScanOpen, setQrScanOpen] = useState(false);
   const [scannerMode, setScannerMode] = useState('camera'); // 'camera' | 'manual'
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -58,15 +56,6 @@ export default function AttendancePage() {
     event_type: 'Assembly', 
     event_name: '', 
     attendance_date: new Date().toISOString().split('T')[0] 
-  });
-  const [form, setForm] = useState({ 
-    student_id: '', 
-    event_id: '',
-    event_type: 'Program Kolej', 
-    event_name: '', 
-    attendance_date: new Date().toISOString().split('T')[0], 
-    method: 'Manual', 
-    status: 'Present' 
   });
   const { toast } = useToast();
 
@@ -90,8 +79,13 @@ export default function AttendancePage() {
       setRecords(attList || []);
       setStudents(studList || []);
       
-      // Filter events to approved or all
-      const validEvts = (evtList || []).filter(e => e.status !== 'Rejected');
+      // Filter events: if student, only show Approved events
+      const validEvts = (evtList || []).filter(e => {
+        if (!isAdminRole) {
+          return e.felo_approval_status === 'Approved' && e.status !== 'Cancelled' && e.status !== 'Rejected';
+        }
+        return e.status !== 'Rejected';
+      });
       setRealEvents(validEvts);
       if (validEvts.length > 0) {
         setSelectedEventId(validEvts[0].id);
@@ -103,14 +97,30 @@ export default function AttendancePage() {
       }
 
       if (!isAdminRole && user) {
-        const studs = await base44.entities.Student.filter({ email: user.email });
-        if (studs.length > 0) {
-          setMyStudent(studs[0]);
-        } else {
-          // fallback find by user_id
-          const byUser = await base44.entities.Student.filter({ user_id: user.id });
-          setMyStudent(byUser[0] || null);
+        let matchedStudent = (studList || []).find(s => 
+          (user.id && s.user_id === user.id) ||
+          (user.email && s.email && s.email.toLowerCase() === user.email.toLowerCase()) ||
+          (user.student_id && s.student_id && s.student_id.toLowerCase() === user.student_id.toLowerCase())
+        );
+        if (!matchedStudent) {
+          const studs = await base44.entities.Student.filter({ email: user.email }).catch(() => []);
+          matchedStudent = studs[0];
         }
+        if (!matchedStudent) {
+          const byUser = await base44.entities.Student.filter({ user_id: user.id }).catch(() => []);
+          matchedStudent = byUser[0];
+        }
+        if (!matchedStudent && user) {
+          matchedStudent = {
+            id: user.id,
+            user_id: user.id,
+            full_name: user.full_name || user.name || (user.email ? user.email.split('@')[0] : 'Residen KKTF'),
+            student_id: user.student_id || user.matric_no || (user.id ? user.id.slice(0, 10).toUpperCase() : 'KKTF'),
+            email: user.email || '',
+            merit_points: 0
+          };
+        }
+        setMyStudent(matchedStudent);
       }
     } catch (err) {
       console.error('Failed loading attendance data:', err);
@@ -153,72 +163,6 @@ export default function AttendancePage() {
     toast({ title: 'Kod token acara disalin!' });
   };
 
-  async function handleAdminSubmit() {
-    if (!form.student_id || !form.event_name || !form.attendance_date) { 
-      toast({ title: 'Sila lengkapkan semua medan mandatori (*)', variant: 'destructive' }); 
-      return; 
-    }
-    const student = students.find(s => s.id === form.student_id);
-    if (!student) {
-      toast({ title: 'Pelajar tidak ditemui', variant: 'destructive' });
-      return;
-    }
-
-    // Check duplicate
-    const existing = records.find(r => 
-      (r.student_id === student.id || r.student_id === student.student_id) && 
-      r.event_name === form.event_name && 
-      r.attendance_date === form.attendance_date
-    );
-    if (existing) {
-      toast({ title: 'Kehadiran pelajar ini telah direkodkan untuk acara ini.', variant: 'destructive' });
-      return;
-    }
-
-    // 1. Create Attendance record
-    await base44.entities.Attendance.create({ 
-      ...form, 
-      student_name: student.full_name || '',
-      student_id: student.id
-    });
-
-    // 2. If status is Present, credit merit points automatically
-    if (form.status === 'Present') {
-      const currentMerit = student.merit_points || 0;
-      await base44.entities.Student.update(student.id, {
-        merit_points: currentMerit + 10
-      });
-
-      // 3. Update EventRegistration if exists
-      if (form.event_id) {
-        try {
-          const regs = await base44.entities.EventRegistration.filter({ 
-            event_id: form.event_id, 
-            student_id: student.id 
-          });
-          if (regs.length > 0) {
-            await base44.entities.EventRegistration.update(regs[0].id, { status: 'Attended' });
-          }
-        } catch (e) {
-          console.warn('Could not update registration status:', e);
-        }
-      }
-    }
-
-    await logAudit(currentUser, 'ATTENDANCE_RECORDED', 'Attendance', { 
-      student: student.full_name, 
-      event: form.event_name, 
-      status: form.status,
-      meritAwarded: form.status === 'Present' ? 10 : 0
-    });
-
-    toast({ 
-      title: 'Kehadiran berjaya disimpan', 
-      description: form.status === 'Present' ? `+10 Mata Merit dikreditkan ke ${student.full_name}` : '' 
-    });
-    setDialogOpen(false);
-    init();
-  }
 
   // Sound chime upon successful attendance scan
   const playSuccessChime = () => {
@@ -382,12 +326,15 @@ export default function AttendancePage() {
     }
 
     try {
+      const validTypes = ["Assembly", "Briefing", "Emergency Drill", "Sports Activity", "Program Kolej", "Event", "Other"];
+      const safeEventType = validTypes.includes(event_type) ? event_type : "Other";
+
       // 1. Create Attendance record
       await base44.entities.Attendance.create({ 
-        student_id: myStudent.id, 
-        student_name: myStudent.full_name, 
+        student_id: myStudent.id || currentUser.id, 
+        student_name: myStudent.full_name || currentUser.full_name || currentUser.email, 
         event_id: event_id || '',
-        event_type, 
+        event_type: safeEventType, 
         event_name, 
         attendance_date, 
         method: 'QR Code', 
@@ -397,9 +344,11 @@ export default function AttendancePage() {
       // 2. Update Student Merit (+10)
       const currentMerit = Number(myStudent.merit_points) || 0;
       const newMerit = currentMerit + 10;
-      await base44.entities.Student.update(myStudent.id, {
-        merit_points: newMerit
-      });
+      if (myStudent.id) {
+        await base44.entities.Student.update(myStudent.id, {
+          merit_points: newMerit
+        }).catch((err) => console.warn('Student merit update warning:', err));
+      }
       setMyStudent(prev => prev ? { ...prev, merit_points: newMerit } : null);
 
       // 3. Update EventRegistration if exists
@@ -461,27 +410,16 @@ export default function AttendancePage() {
         title="Pengurusan & Pengambilan Kehadiran"
         description={isAdmin ? "Jana kod QR acara, rekod kehadiran automatik dan kemaskini mata merit residen." : "Rekod kehadiran program kolej dan pengesahan mata merit anda."}
         actions={
-          <div className="flex gap-2">
-            {!isAdmin && myStudent && (
-              <Button size="sm" onClick={() => setQrScanOpen(true)} className="bg-primary text-primary-foreground font-medium shadow-sm">
+          <div className="flex gap-2 items-center">
+            {!isAdmin && (
+              <Button size="sm" onClick={() => setQrScanOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm rounded-xl">
                 <QrCode className="w-4 h-4 mr-1.5" /> Imbas Kod QR Acara
               </Button>
             )}
             {isAdmin && (
-              <Button size="sm" onClick={() => { 
-                setForm({ 
-                  student_id: '', 
-                  event_id: realEvents[0]?.id || '',
-                  event_type: realEvents[0]?.category || 'Program Kolej', 
-                  event_name: realEvents[0]?.event_name || '', 
-                  attendance_date: realEvents[0]?.event_date || new Date().toISOString().split('T')[0], 
-                  method: 'Manual', 
-                  status: 'Present' 
-                }); 
-                setDialogOpen(true); 
-              }}>
-                <Plus className="w-4 h-4 mr-1.5" /> Rekod Kehadiran Manual
-              </Button>
+              <div className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5 px-3 py-1.5 bg-muted/80 rounded-xl border border-border">
+                <QrCode className="w-4 h-4 text-emerald-600" /> Pengesahan Melalui Imbasan QR Sahaja
+              </div>
             )}
           </div>
         }
@@ -685,123 +623,6 @@ export default function AttendancePage() {
         );
       })()}
 
-      {/* Admin: manual record dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Rekod Kehadiran Pelajar</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 mt-2">
-            <div>
-              <Label className="text-xs">Pilih Pelajar *</Label>
-              <Select value={form.student_id} onValueChange={v => setForm({ ...form, student_id: v })}>
-                <SelectTrigger className="h-9 text-xs mt-1">
-                  <SelectValue placeholder="Pilih pelajar dari senarai residen" />
-                </SelectTrigger>
-                <SelectContent className="max-h-56">
-                  {students.map(s => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.full_name} ({s.student_id || s.room_number || 'Residen'})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-xs">Pilih Program Sedia Ada</Label>
-              <Select 
-                value={form.event_id} 
-                onValueChange={v => {
-                  const ev = realEvents.find(e => e.id === v);
-                  if (ev) {
-                    setForm({
-                      ...form,
-                      event_id: v,
-                      event_name: ev.event_name,
-                      event_type: ev.category || 'Program Kolej',
-                      attendance_date: ev.event_date || form.attendance_date
-                    });
-                  }
-                }}
-              >
-                <SelectTrigger className="h-9 text-xs mt-1">
-                  <SelectValue placeholder="Pilih dari program kolej..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {realEvents.map(ev => (
-                    <SelectItem key={ev.id} value={ev.id}>
-                      {ev.event_name} ({ev.event_date})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-xs">Nama Acara / Perhimpunan *</Label>
-              <Input 
-                value={form.event_name} 
-                onChange={e => setForm({ ...form, event_name: e.target.value })} 
-                className="h-9 text-xs mt-1" 
-                placeholder="cth. Perhimpunan Residen Blok"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label className="text-xs">Kategori Acara</Label>
-                <Select value={form.event_type} onValueChange={v => setForm({ ...form, event_type: v })}>
-                  <SelectTrigger className="h-9 text-xs mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {['Program Kolej', 'Perhimpunan', 'Sukan & Rekreasi', 'Khidmat Komuniti', 'Kerohanian', 'Taklimat'].map(t => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Tarikh *</Label>
-                <Input 
-                  type="date" 
-                  value={form.attendance_date} 
-                  onChange={e => setForm({ ...form, attendance_date: e.target.value })} 
-                  className="h-9 text-xs mt-1" 
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label className="text-xs">Kaedah</Label>
-                <Select value={form.method} onValueChange={v => setForm({ ...form, method: v })}>
-                  <SelectTrigger className="h-9 text-xs mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Manual">Manual</SelectItem>
-                    <SelectItem value="QR Code">QR Code</SelectItem>
-                    <SelectItem value="Walk-in">Walk-in</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Status Kehadiran</Label>
-                <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
-                  <SelectTrigger className="h-9 text-xs mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Present">Hadir (Dapat +10 Merit)</SelectItem>
-                    <SelectItem value="Late">Lewat</SelectItem>
-                    <SelectItem value="Absent">Tidak Hadir</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="mt-4">
-            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>Batal</Button>
-            <Button size="sm" onClick={handleAdminSubmit}>Simpan & Kemaskini Merit</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Student: Live Camera & Token QR Attendance Scanner Modal */}
       <Dialog open={qrScanOpen} onOpenChange={(open) => { if (!open) closeQrModal(); else setQrScanOpen(true); }}>

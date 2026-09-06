@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,11 @@ import {
   ExternalLink,
   Sparkles,
   Pencil,
-  FileText
+  FileText,
+  Camera,
+  Keyboard,
+  Loader2,
+  X
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
@@ -42,6 +46,8 @@ import { computeEffectiveRole, fetchActiveJakmasAppointment } from '@/lib/jakmas
 import { logAudit } from '@/lib/audit';
 import { showPhoneNotification } from '@/lib/pushNotifications';
 import PrincipalEventDetailModal from '@/components/PrincipalEventDetailModal';
+import { Html5Qrcode } from 'html5-qrcode';
+import confetti from 'canvas-confetti';
 
 const MANAGE_ROLES = ['super_admin', 'principal', 'college_admin', 'warden', 'staff', 'jakmas'];
 
@@ -252,11 +258,10 @@ export default function Events() {
     points: 20
   });
 
-  // Attendance Management State
+  // Attendance Management State (QR Attendance Only)
   const [attendanceModalEvent, setAttendanceModalEvent] = useState(null);
   const [eventAttendanceList, setEventAttendanceList] = useState([]);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
-  const [walkInStudentId, setWalkInStudentId] = useState('');
   const [attendanceTab, setAttendanceTab] = useState('qr'); // 'qr' | 'roster'
   const [qrCopied, setQrCopied] = useState(false);
   const [filterParticipantSearch, setFilterParticipantSearch] = useState('');
@@ -276,6 +281,282 @@ export default function Events() {
 
   // Principal Event Dossier / Review Modal State
   const [selectedEventForReview, setSelectedEventForReview] = useState(null);
+
+  // Student QR Scanner Modal State & Refs
+  const [studentScanModalOpen, setStudentScanModalOpen] = useState(false);
+  const [studentScannerTargetEvent, setStudentScannerTargetEvent] = useState(null);
+  const [studentScannerMode, setStudentScannerMode] = useState('camera'); // 'camera' | 'manual'
+  const [studentScannerActive, setStudentScannerActive] = useState(false);
+  const [studentScannerError, setStudentScannerError] = useState('');
+  const [manualTokenInput, setManualTokenInput] = useState('');
+  const [isProcessingStudentScan, setIsProcessingStudentScan] = useState(false);
+  const studentHtml5QrCodeRef = useRef(null);
+  const studentIsProcessingRef = useRef(false);
+
+  function openStudentScannerModal(ev = null) {
+    setStudentScannerTargetEvent(ev);
+    setManualTokenInput(ev ? `KKTF-EVT|${ev.id}|${ev.event_name}|${ev.event_date}` : '');
+    setStudentScannerMode('camera');
+    setStudentScannerError('');
+    setIsProcessingStudentScan(false);
+    studentIsProcessingRef.current = false;
+    setStudentScanModalOpen(true);
+  }
+
+  const playSuccessChime = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } catch (e) {}
+
+    if (navigator.vibrate) {
+      navigator.vibrate([100, 50, 100]);
+    }
+  };
+
+  const startStudentCamera = async () => {
+    setStudentScannerError('');
+    setStudentScannerActive(false);
+    studentIsProcessingRef.current = false;
+
+    try {
+      await stopStudentCamera();
+      const qrScanner = new Html5Qrcode('student-event-attendance-reader');
+      studentHtml5QrCodeRef.current = qrScanner;
+
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0
+      };
+
+      await qrScanner.start(
+        { facingMode: 'environment' },
+        config,
+        (decodedText) => {
+          if (!studentIsProcessingRef.current) {
+            studentIsProcessingRef.current = true;
+            processStudentAttendanceQr(decodedText);
+          }
+        },
+        () => {}
+      );
+      setStudentScannerActive(true);
+    } catch (err) {
+      console.error('Kamera gagal dimulakan:', err);
+      setStudentScannerError('Kamera tidak dapat diakses atau kebenaran belum diberikan. Sila gunakan tab "Input Kod Manual".');
+      setStudentScannerActive(false);
+    }
+  };
+
+  const stopStudentCamera = async () => {
+    const scanner = studentHtml5QrCodeRef.current;
+    if (scanner) {
+      studentHtml5QrCodeRef.current = null;
+      try {
+        if (scanner.isScanning) {
+          await scanner.stop();
+        }
+        await scanner.clear();
+      } catch (e) {
+        console.warn('Error stopping camera:', e);
+      }
+    }
+    setStudentScannerActive(false);
+  };
+
+  const closeStudentScannerModal = () => {
+    stopStudentCamera();
+    setStudentScanModalOpen(false);
+    setStudentScannerTargetEvent(null);
+    setManualTokenInput('');
+    setStudentScannerError('');
+    setIsProcessingStudentScan(false);
+    studentIsProcessingRef.current = false;
+  };
+
+  async function processStudentAttendanceQr(rawToken) {
+    const token = (rawToken || '').trim();
+    if (!token) {
+      toast({ title: 'Sila masukkan kod QR / token acara', variant: 'destructive' });
+      return;
+    }
+
+    setIsProcessingStudentScan(true);
+
+    try {
+      let parsedEventId = null;
+      let parsedEventName = '';
+      let parsedEventDate = new Date().toISOString().split('T')[0];
+
+      if (token.startsWith('KKTF-EVT|')) {
+        const parts = token.split('|');
+        parsedEventId = parts[1];
+        parsedEventName = parts[2] || '';
+        parsedEventDate = parts[3] || parsedEventDate;
+      } else if (token.includes('|')) {
+        const parts = token.split('|');
+        parsedEventName = parts[0];
+        parsedEventDate = parts[2] || parsedEventDate;
+      } else {
+        parsedEventId = token;
+      }
+
+      // Cari acara padanan
+      const targetEv = events.find(e => 
+        (parsedEventId && e.id === parsedEventId) ||
+        (parsedEventName && e.event_name && e.event_name.toLowerCase() === parsedEventName.toLowerCase()) ||
+        (studentScannerTargetEvent && e.id === studentScannerTargetEvent.id)
+      ) || studentScannerTargetEvent;
+
+      if (!targetEv && !parsedEventName) {
+        toast({
+          title: 'Kod QR Tidak Sah',
+          description: 'Kod QR ini bukan daripada program kolej yang berdaftar.',
+          variant: 'destructive'
+        });
+        setIsProcessingStudentScan(false);
+        studentIsProcessingRef.current = false;
+        return;
+      }
+
+      const eventName = targetEv?.event_name || parsedEventName;
+      const eventId = targetEv?.id || parsedEventId;
+      const eventDate = targetEv?.event_date || parsedEventDate;
+      const meritToAdd = Number(targetEv?.merit_points) || 10;
+
+      const studentName = student?.full_name || user?.full_name || (user?.email ? user.email.split('@')[0] : 'Residen KKTF');
+      const studentId = student?.id || user?.id;
+      const studentMatric = student?.student_id || user?.student_id || user?.matric_no || (user?.id ? user.id.slice(0, 10).toUpperCase() : 'KKTF');
+
+      // Semak jika kehadiran sudah direkodkan
+      const existingAttendance = await base44.entities.Attendance.filter({
+        event_name: eventName,
+        student_id: studentId
+      }).catch(() => []);
+
+      if (existingAttendance && existingAttendance.length > 0) {
+        toast({
+          title: 'Kehadiran Telah Disahkan! ✓',
+          description: `Anda telah pun direkodkan hadir bagi "${eventName}". Mata merit telah dikreditkan ke akaun anda.`
+        });
+        closeStudentScannerModal();
+        return;
+      }
+
+      // 1. Rekod Kehadiran dalam Entity Attendance (dengan safe event_type enum)
+      const validTypes = ["Assembly", "Briefing", "Emergency Drill", "Sports Activity", "Program Kolej", "Event", "Other"];
+      const safeEventType = validTypes.includes(targetEv?.category) ? targetEv.category : "Program Kolej";
+
+      await base44.entities.Attendance.create({
+        student_id: studentId,
+        student_name: studentName,
+        event_id: eventId || '',
+        event_type: safeEventType,
+        event_name: eventName,
+        attendance_date: eventDate,
+        method: 'QR Code',
+        status: 'Present'
+      });
+
+      // 2. Kemas kini rekod EventRegistration kepada 'Attended'
+      let regToUpdate = myRegistrations.find(r => (eventId && r.event_id === eventId) || (r.event_name === eventName));
+      if (regToUpdate?.id) {
+        await base44.entities.EventRegistration.update(regToUpdate.id, { status: 'Attended' }).catch(() => {});
+      } else if (eventId) {
+        // Jika pelajar belum mendaftar awal tetapi terus hadir di lokasi imbas QR
+        await base44.entities.EventRegistration.create({
+          event_id: eventId,
+          event_name: eventName,
+          student_user_id: user?.id || studentId,
+          student_name: studentName,
+          student_id: studentMatric,
+          registered_at: new Date().toISOString(),
+          status: 'Attended'
+        }).catch(() => null);
+      }
+
+      // 3. Tambah Merit pada Profil Pelajar
+      if (student?.id) {
+        const curMerit = Number(student.merit_points) || 0;
+        await base44.entities.Student.update(student.id, {
+          merit_points: curMerit + meritToAdd
+        }).catch((err) => console.warn('Student merit update warning:', err));
+        setStudent(prev => prev ? { ...prev, merit_points: (Number(prev.merit_points) || 0) + meritToAdd } : prev);
+      }
+
+      // 4. Kemas kini state myRegistrations tempatan
+      setMyRegistrations(prev => {
+        const exists = prev.some(r => r.event_id === eventId);
+        if (exists) {
+          return prev.map(r => r.event_id === eventId ? { ...r, status: 'Attended' } : r);
+        } else {
+          return [...prev, { event_id: eventId, event_name: eventName, status: 'Attended' }];
+        }
+      });
+
+      await logAudit(user, 'ATTENDANCE_QR_SCANNED', 'Events', {
+        event_id: eventId,
+        event_name: eventName,
+        student_name: studentName,
+        merit_awarded: meritToAdd
+      });
+
+      // 5. Kesan bunyi & konfeti
+      playSuccessChime();
+      try {
+        confetti({
+          particleCount: 120,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      } catch (e) {}
+
+      toast({
+        title: '🎉 Kehadiran Berjaya Disahkan!',
+        description: `Tahniah! +${meritToAdd} Mata Merit telah dikreditkan ke profil anda untuk "${eventName}".`
+      });
+
+      closeStudentScannerModal();
+      init();
+    } catch (err) {
+      console.error('Ralat pemprosesan kehadiran QR:', err);
+      toast({
+        title: 'Ralat menyimpan kehadiran',
+        description: 'Sila cuba lagi atau hubungi Felo / Urusetia bertugas.',
+        variant: 'destructive'
+      });
+      setIsProcessingStudentScan(false);
+      studentIsProcessingRef.current = false;
+    }
+  }
+
+  useEffect(() => {
+    if (studentScanModalOpen && studentScannerMode === 'camera') {
+      studentIsProcessingRef.current = false;
+      const timer = setTimeout(() => {
+        startStudentCamera();
+      }, 350);
+      return () => clearTimeout(timer);
+    } else {
+      stopStudentCamera();
+    }
+  }, [studentScanModalOpen, studentScannerMode]);
+
+  useEffect(() => {
+    return () => {
+      stopStudentCamera();
+    };
+  }, []);
 
   function openQuickModalityModal(ev) {
     const info = getEventModalityInfo(ev);
@@ -360,11 +641,37 @@ export default function Events() {
       }
       setFelosList(distinctFelos);
 
-      if (u?.effectiveRole === 'student') {
-        let sp = await base44.entities.Student.filter({ user_id: u.id });
-        if (!sp.length) sp = await base44.entities.Student.filter({ email: u.email });
-        if (sp.length) setStudent(sp[0]);
-        const regs = await base44.entities.EventRegistration.filter({ student_user_id: u.id });
+      // Cari profil pelajar secara komprehensif sama ada melalui sList atau query terus
+      if (u) {
+        let currentStudent = (sList || []).find(s => 
+          (u.id && s.user_id === u.id) ||
+          (u.email && s.email && s.email.toLowerCase() === u.email.toLowerCase()) ||
+          (u.student_id && s.student_id && s.student_id.toLowerCase() === u.student_id.toLowerCase())
+        );
+
+        if (!currentStudent && u.id) {
+          const byUserId = await base44.entities.Student.filter({ user_id: u.id }).catch(() => []);
+          if (byUserId.length > 0) currentStudent = byUserId[0];
+        }
+        if (!currentStudent && u.email) {
+          const byEmail = await base44.entities.Student.filter({ email: u.email }).catch(() => []);
+          if (byEmail.length > 0) currentStudent = byEmail[0];
+        }
+        // Fallback data profil sekiranya belum wujud dalam table Student
+        if (!currentStudent) {
+          currentStudent = {
+            id: u.id,
+            user_id: u.id,
+            full_name: u.full_name || u.name || (u.email ? u.email.split('@')[0] : 'Residen KKTF'),
+            student_id: u.student_id || u.matric_no || (u.id ? u.id.slice(0, 10).toUpperCase() : 'KKTF'),
+            email: u.email || '',
+            merit_points: 0
+          };
+        }
+        setStudent(currentStudent);
+
+        // Muatkan pendaftaran acara pengguna ini
+        const regs = await base44.entities.EventRegistration.filter({ student_user_id: u.id }).catch(() => []);
         setMyRegistrations(regs || []);
       }
     } catch (err) {
@@ -653,142 +960,12 @@ export default function Events() {
     }
   }
 
-  async function toggleParticipantAttendance(regItem, makePresent) {
-    if (!attendanceModalEvent) return;
-    try {
-      const studentObj = studentsList.find(s => s.student_id === regItem.student_id || s.user_id === regItem.student_user_id || s.full_name === regItem.student_name);
-      const studentId = studentObj?.id || regItem.student_user_id || regItem.student_id;
-      const studentName = regItem.student_name || studentObj?.full_name;
-      const meritToAdd = Number(attendanceModalEvent.merit_points) || 10;
-
-      if (makePresent) {
-        // Cipta rekod kehadiran jika belum ada
-        const existingAtt = await base44.entities.Attendance.filter({
-          event_name: attendanceModalEvent.event_name,
-          student_id: studentId
-        });
-        if (!existingAtt || existingAtt.length === 0) {
-          await base44.entities.Attendance.create({
-            student_id: studentId,
-            student_name: studentName,
-            event_type: 'Other',
-            event_name: attendanceModalEvent.event_name,
-            attendance_date: attendanceModalEvent.event_date || new Date().toISOString().split('T')[0],
-            method: 'Event',
-            status: 'Present'
-          });
-        }
-        // Kemaskini EventRegistration kepada 'Attended'
-        await base44.entities.EventRegistration.update(regItem.id, { status: 'Attended' }).catch(() => {});
-
-        // Kemaskini merit_points pelajar secara automatik
-        if (studentObj) {
-          const currentPts = Number(studentObj.merit_points) || 0;
-          await base44.entities.Student.update(studentObj.id, {
-            merit_points: currentPts + meritToAdd
-          }).catch(() => {});
-        }
-
-        toast({
-          title: 'Kehadiran Disahkan! ✓',
-          description: `${studentName} disahkan hadir. +${meritToAdd} Mata Merit telah dikreditkan secara automatik!`
-        });
-      } else {
-        // Batalkan kehadiran
-        const existingAtt = await base44.entities.Attendance.filter({
-          event_name: attendanceModalEvent.event_name,
-          student_id: studentId
-        });
-        for (const a of existingAtt) {
-          await base44.entities.Attendance.delete(a.id).catch(() => {});
-        }
-        await base44.entities.EventRegistration.update(regItem.id, { status: 'Registered' }).catch(() => {});
-
-        if (studentObj) {
-          const currentPts = Number(studentObj.merit_points) || 0;
-          await base44.entities.Student.update(studentObj.id, {
-            merit_points: Math.max(0, currentPts - meritToAdd)
-          }).catch(() => {});
-        }
-
-        toast({ title: 'Status kehadiran dibatalkan' });
-      }
-
-      setEventAttendanceList(prev => prev.map(p => p.id === regItem.id ? { ...p, isPresent: makePresent, status: makePresent ? 'Attended' : 'Registered' } : p));
-    } catch (err) {
-      console.error(err);
-      toast({ title: 'Ralat mengemas kini kehadiran', variant: 'destructive' });
-    }
-  }
-
-  async function handleAddWalkInAttendance() {
-    if (!walkInStudentId || !attendanceModalEvent) {
-      toast({ title: 'Sila pilih pelajar walk-in', variant: 'destructive' });
-      return;
-    }
-    const s = studentsList.find(st => st.id === walkInStudentId);
-    if (!s) return;
-    const meritToAdd = Number(attendanceModalEvent.merit_points) || 10;
-
-    const existing = eventAttendanceList.find(p => p.student_id === s.student_id || p.student_name === s.full_name);
-    if (existing) {
-      if (existing.isPresent) {
-        toast({ title: 'Pelajar ini telah pun disahkan hadir.' });
-        return;
-      }
-      await toggleParticipantAttendance(existing, true);
-      setWalkInStudentId('');
-      return;
-    }
-
-    try {
-      const newReg = await base44.entities.EventRegistration.create({
-        event_id: attendanceModalEvent.id,
-        event_name: attendanceModalEvent.event_name,
-        student_user_id: s.user_id || s.id,
-        student_name: s.full_name,
-        student_id: s.student_id,
-        registered_at: new Date().toISOString(),
-        status: 'Attended'
-      });
-
-      await base44.entities.Attendance.create({
-        student_id: s.id,
-        student_name: s.full_name,
-        event_type: 'Other',
-        event_name: attendanceModalEvent.event_name,
-        attendance_date: attendanceModalEvent.event_date || new Date().toISOString().split('T')[0],
-        method: 'Event',
-        status: 'Present'
-      });
-
-      const currentPts = Number(s.merit_points) || 0;
-      await base44.entities.Student.update(s.id, {
-        merit_points: currentPts + meritToAdd
-      }).catch(() => {});
-
-      await base44.entities.Event.update(attendanceModalEvent.id, {
-        current_registrations: (attendanceModalEvent.current_registrations || 0) + 1
-      }).catch(() => {});
-
-      setEventAttendanceList(prev => [...prev, { ...newReg, isPresent: true }]);
-      setWalkInStudentId('');
-      toast({
-        title: 'Walk-In Disahkan Hadir! 🎉',
-        description: `${s.full_name} disahkan hadir. +${meritToAdd} Mata Merit telah dikreditkan!`
-      });
-    } catch (err) {
-      console.error(err);
-      toast({ title: 'Ralat mendaftar walk-in', variant: 'destructive' });
-    }
-  }
-
   // =========================================================================
   // 4. PENDAFTARAN ACARA (EVENT REGISTRATION / RSVP)
   // =========================================================================
   async function register(ev) {
-    if (!student) { 
-      toast({ title: 'Lengkapkan profil anda terlebih dahulu', variant: 'destructive' }); 
+    if (!student && !user) { 
+      toast({ title: 'Sila log masuk terlebih dahulu', variant: 'destructive' }); 
       return; 
     }
     if (ev.felo_approval_status !== 'Approved') {
@@ -797,24 +974,51 @@ export default function Events() {
     }
     if (ev.registration_limit && ev.current_registrations >= ev.registration_limit) {
       toast({ title: 'Penyertaan acara telah penuh', variant: 'destructive' }); 
+      return; 
+    }
+
+    // Semak jika sudah berdaftar
+    const isAlreadyRegistered = myRegistrations.some(r => r.event_id === ev.id && (r.status === 'Registered' || r.status === 'Attended'));
+    if (isAlreadyRegistered) {
+      toast({ title: 'Anda telah pun berdaftar untuk acara ini.' });
       return;
     }
 
+    const studentName = student?.full_name || user?.full_name || (user?.email ? user.email.split('@')[0] : 'Residen KKTF');
+    const studentMatric = student?.student_id || user?.student_id || user?.matric_no || (user?.id ? user.id.slice(0, 10).toUpperCase() : 'KKTF');
+    const studentUserId = user?.id || student?.user_id || student?.id;
+
     try {
-      await base44.entities.EventRegistration.create({
+      const regPayload = {
         event_id: ev.id, 
-        event_name: ev.event_name,
-        student_user_id: user.id, 
-        student_name: student.full_name,
-        student_id: student.student_id, 
+        event_name: ev.event_name || 'Acara Kolej',
+        student_user_id: studentUserId, 
+        student_name: studentName,
+        student_id: studentMatric, 
         registered_at: new Date().toISOString(),
         status: 'Registered'
+      };
+
+      const newReg = await base44.entities.EventRegistration.create(regPayload);
+      await base44.entities.Event.update(ev.id, { 
+        current_registrations: (Number(ev.current_registrations) || 0) + 1 
+      }).catch(() => {});
+
+      setMyRegistrations(prev => [...prev, newReg || regPayload]);
+      setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, current_registrations: (Number(e.current_registrations) || 0) + 1 } : e));
+
+      toast({ 
+        title: `Berjaya mendaftar untuk ${ev.event_name}! 🎉`,
+        description: 'Sila imbas kod QR di lokasi program untuk mengesahkan kehadiran dan menuntut merit.'
       });
-      await base44.entities.Event.update(ev.id, { current_registrations: (ev.current_registrations || 0) + 1 });
-      toast({ title: `Berjaya mendaftar untuk ${ev.event_name}! 🎉` });
       init();
     } catch (err) {
-      toast({ title: 'Ralat pendaftaran acara', variant: 'destructive' });
+      console.error('Ralat pendaftaran acara:', err);
+      toast({ 
+        title: 'Ralat pendaftaran acara', 
+        description: 'Sila cuba lagi atau hubungi pentadbiran kolej.',
+        variant: 'destructive' 
+      });
     }
   }
 
@@ -967,8 +1171,17 @@ export default function Events() {
   // Kuasa mutlak kelulusan acara: Hanya Pengetua Kolej (dan Super Admin)
   const canApproveEvents = isPrincipal;
 
+  // Senarai acara mengikut kebolehlihatan peranan:
+  // Pelajar HANYA melihat acara yang telah diluluskan rasmi oleh Pengetua / Pentadbiran
+  const accessibleEvents = events.filter(ev => {
+    if (isStudent) {
+      return ev.felo_approval_status === 'Approved' && ev.status !== 'Cancelled';
+    }
+    return true;
+  });
+
   // Filter events based on statusFilter
-  const filteredEvents = events.filter(ev => {
+  const filteredEvents = accessibleEvents.filter(ev => {
     const s = getEventDateStatus(ev);
     if (statusFilter === 'upcoming') return s.key === 'upcoming' || s.key === 'ongoing';
     if (statusFilter === 'past') return s.key === 'past';
@@ -989,6 +1202,16 @@ export default function Events() {
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {isStudent && (
+              <Button
+                size="sm"
+                onClick={() => openStudentScannerModal(null)}
+                className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs h-9"
+              >
+                <ScanLine className="w-4 h-4" /> Imbas Kehadiran QR
+              </Button>
+            )}
+
             {user && MANAGE_ROLES.includes(user.role) && (
               <Button
                 size="sm"
@@ -1022,7 +1245,7 @@ export default function Events() {
             className="h-8 text-xs font-semibold rounded-xl"
             onClick={() => setStatusFilter('all')}
           >
-            Semua Acara ({events.length})
+            Semua Acara ({accessibleEvents.length})
           </Button>
           <Button
             size="sm"
@@ -1031,7 +1254,7 @@ export default function Events() {
             onClick={() => setStatusFilter('upcoming')}
           >
             <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
-            Akan Datang ({events.filter(e => { const s = getEventDateStatus(e); return s.key === 'upcoming' || s.key === 'ongoing'; }).length})
+            Akan Datang ({accessibleEvents.filter(e => { const s = getEventDateStatus(e); return s.key === 'upcoming' || s.key === 'ongoing'; }).length})
           </Button>
           <Button
             size="sm"
@@ -1039,8 +1262,7 @@ export default function Events() {
             className="h-8 text-xs font-semibold rounded-xl gap-1.5"
             onClick={() => setStatusFilter('past')}
           >
-            <span className="w-2 h-2 rounded-full bg-slate-400 inline-block" />
-            Sudah Berlalu ({events.filter(e => getEventDateStatus(e).key === 'past').length})
+            Sudah Berlalu ({accessibleEvents.filter(e => { const s = getEventDateStatus(e); return s.key === 'past'; }).length})
           </Button>
           <Button
             size="sm"
@@ -1048,8 +1270,7 @@ export default function Events() {
             className="h-8 text-xs font-semibold rounded-xl gap-1.5"
             onClick={() => setStatusFilter('cancelled_postponed')}
           >
-            <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
-            Dibatalkan / Ditangguhkan ({events.filter(e => { const s = getEventDateStatus(e); return s.key === 'cancelled' || s.key === 'postponed'; }).length})
+            Ditangguhkan / Batal ({accessibleEvents.filter(e => { const s = getEventDateStatus(e); return s.key === 'cancelled' || s.key === 'postponed'; }).length})
           </Button>
         </div>
 
@@ -1371,12 +1592,21 @@ export default function Events() {
                         )}
 
                         {isStudent && isRegistered && !isAttended && (
-                          <div className="w-full flex items-center justify-between gap-2 p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800">
-                            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
-                              <CheckCircle2 className="w-4 h-4" /> Anda Telah Berdaftar
-                            </span>
-                            <Button size="sm" variant="ghost" className="h-7 text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50" onClick={() => cancelRegistration(ev)}>
-                              Batal
+                          <div className="w-full space-y-1.5">
+                            <div className="w-full flex items-center justify-between gap-2 p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                              <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                                <CheckCircle2 className="w-4 h-4" /> Anda Telah Berdaftar
+                              </span>
+                              <Button size="sm" variant="ghost" className="h-7 text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50" onClick={() => cancelRegistration(ev)}>
+                                Batal
+                              </Button>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => openStudentScannerModal(ev)}
+                              className="w-full h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl gap-1.5 shadow-xs"
+                            >
+                              <QrCode className="w-3.5 h-3.5" /> Imbas Kod QR Hadir (+{meritValue} Merit)
                             </Button>
                           </div>
                         )}
@@ -1712,30 +1942,19 @@ export default function Events() {
                 </div>
               )}
 
-              {/* TAB 2: ROSTER KEHADIRAN & WALK-IN */}
+              {/* TAB 2: ROSTER KEHADIRAN (IMBASAN QR SAHAJA - TIADA MANUAL KEY IN) */}
               {attendanceTab === 'roster' && (
                 <div className="space-y-4">
-                  {/* Walk-in quick register */}
-                  <div className="p-3.5 bg-muted/40 rounded-2xl border border-border space-y-2">
-                    <p className="font-bold text-xs text-foreground flex items-center gap-1.5">
-                      <UserPlus className="w-3.5 h-3.5 text-primary" /> Tambah Pelajar Walk-in & Sahkan Kehadiran Terus:
-                    </p>
-                    <div className="flex gap-2">
-                      <Select value={walkInStudentId} onValueChange={setWalkInStudentId}>
-                        <SelectTrigger className="h-8 text-xs bg-background flex-1">
-                          <SelectValue placeholder="Pilih Pelajar daripada Senarai Kolej" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-56">
-                          {studentsList.map(s => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.full_name} ({s.student_id}) — {s.block_name || 'KKTF'}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button size="sm" onClick={handleAddWalkInAttendance} className="h-8 text-xs font-bold rounded-xl bg-primary gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> + Tandakan Hadir
-                      </Button>
+                  {/* DASAR KEHADIRAN: IMBASAN QR SAHAJA */}
+                  <div className="p-3.5 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-2xl border border-emerald-300/60 dark:border-emerald-800 flex items-start gap-2.5">
+                    <QrCode className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-xs text-emerald-950 dark:text-emerald-200">
+                        Dasar Kehadiran: Pengesahan Menggunakan Kod QR Sahaja
+                      </p>
+                      <p className="text-[11px] text-emerald-800 dark:text-emerald-300 mt-0.5 leading-relaxed">
+                        Kehadiran dan merit hanya dikreditkan apabila pelajar mengimbas Kod QR rasmi program ini. Tiada pendaftaran kehadiran secara manual bagi memastikan integriti data aktiviti kolej.
+                      </p>
                     </div>
                   </div>
 
@@ -1752,7 +1971,7 @@ export default function Events() {
                     </div>
                   </div>
 
-                  {/* List Table */}
+                  {/* List Table (LIVE STATUS SEMAKAN IMBASAN QR) */}
                   <div className="border border-border rounded-2xl overflow-hidden bg-card divide-y divide-border max-h-72 overflow-y-auto">
                     {eventAttendanceList.length === 0 ? (
                       <p className="p-6 text-center text-muted-foreground text-xs">Tiada pendaftar bagi acara ini setakat ini.</p>
@@ -1768,27 +1987,14 @@ export default function Events() {
 
                             <div className="flex items-center gap-2">
                               {item.isPresent ? (
-                                <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-400 text-[10px] font-bold">
-                                  ✓ Hadir (+{attendanceModalEvent.merit_points || 10} Merit)
+                                <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-400 text-[10.5px] font-bold py-1 px-2.5">
+                                  ✓ Hadir (Diimbas QR) &bull; +{attendanceModalEvent.merit_points || 10} Merit
                                 </Badge>
                               ) : (
-                                <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                                  Belum Hadir
+                                <Badge variant="outline" className="text-[10.5px] text-muted-foreground bg-muted/40 py-1 px-2.5">
+                                  ⏳ Belum Hadir
                                 </Badge>
                               )}
-
-                              <Button
-                                size="sm"
-                                variant={item.isPresent ? 'outline' : 'default'}
-                                onClick={() => toggleParticipantAttendance(item, !item.isPresent)}
-                                className={`h-7 text-[11px] font-bold rounded-xl px-2.5 ${
-                                  item.isPresent 
-                                    ? 'text-rose-600 border-rose-200 hover:bg-rose-50 dark:hover:bg-rose-950/40' 
-                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                }`}
-                              >
-                                {item.isPresent ? 'Batal Hadir' : 'Tandakan Hadir'}
-                              </Button>
                             </div>
                           </div>
                         ))
@@ -2099,6 +2305,109 @@ export default function Events() {
           openQuickModalityModal(ev);
         }}
       />
+
+      {/* ========================================================================= */}
+      {/* MODAL 8: PENGIMBAS KOD QR KEHADIRAN PELAJAR (KAMERA & KOD TOKEN)         */}
+      {/* ========================================================================= */}
+      <Dialog open={studentScanModalOpen} onOpenChange={(open) => !open && closeStudentScannerModal()}>
+        <DialogContent className="max-w-md p-6 bg-card border-border rounded-3xl shadow-2xl text-xs">
+          <DialogHeader>
+            <DialogTitle className="font-heading font-bold text-base flex items-center gap-2 text-foreground">
+              <ScanLine className="w-5 h-5 text-emerald-600" /> Imbas Kehadiran Acara Kolej
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {studentScannerTargetEvent 
+                ? `Imbas kod QR di lokasi untuk mengesahkan kehadiran bagi: ${studentScannerTargetEvent.event_name}`
+                : 'Imbas kod QR rasmi yang dipaparkan di dewan program atau lokasi aktiviti kolej untuk merekod kehadiran dan kredit merit.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* TAB MODE: KAMERA LIVE ATAU KOD MANUAL */}
+          <div className="flex border-b border-border pb-1 gap-2 mt-2">
+            <Button
+              size="sm"
+              variant={studentScannerMode === 'camera' ? 'default' : 'ghost'}
+              onClick={() => setStudentScannerMode('camera')}
+              className="rounded-xl text-xs font-bold gap-1.5 h-8 flex-1"
+            >
+              <Camera className="w-3.5 h-3.5" /> Kamera Pengimbas
+            </Button>
+            <Button
+              size="sm"
+              variant={studentScannerMode === 'manual' ? 'default' : 'ghost'}
+              onClick={() => setStudentScannerMode('manual')}
+              className="rounded-xl text-xs font-bold gap-1.5 h-8 flex-1"
+            >
+              <Keyboard className="w-3.5 h-3.5" /> Input Kod Token
+            </Button>
+          </div>
+
+          {/* MODE 1: LIVE CAMERA QR SCANNER */}
+          {studentScannerMode === 'camera' && (
+            <div className="space-y-3 mt-3">
+              <div className="relative w-full aspect-square bg-slate-950 rounded-2xl overflow-hidden border-2 border-emerald-500/40 flex items-center justify-center">
+                <div id="student-event-attendance-reader" className="w-full h-full" />
+                {!studentScannerActive && !studentScannerError && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 text-white gap-2">
+                    <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
+                    <p className="text-xs font-medium">Memulakan kamera pengimbas...</p>
+                  </div>
+                )}
+                {studentScannerError && (
+                  <div className="absolute inset-0 p-4 flex flex-col items-center justify-center bg-slate-950/90 text-center text-rose-300 gap-2">
+                    <AlertCircle className="w-6 h-6 text-rose-400" />
+                    <p className="text-xs leading-relaxed">{studentScannerError}</p>
+                    <Button 
+                      size="sm" 
+                      onClick={() => setStudentScannerMode('manual')} 
+                      className="mt-2 text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl"
+                    >
+                      Beralih ke Input Kod Manual
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <p className="text-[11px] text-center text-muted-foreground">
+                Halakan lensa kamera anda ke Kod QR di dewan atau skrin penganjur.
+              </p>
+            </div>
+          )}
+
+          {/* MODE 2: MANUAL TOKEN CODE INPUT (SEKIRANYA KAMERA TIDAK DAPAT DIAKSES) */}
+          {studentScannerMode === 'manual' && (
+            <div className="space-y-3 mt-3">
+              <div>
+                <Label className="text-xs font-bold text-foreground">Kod Token / Teks QR Acara *</Label>
+                <Input
+                  value={manualTokenInput}
+                  onChange={(e) => setManualTokenInput(e.target.value)}
+                  placeholder="cth: KKTF-EVT|evt-123|Malam Pengenalan Kolej|2026-09-14"
+                  className="h-10 text-xs mt-1.5 font-mono bg-background"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Masukkan rentetan kod token yang tertera di bawah kod QR di dewan program.
+                </p>
+              </div>
+
+              <Button
+                size="sm"
+                disabled={isProcessingStudentScan || !manualTokenInput.trim()}
+                onClick={() => processStudentAttendanceQr(manualTokenInput)}
+                className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1.5"
+              >
+                {isProcessingStudentScan ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                {isProcessingStudentScan ? 'Memproses Pengesahan...' : 'Sahkan Kehadiran & Tuntut Merit'}
+              </Button>
+            </div>
+          )}
+
+          <div className="flex justify-end pt-3 border-t border-border mt-3">
+            <Button variant="outline" size="sm" onClick={closeStudentScannerModal} className="rounded-xl text-xs">
+              Tutup
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

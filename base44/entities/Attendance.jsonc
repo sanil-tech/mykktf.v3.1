@@ -8,6 +8,9 @@
     "student_name": {
       "type": "string"
     },
+    "event_id": {
+      "type": "string"
+    },
     "event_type": {
       "type": "string",
       "enum": [
@@ -15,6 +18,8 @@
         "Briefing",
         "Emergency Drill",
         "Sports Activity",
+        "Program Kolej",
+        "Event",
         "Other"
       ]
     },
