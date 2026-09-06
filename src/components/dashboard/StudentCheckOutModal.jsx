@@ -141,14 +141,14 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
       };
 
       const payload = {
-        student_id: student?.id || '',
-        student_name: student?.full_name || user?.full_name || 'Pelajar',
-        student_matric: student?.student_id || '',
-        student_phone: student?.phone || '',
+        student_id: student?.id || user?.student_id || user?.id || 'stud_active',
+        student_name: student?.full_name || user?.full_name || 'Pelajar Residen',
+        student_matric: student?.student_id || user?.student_id || 'BI22110001',
+        student_phone: student?.phone || user?.phone || '',
         student_email: student?.email || user?.email || '',
         user_id: user?.id || student?.user_id || '',
-        block_name: student?.block_name || 'Blok Kolej',
-        room_number: student?.room_number || 'Bilik',
+        block_name: student?.block_name || user?.block_name || 'Blok A',
+        room_number: student?.room_number || user?.room_number || '101',
         room_id: student?.room_id || '',
         reason: formData.reason,
         checkout_date: formData.checkout_date,

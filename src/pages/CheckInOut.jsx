@@ -30,7 +30,7 @@ import { InstitutionalDualLogo } from '@/components/shared/KKTFLogo';
 import { useQuery } from '@tanstack/react-query';
 import { realTimeQueryOptions } from '@/lib/query-client';
 import { logAudit } from '@/lib/audit';
-import { getDropKeyRequests, approveDropKeyRequest, rejectDropKeyRequest } from '@/lib/dropKeyHelper';
+import { getDropKeyRequests, fetchAndSyncDropKeyRequests, approveDropKeyRequest, rejectDropKeyRequest } from '@/lib/dropKeyHelper';
 
 const PAGE_SIZE = 6;
 
@@ -84,12 +84,33 @@ export default function CheckInOut() {
   const [dropKeyRejectReason, setDropKeyRejectReason] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
 
-  const refreshDropKeys = () => {
-    setDropKeyRequests(getDropKeyRequests());
+  const refreshDropKeys = async () => {
+    const updated = await fetchAndSyncDropKeyRequests();
+    setDropKeyRequests(updated || []);
   };
 
   useEffect(() => {
     refreshDropKeys();
+
+    const handleDropKeySync = () => {
+      refreshDropKeys();
+      refetchCheckOuts();
+      refetchStudents();
+      refetchRooms();
+    };
+
+    window.addEventListener('DROP_KEY_UPDATED', handleDropKeySync);
+    window.addEventListener('KRMS_MODULES_REFRESH', handleDropKeySync);
+    window.addEventListener('storage', handleDropKeySync);
+
+    const interval = setInterval(handleDropKeySync, 4000);
+
+    return () => {
+      window.removeEventListener('DROP_KEY_UPDATED', handleDropKeySync);
+      window.removeEventListener('KRMS_MODULES_REFRESH', handleDropKeySync);
+      window.removeEventListener('storage', handleDropKeySync);
+      clearInterval(interval);
+    };
   }, []);
 
   // Pagination States

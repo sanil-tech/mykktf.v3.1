@@ -69,6 +69,25 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
     }
   }, [studentProfile]);
 
+  // Kemaskini status permohonan Drop-Key secara masa nyata
+  useEffect(() => {
+    const syncDropKey = () => {
+      if (student?.id || student?.student_id) {
+        const activeDk = getStudentActiveDropKeyRequest(student.id, student.student_id);
+        setActiveDropKey(activeDk);
+      }
+    };
+
+    window.addEventListener('DROP_KEY_UPDATED', syncDropKey);
+    window.addEventListener('KRMS_MODULES_REFRESH', syncDropKey);
+    window.addEventListener('storage', syncDropKey);
+    return () => {
+      window.removeEventListener('DROP_KEY_UPDATED', syncDropKey);
+      window.removeEventListener('KRMS_MODULES_REFRESH', syncDropKey);
+      window.removeEventListener('storage', syncDropKey);
+    };
+  }, [student]);
+
   // Ambil data mesej terkini untuk saluran komuniti
   async function loadRecentChats() {
     try {
