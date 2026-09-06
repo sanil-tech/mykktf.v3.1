@@ -71,6 +71,7 @@ export default function Sidebar({
             const active = location.pathname === item.path;
             const isAllowedWhenCheckedOut = isStudentCheckedOut && [
               '/',
+              '/announcements',
               '/guide',
               '/buku-panduan',
               '/contact',

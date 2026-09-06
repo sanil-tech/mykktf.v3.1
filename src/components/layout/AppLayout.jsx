@@ -82,6 +82,7 @@ export default function AppLayout({ user }) {
   const baseAllowedPaths = ['/', '/guide', '/buku-panduan', '/presentation', '/contact', '/hotline'];
   const checkedOutAllowedPaths = [
     ...baseAllowedPaths,
+    '/announcements',
     '/express-drop-key',
     '/merit-demerit',
     '/discipline',

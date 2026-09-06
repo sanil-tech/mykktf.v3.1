@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle2, 
   KeyRound, 
@@ -16,12 +16,18 @@ import {
   DoorOpen,
   Sparkles,
   ChevronRight,
-  Info
+  Info,
+  Megaphone,
+  Bell,
+  CalendarDays,
+  ExternalLink,
+  Pin
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Link } from 'react-router-dom';
 import { InstitutionalDualLogo } from '@/components/shared/KKTFLogo';
+import { base44 } from '@/api/base44Client';
 
 export default function PostCheckOutDashboard({
   user,
@@ -32,6 +38,27 @@ export default function PostCheckOutDashboard({
   onOpenSurvey,
   onOpenCheckInSem2
 }) {
+  const [announcements, setAnnouncements] = useState([]);
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+
+  useEffect(() => {
+    async function fetchNotices() {
+      try {
+        setLoadingAnnouncements(true);
+        const list = await base44.entities.Announcement.filter(
+          { approval_status: 'published' },
+          '-publish_date'
+        );
+        setAnnouncements(list || []);
+      } catch (err) {
+        console.warn('Gagal memuat turun pengumuman cuti semester:', err);
+      } finally {
+        setLoadingAnnouncements(false);
+      }
+    }
+    fetchNotices();
+  }, []);
+
   const studentName = student?.full_name || user?.full_name || 'Pelajar Residen';
   const matricNo = student?.student_id || student?.matric_no || 'Pelajar';
   const lastBlock = checkoutRecord?.block_name || student?.block_name || 'Kolej Kediaman Tun Fuad';
@@ -161,6 +188,116 @@ export default function PostCheckOutDashboard({
             </div>
 
           </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* PAPAN MAKLUMAN PENTADBIRAN: TAKWIM KEMASUKAN SEMULA & CUTI SEMESTER        */}
+        {/* ========================================================================= */}
+        <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 sm:p-7 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-sky-500/10 border border-indigo-400/30 flex items-center justify-center text-indigo-400 shrink-0">
+                <Megaphone className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  Papan Makluman Rasmi Pentadbiran KKTF
+                  <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-400/30 text-[10px]">
+                    Cuti Semester & Sem 2
+                  </Badge>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Pengumuman tarikh pendaftaran masuk, waktu kaunter kunci, dan pelepasan bilik.
+                </p>
+              </div>
+            </div>
+
+            <Link to="/announcements">
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 border-slate-700 bg-slate-800/80 text-slate-200 hover:text-white hover:bg-slate-700 rounded-xl">
+                <span>Lihat Semua Pengumuman</span>
+                <ExternalLink className="w-3 h-3" />
+              </Button>
+            </Link>
+          </div>
+
+          {/* Senarai Makluman Terkini Pentadbiran */}
+          {loadingAnnouncements ? (
+            <div className="p-6 text-center text-xs text-slate-400 animate-pulse">
+              Memuat turun makluman rasmi pentadbiran...
+            </div>
+          ) : announcements.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-1">
+              {announcements.slice(0, 2).map((notice) => {
+                const isUrgent = notice.priority === 'Critical' || notice.priority === 'Important';
+                const isCheckInNotice = 
+                  (notice.title + ' ' + notice.content).toLowerCase().includes('sem 2') ||
+                  (notice.title + ' ' + notice.content).toLowerCase().includes('check in') ||
+                  (notice.title + ' ' + notice.content).toLowerCase().includes('kemasukan');
+
+                return (
+                  <div 
+                    key={notice.id || notice.title}
+                    className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 ${
+                      isCheckInNotice
+                        ? 'bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-950 border-indigo-500/40 shadow-lg shadow-indigo-500/5'
+                        : isUrgent
+                          ? 'bg-amber-950/20 border-amber-500/30'
+                          : 'bg-slate-950/60 border-slate-800'
+                    }`}
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 flex-wrap text-[11px]">
+                        <div className="flex items-center gap-1.5 text-slate-400">
+                          <CalendarDays className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>{notice.publish_date || 'Terkini'}</span>
+                        </div>
+                        <Badge className={`text-[10px] px-2 py-0.5 font-bold ${
+                          notice.priority === 'Critical'
+                            ? 'bg-red-500/20 text-red-300 border-red-500/40'
+                            : notice.priority === 'Important'
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              : 'bg-slate-800 text-slate-300 border-slate-700'
+                        }`}>
+                          {notice.priority || 'Pemberitahuan'}
+                        </Badge>
+                      </div>
+
+                      <h4 className="text-sm font-bold text-white leading-snug line-clamp-2">
+                        {notice.title}
+                      </h4>
+                      <p className="text-xs text-slate-300 line-clamp-3 leading-relaxed">
+                        {notice.content}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-[11px]">
+                      <span className="text-slate-400 font-mono">
+                        Oleh: {notice.published_by || 'Pentadbiran Kolej'}
+                      </span>
+                      <Link 
+                        to="/announcements" 
+                        className="text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        Kenyataan Penuh <ChevronRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-5 rounded-2xl bg-slate-950/60 border border-slate-800 flex items-start gap-3.5 text-xs text-slate-300">
+              <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
+                <Info className="w-4 h-4" />
+              </div>
+              <div className="space-y-1">
+                <h5 className="font-bold text-white text-xs">Pemberitahuan Tarikh Kemasukan Semula Semester 2</h5>
+                <p className="leading-relaxed text-slate-300">
+                  Pihak pentadbiran Pejabat KKTF akan memuat naik notis rasmi mengenai jadual serahan kunci bilik dan tarikh mula mendaftar masuk semula bagi <strong>Semester 2</strong> secara berpusat melalui portal ini dan e-mel rasmi universiti. Sila semak dari semasa ke semasa.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ========================================================================= */}
