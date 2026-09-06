@@ -216,7 +216,7 @@ export default function LeaveReturn() {
   function handleQrDecoded(decodedText) {
     stopScanner();
     
-    let detectedLocation = 'Pondok Pengawal (Pintu Utama)';
+    let detectedLocation = student?.block_name ? (student.block_name.startsWith('Blok') || student.block_name.startsWith('Block') ? student.block_name : `Blok ${student.block_name}`) : 'Blok Kediaman';
     
     if (decodedText.includes('block=')) {
       try {
@@ -554,11 +554,11 @@ export default function LeaveReturn() {
                   <KeyRound className="w-3.5 h-3.5 text-indigo-600" /> Atau Masukkan Kod Lokasi / Blok Manual
                 </p>
                 <p className="text-[11px] text-slate-500">
-                  Jika kamera tidak berfungsi, masukkan nama blok yang tertera di poster (cth: <strong>Blok G</strong> atau <strong>Pondok Pengawal</strong>).
+                  Jika kamera tidak berfungsi, masukkan nama blok yang tertera di poster (cth: <strong>Blok M</strong> atau <strong>Blok A</strong>).
                 </p>
                 <div className="flex gap-2">
                   <Input 
-                    placeholder="cth: Blok G / Pondok Pengawal" 
+                    placeholder="cth: Blok M / Blok A" 
                     value={manualCode} 
                     onChange={e => setManualCode(e.target.value)} 
                     className="h-9 text-xs bg-white"

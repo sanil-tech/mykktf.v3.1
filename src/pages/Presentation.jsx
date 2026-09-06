@@ -248,7 +248,7 @@ const MANUAL_CHAPTERS = [
           'Langkah 1: Setibanya anda di KKTF, buka aplikasi MyKKTF pada telefon anda.',
           'Langkah 2: Pergi ke menu E-Leave dan tekan butang hijau "Imbas QR Kembali" (atau buka kamera telefon biasa).',
           'Langkah 3: Semakan Geofence GPS: Sistem radar automatik menyemak bahawa anda berada dalam lingkungan 1.0km kampus KKTF (Lampu radar bertukar hijau: 🟢 Di Dalam Kampus).',
-          'Langkah 4: Halakan kamera telefon pada Poster Kod QR Fizikal yang ditampal di pintu masuk blok kediaman anda atau pondok pengawal.',
+          'Langkah 4: Halakan kamera telefon pada Poster Kod QR Fizikal yang ditampal di pintu masuk blok kediaman anda.',
           'Langkah 5: Sistem memaparkan "Kehadiran Disahkan Berjaya!" dan status cuti anda bertukar automatik kepada "TELAH KEMBALI".'
         ]
       },

@@ -43,7 +43,6 @@ const STATUS_BADGE = {
 };
 
 const BLOCKS = [
-  'Pondok Pengawal (Pintu Utama)',
   'Blok A',
   'Blok B',
   'Blok C',
@@ -72,7 +71,7 @@ export default function Leave() {
   const [submitting, setSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
-  const [selectedBlockQr, setSelectedBlockQr] = useState('Pondok Pengawal (Pintu Utama)');
+  const [selectedBlockQr, setSelectedBlockQr] = useState('Blok A');
   const [accessibleQrBlocks, setAccessibleQrBlocks] = useState(BLOCKS);
   const [currentUser, setCurrentUser] = useState(null);
   const [myStudent, setMyStudent] = useState(null);
@@ -165,9 +164,8 @@ export default function Leave() {
         const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
         if (wb.length > 0) {
           const wardenBlockNames = wb.map(w => w.block_name);
-          const available = ['Pondok Pengawal (Pintu Utama)', ...wardenBlockNames];
-          setAccessibleQrBlocks(available);
-          setSelectedBlockQr(wardenBlockNames[0] || available[0]);
+          setAccessibleQrBlocks(wardenBlockNames);
+          setSelectedBlockQr(wardenBlockNames[0] || BLOCKS[0]);
         } else {
           setAccessibleQrBlocks(BLOCKS);
           setSelectedBlockQr(BLOCKS[0]);
@@ -551,7 +549,7 @@ export default function Leave() {
                 4 Langkah Mudah Kebenaran Bermalam di Luar Kolej
               </h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Permohonan wajib dihantar secara dalam talian sebelum keluar. Apabila anda tiba semula di kolej, imbas Kod QR fizikal yang dipamerkan di <strong>Pondok Pengawal (Pintu Utama)</strong> atau <strong>Papan Kenyataan Blok Kediaman</strong> untuk mengesahkan kepulangan anda secara automatik.
+                Permohonan wajib dihantar secara dalam talian sebelum keluar. Apabila anda tiba semula di kolej, imbas Kod QR fizikal yang dipamerkan di <strong>Pintu Masuk atau Papan Kenyataan Blok Kediaman</strong> masing-masing untuk mengesahkan kepulangan anda secara automatik.
               </p>
             </div>
 
@@ -773,7 +771,7 @@ export default function Leave() {
                         </Button>
                       </Link>
                       <p className="text-[10.5px] text-slate-500 text-center leading-tight">
-                        📍 <em>Tekan butang di atas untuk imbas Kod QR fizikal di <strong>Pondok Pengawal</strong> atau <strong>Papan Blok</strong> sebaik tiba semula di kolej.</em>
+                        📍 <em>Tekan butang di atas untuk imbas Kod QR fizikal di <strong>Pintu Masuk atau Papan Blok</strong> sebaik tiba semula di blok kediaman anda.</em>
                       </p>
                     </div>
                   )}
@@ -883,25 +881,25 @@ export default function Leave() {
               <QrCode className="w-5 h-5 text-indigo-600" /> Poster Kod QR Kembali ke Kolej
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Cetak dan tampal kod QR ini di pintu masuk blok atau pondok pengawal untuk imbasan pelajar.
+              Cetak dan tampal kod QR ini di pintu masuk atau papan kenyataan setiap blok kediaman untuk imbasan pelajar.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 mt-2">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <Label className="text-xs font-semibold text-slate-700">Pilih Lokasi Blok / Pintu Masuk</Label>
+                <Label className="text-xs font-semibold text-slate-700">Pilih Lokasi Blok Kediaman</Label>
                 {isPrincipal ? (
                   <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
-                    Akses Pengetua: Semua 14 Blok & Pintu Utama
+                    Akses Pengetua: Semua 14 Blok (A-N)
                   </Badge>
                 ) : currentUser?.role === 'warden' ? (
                   <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200">
-                    Akses Warden: {accessibleQrBlocks.filter(b => b !== 'Pondok Pengawal (Pintu Utama)').join(', ') || 'Blok Jagaan'}
+                    Akses Warden: {accessibleQrBlocks.join(', ') || 'Blok Jagaan'}
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-700 border-slate-200">
-                    Semua 14 Blok & Pintu Utama
+                    Semua 14 Blok Kediaman
                   </Badge>
                 )}
               </div>
