@@ -154,7 +154,13 @@ export default function ExpressDropKey() {
       setStudent(found || null);
 
       if (found) {
-        const req = getStudentActiveDropKeyRequest(found.id, found.student_id);
+        let req = getStudentActiveDropKeyRequest(found.id, found.student_id);
+        if (!req) {
+          req = (requests || []).find(r => 
+            (String(r.student_id) === String(found.id) || (found.student_id && String(r.student_matric || r.student_id).toLowerCase() === String(found.student_id).toLowerCase())) &&
+            r.status === 'pending_verification'
+          ) || null;
+        }
         setActiveRequest(req);
       }
     } catch (err) {

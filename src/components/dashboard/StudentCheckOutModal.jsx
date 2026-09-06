@@ -102,6 +102,9 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
       if (existing) {
         setActiveRequest(existing);
         setStep(4); // Langsung ke resit / imbas jika sudah mohon
+        if (!existing.checkout_record_id) {
+          submitDropKeyRequest(existing).catch(() => {});
+        }
       }
     }
   }, [student, open]);

@@ -52,6 +52,28 @@
     "approved_by": {
       "type": "string",
       "title": "Diluluskan Oleh"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending_verification",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending_verification",
+      "title": "Status Permohonan"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Nota & Metadata Permohonan"
+    },
+    "semester": {
+      "type": "string",
+      "title": "Semester"
+    },
+    "student_matric": {
+      "type": "string",
+      "title": "No Matrik Pelajar"
     }
   },
   "required": [
@@ -64,6 +86,19 @@
   "rls": {
     "create": {
       "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "student"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "principal"
+          }
+        },
         {
           "user_condition": {
             "role": "super_admin"
@@ -89,6 +124,19 @@
     "read": {
       "$or": [
         {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "student"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "principal"
+          }
+        },
+        {
           "user_condition": {
             "role": "super_admin"
           }
@@ -113,6 +161,14 @@
     "update": {
       "$or": [
         {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "principal"
+          }
+        },
+        {
           "user_condition": {
             "role": "super_admin"
           }
@@ -136,6 +192,11 @@
     },
     "delete": {
       "$or": [
+        {
+          "user_condition": {
+            "role": "principal"
+          }
+        },
         {
           "user_condition": {
             "role": "super_admin"

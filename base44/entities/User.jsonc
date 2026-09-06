@@ -6,6 +6,7 @@
       "type": "string",
       "enum": [
         "super_admin",
+        "principal",
         "college_admin",
         "warden",
         "staff",

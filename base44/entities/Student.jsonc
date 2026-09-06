@@ -110,6 +110,14 @@
     },
     "resident_status": {
       "type": "string"
+    },
+    "notes": {
+      "type": "string",
+      "description": "General notes and drop-key payload"
+    },
+    "drop_key_meta": {
+      "type": "string",
+      "description": "Drop-key application metadata"
     }
   },
   "required": [
@@ -133,6 +141,16 @@
           "user_condition": {
             "role": "super_admin"
           }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "principal"
+          }
         }
       ]
     },
@@ -143,6 +161,11 @@
         },
         {
           "data.user_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "principal"
+          }
         },
         {
           "user_condition": {
@@ -176,7 +199,27 @@
         },
         {
           "user_condition": {
+            "role": "principal"
+          }
+        },
+        {
+          "user_condition": {
             "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "warden"
           }
         }
       ]
@@ -191,7 +234,17 @@
         },
         {
           "user_condition": {
+            "role": "principal"
+          }
+        },
+        {
+          "user_condition": {
             "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "college_admin"
           }
         }
       ]

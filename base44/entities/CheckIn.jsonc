@@ -50,6 +50,7 @@
   "rls": {
     "create": {
       "$or": [
+        { "user_condition": { "role": "principal" } },
         { "user_condition": { "role": "super_admin" } },
         { "user_condition": { "role": "college_admin" } },
         { "user_condition": { "role": "staff" } },
@@ -58,6 +59,7 @@
     },
     "read": {
       "$or": [
+        { "user_condition": { "role": "principal" } },
         { "user_condition": { "role": "super_admin" } },
         { "user_condition": { "role": "college_admin" } },
         { "user_condition": { "role": "staff" } },
@@ -74,6 +76,7 @@
     },
     "update": {
       "$or": [
+        { "user_condition": { "role": "principal" } },
         { "user_condition": { "role": "super_admin" } },
         { "user_condition": { "role": "college_admin" } },
         { "user_condition": { "role": "staff" } },
@@ -82,6 +85,7 @@
     },
     "delete": {
       "$or": [
+        { "user_condition": { "role": "principal" } },
         { "user_condition": { "role": "super_admin" } },
         { "user_condition": { "role": "college_admin" } }
       ]
