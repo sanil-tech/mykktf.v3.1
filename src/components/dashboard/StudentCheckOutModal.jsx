@@ -69,8 +69,8 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
   const [activeRequest, setActiveRequest] = useState(null);
   const { toast } = useToast();
 
-  const showToast = (title, description = '', variant = 'default') => {
-    toast({ title, description, variant });
+  const showToast = (title, description = '', variant = 'default', duration = 3500) => {
+    toast({ title, description, variant, duration });
   };
 
   // Form State
@@ -116,7 +116,7 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
           ...prev,
           [field]: compressed
         }));
-        showToast('Foto Berjaya Dimuat Naik', 'Imej telah disimpan dan sedia untuk perakuan.');
+        // Gambar kini disahkan terus secara visual pada kad tanpa memaparkan pop-up yang menghalang borang
       }
     } catch (err) {
       console.warn('Ralat proses gambar:', err);
