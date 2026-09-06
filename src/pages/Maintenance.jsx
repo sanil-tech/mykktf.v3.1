@@ -212,7 +212,8 @@ export default function Maintenance() {
     photo: null
   });
 
-  const isStaff = currentUser && STAFF_ROLES.includes(currentUser.role);
+  const isPrincipal = currentUser?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || currentUser?.role === 'principal' || currentUser?.effectiveRole === 'principal';
+  const isStaff = isPrincipal || (currentUser && STAFF_ROLES.includes(currentUser.role)) || currentUser?.effectiveRole === 'super_admin' || currentUser?.effectiveRole === 'college_admin' || currentUser?.effectiveRole === 'warden' || currentUser?.effectiveRole === 'principal';
 
   useEffect(() => { init(); }, []);
 
@@ -220,11 +221,12 @@ export default function Maintenance() {
     setLoading(true);
     const user = await base44.auth.me();
     setCurrentUser(user);
-    const isStaffRole = STAFF_ROLES.includes(user?.role);
+    const isPrincipalUser = user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.role === 'principal' || user?.effectiveRole === 'principal';
+    const isStaffRole = isPrincipalUser || STAFF_ROLES.includes(user?.role) || user?.effectiveRole === 'super_admin' || user?.effectiveRole === 'college_admin' || user?.effectiveRole === 'warden' || user?.effectiveRole === 'principal';
     let reqs;
     if (isStaffRole) {
       reqs = await base44.entities.MaintenanceRequest.list('-created_date');
-      if (user.role === 'warden') {
+      if (user.role === 'warden' && !isPrincipalUser) {
         const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
         if (wb.length > 0) {
           const blockNames = wb.map(w => w.block_name);
@@ -886,49 +888,104 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
         }
       />
 
-      {/* WHATSAPP GROUP & JPP MONITORING BANNER */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-indigo-500/20 shadow-md">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge className="bg-emerald-500/30 text-emerald-300 border-emerald-400/30 text-[11px] px-2.5 py-0.5 font-medium flex items-center gap-1">
-                <MessageCircle className="w-3 h-3 text-emerald-400" /> WhatsApp Group Penyelenggaraan KKTF
-              </Badge>
-              <span className="text-xs text-indigo-200 font-mono">Cleaner • M&E • Civil • Admin • Felo</span>
+      {/* ALIRAN TINDAKAN PEMBAIKAN: KHAS UNTUK PELAJAR (JELAS, TEPAT & TIDAK MENGELIRUKAN) */}
+      {!isStaff ? (
+        <div className="bg-gradient-to-r from-slate-900 via-[#132644] to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-sky-500/30 shadow-md">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div className="space-y-2 max-w-2xl">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge className="bg-sky-500/20 text-sky-300 border-sky-400/30 text-[11px] px-2.5 py-0.5 font-medium flex items-center gap-1.5">
+                  <Wrench className="w-3.5 h-3.5 text-sky-400" /> Aliran Tindakan Pembaikan Kerosakan Mahasiswa
+                </Badge>
+                <span className="text-xs text-sky-200 font-mono">MyKKTF ➔ Pendaftaran TAMS ➔ Skop Kerja JPP & Kontraktor</span>
+              </div>
+              <h3 className="text-sm sm:text-base font-heading font-bold text-white">
+                Aliran Pembaikan Kerosakan & Skop Kerja JPP UMS
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Sebaik sahaja aduan anda direkodkan di MyKKTF dan didaftarkan ke sistem TAMS / MyServ, skop kerja pembaikan fizikal oleh pihak <strong>Jabatan Pembangunan & Penyelenggaraan (JPP) UMS</strong> dan <strong>kontraktor yang dilantik</strong> akan bermula.
+              </p>
+              <div className="p-2.5 bg-sky-950/40 rounded-xl border border-sky-500/20 text-[11px] text-sky-200 flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Peranan Felo & Pentadbiran Kolej:</strong> Pihak kolej bertindak sebagai pemantau perkembangan untuk anda dan sentiasa menjalankan inisiatif tindakan susulan dalaman (termasuk penyelarasan terus bersama JPP & kontraktor) bagi memastikan pembaikan disiapkan mengikut piagam perkhidmatan.
+                </span>
+              </div>
             </div>
-            <h3 className="text-sm sm:text-base font-heading font-bold text-white">
-              Aliran Pemantauan & Tindakan Susulan JPP (UMS MyServ)
-            </h3>
-            <p className="text-xs text-indigo-200/90 max-w-2xl">
-              Pentadbiran & Felo KKTF bertindak sebagai pemantau dan penyelaras susulan. Setiap aduan dihebahkan ke unit bertugas melalui format WhatsApp rasmi bersepadu.
-            </p>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs w-full lg:w-auto shrink-0">
-            <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">1</span>
-              <div>
-                <p className="font-semibold text-white">Rekod di MyKKTF</p>
-                <p className="text-[10px] text-slate-300">Dapatkan REQ MyServ</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs w-full lg:w-auto shrink-0">
+              {/* Langkah 1 */}
+              <div className="bg-white/10 border border-white/15 rounded-xl p-3 flex items-center gap-2.5">
+                <span className="w-6 h-6 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">1</span>
+                <div>
+                  <p className="font-semibold text-white">Lapor di MyKKTF</p>
+                  <p className="text-[10px] text-slate-300">Dapatkan No. REQ TAMS/MyServ</p>
+                </div>
               </div>
-            </div>
-            <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-emerald-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">2</span>
-              <div>
-                <p className="font-semibold text-white">Hebah ke Group WA</p>
-                <p className="text-[10px] text-slate-300">Tag M&E / Civil / Cleaner</p>
+              {/* Langkah 2 */}
+              <div className="bg-white/10 border border-white/15 rounded-xl p-3 flex items-center gap-2.5">
+                <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">2</span>
+                <div>
+                  <p className="font-semibold text-white">Tindakan JPP & Kontraktor</p>
+                  <p className="text-[10px] text-slate-300">Skop pembaikan bermula di tapak</p>
+                </div>
               </div>
-            </div>
-            <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">3</span>
-              <div>
-                <p className="font-semibold text-white">Sahkan di Lokasi</p>
-                <p className="text-[10px] text-slate-300">Selesai & Catat SLA</p>
+              {/* Langkah 3 */}
+              <div className="bg-white/10 border border-white/15 rounded-xl p-3 flex items-center gap-2.5">
+                <span className="w-6 h-6 rounded-full bg-emerald-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">3</span>
+                <div>
+                  <p className="font-semibold text-white">Pengesahan di Bilik</p>
+                  <p className="text-[10px] text-slate-300">Semak hasil siap & tutup tiket</p>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        /* WHATSAPP GROUP & JPP MONITORING BANNER (STAFF / FELO / ADMIN ONLY) */
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-indigo-500/20 shadow-md">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge className="bg-emerald-500/30 text-emerald-300 border-emerald-400/30 text-[11px] px-2.5 py-0.5 font-medium flex items-center gap-1">
+                  <MessageCircle className="w-3 h-3 text-emerald-400" /> Inisiatif Tindakan Susulan: WhatsApp Penyelenggaraan KKTF
+                </Badge>
+                <span className="text-xs text-indigo-200 font-mono">Cleaner • M&E • Civil • Admin • Felo</span>
+              </div>
+              <h3 className="text-sm sm:text-base font-heading font-bold text-white">
+                Penyelarasan Pemantauan & Tindakan Susulan JPP (UMS MyServ)
+              </h3>
+              <p className="text-xs text-indigo-200/90 max-w-2xl leading-relaxed">
+                Apabila aduan kerosakan direkodkan dalam TAMS, skop kerja pihak JPP dan kontraktor bermula. Hebahan ke kumpulan WhatsApp Penyelenggaraan KKTF merupakan fungsi inisiatif susulan (follow-up) tambahan oleh Felo dan Pentadbir untuk mempercepatkan penyelarasan di tapak.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs w-full lg:w-auto shrink-0">
+              <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">1</span>
+                <div>
+                  <p className="font-semibold text-white">Rekod & No. TAMS</p>
+                  <p className="text-[10px] text-slate-300">Semak pendaftaran MyServ</p>
+                </div>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-emerald-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">2</span>
+                <div>
+                  <p className="font-semibold text-white">Inisiatif Susulan WA</p>
+                  <p className="text-[10px] text-slate-300">Tag unit jika perlu tindakan segera</p>
+                </div>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">3</span>
+                <div>
+                  <p className="font-semibold text-white">Semakan di Lokasi</p>
+                  <p className="text-[10px] text-slate-300">Selesai & Catat SLA</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MONITORING STATS TILES (STAFF & ADMIN) vs STUDENT PERSONAL STATS */}
       {isStaff ? (

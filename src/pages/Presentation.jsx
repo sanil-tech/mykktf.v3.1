@@ -265,32 +265,33 @@ const MANUAL_CHAPTERS = [
   {
     id: 'ch-maintenance',
     number: 'Bab 6',
-    title: 'Aliran Aduan Kerosakan & Pemantauan WhatsApp Group Penyelenggaraan JPP',
+    title: 'Aliran Aduan Kerosakan, Skop Kerja JPP & Pemantauan Susulan Kolej',
     roleLabel: 'Pelajar, Felo & Staf',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'principal', 'jakmas'],
     icon: 'Wrench',
-    summary: 'Aliran pemantauan kerosakan baharu: integrasi portal MyServ UMS dan pemajuan aduan ke WhatsApp Group Penyelenggaraan KKTF bersama PIC JPP & Kontraktor.',
+    summary: 'Aliran aduan kerosakan dan tindakan pembaikan: Pendaftaran aduan ke sistem TAMS / MyServ UMS memulakan skop kerja JPP dan kontraktor. Felo dan pihak kolej memantau perkembangan pembaikan serta menggunakan inisiatif susulan pantas melalui WhatsApp Group Penyelenggaraan.',
     sections: [
       {
-        title: '6.1 Aliran Baharu Penyelenggaraan & JPP UMS',
-        content: 'Bahagian pentadbiran dan Felo kolej bertindak sebagai pemantau (Monitoring Only) bagi aduan yang dilaporkan ke sistem MyServ UMS. Sistem MyKKTF kini diintegrasikan dengan WhatsApp Group Rasmi Aduan Penyelenggaraan KKTF yang mengandungi PIC JPP Kolej, Kontraktor M&E, Awam/Civil, Kebersihan (Cleaner), Felo, dan Pentadbir Kolej.'
+        title: '6.1 Aliran Utama: Pendaftaran TAMS & Skop Tugas JPP / Kontraktor',
+        content: 'Sebaik sahaja kerosakan dilaporkan di MyKKTF dan didaftarkan ke sistem TAMS / MyServ UMS, skop kerja rasmi Jabatan Pembangunan & Penyelenggaraan (JPP) UMS dan kontraktor yang dilantik akan bermula. Bahagian pentadbiran dan Felo kolej bertindak sebagai pemantau (Monitoring) dan penyelaras susulan. Hebahan ke WhatsApp Group Penyelenggaraan KKTF (M&E, Awam, Kebersihan, Felo, Pentadbir) merupakan fungsi inisiatif tindakan susulan (follow-up) tambahan oleh Felo dan Pentadbir untuk mempercepatkan penyelarasan di tapak, bukan proses yang perlu dilakukan oleh pelajar.'
       },
       {
-        title: '6.2 Langkah Pelajar Melaporkan Kerosakan',
+        title: '6.2 Aliran & Langkah Tindakan Bagi Pelajar',
         steps: [
-          'Langkah 1: Pelajar membuat aduan di MyKKTF (menu Damage Reports) dengan memilih lokasi kerosakan, kategori, dan memuat naik gambar.',
-          'Langkah 2: Pelajar membuat laporan rasmi di portal MyServ UMS (aset.ums.edu.my/myserv/) dan memautkan No. Rujukan REQ di MyKKTF.',
-          'Langkah 3: Peringatan SLA kerosakan mula berjalan secara automatik di papan pemuka kolej.'
+          'Langkah 1 (Lapor Kerosakan): Pelajar membuat aduan di MyKKTF (menu Damage Reports) dengan memilih lokasi kerosakan, kategori, dan memuat naik gambar.',
+          'Langkah 2 (Pendaftaran No. TAMS / MyServ): Aduan didaftarkan ke portal TAMS UMS (aset.ums.edu.my/myserv/) bagi memulakan skop tugas rasmi pihak JPP dan kontraktor.',
+          'Langkah 3 (Kerja Pembaikan JPP & Kontraktor): Juruteknik JPP atau kontraktor yang dilantik memulakan kerja-kerja pembaikan fizikal di lokasi bilik pelajar.',
+          'Langkah 4 (Pengesahan Siap di Lokasi): Pelajar menyemak hasil pembaikan di bilik dan membuat pengesahan siap untuk menutup rekod aduan.'
         ]
       },
       {
-        title: '6.3 Langkah Felo/Staf Memajukan Aduan ke WhatsApp Group KKTF',
+        title: '6.3 Inisiatif Tindakan Susulan Felo/Staf Melalui WhatsApp Group KKTF',
         steps: [
-          'Langkah 1: Felo atau staf membuka modul "Damage Reports".',
-          'Langkah 2: Pada kad kerosakan pelajar, tekan butang hijau "📱 Majukan ke WhatsApp JPP".',
-          'Langkah 3: Tetingkap pratonton mesej rasmi akan dibuka dengan teks yang telah diformat secara pintar mengikut unit (cth: @M&E Elektrik, @Awam & Paip, @Cleaner / Kebersihan).',
-          'Langkah 4: Tekan "Buka WhatsApp Sekarang" untuk terus menghantar mesej ke WhatsApp Group Penyelenggaraan KKTF bagi tindakan pantas juruteknik bertugas.',
-          'Langkah 5: Catat nota susulan (Follow-Up Note) di MyKKTF untuk merekodkan status perbincangan dengan pihak JPP.'
+          'Langkah 1: Felo atau staf membuka modul "Damage Reports" untuk memantau senarai aduan aktif.',
+          'Langkah 2: Sebagai inisiatif susulan tambahan bagi kerosakan mendesak atau melepasi tempoh wajar, felo/staf boleh menekan butang "📱 Hantar ke Group WA".',
+          'Langkah 3: Tetingkap pratonton mesej rasmi dibuka dengan teks terformat mengikut unit bertanggungjawab (cth: @M&E Elektrik, @Awam & Paip, @Cleaner / Kebersihan).',
+          'Langkah 4: Felo/staf menghantar mesej ke WhatsApp Group Penyelenggaraan KKTF sebagai koordinasi pantas bersama pihak JPP dan kontraktor bertugas.',
+          'Langkah 5: Catat nota susulan (Follow-Up Note) di MyKKTF untuk rekod auditan sistem.'
         ]
       },
       {
