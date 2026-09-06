@@ -14,8 +14,16 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Archive, LogIn, LogOut, Search, User, Loader2, Calendar, QrCode, Printer,
   Users, CheckCircle2, ShieldCheck, AlertCircle, Building2, KeyRound, Sparkles,
-  RefreshCw, Check, X, Camera, Eye, FileText, CheckSquare, Clock, ArrowRight
+  RefreshCw, Check, X, Camera, Eye, FileText, CheckSquare, Clock, ArrowRight,
+  ChevronDown, Settings2, Smartphone, PenTool
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import SurveyModal from '@/components/SurveyModal';
 import TablePagination from '@/components/shared/TablePagination';
 import { InstitutionalDualLogo } from '@/components/shared/KKTFLogo';
@@ -24,7 +32,7 @@ import { realTimeQueryOptions } from '@/lib/query-client';
 import { logAudit } from '@/lib/audit';
 import { getDropKeyRequests, approveDropKeyRequest, rejectDropKeyRequest } from '@/lib/dropKeyHelper';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 6;
 
 export default function CheckInOut() {
   const { data: students = [], refetch: refetchStudents } = useQuery({
@@ -465,45 +473,114 @@ export default function CheckInOut() {
     return [...new Set(students.map(s => s.block_name).filter(Boolean))].sort();
   }, [students]);
 
+  const getCheckInMethod = (student, map) => {
+    const isArchived = String(student.resident_status || '').toLowerCase() === 'archived';
+    const isCheckedOut = String(student.room_status || '').toLowerCase() === 'checked out';
+    if (isArchived || isCheckedOut) {
+      return { 
+        code: 'checked_out', 
+        label: 'Telah Check-Out', 
+        shortLabel: 'Keluar',
+        badgeClass: 'bg-rose-100 text-rose-800 border-rose-300' 
+      };
+    }
+
+    if (!student.block_name || !student.room_number) {
+      return { 
+        code: 'pending_room', 
+        label: 'Belum Ada Bilik (Prapendaftaran)', 
+        shortLabel: 'Prapendaftaran',
+        badgeClass: 'bg-slate-100 text-slate-700 border-slate-300' 
+      };
+    }
+
+    const isQrVerified = student.qr_verified === true || student.qr_verified === 'true' || student.qr_verified === 1 || student.qr_verified === '1';
+
+    if (!isQrVerified || String(student.room_status || '').toLowerCase() === 'pending verification') {
+      return { 
+        code: 'pending_qr', 
+        label: 'Menunggu Pengesahan QR', 
+        shortLabel: 'Menunggu QR',
+        badgeClass: 'bg-amber-100 text-amber-900 border-amber-300' 
+      };
+    }
+
+    // Semak jika manual kaunter (oleh staf) atau imbasan kendiri QR
+    const ciRecord = map ? map.get(String(student.id)) : null;
+    const ciNotes = (ciRecord?.notes || '').toLowerCase();
+    const isManual = student.checkin_method === 'manual' || 
+                     ciNotes.includes('kaunter') || 
+                     ciNotes.includes('manual') || 
+                     ciNotes.includes('penyelarasan') ||
+                     ciNotes.includes('staf') ||
+                     ciNotes.includes('fizikal');
+
+    if (isManual) {
+      return { 
+        code: 'manual_counter', 
+        label: 'Check-In Manual Kaunter', 
+        shortLabel: 'Manual Kaunter',
+        badgeClass: 'bg-blue-100 text-blue-900 border-blue-300' 
+      };
+    }
+
+    return { 
+      code: 'qr_scan', 
+      label: 'Imbasan Kod QR (Kendiri)', 
+      shortLabel: 'Imbasan QR',
+      badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-300' 
+    };
+  };
+
+  const checkInsMap = useMemo(() => {
+    return new Map(checkIns.map(ci => [String(ci.student_id), ci]));
+  }, [checkIns]);
+
   const stats = useMemo(() => {
     const active = students.filter(s => String(s.resident_status || '').toLowerCase() !== 'archived');
-    const checkedIn = active.filter(s => 
-      (s.qr_verified === true || s.qr_verified === 'true' || s.qr_verified === 1) && 
-      String(s.room_status || '').toLowerCase() === 'checked in'
-    ).length;
-    const pendingQr = active.filter(s => 
-      s.block_name && s.room_number && 
-      (!s.qr_verified || String(s.room_status || '').toLowerCase() === 'pending verification')
-    ).length;
-    const pendingKey = active.filter(s => 
-      !s.block_name || String(s.room_status || '').toLowerCase() === 'pending key'
-    ).length;
+
+    let qrScanCount = 0;
+    let manualCounterCount = 0;
+    let pendingQrCount = 0;
+    let pendingKeyCount = 0;
+    let checkedOutCount = students.filter(s => String(s.room_status || '').toLowerCase() === 'checked out').length;
+
+    active.forEach(s => {
+      const method = getCheckInMethod(s, checkInsMap);
+      if (method.code === 'qr_scan') qrScanCount++;
+      else if (method.code === 'manual_counter') manualCounterCount++;
+      else if (method.code === 'pending_qr') pendingQrCount++;
+      else if (method.code === 'pending_room') pendingKeyCount++;
+    });
+
+    const totalWithRoom = qrScanCount + manualCounterCount + pendingQrCount;
+
     return {
       total: active.length,
-      checkedIn,
-      pendingQr,
-      pendingKey
+      totalWithRoom,
+      qrScanCount,
+      manualCounterCount,
+      pendingQrCount,
+      pendingKeyCount,
+      checkedOutCount,
+      dropKeyCount: pendingDropKeys.length
     };
-  }, [students]);
+  }, [students, checkInsMap, pendingDropKeys]);
 
   const filteredActiveResidents = useMemo(() => {
     return students.filter(s => {
       const isArchived = String(s.resident_status || '').toLowerCase() === 'archived';
       if (isArchived) return false;
 
-      // Status filter
-      if (rosterStatusFilter === 'checked_in') {
-        const isCheckedIn = (s.qr_verified === true || s.qr_verified === 'true' || s.qr_verified === 1) && 
-                            String(s.room_status || '').toLowerCase() === 'checked in';
-        if (!isCheckedIn) return false;
-      } else if (rosterStatusFilter === 'pending_qr') {
-        const isPendingQr = s.block_name && s.room_number && 
-                            (!s.qr_verified || String(s.room_status || '').toLowerCase() === 'pending verification');
-        if (!isPendingQr) return false;
-      } else if (rosterStatusFilter === 'pending_key') {
-        const isPendingKey = !s.block_name || String(s.room_status || '').toLowerCase() === 'pending key';
-        if (!isPendingKey) return false;
-      }
+      const method = getCheckInMethod(s, checkInsMap);
+
+      // Status / Method filter
+      if (rosterStatusFilter === 'qr_scan' && method.code !== 'qr_scan') return false;
+      if (rosterStatusFilter === 'manual_counter' && method.code !== 'manual_counter') return false;
+      if (rosterStatusFilter === 'checked_in' && method.code !== 'qr_scan' && method.code !== 'manual_counter') return false;
+      if (rosterStatusFilter === 'pending_qr' && method.code !== 'pending_qr') return false;
+      if (rosterStatusFilter === 'pending_key' && method.code !== 'pending_room') return false;
+      if (rosterStatusFilter === 'checked_out' && method.code !== 'checked_out') return false;
 
       // Block filter
       if (rosterBlockFilter !== 'all' && s.block_name !== rosterBlockFilter) {
@@ -516,13 +593,15 @@ export default function CheckInOut() {
         const matchName = (s.full_name || '').toLowerCase().includes(q);
         const matchMatric = (s.student_id || '').toLowerCase().includes(q);
         const matchRoom = (s.room_number || '').toLowerCase().includes(q);
+        const matchBlock = (s.block_name || '').toLowerCase().includes(q);
         const matchPhone = (s.phone || '').toLowerCase().includes(q);
-        if (!matchName && !matchMatric && !matchRoom && !matchPhone) return false;
+        const matchMethod = method.label.toLowerCase().includes(q) || method.shortLabel.toLowerCase().includes(q);
+        if (!matchName && !matchMatric && !matchRoom && !matchBlock && !matchPhone && !matchMethod) return false;
       }
 
       return true;
     });
-  }, [students, rosterSearch, rosterBlockFilter, rosterStatusFilter]);
+  }, [students, checkInsMap, rosterSearch, rosterBlockFilter, rosterStatusFilter]);
 
   const totalRosterPages = Math.ceil(filteredActiveResidents.length / PAGE_SIZE);
   const safeRosterPage = Math.min(rosterPage, totalRosterPages || 1);
@@ -747,74 +826,217 @@ export default function CheckInOut() {
   const paginatedCheckOuts = displayCheckOuts.slice((safeCoPage - 1) * PAGE_SIZE, safeCoPage * PAGE_SIZE);
 
   return (
-    <div>
-      <PageHeader
-        title="Check-In / Check-Out"
-        description="Urus pergerakan residen dengan validasi hibrid & Express Drop-Key"
-        actions={
-          <div className="flex gap-2 flex-wrap">
-            <Button size="sm" variant="outline" className="border-lime-500/60 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100/60" onClick={() => setShowQrPosterModal(true)}>
-              <QrCode className="w-4 h-4 mr-1.5 text-emerald-600" /> Kod QR Pengaktifan
-            </Button>
-            <Button size="sm" variant="outline" className="border-amber-500/60 text-amber-800 bg-amber-50/50 hover:bg-amber-100" onClick={() => setShowDropKeyQrModal(true)}>
-              <QrCode className="w-4 h-4 mr-1.5 text-amber-600" /> QR Peti Drop-Key
-            </Button>
-            <Button size="sm" variant="outline" disabled={syncing} onClick={handleSyncActiveResidents} className="border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100">
-              <RefreshCw className={`w-4 h-4 mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Selaras Residen Aktif
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => setArchiveDialog(true)}>
-              <Archive className="w-4 h-4 mr-1.5" /> Tutup Sesi
-            </Button>
-            <Button size="sm" onClick={() => {
-              resetSearchState();
-              setCiForm({ room_id: '', check_in_date: dateStr, check_in_time: timeStr, semester: selectedSemesterFilter, notes: '' });
-              setCiDialog(true);
-            }}><LogIn className="w-4 h-4 mr-1.5" /> Check In</Button>
-            <Button size="sm" variant="outline" onClick={() => {
-              resetSearchState();
-              setCoForm({ check_out_date: dateStr, check_out_time: timeStr, room_condition: 'Good', semester: selectedSemesterFilter, damage_assessment: '' });
-              setCoDialog(true);
-            }}><LogOut className="w-4 h-4 mr-1.5" /> Check Out</Button>
+    <div className="space-y-4">
+      {/* HEADER UTAMA: RESPONSIVE, KEMAS & TANPA OVERFLOW */}
+      <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Tajuk & Keterangan */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                Check-In / Check-Out
+              </h1>
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 text-xs font-semibold px-2 py-0.5">
+                Hibrid & Drop-Key v3.1
+              </Badge>
+            </div>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Urus rekod kemasukan melalui imbasan QR / kaunter staf serta semakan drop-key check-out pantas.
+            </p>
           </div>
-        }
-      />
 
-      {/* FILTER SESI UTAMA: < 3 Pilihan (Kekal Dropdown Biasa) */}
-      <div className="flex items-center gap-2 mb-4 p-3 bg-muted/40 rounded-xl border border-border w-full max-w-sm">
-        <Calendar className="w-4 h-4 text-muted-foreground" />
-        <div className="flex-1">
-          <Select value={selectedSemesterFilter} onValueChange={setSelectedSemesterFilter}>
-            <SelectTrigger className="h-9 bg-card border-border">
-              <SelectValue placeholder="Pilih Semester Log" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Sem1_2526">Semester 1 Sesi 2025/2026</SelectItem>
-              <SelectItem value="Sem2_2526">Semester 2 Sesi 2025/2026</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Tindakan Pantas & Filter Sesi (Tersusun rapi tanpa melimpah keluar) */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {/* Filter Sesi Ringkas */}
+            <div className="w-full sm:w-[220px]">
+              <Select value={selectedSemesterFilter} onValueChange={setSelectedSemesterFilter}>
+                <SelectTrigger className="h-9 bg-background text-xs font-medium border-border shadow-xs">
+                  <Calendar className="w-3.5 h-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Pilih Semester" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Sem1_2526" className="text-xs">Sem 1 Sesi 2025/2026</SelectItem>
+                  <SelectItem value="Sem2_2526" className="text-xs">Sem 2 Sesi 2025/2026</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Menu Dropdown Tindakan Pentadbiran & Kod QR */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 text-xs border-border bg-background shadow-xs hover:bg-muted font-medium">
+                  <Settings2 className="w-3.5 h-3.5 mr-1.5 text-indigo-600" />
+                  <span>Alat & Kod QR</span>
+                  <ChevronDown className="w-3.5 h-3.5 ml-1.5 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 text-xs shadow-md">
+                <DropdownMenuItem onClick={() => setShowQrPosterModal(true)} className="cursor-pointer">
+                  <QrCode className="w-4 h-4 mr-2 text-emerald-600" />
+                  <span>Poster QR Pengaktifan</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowDropKeyQrModal(true)} className="cursor-pointer">
+                  <QrCode className="w-4 h-4 mr-2 text-amber-600" />
+                  <span>Poster QR Peti Drop-Key</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled={syncing} onClick={handleSyncActiveResidents} className="cursor-pointer">
+                  <RefreshCw className={`w-4 h-4 mr-2 text-indigo-600 ${syncing ? 'animate-spin' : ''}`} />
+                  <span>Selaras Residen Aktif</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setArchiveDialog(true)} className="cursor-pointer text-slate-700">
+                  <Archive className="w-4 h-4 mr-2 text-slate-500" />
+                  <span>Tutup / Arkib Sesi</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Butang Terus Check-In */}
+            <Button 
+              size="sm" 
+              onClick={() => {
+                resetSearchState();
+                setCiForm({ room_id: '', check_in_date: dateStr, check_in_time: timeStr, semester: selectedSemesterFilter, notes: '' });
+                setCiDialog(true);
+              }}
+              className="h-9 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-xs"
+            >
+              <LogIn className="w-3.5 h-3.5 mr-1.5" /> Check In
+            </Button>
+
+            {/* Butang Terus Check-Out */}
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => {
+                resetSearchState();
+                setCoForm({ check_out_date: dateStr, check_out_time: timeStr, room_condition: 'Good', semester: selectedSemesterFilter, damage_assessment: '' });
+                setCoDialog(true);
+              }}
+              className="h-9 text-xs text-rose-700 border-rose-200 hover:bg-rose-50 hover:text-rose-800 font-semibold shadow-xs"
+            >
+              <LogOut className="w-3.5 h-3.5 mr-1.5 text-rose-600" /> Check Out
+            </Button>
+          </div>
         </div>
       </div>
 
-      <Tabs defaultValue="active_residents">
-        <TabsList className="mb-4 flex-wrap h-auto p-1 gap-1">
+      {/* STATISTIK KPI INTERAKTIF: PERBEZAAN QR SCAN VS MANUAL KAUNTER */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        {/* 1. SEMUA RESIDEN */}
+        <div 
+          onClick={() => { setRosterStatusFilter('all'); setRosterPage(1); }}
+          className={`cursor-pointer border rounded-2xl p-3 shadow-xs transition-all hover:border-indigo-300 ${
+            rosterStatusFilter === 'all' ? 'bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-400/20' : 'bg-card border-border'
+          }`}
+        >
+          <div className="flex items-center justify-between text-muted-foreground mb-1">
+            <span className="text-[11px] font-semibold">Semua Residen</span>
+            <Users className="w-3.5 h-3.5 text-indigo-600" />
+          </div>
+          <p className="text-xl font-black text-foreground font-mono">{stats.total}</p>
+          <p className="text-[10px] text-muted-foreground truncate">Senarai keseluruhan</p>
+        </div>
+
+        {/* 2. IMBASAN QR KENDIRI */}
+        <div 
+          onClick={() => { setRosterStatusFilter(rosterStatusFilter === 'qr_scan' ? 'all' : 'qr_scan'); setRosterPage(1); }}
+          className={`cursor-pointer border rounded-2xl p-3 shadow-xs transition-all hover:border-emerald-400 ${
+            rosterStatusFilter === 'qr_scan' ? 'bg-emerald-100/70 border-emerald-500 ring-2 ring-emerald-500/20' : 'bg-emerald-50/40 border-emerald-200/80'
+          }`}
+        >
+          <div className="flex items-center justify-between text-emerald-700 mb-1">
+            <span className="text-[11px] font-bold">Imbasan QR</span>
+            <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+          </div>
+          <p className="text-xl font-black text-emerald-800 font-mono">{stats.qrScanCount}</p>
+          <p className="text-[10px] text-emerald-600 truncate">Scan pas kendiri</p>
+        </div>
+
+        {/* 3. MANUAL KAUNTER */}
+        <div 
+          onClick={() => { setRosterStatusFilter(rosterStatusFilter === 'manual_counter' ? 'all' : 'manual_counter'); setRosterPage(1); }}
+          className={`cursor-pointer border rounded-2xl p-3 shadow-xs transition-all hover:border-blue-400 ${
+            rosterStatusFilter === 'manual_counter' ? 'bg-blue-100/70 border-blue-500 ring-2 ring-blue-500/20' : 'bg-blue-50/40 border-blue-200/80'
+          }`}
+        >
+          <div className="flex items-center justify-between text-blue-700 mb-1">
+            <span className="text-[11px] font-bold">Manual Kaunter</span>
+            <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+          </div>
+          <p className="text-xl font-black text-blue-800 font-mono">{stats.manualCounterCount}</p>
+          <p className="text-[10px] text-blue-600 truncate">Didaftar staf fizikal</p>
+        </div>
+
+        {/* 4. MENUNGGU QR */}
+        <div 
+          onClick={() => { setRosterStatusFilter(rosterStatusFilter === 'pending_qr' ? 'all' : 'pending_qr'); setRosterPage(1); }}
+          className={`cursor-pointer border rounded-2xl p-3 shadow-xs transition-all hover:border-amber-400 ${
+            rosterStatusFilter === 'pending_qr' ? 'bg-amber-100/70 border-amber-500 ring-2 ring-amber-500/20' : 'bg-amber-50/40 border-amber-200/80'
+          }`}
+        >
+          <div className="flex items-center justify-between text-amber-700 mb-1">
+            <span className="text-[11px] font-bold">Menunggu QR</span>
+            <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+          </div>
+          <p className="text-xl font-black text-amber-800 font-mono">{stats.pendingQrCount}</p>
+          <p className="text-[10px] text-amber-600 truncate">Bilik ada, belum imbas</p>
+        </div>
+
+        {/* 5. PETI DROP-KEY */}
+        <div 
+          onClick={() => {
+            const dropKeyTabTrigger = document.querySelector('[data-state][value="drop_key"]');
+            if (dropKeyTabTrigger) dropKeyTabTrigger.click();
+          }}
+          className={`cursor-pointer border rounded-2xl p-3 shadow-xs transition-all hover:border-orange-400 ${
+            stats.dropKeyCount > 0 ? 'bg-orange-50/60 border-orange-300' : 'bg-card border-border'
+          }`}
+        >
+          <div className="flex items-center justify-between text-orange-700 mb-1">
+            <span className="text-[11px] font-bold">Peti Drop-Key</span>
+            <KeyRound className="w-3.5 h-3.5 text-orange-600" />
+          </div>
+          <p className="text-xl font-black text-orange-800 font-mono">{stats.dropKeyCount}</p>
+          <p className="text-[10px] text-orange-600 truncate">{stats.dropKeyCount > 0 ? 'Perlu semakan staf' : 'Tiada permohonan'}</p>
+        </div>
+
+        {/* 6. TELAH CHECK-OUT */}
+        <div 
+          onClick={() => { setRosterStatusFilter(rosterStatusFilter === 'checked_out' ? 'all' : 'checked_out'); setRosterPage(1); }}
+          className={`cursor-pointer border rounded-2xl p-3 shadow-xs transition-all hover:border-rose-400 ${
+            rosterStatusFilter === 'checked_out' ? 'bg-rose-100/70 border-rose-500 ring-2 ring-rose-500/20' : 'bg-slate-50 border-slate-200'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-700 mb-1">
+            <span className="text-[11px] font-bold">Telah Keluar</span>
+            <LogOut className="w-3.5 h-3.5 text-rose-600" />
+          </div>
+          <p className="text-xl font-black text-slate-800 font-mono">{stats.checkedOutCount}</p>
+          <p className="text-[10px] text-slate-500 truncate">Selesai serahan</p>
+        </div>
+      </div>
+
+      <Tabs defaultValue="active_residents" className="w-full">
+        <TabsList className="mb-3 flex-wrap h-auto p-1 gap-1">
           <TabsTrigger value="active_residents" className="flex items-center gap-1.5 text-xs">
             <Users className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Residen Aktif & Status Bilik</span>
-            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-muted">
+            <span>Senarai Residen & Bilik</span>
+            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-muted font-mono">
               {stats.total}
             </Badge>
           </TabsTrigger>
           <TabsTrigger value="checkins" className="flex items-center gap-1.5 text-xs">
             <LogIn className="w-3.5 h-3.5 text-emerald-600" />
             <span>Log Check-In</span>
-            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-muted">
+            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-muted font-mono">
               {displayCheckIns.length}
             </Badge>
           </TabsTrigger>
           <TabsTrigger value="checkouts" className="flex items-center gap-1.5 text-xs">
             <LogOut className="w-3.5 h-3.5 text-rose-600" />
             <span>Log Check-Out</span>
-            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-muted">
+            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-muted font-mono">
               {displayCheckOuts.length}
             </Badge>
           </TabsTrigger>
@@ -830,52 +1052,13 @@ export default function CheckInOut() {
         </TabsList>
 
         {/* TAB 1: RESIDEN AKTIF & STATUS BILIK */}
-        <TabsContent value="active_residents" className="space-y-4">
-          {/* STATS CARDS */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-card border rounded-2xl p-3.5 shadow-xs">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <Users className="w-4 h-4 text-indigo-600" />
-                <span className="text-xs font-semibold">Semua Residen</span>
-              </div>
-              <p className="text-2xl font-black text-foreground font-mono">{stats.total}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Berdaftar dalam sistem</p>
-            </div>
-
-            <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-2xl p-3.5 shadow-xs">
-              <div className="flex items-center gap-2 text-emerald-700 mb-1">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span className="text-xs font-semibold">Aktif (QR Sah)</span>
-              </div>
-              <p className="text-2xl font-black text-emerald-800 font-mono">{stats.checkedIn}</p>
-              <p className="text-[10px] text-emerald-600 mt-0.5">Penempatan & pas sah</p>
-            </div>
-
-            <div className="bg-amber-50/50 border border-amber-200/80 rounded-2xl p-3.5 shadow-xs">
-              <div className="flex items-center gap-2 text-amber-700 mb-1">
-                <AlertCircle className="w-4 h-4 text-amber-600" />
-                <span className="text-xs font-semibold">Menunggu QR</span>
-              </div>
-              <p className="text-2xl font-black text-amber-800 font-mono">{stats.pendingQr}</p>
-              <p className="text-[10px] text-amber-600 mt-0.5">Bilik siap, belum imbas</p>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 shadow-xs">
-              <div className="flex items-center gap-2 text-slate-600 mb-1">
-                <KeyRound className="w-4 h-4 text-slate-500" />
-                <span className="text-xs font-semibold">Menunggu Kunci</span>
-              </div>
-              <p className="text-2xl font-black text-slate-800 font-mono">{stats.pendingKey}</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">Prapendaftaran awal</p>
-            </div>
-          </div>
-
-          {/* FILTER TOOLBAR */}
-          <div className="bg-card border rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+        <TabsContent value="active_residents" className="space-y-3">
+          {/* TOOLBAR CARIAN & TAPISAN (Mencegah paparan overloaded) */}
+          <div className="bg-card border rounded-2xl p-3 flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between shadow-xs">
             <div className="relative flex-1">
               <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
               <Input
-                placeholder="Cari nama pelajar, no matrik, bilik, telefon..."
+                placeholder="Cari nama pelajar, no matrik, bilik, blok, telefon..."
                 value={rosterSearch}
                 onChange={(e) => {
                   setRosterSearch(e.target.value);
@@ -886,30 +1069,35 @@ export default function CheckInOut() {
             </div>
 
             <div className="flex gap-2 flex-wrap items-center">
+              {/* Tapisan Blok */}
               <Select value={rosterBlockFilter} onValueChange={(v) => { setRosterBlockFilter(v); setRosterPage(1); }}>
-                <SelectTrigger className="h-9 text-xs w-[130px]">
+                <SelectTrigger className="h-9 text-xs w-[130px] bg-background">
                   <SelectValue placeholder="Semua Blok" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Semua Blok</SelectItem>
+                  <SelectItem value="all" className="text-xs">Semua Blok</SelectItem>
                   {rosterBlocks.map(b => (
-                    <SelectItem key={b} value={b}>{b}</SelectItem>
+                    <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
+              {/* Tapisan Status / Kaedah */}
               <Select value={rosterStatusFilter} onValueChange={(v) => { setRosterStatusFilter(v); setRosterPage(1); }}>
-                <SelectTrigger className="h-9 text-xs w-[160px]">
-                  <SelectValue placeholder="Semua Status" />
+                <SelectTrigger className="h-9 text-xs w-[190px] bg-background">
+                  <SelectValue placeholder="Semua Kaedah" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Semua Status</SelectItem>
-                  <SelectItem value="checked_in">🟢 Aktif (QR Sah)</SelectItem>
-                  <SelectItem value="pending_qr">🟡 Menunggu QR</SelectItem>
-                  <SelectItem value="pending_key">⚪ Menunggu Kunci</SelectItem>
+                  <SelectItem value="all" className="text-xs">Semua Kaedah & Status</SelectItem>
+                  <SelectItem value="qr_scan" className="text-xs">📱 Imbasan QR ({stats.qrScanCount})</SelectItem>
+                  <SelectItem value="manual_counter" className="text-xs">✍️ Manual Kaunter ({stats.manualCounterCount})</SelectItem>
+                  <SelectItem value="pending_qr" className="text-xs">🟡 Menunggu QR ({stats.pendingQrCount})</SelectItem>
+                  <SelectItem value="pending_key" className="text-xs">⚪ Menunggu Bilik ({stats.pendingKeyCount})</SelectItem>
+                  <SelectItem value="checked_out" className="text-xs">🚪 Telah Keluar ({stats.checkedOutCount})</SelectItem>
                 </SelectContent>
               </Select>
 
+              {/* Reset Filter Button */}
               {(rosterSearch || rosterBlockFilter !== 'all' || rosterStatusFilter !== 'all') && (
                 <Button 
                   variant="ghost" 
@@ -920,7 +1108,7 @@ export default function CheckInOut() {
                     setRosterStatusFilter('all');
                     setRosterPage(1);
                   }}
-                  className="h-9 text-xs text-muted-foreground"
+                  className="h-9 text-xs text-muted-foreground hover:text-foreground"
                 >
                   Reset
                 </Button>
@@ -928,9 +1116,22 @@ export default function CheckInOut() {
             </div>
           </div>
 
-          {/* TABLE OF RESIDENTS */}
+          {/* INDIKATOR HASIL CARIAN */}
+          <div className="flex items-center justify-between text-xs px-1 text-muted-foreground">
+            <span>
+              Menunjukkan <strong className="text-foreground">{paginatedResidents.length}</strong> daripada <strong className="text-foreground">{filteredActiveResidents.length}</strong> padanan rekod
+              {rosterStatusFilter !== 'all' && (
+                <Badge variant="outline" className="ml-2 text-[10px] py-0">
+                  Tapisan: {rosterStatusFilter}
+                </Badge>
+              )}
+            </span>
+            <span className="text-[11px]">Halaman {safeRosterPage} / {totalRosterPages || 1}</span>
+          </div>
+
+          {/* JADUAL RESIDEN KOMPAK DENGAN KAEDAH CHECK-IN JELAS */}
           {filteredActiveResidents.length === 0 ? (
-            <EmptyState icon={Users} title="Tiada rekod residen sepadan dengan tapisan" />
+            <EmptyState icon={Users} title="Tiada rekod residen sepadan dengan tapisan carian anda" />
           ) : (
             <div className="bg-card border rounded-2xl overflow-hidden shadow-xs">
               <div className="overflow-x-auto">
@@ -940,15 +1141,16 @@ export default function CheckInOut() {
                       <th className="text-left px-4 py-3">Pelajar</th>
                       <th className="text-left px-4 py-3">Fakulti & Tahun</th>
                       <th className="text-left px-4 py-3">Bilik & Blok</th>
-                      <th className="text-left px-4 py-3">Status Pengaktifan</th>
+                      <th className="text-left px-4 py-3">Kaedah & Status Check-In</th>
                       <th className="text-right px-4 py-3">Tindakan Kaunter</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {paginatedResidents.map((st) => {
-                      const isCheckedIn = (st.qr_verified === true || st.qr_verified === 'true' || st.qr_verified === 1) && String(st.room_status || '').toLowerCase() === 'checked in';
-                      const isPendingQr = st.block_name && st.room_number && (!st.qr_verified || String(st.room_status || '').toLowerCase() === 'pending verification');
-                      const isPendingKey = !st.block_name || String(st.room_status || '').toLowerCase() === 'pending key';
+                      const method = getCheckInMethod(st, checkInsMap);
+                      const isCheckedIn = method.code === 'qr_scan' || method.code === 'manual_counter';
+                      const isPendingQr = method.code === 'pending_qr';
+                      const isPendingKey = method.code === 'pending_room';
 
                       return (
                         <tr key={st.id} className="hover:bg-muted/30 transition-colors">
@@ -981,20 +1183,29 @@ export default function CheckInOut() {
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            {isCheckedIn ? (
+                            {method.code === 'qr_scan' ? (
                               <div className="space-y-0.5">
-                                <Badge className="bg-emerald-600 text-white text-[10px] gap-1 px-2 py-0.5">
-                                  <CheckCircle2 className="w-3 h-3" /> Aktif (QR Sah)
+                                <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[10px] gap-1 px-2 py-0.5 shadow-xs font-semibold">
+                                  <Smartphone className="w-3 h-3" /> Imbasan QR (Kendiri)
                                 </Badge>
                                 {st.qr_verified_at && (
-                                  <p className="text-[10px] text-muted-foreground">
-                                    {new Date(st.qr_verified_at).toLocaleDateString('ms-MY')}
+                                  <p className="text-[10px] text-emerald-700 font-medium">
+                                    Disahkan {new Date(st.qr_verified_at).toLocaleDateString('ms-MY')}
                                   </p>
                                 )}
                               </div>
+                            ) : method.code === 'manual_counter' ? (
+                              <div className="space-y-0.5">
+                                <Badge className="bg-blue-600 hover:bg-blue-600 text-white text-[10px] gap-1 px-2 py-0.5 shadow-xs font-semibold">
+                                  <ShieldCheck className="w-3 h-3" /> Manual Kaunter (Staf)
+                                </Badge>
+                                <p className="text-[10px] text-blue-700 font-medium">
+                                  Disahkan secara fizikal
+                                </p>
+                              </div>
                             ) : isPendingQr ? (
                               <div className="space-y-0.5">
-                                <Badge className="bg-amber-500/20 text-amber-800 border-amber-300 text-[10px] gap-1 px-2 py-0.5 font-bold">
+                                <Badge className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] gap-1 px-2 py-0.5 font-bold">
                                   <AlertCircle className="w-3 h-3 text-amber-600" /> Menunggu QR
                                 </Badge>
                                 <p className="text-[10px] text-slate-500">Pintu Utama / Kaunter</p>
@@ -1005,6 +1216,13 @@ export default function CheckInOut() {
                                   <KeyRound className="w-3 h-3" /> Menunggu Kunci
                                 </Badge>
                                 <p className="text-[10px] text-slate-500">Prapendaftaran Awal</p>
+                              </div>
+                            ) : method.code === 'checked_out' ? (
+                              <div className="space-y-0.5">
+                                <Badge variant="secondary" className="bg-rose-100 text-rose-800 border border-rose-200 text-[10px] gap-1 px-2 py-0.5 font-semibold">
+                                  <LogOut className="w-3 h-3 text-rose-600" /> Telah Keluar
+                                </Badge>
+                                <p className="text-[10px] text-slate-500">Kunci telah diserah</p>
                               </div>
                             ) : (
                               <Badge variant="secondary" className="text-[10px]">
@@ -1020,7 +1238,7 @@ export default function CheckInOut() {
                                   variant="outline"
                                   disabled={submitting}
                                   onClick={() => handleTriggerCheckOut(st)}
-                                  className="h-7 text-xs text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                                  className="h-7 text-xs text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 font-medium"
                                 >
                                   <LogOut className="w-3 h-3 mr-1" /> Check-Out
                                 </Button>
@@ -1062,7 +1280,7 @@ export default function CheckInOut() {
                                     });
                                     setCiDialog(true);
                                   }}
-                                  className="h-7 text-xs text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                  className="h-7 text-xs text-indigo-600 border-indigo-200 hover:bg-indigo-50 font-medium"
                                 >
                                   <LogIn className="w-3 h-3 mr-1" /> Tetapkan Bilik
                                 </Button>
