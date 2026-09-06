@@ -459,14 +459,14 @@ export default function BlockInspectionDossierModal({
                           )}
                         </td>
 
-                        {/* STATUS TINDAKAN DENGAN MINI CHECKBOX OTOMATIK */}
+                        {/* STATUS TINDAKAN DENGAN 4 MINI CHECKBOX PROGRESS OTOMATIK */}
                         <td className="p-1.5 border border-slate-300 leading-tight">
                           <div className="space-y-1">
                             {/* BADGE UTAMA */}
                             <div>
                               <span className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-bold ${
                                 isDone 
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs' 
                                   : inProgress
                                     ? 'bg-purple-100 text-purple-800 border border-purple-300'
                                     : hasTams 
@@ -474,7 +474,7 @@ export default function BlockInspectionDossierModal({
                                       : 'bg-amber-100 text-amber-800 border border-amber-300'
                               }`}>
                                 {isDone 
-                                  ? '✓ Selesai Sepenuhnya' 
+                                  ? '✅ SELESAI / SIAP' 
                                   : inProgress 
                                     ? '⚙️ Tindakan JPP / Kontraktor' 
                                     : hasTams 
@@ -483,21 +483,29 @@ export default function BlockInspectionDossierModal({
                               </span>
                             </div>
 
-                            {/* MINI CHECKBOX PROGRESS OTOMATIK */}
+                            {/* MINI CHECKBOX PROGRESS OTOMATIK (4 TAHAP LENGKAP) */}
                             <div className="text-[7.5px] space-y-0.5 border-t border-slate-200 pt-1 font-sans">
-                              {/* 1. DAFTAR TAMS */}
-                              <div className={`flex items-center gap-1 ${hasTams || isDone ? 'text-blue-900 font-semibold' : 'text-slate-400'}`}>
+                              {/* 1. ADUAN DIREKOD */}
+                              <div className="flex items-center gap-1 text-slate-700 font-medium">
+                                <span className="w-3 h-3 rounded-[3px] flex items-center justify-center text-[7px] font-bold shrink-0 bg-slate-700 text-white">
+                                  ✓
+                                </span>
+                                <span className="truncate">1. Aduan Direkod</span>
+                              </div>
+
+                              {/* 2. DAFTAR TAMS */}
+                              <div className={`flex items-center gap-1 ${hasTams ? 'text-blue-900 font-semibold' : 'text-slate-400'}`}>
                                 <span className={`w-3 h-3 rounded-[3px] flex items-center justify-center text-[7px] font-bold shrink-0 ${
-                                  hasTams || isDone ? 'bg-blue-600 text-white' : 'border border-slate-300 bg-slate-50 text-transparent'
+                                  hasTams ? 'bg-blue-600 text-white' : 'border border-slate-300 bg-slate-50 text-transparent'
                                 }`}>
                                   ✓
                                 </span>
                                 <span className="truncate">
-                                  {hasTams ? `Daftar TAMS` : isDone ? 'Daftar TAMS' : 'Belum daftar TAMS'}
+                                  {hasTams ? `2. Dihantar TAMS` : '2. Belum TAMS'}
                                 </span>
                               </div>
 
-                              {/* 2. TINDAKAN KONTRAKTOR / JPP */}
+                              {/* 3. TINDAKAN KONTRAKTOR / JPP */}
                               <div className={`flex items-center gap-1 ${inProgress || isDone ? 'text-purple-900 font-semibold' : 'text-slate-400'}`}>
                                 <span className={`w-3 h-3 rounded-[3px] flex items-center justify-center text-[7px] font-bold shrink-0 ${
                                   inProgress || isDone ? 'bg-purple-600 text-white' : 'border border-slate-300 bg-slate-50 text-transparent'
@@ -505,19 +513,19 @@ export default function BlockInspectionDossierModal({
                                   ✓
                                 </span>
                                 <span className="truncate">
-                                  {inProgress || isDone ? 'Tindakan Kontraktor JPP' : 'Menunggu tindakan JPP'}
+                                  {inProgress || isDone ? '3. Pembaikan JPP' : '3. Menunggu JPP'}
                                 </span>
                               </div>
 
-                              {/* 3. SIAP & DISAHKAN */}
-                              <div className={`flex items-center gap-1 ${isDone ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
+                              {/* 4. STATUS SELESAI / SIAP */}
+                              <div className={`flex items-center gap-1 ${isDone ? 'text-emerald-700 font-black' : 'text-slate-400'}`}>
                                 <span className={`w-3 h-3 rounded-[3px] flex items-center justify-center text-[7px] font-bold shrink-0 ${
-                                  isDone ? 'bg-emerald-600 text-white' : 'border border-slate-300 bg-slate-50 text-transparent'
+                                  isDone ? 'bg-emerald-600 text-white shadow-2xs' : 'border border-slate-300 bg-slate-50 text-transparent'
                                 }`}>
                                   ✓
                                 </span>
                                 <span className="truncate">
-                                  {isDone ? 'Disahkan Siap di Tapak' : 'Belum selesai'}
+                                  {isDone ? '4. Selesai / Siap' : '4. Belum Selesai'}
                                 </span>
                               </div>
                             </div>
