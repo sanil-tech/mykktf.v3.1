@@ -1105,7 +1105,7 @@ export default function ExpressDropKey() {
                   <div className="space-y-1">
                     <span className="text-[10px] text-muted-foreground block truncate">1. Lantai Bersih</span>
                     <div className="h-24 rounded-xl border overflow-hidden bg-slate-100 relative group flex items-center justify-center text-center p-1">
-                      {selectedDropKey.photos?.room_clean && selectedDropKey.photos.room_clean.startsWith('data:') ? (
+                      {selectedDropKey.photos?.room_clean && (selectedDropKey.photos.room_clean.startsWith('data:') || selectedDropKey.photos.room_clean.startsWith('http')) ? (
                         <img 
                           src={selectedDropKey.photos.room_clean} 
                           alt="Lantai Bilik" 
@@ -1123,7 +1123,7 @@ export default function ExpressDropKey() {
                   <div className="space-y-1">
                     <span className="text-[10px] text-muted-foreground block truncate">2. Kunci & Tag Bilik</span>
                     <div className="h-24 rounded-xl border overflow-hidden bg-slate-100 relative group flex items-center justify-center text-center p-1">
-                      {selectedDropKey.photos?.key_envelope && selectedDropKey.photos.key_envelope.startsWith('data:') ? (
+                      {selectedDropKey.photos?.key_envelope && (selectedDropKey.photos.key_envelope.startsWith('data:') || selectedDropKey.photos.key_envelope.startsWith('http')) ? (
                         <img 
                           src={selectedDropKey.photos.key_envelope} 
                           alt="Kunci & Tag" 
@@ -1141,7 +1141,7 @@ export default function ExpressDropKey() {
                   <div className="space-y-1">
                     <span className="text-[10px] text-muted-foreground block truncate">3. Almari Terbuka</span>
                     <div className="h-24 rounded-xl border overflow-hidden bg-slate-100 relative group flex items-center justify-center text-center p-1">
-                      {selectedDropKey.photos?.wardrobe_empty && selectedDropKey.photos.wardrobe_empty.startsWith('data:') ? (
+                      {selectedDropKey.photos?.wardrobe_empty && (selectedDropKey.photos.wardrobe_empty.startsWith('data:') || selectedDropKey.photos.wardrobe_empty.startsWith('http')) ? (
                         <img 
                           src={selectedDropKey.photos.wardrobe_empty} 
                           alt="Almari Terbuka" 
@@ -1157,7 +1157,7 @@ export default function ExpressDropKey() {
                   <div className="space-y-1">
                     <span className="text-[10px] text-muted-foreground block truncate">4. Suis & Tingkap</span>
                     <div className="h-24 rounded-xl border overflow-hidden bg-slate-100 relative group flex items-center justify-center text-center p-1">
-                      {selectedDropKey.photos?.switches_locked && selectedDropKey.photos.switches_locked.startsWith('data:') ? (
+                      {selectedDropKey.photos?.switches_locked && (selectedDropKey.photos.switches_locked.startsWith('data:') || selectedDropKey.photos.switches_locked.startsWith('http')) ? (
                         <img 
                           src={selectedDropKey.photos.switches_locked} 
                           alt="Suis & Tingkap" 

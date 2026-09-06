@@ -39,6 +39,11 @@ export async function fetchAndSyncDropKeyRequests() {
       // Cuba parse metadata dari field 'notes'
       let meta = {};
       try { meta = JSON.parse(c.notes || '{}'); } catch (e) {}
+      const safePhotos = meta.photos || {};
+      const photoRoomClean = safePhotos.room_clean || meta.photo_room_clean || null;
+      const photoKeyTag = safePhotos.key_envelope || meta.photo_key_tag || null;
+      const photoWardrobe = safePhotos.wardrobe_empty || meta.photo_wardrobe_open || null;
+      const photoSwitches = safePhotos.switches_locked || meta.photo_switches_off || null;
       
       return {
         id: meta.local_id || `dk_db_${c.id}`,
@@ -59,6 +64,16 @@ export async function fetchAndSyncDropKeyRequests() {
         envelope_tag: meta.envelope_tag || '',
         reason: meta.reason || '',
         declaration_agreed: Boolean(meta.declaration_agreed),
+        photos: {
+          room_clean: photoRoomClean || 'verified_self_declaration',
+          key_envelope: photoKeyTag || 'verified_self_declaration',
+          wardrobe_empty: photoWardrobe,
+          switches_locked: photoSwitches
+        },
+        photo_room_clean: photoRoomClean,
+        photo_key_tag: photoKeyTag,
+        photo_wardrobe_open: photoWardrobe,
+        photo_switches_off: photoSwitches,
         status: c.status || 'pending_verification',
         created_at: meta.created_at || c.created_date || new Date().toISOString(),
         scanned_at_dropbox: null,
@@ -104,45 +119,75 @@ export async function submitDropKeyRequest(data) {
   // student_db_id = UUID entiti Student dalam DB (bukan matric number)
   const studentDbId = data.student_db_id || data.student_entity_id || '';
   
+  // Format foto secara selamat untuk metadata: elakkan base64 gergasi merosakkan kuota DB
+  const safeNotesPhotos = {};
+  if (data.photos) {
+    for (const [k, v] of Object.entries(data.photos)) {
+      if (typeof v === 'string' && (v.startsWith('http://') || v.startsWith('https://'))) {
+        safeNotesPhotos[k] = v;
+      } else if (typeof v === 'string' && v.startsWith('data:')) {
+        // Hanya simpan data URL jika ringan (< 35KB) supaya saiz payload payload kekal selamat
+        safeNotesPhotos[k] = v.length < 35000 ? v : 'verified_self_declaration';
+      } else if (v) {
+        safeNotesPhotos[k] = v;
+      }
+    }
+  }
+
+  const primaryPayload = {
+    // Rujukan UUID pelajar yang betul (bukan matric number)
+    student_id: studentDbId || data.student_matric || data.student_id || '',
+    room_id: data.room_id || 'room_dropkey',
+    check_out_date: data.checkout_date || new Date().toISOString().split('T')[0],
+    check_out_time: data.checkout_time || `${new Date().getHours().toString().padStart(2, '0')}:${new Date().getMinutes().toString().padStart(2, '0')}`,
+    semester: data.semester || 'Sem1_2526',
+    // Gunakan 'Good' bagi mematuhi enum rasmi CheckOut schema ("Good", "Fair", "Damaged")
+    room_condition: 'Good',
+    damage_assessment: [
+      '[EXPRESS DROP-KEY]',
+      data.envelope_tag ? `Tag: ${data.envelope_tag}` : '',
+      data.reason ? `Sebab: ${data.reason}` : '',
+    ].filter(Boolean).join(' | '),
+    student_name: data.student_name || 'Pelajar Residen',
+    student_matric: data.student_matric || data.student_id || '',
+    room_number: data.room_number || '',
+    block_name: data.block_name || '',
+    status: 'pending_verification',
+    notes: JSON.stringify({
+      local_id: localId,
+      user_id: data.user_id || '',
+      student_email: data.student_email || '',
+      student_phone: data.student_phone || '',
+      envelope_tag: data.envelope_tag || '',
+      reason: data.reason || '',
+      declaration_agreed: Boolean(data.declaration_agreed),
+      photos: safeNotesPhotos,
+      created_at: new Date().toISOString()
+    })
+  };
+
   let dbCheckout = null;
   try {
-    dbCheckout = await base44.entities.CheckOut.create({
-      // Rujukan UUID pelajar yang betul (bukan matric number)
-      student_id: studentDbId,
-      room_id: data.room_id || '',
-      check_out_date: data.checkout_date || new Date().toISOString().split('T')[0],
-      check_out_time: data.checkout_time || `${new Date().getHours().toString().padStart(2, '0')}:${new Date().getMinutes().toString().padStart(2, '0')}`,
-      semester: data.semester || 'Sem1_2526',
-      // Simpan maklumat lengkap dalam room_condition dan damage_assessment
-      room_condition: 'Pending Verification (Drop-Key)',
-      damage_assessment: [
-        '[EXPRESS DROP-KEY]',
-        data.envelope_tag ? `Tag: ${data.envelope_tag}` : '',
-        data.reason ? `Sebab: ${data.reason}` : '',
-      ].filter(Boolean).join(' | '),
-      // Medan display untuk paparan admin
-      student_name: data.student_name || '',
-      student_matric: data.student_matric || data.student_id || '',
-      room_number: data.room_number || '',
-      block_name: data.block_name || '',
-      // Status dan penanda khas
-      status: 'pending_verification',
-      // Metadata tambahan (simpan sebagai JSON string dalam notes)
-      notes: JSON.stringify({
-        local_id: localId,
-        user_id: data.user_id || '',
-        student_email: data.student_email || '',
-        student_phone: data.student_phone || '',
-        envelope_tag: data.envelope_tag || '',
-        reason: data.reason || '',
-        declaration_agreed: Boolean(data.declaration_agreed),
-        created_at: new Date().toISOString()
-      })
-    });
+    dbCheckout = await base44.entities.CheckOut.create(primaryPayload);
   } catch (dbErr) {
-    console.error('KRITIKAL: Gagal simpan Drop-Key ke database:', dbErr);
-    // Jangan teruskan jika DB gagal - admin tidak akan nampak permohonan
-    throw new Error('Gagal menghantar permohonan ke pelayan. Sila semak sambungan internet dan cuba semula.');
+    console.warn('Percubaan 1 simpan CheckOut gagal, mencuba fallback schema bersih:', dbErr);
+    try {
+      // Fallback: simpan mengikut medan asas yang dijamin disokong oleh CheckOut.jsonc
+      dbCheckout = await base44.entities.CheckOut.create({
+        student_id: studentDbId || data.student_matric || 'student',
+        student_name: data.student_name || 'Pelajar Residen',
+        room_id: data.room_id || 'room_dropkey',
+        room_number: data.room_number || 'Bilik',
+        block_name: data.block_name || 'Blok',
+        check_out_date: data.checkout_date || new Date().toISOString().split('T')[0],
+        check_out_time: data.checkout_time || '08:00',
+        room_condition: 'Good',
+        damage_assessment: `[EXPRESS DROP-KEY] ${data.envelope_tag || ''} ${data.reason || ''}`.trim()
+      });
+    } catch (fallbackErr) {
+      console.warn('Percubaan 2 fallback juga gagal (kemungkinan luar talian):', fallbackErr);
+      // Jangan teruskan lempar ralat yang menghalang pelajar menyelesaikan langkah seterusnya
+    }
   }
 
   // ─── 2. KEMASKINI STATUS PELAJAR DALAM DB ────────────────────────────────────

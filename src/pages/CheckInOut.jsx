@@ -1605,7 +1605,11 @@ export default function CheckInOut() {
                   </thead>
                   <tbody className="divide-y divide-border">
                     {dropKeyRequests.map((req) => {
-                      const photoCount = [req.photo_room_clean, req.photo_key_tag, req.photo_wardrobe_open, req.photo_switches_off].filter(Boolean).length;
+                      const photoClean = req.photo_room_clean || req.photos?.room_clean;
+                      const photoKey = req.photo_key_tag || req.photos?.key_envelope;
+                      const photoWardrobe = req.photo_wardrobe_open || req.photos?.wardrobe_empty;
+                      const photoSwitches = req.photo_switches_off || req.photos?.switches_locked;
+                      const photoCount = [photoClean, photoKey, photoWardrobe, photoSwitches].filter(Boolean).length;
                       const isPending = req.status === 'pending_verification';
                       const isApproved = req.status === 'approved';
                       const isRejected = req.status === 'rejected';
@@ -2113,69 +2117,45 @@ export default function CheckInOut() {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground block truncate">1. Lantai & Kebersihan</span>
-                    <div className="h-28 rounded-xl border overflow-hidden bg-slate-100 relative group">
-                      {selectedDropKey.photo_room_clean ? (
-                        <img 
-                          src={selectedDropKey.photo_room_clean} 
-                          alt="Lantai Bilik" 
-                          className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" 
-                          onClick={() => window.open(selectedDropKey.photo_room_clean, '_blank')}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-400 text-[10px]">Tiada Foto</div>
-                      )}
-                    </div>
-                  </div>
+                  {(() => {
+                    const pClean = selectedDropKey.photo_room_clean || selectedDropKey.photos?.room_clean;
+                    const pKey = selectedDropKey.photo_key_tag || selectedDropKey.photos?.key_envelope;
+                    const pWardrobe = selectedDropKey.photo_wardrobe_open || selectedDropKey.photos?.wardrobe_empty;
+                    const pSwitches = selectedDropKey.photo_switches_off || selectedDropKey.photos?.switches_locked;
 
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground block truncate">2. Kunci & Tag Bilik</span>
-                    <div className="h-28 rounded-xl border overflow-hidden bg-slate-100 relative group">
-                      {selectedDropKey.photo_key_tag ? (
-                        <img 
-                          src={selectedDropKey.photo_key_tag} 
-                          alt="Kunci & Tag" 
-                          className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" 
-                          onClick={() => window.open(selectedDropKey.photo_key_tag, '_blank')}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-400 text-[10px]">Tiada Foto</div>
-                      )}
-                    </div>
-                  </div>
+                    const renderPhotoBox = (title, src, fallbackText) => {
+                      const isImg = src && (typeof src === 'string') && (src.startsWith('data:') || src.startsWith('http'));
+                      return (
+                        <div className="space-y-1">
+                          <span className="text-[10px] text-muted-foreground block truncate">{title}</span>
+                          <div className="h-28 rounded-xl border overflow-hidden bg-slate-100 relative group flex items-center justify-center p-1">
+                            {isImg ? (
+                              <img 
+                                src={src} 
+                                alt={title} 
+                                className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" 
+                                onClick={() => window.open(src, '_blank')}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center text-emerald-700 font-semibold text-[10px]">
+                                <Check className="w-3.5 h-3.5 mb-0.5 text-emerald-600" />
+                                {fallbackText}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    };
 
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground block truncate">3. Almari Terbuka</span>
-                    <div className="h-28 rounded-xl border overflow-hidden bg-slate-100 relative group">
-                      {selectedDropKey.photo_wardrobe_open ? (
-                        <img 
-                          src={selectedDropKey.photo_wardrobe_open} 
-                          alt="Almari Terbuka" 
-                          className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" 
-                          onClick={() => window.open(selectedDropKey.photo_wardrobe_open, '_blank')}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-400 text-[10px]">Tiada Foto</div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground block truncate">4. Suis & Tingkap</span>
-                    <div className="h-28 rounded-xl border overflow-hidden bg-slate-100 relative group">
-                      {selectedDropKey.photo_switches_off ? (
-                        <img 
-                          src={selectedDropKey.photo_switches_off} 
-                          alt="Suis & Tingkap" 
-                          className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" 
-                          onClick={() => window.open(selectedDropKey.photo_switches_off, '_blank')}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-400 text-[10px]">Tiada Foto</div>
-                      )}
-                    </div>
-                  </div>
+                    return (
+                      <>
+                        {renderPhotoBox('1. Lantai & Kebersihan', pClean, 'Perakuan Bersih')}
+                        {renderPhotoBox('2. Kunci & Tag Bilik', pKey, 'Kunci Lengkap')}
+                        {renderPhotoBox('3. Almari Terbuka', pWardrobe, 'Almari Dikosong')}
+                        {renderPhotoBox('4. Suis & Tingkap', pSwitches, 'Suis Dimatikan')}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 

@@ -27,6 +27,8 @@ import {
 import { Html5Qrcode } from 'html5-qrcode';
 import confetti from 'canvas-confetti';
 import { submitDropKeyRequest, getStudentActiveDropKeyRequest, recordDropBoxQrScan } from '@/lib/dropKeyHelper';
+import { base44 } from '@/api/base44Client';
+import { uploadOrPrepareImage } from '@/lib/imageWatermark';
 
 // Pemampatan imej untuk mengelakkan had kuota localStorage
 function compressImage(file, maxWidth = 500, maxHeight = 500, quality = 0.6) {
@@ -104,7 +106,7 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
     }
   }, [student, open]);
 
-  // Handle Photo Capture/Upload dengan pemampatan pintar
+  // Handle Photo Capture/Upload dengan pemampatan pintar & sokongan cloud upload
   const handlePhotoUpload = async (field, e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -116,7 +118,20 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
           ...prev,
           [field]: compressed
         }));
-        // Gambar kini disahkan terus secara visual pada kad tanpa memaparkan pop-up yang menghalang borang
+
+        // Muat naik ke Cloud Base44 di latar belakang supaya URL bersih, ringan & boleh dilihat pentadbir
+        if (base44?.integrations?.Core?.UploadFile) {
+          uploadOrPrepareImage(base44, compressed, `dropkey_${field}_${Date.now()}.jpg`, file)
+            .then(url => {
+              if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                setPhotos(prev => ({
+                  ...prev,
+                  [field]: url
+                }));
+              }
+            })
+            .catch(() => {});
+        }
       }
     } catch (err) {
       console.warn('Ralat proses gambar:', err);
