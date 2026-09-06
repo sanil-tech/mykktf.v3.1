@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
+import { isSameBlock, getCanonicalBlockName } from '@/lib/kktfBlocks';
 
 // KKTF Universiti Malaysia Sabah Coordinates
 const KKTF_COORDS = {
@@ -257,6 +258,32 @@ export default function LeaveReturn() {
       return;
     }
 
+    // STRICT RESIDENTIAL BLOCK MATCHING VALIDATION (ANTI-CROSS-BLOCK SCANNING)
+    const assignedBlock = student?.block_name || activeLeave?.block_name;
+    if (assignedBlock && locationName) {
+      const isMatched = isSameBlock(locationName, assignedBlock);
+      if (!isMatched) {
+        const expectedBlockName = getCanonicalBlockName(assignedBlock);
+        const scannedBlockName = getCanonicalBlockName(locationName) || locationName;
+
+        toast.error(`❌ Blok Tidak Sepadan! Anda berdaftar di ${expectedBlockName}. Anda hanya dibenarkan mengimbas Kod QR di pintu masuk ${expectedBlockName} sahaja, bukan di ${scannedBlockName}.`, {
+          duration: 7000
+        });
+
+        // Audit log for security tracking of mismatched block attempts
+        await logAudit(currentUser, 'LEAVE_RETURN_BLOCK_MISMATCH_REJECTED', 'Leave', {
+          student: student?.full_name || currentUser?.full_name,
+          matric: student?.student_id || 'N/A',
+          expected_block: expectedBlockName,
+          scanned_block: scannedBlockName,
+          method,
+          timestamp: new Date().toISOString()
+        });
+
+        return;
+      }
+    }
+
     setConfirming(true);
     try {
       const now = new Date();
@@ -465,17 +492,26 @@ export default function LeaveReturn() {
 
           {/* STUDENT IDENTIFICATION CARD */}
           {student && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-2">
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-2.5">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs text-slate-400 uppercase font-semibold tracking-wider">Identiti Residen</p>
                   <p className="text-sm font-bold text-slate-900 mt-0.5">{student.full_name}</p>
                   <p className="text-xs font-mono text-slate-500">{student.student_id}</p>
                 </div>
-                <Badge variant="outline" className="bg-slate-50 text-slate-700 font-mono text-xs">
-                  {student.block_name || 'Blok'} - {student.room_number || 'Bilik'}
+                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 font-mono text-xs border-indigo-200">
+                  {getCanonicalBlockName(student.block_name) || 'Blok'} - {student.room_number || 'Bilik'}
                 </Badge>
               </div>
+
+              {student.block_name && (
+                <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] text-slate-700 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    <strong>Tapisan Blok Aktif:</strong> Anda hanya sah mengimbas Kod QR fizikal di <strong>{getCanonicalBlockName(student.block_name)}</strong> sahaja.
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -539,6 +575,47 @@ export default function LeaveReturn() {
           ) : (
             /* BUTTON TO LAUNCH CAMERA SCANNER */
             <div className="space-y-3">
+              {/* DETECTED QR BLOCK FROM URL IF ANY */}
+              {scannedBlock && (
+                <div className={`p-4 rounded-2xl border text-left space-y-2.5 ${
+                  isSameBlock(scannedBlock, student?.block_name)
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                    : 'bg-rose-50 border-rose-200 text-rose-950'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      Kod QR Blok Dikesan:
+                    </span>
+                    <Badge variant="outline" className={isSameBlock(scannedBlock, student?.block_name) ? 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold' : 'bg-rose-100 text-rose-800 border-rose-300 font-bold'}>
+                      {isSameBlock(scannedBlock, student?.block_name) ? 'SEPADAN' : 'TIDAK SEPADAN'}
+                    </Badge>
+                  </div>
+                  <p className="text-sm font-bold">
+                    {getCanonicalBlockName(scannedBlock)}
+                  </p>
+
+                  {isSameBlock(scannedBlock, student?.block_name) ? (
+                    <Button
+                      onClick={() => executeReturnConfirmation(scannedBlock, 'QR_URL_PARAM')}
+                      disabled={confirming || gpsStatus === 'outside'}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-9 rounded-xl shadow-xs"
+                    >
+                      {confirming ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <CheckCircle2 className="w-4 h-4 mr-1.5" />}
+                      Sahkan Kepulangan di {getCanonicalBlockName(scannedBlock)}
+                    </Button>
+                  ) : (
+                    <div className="p-2.5 bg-white/80 rounded-xl border border-rose-200 text-[11px] text-rose-700 space-y-1">
+                      <p className="font-bold flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600" /> Imbasan Ditolak (Blok Berbeza)
+                      </p>
+                      <p>
+                        Anda berdaftar di <strong>{getCanonicalBlockName(student?.block_name)}</strong>. Kod QR yang diimbas adalah untuk <strong>{getCanonicalBlockName(scannedBlock)}</strong>. Sila imbas kod QR rasmi di pintu masuk blok kediaman anda sendiri.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <Button
                 onClick={startScanner}
                 disabled={confirming || gpsStatus === 'outside'}
@@ -554,11 +631,11 @@ export default function LeaveReturn() {
                   <KeyRound className="w-3.5 h-3.5 text-indigo-600" /> Atau Masukkan Kod Lokasi / Blok Manual
                 </p>
                 <p className="text-[11px] text-slate-500">
-                  Jika kamera tidak berfungsi, masukkan nama blok yang tertera di poster (cth: <strong>Blok M</strong> atau <strong>Blok A</strong>).
+                  Jika kamera tidak berfungsi, masukkan nama blok yang tertera di poster (cth: <strong>{getCanonicalBlockName(student?.block_name) || 'Blok M'}</strong>).
                 </p>
                 <div className="flex gap-2">
                   <Input 
-                    placeholder="cth: Blok M / Blok A" 
+                    placeholder={getCanonicalBlockName(student?.block_name) || 'cth: Blok M'} 
                     value={manualCode} 
                     onChange={e => setManualCode(e.target.value)} 
                     className="h-9 text-xs bg-white"
