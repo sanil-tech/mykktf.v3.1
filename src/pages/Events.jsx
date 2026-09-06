@@ -1202,15 +1202,7 @@ export default function Events() {
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {isStudent && (
-              <Button
-                size="sm"
-                onClick={() => openStudentScannerModal(null)}
-                className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs h-9"
-              >
-                <ScanLine className="w-4 h-4" /> Imbas Kehadiran QR
-              </Button>
-            )}
+
 
             {user && MANAGE_ROLES.includes(user.role) && (
               <Button
@@ -1400,19 +1392,8 @@ export default function Events() {
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Kehadiran Disahkan • +{meritValue} Merit Telah Dikreditkan
                         </div>
                       ) : isRegistered ? (
-                        <div className="pt-2 border-t border-emerald-500/20 space-y-2">
-                          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                            <span>Pendaftaran Berjaya &bull; Sila imbas Kod QR di lokasi program untuk tuntut merit:</span>
-                          </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => openStudentScannerModal(ev)}
-                            className="w-full h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl gap-2 shadow-xs"
-                          >
-                            <Camera className="w-3.5 h-3.5" /> Buka Kamera Imbas Kod QR (+{meritValue} Merit)
-                          </Button>
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 pt-1.5 border-t border-emerald-500/20">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Pendaftaran Berjaya • Sila imbas Kod QR semasa hari acara
                         </div>
                       ) : null}
                     </div>
@@ -2421,18 +2402,6 @@ export default function Events() {
         </DialogContent>
       </Dialog>
 
-      {/* FLOATING QUICK SCANNER BUTTON FOR STUDENTS */}
-      {isStudent && (
-        <button
-          type="button"
-          onClick={() => openStudentScannerModal(null)}
-          title="Buka Pengimbas QR Kehadiran"
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer border-2 border-white/30 backdrop-blur-sm"
-        >
-          <Camera className="w-4 h-4" />
-          <span>Imbas QR Kehadiran</span>
-        </button>
-      )}
     </div>
   );
 }
