@@ -27,6 +27,8 @@ import { ListSkeleton } from '@/components/shared/ListSkeletons';
 import { toast } from 'sonner';
 import { validateAttachment } from '@/lib/validators';
 import { logAudit } from '@/lib/audit';
+import { isOperatingAsWarden, getWardenBlocks } from '@/lib/wardenHelper';
+import { isBlockInList } from '@/lib/kktfBlocks';
 
 const CATEGORIES = [
   'Student Welfare & Safety',
@@ -104,11 +106,12 @@ export default function Complaints() {
     const isStaff = STAFF_ROLES.includes(u.role);
     let data = [];
     if (isStaff) {
-      if (u.role === 'warden') {
-        const wb = await base44.entities.WardenBlock.filter({ warden_user_id: u.id });
+      if (isOperatingAsWarden(u)) {
+        const blockNames = await getWardenBlocks(u);
         const all = await base44.entities.Complaint.list('-created_date');
-        const blockNames = wb.map(w => w.block_name);
-        data = blockNames.length > 0 ? all.filter(c => !c.block_name || blockNames.includes(c.block_name)) : all;
+        data = blockNames.length > 0 
+          ? all.filter(c => !c.block_name || isBlockInList(c.block_name, blockNames)) 
+          : [];
       } else {
         data = await base44.entities.Complaint.list('-created_date');
       }

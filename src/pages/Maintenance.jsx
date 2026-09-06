@@ -47,6 +47,8 @@ import { logAudit } from '@/lib/audit';
 import DamageReportModal from '@/components/DamageReportModal';
 import BlockInspectionDossierModal from '@/components/BlockInspectionDossierModal';
 import { stampInspectionWatermark } from '@/lib/imageWatermark';
+import { isOperatingAsWarden, getWardenBlocks } from '@/lib/wardenHelper';
+import { isBlockInList } from '@/lib/kktfBlocks';
 
 const UMS_MYSERV_URL = 'https://aset.ums.edu.my/myserv/';
 
@@ -222,17 +224,17 @@ export default function Maintenance() {
     const user = await base44.auth.me();
     setCurrentUser(user);
     const isPrincipalUser = user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.role === 'principal' || user?.effectiveRole === 'principal';
-    const isStaffRole = isPrincipalUser || STAFF_ROLES.includes(user?.role) || user?.effectiveRole === 'super_admin' || user?.effectiveRole === 'college_admin' || user?.effectiveRole === 'warden' || user?.effectiveRole === 'principal';
+    const isWarden = isOperatingAsWarden(user);
+    const isStaffRole = isPrincipalUser || STAFF_ROLES.includes(user?.role) || user?.effectiveRole === 'super_admin' || user?.effectiveRole === 'college_admin' || isWarden || user?.effectiveRole === 'principal';
     let reqs;
     if (isStaffRole) {
       reqs = await base44.entities.MaintenanceRequest.list('-created_date');
-      if (user.role === 'warden' && !isPrincipalUser) {
-        const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
-        if (wb.length > 0) {
-          const blockNames = wb.map(w => w.block_name);
-          setAssignedBlocks(blockNames);
-          reqs = reqs.filter(r => !r.block_name || blockNames.includes(r.block_name));
-        }
+      if (isWarden) {
+        const blockNames = await getWardenBlocks(user);
+        setAssignedBlocks(blockNames);
+        reqs = blockNames.length > 0 
+          ? reqs.filter(r => isBlockInList(r.block_name, blockNames))
+          : [];
       }
     } else {
       let student = null;

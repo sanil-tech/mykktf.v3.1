@@ -15,8 +15,8 @@ import {
   ShieldAlert, Building2, Wrench, Crown
 } from 'lucide-react';
 import { logAudit } from '@/lib/audit';
-import { Link } from 'react-router-dom';
 import { ALL_KKTF_BLOCKS } from '@/lib/kktfBlocks';
+import { isOperatingAsWarden, getWardenBlocks } from '@/lib/wardenHelper';
 
 const STATUS_COLORS = {
   Submitted: 'bg-amber-100 text-amber-800 border-amber-200',
@@ -132,38 +132,13 @@ export default function RoomInspections() {
         u?.effectiveRole === 'principal';
 
       // If user is warden / felo (and not principal), find their officially assigned blocks
-      const isUserFelo = !isUserPrincipal && u && (u.role === 'warden' || u.role === 'felo' || u.effectiveRole === 'warden');
+      const isUserFelo = isOperatingAsWarden(u);
       let myBlocks = [];
 
       if (isUserFelo) {
-        try {
-          const wb = await base44.entities.WardenBlock.filter({ warden_user_id: u.id }).catch(() => []);
-          let foundWb = wb;
-          if (!foundWb || foundWb.length === 0) {
-            const allWb = await base44.entities.WardenBlock.list().catch(() => []);
-            foundWb = (allWb || []).filter(w =>
-              w.warden_user_id === u.id ||
-              (w.warden_email && u.email && w.warden_email.toLowerCase() === u.email.toLowerCase()) ||
-              (u.full_name && w.warden_name && (
-                u.full_name.toLowerCase().includes(w.warden_name.toLowerCase()) ||
-                w.warden_name.toLowerCase().includes(u.full_name.toLowerCase())
-              ))
-            );
-          }
-          myBlocks = (foundWb || []).map(w => w.block_name).filter(Boolean);
-        } catch (wbErr) {
-          console.warn('Failed querying WardenBlock:', wbErr);
-        }
-
-        // Check fallback direct attributes on user object
-        if (myBlocks.length === 0) {
-          if (u.block_name) myBlocks.push(u.block_name);
-          if (u.assigned_block) myBlocks.push(u.assigned_block);
-          if (u.active_warden_block) myBlocks.push(u.active_warden_block);
-        }
-
+        myBlocks = await getWardenBlocks(u);
         setWardenBlocks(myBlocks);
-        if (myBlocks.length === 1) {
+        if (myBlocks.length > 0) {
           setSelectedBlock(myBlocks[0]);
         }
       }

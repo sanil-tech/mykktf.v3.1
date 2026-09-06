@@ -40,6 +40,8 @@ import {
 import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
 import CollegeTranscriptModal from '@/components/CollegeTranscriptModal';
+import { isOperatingAsWarden, getWardenBlocks } from '@/lib/wardenHelper';
+import { isBlockInList, isSameBlock } from '@/lib/kktfBlocks';
 
 // SCORING RUBRIC MATRIX FOR COLLEGE ATHLETES & SPORTS PARTICIPATION
 export const SPORTS_SCORING_MATRIX = {
@@ -244,10 +246,10 @@ export default function MeritDemerit() {
 
         // Filter warden blocks for the logged-in fellow/warden
         if (u) {
-          const myWa = (waList || []).filter(w => w.warden_user_id === u.id || w.warden_email === u.email || (u.full_name && w.warden_name?.toLowerCase().includes(u.full_name.toLowerCase())));
+          const myWa = await getWardenBlocks(u);
           setWardenBlocks(myWa);
-          // If the user is a fellow/warden with assigned blocks, default to their blocks for quick focus
-          if (u.role === 'warden' && myWa.length > 0) {
+          // If the user is operating as fellow/warden, default to their blocks for quick focus
+          if (isOperatingAsWarden(u)) {
             setFilterBlock('my_blocks');
           }
           // If user is student, default their dashboard to personal logbook (my_record)
@@ -494,7 +496,7 @@ export default function MeritDemerit() {
   }, [studentScores, simulationStatus, quotaSettings, manualAdjustments]);
 
   // Filter matrix with Warden Block scoping & Quota Status filter
-  const myBlockNames = wardenBlocks.map(wb => wb.block_name);
+  const myBlockNames = wardenBlocks.map(wb => typeof wb === 'string' ? wb : wb.block_name).filter(Boolean);
 
   const filteredStudents = simulatedStudentScores.filter(s => {
     const matchesSearch = !searchQuery || 
@@ -503,11 +505,22 @@ export default function MeritDemerit() {
     
     const matchesTier = filterTier === 'all' || s.tier === filterTier;
     
+    const isWarden = isOperatingAsWarden(currentUser);
     let matchesBlock = true;
-    if (filterBlock === 'my_blocks') {
-      matchesBlock = s.block_name && myBlockNames.includes(s.block_name);
-    } else if (filterBlock !== 'all') {
-      matchesBlock = s.block_name === filterBlock;
+    if (isWarden) {
+      if (myBlockNames.length === 0) {
+        matchesBlock = false; // Zero leakage
+      } else if (filterBlock === 'all' || filterBlock === 'my_blocks') {
+        matchesBlock = s.block_name && isBlockInList(s.block_name, myBlockNames);
+      } else {
+        matchesBlock = isSameBlock(s.block_name, filterBlock) && isBlockInList(s.block_name, myBlockNames);
+      }
+    } else {
+      if (filterBlock === 'my_blocks') {
+        matchesBlock = s.block_name && isBlockInList(s.block_name, myBlockNames);
+      } else if (filterBlock !== 'all') {
+        matchesBlock = isSameBlock(s.block_name, filterBlock);
+      }
     }
 
     let matchesQuotaStatus = true;
@@ -1193,15 +1206,28 @@ export default function MeritDemerit() {
                   <SelectValue placeholder="Pilih Blok" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">🏢 Semua Blok Kolej</SelectItem>
-                  {wardenBlocks.length > 0 && (
-                    <SelectItem value="my_blocks" className="font-bold text-indigo-600 dark:text-indigo-400">
-                      ⭐ Blok Kawalan Saya ({myBlockNames.join(', ')})
-                    </SelectItem>
+                  {isOperatingAsWarden(currentUser) ? (
+                    <>
+                      <SelectItem value="my_blocks" className="font-bold text-indigo-600 dark:text-indigo-400">
+                        ⭐ Semua Blok Jagaan ({myBlockNames.join(' & ') || 'Tiada Blok'})
+                      </SelectItem>
+                      {myBlockNames.map(b => (
+                        <SelectItem key={b} value={b}>{b}</SelectItem>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="all">🏢 Semua Blok Kolej</SelectItem>
+                      {wardenBlocks.length > 0 && (
+                        <SelectItem value="my_blocks" className="font-bold text-indigo-600 dark:text-indigo-400">
+                          ⭐ Blok Kawalan Saya ({myBlockNames.join(', ')})
+                        </SelectItem>
+                      )}
+                      {allBlocks.map(b => (
+                        <SelectItem key={b.id} value={b.block_name}>{b.block_name} ({b.gender_restriction})</SelectItem>
+                      ))}
+                    </>
                   )}
-                  {allBlocks.map(b => (
-                    <SelectItem key={b.id} value={b.block_name}>{b.block_name} ({b.gender_restriction})</SelectItem>
-                  ))}
                 </SelectContent>
               </Select>
 

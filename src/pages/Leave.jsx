@@ -34,6 +34,8 @@ import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 import { logAudit } from '@/lib/audit';
 import { Link, useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
+import { isOperatingAsWarden, getWardenBlocks } from '@/lib/wardenHelper';
+import { isBlockInList } from '@/lib/kktfBlocks';
 
 const STATUS_BADGE = {
   Pending: 'bg-amber-50 text-amber-800 border-amber-200',
@@ -93,20 +95,23 @@ export default function Leave() {
     try {
       let leaveList = [];
       const isPrincipalUser = user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.role === 'principal' || user?.effectiveRole === 'principal';
-      const isRev = isPrincipalUser || (user && REVIEWER_ROLES.includes(user.role)) || user?.effectiveRole === 'super_admin' || user?.effectiveRole === 'college_admin' || user?.effectiveRole === 'warden' || user?.effectiveRole === 'principal';
+      const isWarden = isOperatingAsWarden(user);
+      const isRev = isPrincipalUser || (user && REVIEWER_ROLES.includes(user.role)) || user?.effectiveRole === 'super_admin' || user?.effectiveRole === 'college_admin' || isWarden || user?.effectiveRole === 'principal';
 
       if (isRev) {
         leaveList = await base44.entities.LeaveApplication.list('-created_date');
+        let allStudents = await base44.entities.Student.filter({ status: 'Active' });
 
-        if (user?.role === 'warden' && !isPrincipalUser) {
-          const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
-          if (wb.length > 0) {
-            const blockNames = wb.map(w => w.block_name);
-            leaveList = leaveList.filter(l => blockNames.includes(l.block_name));
+        if (isWarden) {
+          const wardenBlockNames = await getWardenBlocks(user);
+          if (wardenBlockNames.length > 0) {
+            leaveList = leaveList.filter(l => isBlockInList(l.block_name, wardenBlockNames));
+            allStudents = allStudents.filter(s => isBlockInList(s.block_name, wardenBlockNames));
+          } else {
+            leaveList = [];
+            allStudents = [];
           }
         }
-
-        const allStudents = await base44.entities.Student.filter({ status: 'Active' });
         
         // Active leaves: approved, departed, and not yet returned
         const approvedLeaves = leaveList.filter(l => 
@@ -150,7 +155,8 @@ export default function Leave() {
       setCurrentUser(user);
       
       const isPrincipalUser = user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.role === 'principal' || user?.effectiveRole === 'principal';
-      const isRev = isPrincipalUser || (user && REVIEWER_ROLES.includes(user.role)) || user?.effectiveRole === 'super_admin' || user?.effectiveRole === 'college_admin' || user?.effectiveRole === 'warden' || user?.effectiveRole === 'principal';
+      const isWarden = isOperatingAsWarden(user);
+      const isRev = isPrincipalUser || (user && REVIEWER_ROLES.includes(user.role)) || user?.effectiveRole === 'super_admin' || user?.effectiveRole === 'college_admin' || isWarden || user?.effectiveRole === 'principal';
 
       let studentProfile = null;
       if (user && !isRev) {
@@ -160,15 +166,14 @@ export default function Leave() {
         setMyStudent(studentProfile);
       }
 
-      if (user?.role === 'warden' && !isPrincipalUser) {
-        const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
-        if (wb.length > 0) {
-          const wardenBlockNames = wb.map(w => w.block_name);
+      if (isWarden) {
+        const wardenBlockNames = await getWardenBlocks(user);
+        if (wardenBlockNames.length > 0) {
           setAccessibleQrBlocks(wardenBlockNames);
-          setSelectedBlockQr(wardenBlockNames[0] || BLOCKS[0]);
+          setSelectedBlockQr(wardenBlockNames[0]);
         } else {
-          setAccessibleQrBlocks(BLOCKS);
-          setSelectedBlockQr(BLOCKS[0]);
+          setAccessibleQrBlocks([]);
+          setSelectedBlockQr('');
         }
       } else {
         setAccessibleQrBlocks(BLOCKS);

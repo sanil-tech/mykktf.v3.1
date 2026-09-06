@@ -8,6 +8,7 @@ import { toast } from '@/components/ui/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { realTimeQueryOptions } from '@/lib/query-client';
 import { toast as sonnerToast } from 'sonner';
+import { isOperatingAsWarden, getWardenBlocks } from '@/lib/wardenHelper';
 
 const COMMUNITY_CHANNEL = { 
   key: 'community', 
@@ -93,13 +94,15 @@ export default function Chat() {
       if (!user) return { channels: [COMMUNITY_CHANNEL], dmInbox: [] };
       const publicChannels = [COMMUNITY_CHANNEL];
 
-      if (user.role === 'warden') {
-        const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
-        wb.forEach(w => {
+      if (isOperatingAsWarden(user)) {
+        const blockNames = await getWardenBlocks(user);
+        blockNames.forEach(blockName => {
+          const cleanKey = `block_${blockName}`.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+          const cleanLabel = blockName.startsWith('Block') || blockName.startsWith('Blok') ? blockName : `Blok ${blockName}`;
           publicChannels.unshift({ 
-            key: `block_${w.block_name}`.toLowerCase(), 
-            label: `Block ${w.block_name}`, 
-            channelKey: `block_${w.block_name}`.toLowerCase(),
+            key: cleanKey, 
+            label: cleanLabel, 
+            channelKey: cleanKey,
             type: 'public'
           });
         });

@@ -24,6 +24,8 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { getStoredFeloExcoAppointments } from '@/lib/jakmas';
+import { getWardenBlocks } from '@/lib/wardenHelper';
+import { isBlockInList } from '@/lib/kktfBlocks';
 
 export default function WardenDashboard({ user }) {
   const [leaves, setLeaves] = useState([]);
@@ -40,23 +42,8 @@ export default function WardenDashboard({ user }) {
     setLoading(true);
     try {
       // 1. Kenal pasti blok kawal selia warden / felo
-      const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user?.id }).catch(() => []);
-      let myWb = wb;
-      if (!myWb || myWb.length === 0) {
-        try {
-          const allWb = await base44.entities.WardenBlock.list();
-          myWb = (allWb || []).filter(w => 
-            w.warden_user_id === user?.id || 
-            (w.warden_email && user?.email && w.warden_email.toLowerCase() === user?.email.toLowerCase()) ||
-            (user?.full_name && w.warden_name && (
-              user.full_name.toLowerCase().includes(w.warden_name.toLowerCase()) ||
-              w.warden_name.toLowerCase().includes(user.full_name.toLowerCase())
-            ))
-          );
-        } catch (e) {}
-      }
-      setWardenBlocks(myWb || []);
-      const blockNames = (myWb || []).map(w => w.block_name);
+      const blockNames = await getWardenBlocks(user);
+      setWardenBlocks(blockNames.map((b, idx) => ({ id: idx, block_name: b })));
 
       // 2. Semak status pelantikan rasmi Felo Penyelaras Exco JAKMAS
       const allAppointments = getStoredFeloExcoAppointments();
@@ -94,13 +81,13 @@ export default function WardenDashboard({ user }) {
       ]);
 
       if (blockNames.length > 0) {
-        const blockStudents = allStudents.filter(s => blockNames.includes(s.block_name));
-        const blockRooms = allRooms.filter(r => blockNames.includes(r.block_name));
-        const blockComplaints = allComplaints.filter(c => blockNames.includes(c.block_name));
+        const blockStudents = allStudents.filter(s => isBlockInList(s.block_name, blockNames));
+        const blockRooms = allRooms.filter(r => isBlockInList(r.block_name, blockNames));
+        const blockComplaints = allComplaints.filter(c => isBlockInList(c.block_name, blockNames));
 
-        const pendingLeaves = allLeaves.filter(lv => blockNames.includes(lv.block_name) && lv.status === 'Pending');
+        const pendingLeaves = allLeaves.filter(lv => isBlockInList(lv.block_name, blockNames) && lv.status === 'Pending');
         setLeaves(pendingLeaves);
-        setMaintenance(allMaint.filter(mx => blockNames.includes(mx.block_name)));
+        setMaintenance(allMaint.filter(mx => isBlockInList(mx.block_name, blockNames)));
 
         setStats({
           totalStudents: blockStudents.length,
@@ -109,8 +96,15 @@ export default function WardenDashboard({ user }) {
           activeComplaints: blockComplaints.filter(c => c.status === 'Submitted' || c.status === 'Under Review').length,
         });
       } else {
-        setLeaves(allLeaves.filter(l => l.status === 'Pending'));
-        setMaintenance(allMaint);
+        // Jika felo belum mempunyai blok jagaan, jangan paparkan rekod blok orang lain
+        setLeaves([]);
+        setMaintenance([]);
+        setStats({
+          totalStudents: 0,
+          occupiedRooms: 0,
+          vacantRooms: 0,
+          activeComplaints: 0,
+        });
       }
     } catch (error) {
       console.error("Gagal memuatkan data WardenDashboard:", error);

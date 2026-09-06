@@ -14,6 +14,7 @@ import TablePagination from '@/components/shared/TablePagination';
 import { TableSkeleton } from '@/components/shared/ListSkeletons';
 import { logAudit } from '@/lib/audit';
 import { isBlockInList, isSameBlock, ALL_KKTF_BLOCKS } from '@/lib/kktfBlocks';
+import { isOperatingAsWarden, getWardenBlocks } from '@/lib/wardenHelper';
 
 const FACULTIES = ['Engineering', 'Science', 'Arts', 'Business', 'Medicine', 'Education', 'Law', 'IT'];
 const PAGE_SIZE = 10;
@@ -46,47 +47,15 @@ export default function Students() {
     const u = await base44.auth.me();
     setUser(u);
     let data = [];
-    if (u?.role === 'warden') {
-      // 1. Dapatkan rekod penugasan blok daripada WardenBlock
-      let myWb = await base44.entities.WardenBlock.filter({ warden_user_id: u.id }).catch(() => []);
-      if (!myWb || myWb.length === 0) {
-        try {
-          const allWb = await base44.entities.WardenBlock.list();
-          const userEmail = (u.email || u.real_email || '').toLowerCase();
-          myWb = (allWb || []).filter(w => 
-            w.warden_user_id === u.id || 
-            (w.warden_email && userEmail && w.warden_email.toLowerCase() === userEmail) ||
-            (u.full_name && w.warden_name && (
-              u.full_name.toLowerCase().includes(w.warden_name.toLowerCase()) ||
-              w.warden_name.toLowerCase().includes(u.full_name.toLowerCase())
-            ))
-          );
-        } catch (e) {}
-      }
-
-      let blockNames = (myWb || []).map(w => w.block_name).filter(Boolean);
-
-      // 2. Semak jika peranan persona aktif menentukan blok spesifik (cth: 'Block C & Block E' atau 'Block C')
-      const activePersonaBlock = u.active_warden_block || localStorage.getItem('mykktf_felo_assigned_block');
-      if (activePersonaBlock) {
-        const parsed = activePersonaBlock
-          .split('&')
-          .map(b => b.trim())
-          .filter(Boolean);
-        if (parsed.length > 0) {
-          // Jika blockNames kosong, gunakan parsed
-          if (blockNames.length === 0) {
-            blockNames = parsed;
-          }
-        }
-      }
-
+    if (isOperatingAsWarden(u)) {
+      // Dapatkan rekod penugasan blok daripada WardenBlock / persona
+      const blockNames = await getWardenBlocks(u);
       setWardenAssignedBlocks(blockNames);
       const all = await base44.entities.Student.list('-created_date');
-      // Felo HANYA melihat pelajar bagi blok jagaan mereka sahaja
+      // Felo HANYA melihat pelajar bagi blok jagaan mereka sahaja, tiada fallback kepada keseluruhan kolej
       data = blockNames.length > 0 
         ? all.filter(s => isBlockInList(s.block_name, blockNames)) 
-        : all;
+        : [];
     } else {
       // Super Admin, Pentadbir Kolej, dan Staf melihat keseluruhan direktori pelajar
       data = await base44.entities.Student.list('-created_date');
