@@ -494,9 +494,14 @@ export default function CheckInOut() {
       };
     }
 
-    const isQrVerified = student.qr_verified === true || student.qr_verified === 'true' || student.qr_verified === 1 || student.qr_verified === '1';
+    const isQrVerified = student.qr_verified === true || 
+                         student.qr_verified === 'true' || 
+                         student.qr_verified === 1 || 
+                         student.qr_verified === '1' ||
+                         Boolean(student.qr_verified_at);
 
-    if (!isQrVerified || String(student.room_status || '').toLowerCase() === 'pending verification') {
+    // 3. Menunggu imbasan kod QR (bilik ada, tetapi belum diimbas / belum aktif)
+    if (!isQrVerified && String(student.room_status || '').toLowerCase() !== 'checked in') {
       return { 
         code: 'pending_qr', 
         label: 'Menunggu Pengesahan QR', 
@@ -505,17 +510,19 @@ export default function CheckInOut() {
       };
     }
 
-    // Semak jika manual kaunter (oleh staf) atau imbasan kendiri QR
+    // 4. Semak jika didaftar secara manual di kaunter oleh staf fizikal
     const ciRecord = map ? map.get(String(student.id)) : null;
     const ciNotes = (ciRecord?.notes || '').toLowerCase();
-    const isManual = student.checkin_method === 'manual' || 
-                     ciNotes.includes('kaunter') || 
-                     ciNotes.includes('manual') || 
-                     ciNotes.includes('penyelarasan') ||
-                     ciNotes.includes('staf') ||
-                     ciNotes.includes('fizikal');
 
-    if (isManual) {
+    const isExplicitlyManual = 
+      student.checkin_method === 'manual' || 
+      student.verification_source === 'counter_manual' ||
+      ciRecord?.checkin_method === 'manual' ||
+      ciNotes.includes('kaunter kunci oleh staf') ||
+      ciNotes.includes('pengesahan fizikal di kaunter') ||
+      ciNotes.includes('manual kaunter fizikal');
+
+    if (isExplicitlyManual) {
       return { 
         code: 'manual_counter', 
         label: 'Check-In Manual Kaunter', 
@@ -524,6 +531,7 @@ export default function CheckInOut() {
       };
     }
 
+    // 5. Residen yang mengaktifkan bilik melalui imbasan kod QR
     return { 
       code: 'qr_scan', 
       label: 'Imbasan Kod QR (Kendiri)', 
@@ -1381,7 +1389,7 @@ export default function CheckInOut() {
                 <span className="text-xs font-semibold">Menunggu Semakan</span>
               </div>
               <p className="text-2xl font-black text-amber-800 font-mono">{pendingDropKeys.length}</p>
-              <p className="text-[10px] text-amber-600 mt-0.5">Perlu semakan staf / felo</p>
+              <p className="text-[10px] text-amber-600 mt-0.5">Perlu semakan staf pentadbiran</p>
             </div>
 
             <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-2xl p-3.5 shadow-xs">

@@ -385,13 +385,13 @@ export default function ExpressDropKey() {
               <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-xs border border-indigo-200">
                 4
               </div>
-              <h4 className="text-xs font-bold text-foreground">Pengesahan Staf & Selesai</h4>
+              <h4 className="text-xs font-bold text-foreground">Pengesahan Staf Pentadbiran & Selesai</h4>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Staf akan memeriksa fizikal kunci pada hari bekerja berikutnya. Status bilik anda akan dilepaskan menjadi 'Checked Out' secara automatik.
+                Staf Pentadbiran (Admin Pejabat KKTF) akan membuka peti dan memeriksa fizikal kunci pada jam 8:00 pagi hari bekerja berikutnya. Status bilik anda dilepaskan kepada 'Checked Out'.
               </p>
             </div>
             <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center gap-1.5 text-[10px] text-slate-500 font-medium">
-              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" /> Pelepasan rasmi sistem
+              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" /> Staf Pentadbiran KKTF
             </div>
           </div>
         </div>
@@ -406,9 +406,23 @@ export default function ExpressDropKey() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
           <div className="p-3.5 rounded-xl bg-muted/40 border border-border/60 space-y-1">
+            <p className="font-bold text-foreground">Siapakah yang menyemak dan mengesahkan kunci di Peti Drop-Key?</p>
+            <p className="text-muted-foreground">
+              Penyemakan fizikal dan kelulusan check-out drop-key dilakukan sepenuhnya oleh <strong>Staf Pentadbiran (Admin Pejabat KKTF)</strong> yang menguruskan aset kolej, bukannya felo blok.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-muted/40 border border-border/60 space-y-1">
+            <p className="font-bold text-foreground">Bilakah status bilik saya akan bertukar kepada 'Checked Out'?</p>
+            <p className="text-muted-foreground">
+              Sebaik Staf Pentadbiran Pejabat KKTF membuka peti kunci pada jam 8:00 pagi hari bekerja berikutnya dan meluluskan borang drop-key anda, sistem akan menghantar notifikasi dan membebaskan status bilik serta-merta.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-muted/40 border border-border/60 space-y-1">
             <p className="font-bold text-foreground">Bagaimanakah jika saya tertinggal barang selepas memasukkan kunci?</p>
             <p className="text-muted-foreground">
-              Kunci yang telah dimasukkan ke dalam Peti Drop-Key tidak boleh diambil semula. Sila berhubung dengan felo bertugas atau pegawai keselamatan untuk bantuan membuka pintu bilik.
+              Kunci yang telah dimasukkan ke dalam Peti Drop-Key tidak boleh diambil semula oleh pelajar. Sila berhubung dengan felo bertugas atau pegawai keselamatan untuk bantuan membuka pintu bilik jika berlaku kecemasan.
             </p>
           </div>
 
@@ -416,20 +430,6 @@ export default function ExpressDropKey() {
             <p className="font-bold text-foreground">Bolehkah saya meminta rakan serahkan kunci bagi pihak saya?</p>
             <p className="text-muted-foreground">
               Pelajar bertanggungjawab sepenuhnya atas kunci masing-masing. Gambar dan perakuan integriti perlu disahkan menggunakan akaun MyKKTF rasmi anda sendiri.
-            </p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-muted/40 border border-border/60 space-y-1">
-            <p className="font-bold text-foreground">Bilakah status bilik saya akan bertukar kepada 'Checked Out'?</p>
-            <p className="text-muted-foreground">
-              Sebaik staf kolej menyemak peti kunci dan meluluskan borang drop-key anda pada waktu pejabat berikutnya, sistem akan menghantar notifikasi dan membebaskan status bilik anda.
-            </p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-muted/40 border border-border/60 space-y-1">
-            <p className="font-bold text-foreground">Bagaimanakah jika kamera gagal mengimbas Kod QR Peti Drop-Key?</p>
-            <p className="text-muted-foreground">
-              Pastikan pencahayaan mencukupi di hadapan peti. Sekiranya kod QR rosak atau tertutup, anda boleh memilih opsyen 'Guna Kod Sandaran Peti' yang terdapat dalam modal imbasan.
             </p>
           </div>
         </div>
