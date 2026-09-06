@@ -124,7 +124,19 @@ export default function BlockInspectionDossierModal({
       const cDetails = resolveComplainantFullDetails(r, studentsMap, wardensMap, currentUser);
       const phoneTxt = cDetails.displayPhone !== '-' ? ` | Tel: ${cDetails.displayPhone}` : '';
       const emailTxt = cDetails.email ? ` | E-mel: ${cDetails.email}` : '';
-      summaryText += `${idx + 1}. ${loc} - ${r.category || 'Am'}: ${r.description} ${tams} [Pengadu: ${cDetails.name} (${cDetails.role})${phoneTxt}${emailTxt}] (${r.status})\n`;
+      
+      const hasTams = Boolean(r.myserv_ticket_no);
+      const inProgress = r.status === 'In Progress' || Boolean(r.latest_followup_note);
+      const isDone = r.status === 'Completed';
+      const statusDetail = isDone 
+        ? 'Siap Sepenuhnya' 
+        : inProgress 
+          ? 'Dalam Tindakan Kontraktor JPP' 
+          : hasTams 
+            ? 'Didaftar di TAMS' 
+            : 'Menunggu Daftar TAMS';
+
+      summaryText += `${idx + 1}. ${loc} - ${r.category || 'Am'}: ${r.description} ${tams} [Pengadu: ${cDetails.name} (${cDetails.role})${phoneTxt}${emailTxt}] -> Status: ${statusDetail}\n`;
     });
 
     navigator.clipboard.writeText(summaryText);
@@ -327,7 +339,7 @@ export default function BlockInspectionDossierModal({
                   <th className="p-2 border border-slate-300 w-14 sm:w-16 text-center">Keutamaan</th>
                   <th className="p-2 border border-slate-300 w-36 sm:w-44">Maklumat Pengadu</th>
                   <th className="p-2 border border-slate-300 w-20">No. TAMS</th>
-                  <th className="p-2 border border-slate-300 text-center w-16 sm:w-20">Status</th>
+                  <th className="p-2 border border-slate-300 w-36 sm:w-44 text-left">Status Tindakan</th>
                 </tr>
               </thead>
               <tbody>
@@ -342,6 +354,8 @@ export default function BlockInspectionDossierModal({
                     const unitInfo = categoryUnitMap[r.category] || { unit: 'Penyelenggaraan Am' };
                     const isUrgent = r.urgency === 'Urgent';
                     const isDone = r.status === 'Completed';
+                    const hasTams = Boolean(r.myserv_ticket_no);
+                    const inProgress = r.status === 'In Progress' || Boolean(r.latest_followup_note);
                     const cDetails = resolveComplainantFullDetails(r, studentsMap, wardensMap, currentUser);
 
                     return (
@@ -444,16 +458,70 @@ export default function BlockInspectionDossierModal({
                             <span className="text-amber-700 italic">Belum TAMS</span>
                           )}
                         </td>
-                        <td className="p-1.5 border border-slate-300 text-center">
-                          <span className={`px-1.5 py-0.5 rounded text-[8.5px] font-semibold ${
-                            isDone 
-                              ? 'bg-emerald-100 text-emerald-800' 
-                              : r.myserv_ticket_no 
-                                ? 'bg-blue-100 text-blue-800' 
-                                : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {isDone ? 'Selesai' : r.myserv_ticket_no ? 'Ada TAMS' : 'Menunggu'}
-                          </span>
+
+                        {/* STATUS TINDAKAN DENGAN MINI CHECKBOX OTOMATIK */}
+                        <td className="p-1.5 border border-slate-300 leading-tight">
+                          <div className="space-y-1">
+                            {/* BADGE UTAMA */}
+                            <div>
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-bold ${
+                                isDone 
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                                  : inProgress
+                                    ? 'bg-purple-100 text-purple-800 border border-purple-300'
+                                    : hasTams 
+                                      ? 'bg-blue-100 text-blue-800 border border-blue-300' 
+                                      : 'bg-amber-100 text-amber-800 border border-amber-300'
+                              }`}>
+                                {isDone 
+                                  ? '✓ Selesai Sepenuhnya' 
+                                  : inProgress 
+                                    ? '⚙️ Tindakan JPP / Kontraktor' 
+                                    : hasTams 
+                                      ? '📋 Didaftar di TAMS' 
+                                      : '⏳ Menunggu Daftar TAMS'}
+                              </span>
+                            </div>
+
+                            {/* MINI CHECKBOX PROGRESS OTOMATIK */}
+                            <div className="text-[7.5px] space-y-0.5 border-t border-slate-200 pt-1 font-sans">
+                              {/* 1. DAFTAR TAMS */}
+                              <div className={`flex items-center gap-1 ${hasTams || isDone ? 'text-blue-900 font-semibold' : 'text-slate-400'}`}>
+                                <span className={`w-3 h-3 rounded-[3px] flex items-center justify-center text-[7px] font-bold shrink-0 ${
+                                  hasTams || isDone ? 'bg-blue-600 text-white' : 'border border-slate-300 bg-slate-50 text-transparent'
+                                }`}>
+                                  ✓
+                                </span>
+                                <span className="truncate">
+                                  {hasTams ? `Daftar TAMS` : isDone ? 'Daftar TAMS' : 'Belum daftar TAMS'}
+                                </span>
+                              </div>
+
+                              {/* 2. TINDAKAN KONTRAKTOR / JPP */}
+                              <div className={`flex items-center gap-1 ${inProgress || isDone ? 'text-purple-900 font-semibold' : 'text-slate-400'}`}>
+                                <span className={`w-3 h-3 rounded-[3px] flex items-center justify-center text-[7px] font-bold shrink-0 ${
+                                  inProgress || isDone ? 'bg-purple-600 text-white' : 'border border-slate-300 bg-slate-50 text-transparent'
+                                }`}>
+                                  ✓
+                                </span>
+                                <span className="truncate">
+                                  {inProgress || isDone ? 'Tindakan Kontraktor JPP' : 'Menunggu tindakan JPP'}
+                                </span>
+                              </div>
+
+                              {/* 3. SIAP & DISAHKAN */}
+                              <div className={`flex items-center gap-1 ${isDone ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
+                                <span className={`w-3 h-3 rounded-[3px] flex items-center justify-center text-[7px] font-bold shrink-0 ${
+                                  isDone ? 'bg-emerald-600 text-white' : 'border border-slate-300 bg-slate-50 text-transparent'
+                                }`}>
+                                  ✓
+                                </span>
+                                <span className="truncate">
+                                  {isDone ? 'Disahkan Siap di Tapak' : 'Belum selesai'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     );
