@@ -53,6 +53,49 @@
         "Cancelled"
       ],
       "default": "Upcoming"
+    },
+    "modality": {
+      "type": "string",
+      "enum": [
+        "Bersemuka",
+        "Dalam Talian",
+        "Hibrid"
+      ],
+      "default": "Bersemuka"
+    },
+    "platform": {
+      "type": "string"
+    },
+    "meeting_link": {
+      "type": "string"
+    },
+    "felo_approval_status": {
+      "type": "string",
+      "enum": [
+        "Pending",
+        "Approved",
+        "Rejected"
+      ],
+      "default": "Pending"
+    },
+    "felo_coordinator_id": {
+      "type": "string"
+    },
+    "felo_coordinator_name": {
+      "type": "string"
+    },
+    "merit_points": {
+      "type": "number",
+      "default": 10
+    },
+    "rejection_reason": {
+      "type": "string"
+    },
+    "creator_role": {
+      "type": "string"
+    },
+    "creator_name": {
+      "type": "string"
     }
   },
   "required": [

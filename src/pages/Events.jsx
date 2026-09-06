@@ -32,7 +32,8 @@ import {
   Globe,
   Video,
   ExternalLink,
-  Sparkles
+  Sparkles,
+  Pencil
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
@@ -41,6 +42,90 @@ import { logAudit } from '@/lib/audit';
 import { showPhoneNotification } from '@/lib/pushNotifications';
 
 const MANAGE_ROLES = ['super_admin', 'principal', 'college_admin', 'warden', 'staff', 'jakmas'];
+
+export function getEventModalityInfo(ev) {
+  if (!ev) return {
+    modality: 'Bersemuka',
+    platform: '',
+    meeting_link: '',
+    label: '🏢 Bersemuka',
+    colorClass: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
+  };
+
+  let rawModality = ev.modality;
+  let rawPlatform = ev.platform;
+  let rawLink = ev.meeting_link;
+
+  // Semak cache localStorage sekiranya medan ini belum ada dalam skema lama Base44
+  try {
+    const meta = JSON.parse(localStorage.getItem(`mykktf_event_meta_${ev.id}`) || '{}');
+    if (meta.modality) rawModality = meta.modality;
+    if (meta.platform) rawPlatform = meta.platform;
+    if (meta.meeting_link) rawLink = meta.meeting_link;
+  } catch (e) {}
+
+  // Semak jika terdapat tag modality dalam deskripsi
+  if (!rawModality && ev.description) {
+    const match = ev.description.match(/\[Modality:\s*([^\]]+)\]/i);
+    if (match) rawModality = match[1];
+  }
+
+  const mStr = String(rawModality || '').trim().toLowerCase();
+  const desc = String(ev.description || '').toLowerCase();
+  const name = String(ev.event_name || '').toLowerCase();
+  const venue = String(ev.venue || '').toLowerCase();
+
+  // Pengesanan fleksibel format Hibrid (ejaan BM/BI, kata kunci, atau ada link Google Meet/Zoom berserta venue fizikal)
+  const isHybrid = 
+    mStr.includes('hibrid') || 
+    mStr.includes('hybrid') || 
+    desc.includes('hibrid') || 
+    desc.includes('hybrid') || 
+    name.includes('hibrid') || 
+    name.includes('hybrid') ||
+    Boolean(rawLink && venue && !venue.startsWith('atas talian') && !venue.startsWith('online'));
+
+  const isOnline = 
+    !isHybrid && (
+      mStr.includes('talian') || 
+      mStr.includes('online') || 
+      mStr.includes('maya') || 
+      desc.includes('dalam talian') || 
+      venue.includes('atas talian') || 
+      venue.includes('google meet') || 
+      venue.includes('zoom')
+    );
+
+  if (isHybrid) {
+    const plat = rawPlatform || (rawLink?.includes('zoom') ? 'Zoom' : 'Google Meet');
+    return {
+      modality: 'Hibrid',
+      platform: plat,
+      meeting_link: rawLink || ev.meeting_link,
+      label: `🔄 Hibrid (${plat})`,
+      colorClass: 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-400/40'
+    };
+  }
+
+  if (isOnline) {
+    const plat = rawPlatform || (rawLink?.includes('zoom') ? 'Zoom' : 'Google Meet');
+    return {
+      modality: 'Dalam Talian',
+      platform: plat,
+      meeting_link: rawLink || ev.meeting_link,
+      label: `🌐 Dalam Talian (${plat})`,
+      colorClass: 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-400/40'
+    };
+  }
+
+  return {
+    modality: 'Bersemuka',
+    platform: '',
+    meeting_link: '',
+    label: '🏢 Bersemuka',
+    colorClass: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
+  };
+}
 
 export function getEventDateStatus(ev) {
   // 1. Manually Cancelled or Rejected
@@ -179,6 +264,45 @@ export default function Events() {
   const [rejectingEvent, setRejectingEvent] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
 
+  // Quick Modality Change Modal State
+  const [quickModalityEvent, setQuickModalityEvent] = useState(null);
+  const [quickModalityForm, setQuickModalityForm] = useState({
+    modality: 'Hibrid',
+    platform: 'Google Meet',
+    meeting_link: ''
+  });
+
+  function openQuickModalityModal(ev) {
+    const info = getEventModalityInfo(ev);
+    setQuickModalityEvent(ev);
+    setQuickModalityForm({
+      modality: info.modality,
+      platform: info.platform || 'Google Meet',
+      meeting_link: info.meeting_link || ev.meeting_link || ''
+    });
+  }
+
+  async function handleSaveQuickModality() {
+    if (!quickModalityEvent) return;
+    try {
+      const updatedFields = {
+        modality: quickModalityForm.modality,
+        platform: quickModalityForm.platform,
+        meeting_link: quickModalityForm.meeting_link
+      };
+      await base44.entities.Event.update(quickModalityEvent.id, updatedFields).catch(() => {});
+      localStorage.setItem(`mykktf_event_meta_${quickModalityEvent.id}`, JSON.stringify(updatedFields));
+      setEvents(prev => prev.map(e => e.id === quickModalityEvent.id ? { ...e, ...updatedFields } : e));
+      toast({
+        title: 'Modaliti Acara Dikemas Kini! 🎉',
+        description: `Format acara "${quickModalityEvent.event_name}" kini ditetapkan sebagai ${quickModalityForm.modality}.`
+      });
+      setQuickModalityEvent(null);
+    } catch (err) {
+      toast({ title: 'Ralat mengemas kini modaliti', variant: 'destructive' });
+    }
+  }
+
   useEffect(() => { init(); }, []);
 
   async function init() {
@@ -195,7 +319,21 @@ export default function Events() {
         base44.entities.WardenBlock.list().catch(() => [])
       ]);
       
-      setEvents(evs || []);
+      const enhancedEvs = (evs || []).map(ev => {
+        try {
+          const meta = JSON.parse(localStorage.getItem(`mykktf_event_meta_${ev.id}`) || '{}');
+          return {
+            ...ev,
+            modality: meta.modality || ev.modality,
+            platform: meta.platform || ev.platform,
+            meeting_link: meta.meeting_link || ev.meeting_link
+          };
+        } catch (e) {
+          return ev;
+        }
+      });
+
+      setEvents(enhancedEvs);
       setStudentsList(sList || []);
 
       // Extract distinct felos/wardens from real database
@@ -679,33 +817,69 @@ export default function Events() {
       return;
     }
 
-    const isAdminRole = ['super_admin', 'college_admin', 'principal'].includes(user?.role);
-    const initialApproval = isAdminRole ? 'Approved' : 'Pending';
+    // Jika Pengetua atau Super Admin sendiri yang cipta, ia boleh diluluskan terus;
+    // Jika Felo atau JAKMAS yang cipta, WAJIB berstatus 'Pending' untuk semakan & kelulusan Pengetua.
+    const isPrincipalCreator = 
+      user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' ||
+      user?.role === 'principal' ||
+      user?.effectiveRole === 'principal' ||
+      user?.role === 'super_admin' ||
+      user?.effectiveRole === 'super_admin';
+
+    const initialApproval = isPrincipalCreator ? 'Approved' : 'Pending';
+    const creatorRole = user?.effectiveRole || user?.role || 'user';
 
     try {
       const createdEv = await base44.entities.Event.create({ 
         ...form, 
         organizer_user_id: user.id, 
         organizer: form.organizer || user.full_name || user.email,
+        creator_role: creatorRole,
+        creator_name: user?.full_name || user?.email || '',
         felo_approval_status: initialApproval,
         status: 'Upcoming',
         merit_points: Number(form.merit_points) || 10
       });
 
+      if (createdEv?.id) {
+        localStorage.setItem(`mykktf_event_meta_${createdEv.id}`, JSON.stringify({
+          modality: form.modality,
+          platform: form.platform,
+          meeting_link: form.meeting_link
+        }));
+      }
+
       await logAudit(user, 'EVENT_CREATED', 'Events', { 
         name: form.event_name, 
         venue: form.venue, 
         date: form.event_date,
-        approval: initialApproval
+        approval: initialApproval,
+        creator_role: creatorRole
       });
 
       if (initialApproval === 'Approved') {
         await dispatchEventApprovalNotifications(createdEv || { ...form, id: 'temp' }, user);
+      } else {
+        // Hantar notifikasi rasmi terus kepada Pengetua Kolej
+        try {
+          const principalUsers = await base44.entities.User?.filter?.({ role: 'principal' }).catch(() => []) || [];
+          for (const pu of principalUsers) {
+            await base44.entities.Notification.create({
+              user_id: pu.id,
+              title: `📑 Kertas Cadangan Acara Baharu: ${form.event_name}`,
+              message: `Acara baharu telah dicadangkan oleh ${user?.full_name || 'Felo / JAKMAS'} (${creatorRole.toUpperCase()}) dan kini menunggu kelulusan rasmi Pengetua.`,
+              type: 'event',
+              link: '/admin'
+            }).catch(() => {});
+          }
+        } catch (notifErr) {
+          console.warn('Gagal hantar notifikasi kepada Pengetua:', notifErr);
+        }
       }
 
       toast({ 
-        title: initialApproval === 'Approved' ? 'Acara Berjaya Dicipta, Diluluskan & Diberitahu! 🎉' : 'Kertas Cadangan Acara Dihantar! ⏳',
-        description: initialApproval === 'Approved' ? 'Acara sedia untuk pendaftaran dan hebahan rasmi telah dihantar kepada residen.' : 'Menunggu kelulusan Felo Penyelaras & Pengetua Kolej.'
+        title: initialApproval === 'Approved' ? 'Acara Berjaya Dicipta & Diterbitkan! 🎉' : 'Kertas Cadangan Acara Dihantar! ⏳',
+        description: initialApproval === 'Approved' ? 'Acara sedia untuk pendaftaran dan hebahan rasmi telah disiarkan.' : 'Kertas cadangan telah dihantar dan kini menunggu kelulusan rasmi Pengetua Kolej.'
       });
 
       setShowForm(false);
@@ -757,8 +931,15 @@ export default function Events() {
   const isRealStudent = user?.role === 'student' || user?.effectiveRole === 'student';
   const isStudent = viewModeOverride === 'student' || (viewModeOverride === 'auto' && isRealStudent);
   const canManage = !isStudent && user && MANAGE_ROLES.includes(role);
-  const isPrincipalOrAdmin = user && ['super_admin', 'principal', 'college_admin'].includes(user?.role);
-  const isFeloCoordinatorOrAdmin = user && ['super_admin', 'principal', 'college_admin', 'warden'].includes(user?.role);
+  const isPrincipal = 
+    user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' ||
+    user?.role === 'principal' ||
+    user?.effectiveRole === 'principal' ||
+    user?.role === 'super_admin' ||
+    user?.effectiveRole === 'super_admin';
+  const isPrincipalOrAdmin = isPrincipal;
+  // Kuasa mutlak kelulusan acara: Hanya Pengetua Kolej (dan Super Admin)
+  const canApproveEvents = isPrincipal;
 
   // Filter events based on statusFilter
   const filteredEvents = events.filter(ev => {
@@ -869,6 +1050,7 @@ export default function Events() {
             const isRejected = ev.felo_approval_status === 'Rejected';
             const meritValue = ev.merit_points || 10;
             const statusInfo = getEventDateStatus(ev);
+            const modalityInfo = getEventModalityInfo(ev);
 
             return (
               <div key={ev.id} className="bg-card border border-border hover:border-indigo-300 dark:hover:border-indigo-800 rounded-3xl overflow-hidden flex flex-col shadow-xs hover:shadow-md transition-all">
@@ -903,20 +1085,22 @@ export default function Events() {
                         <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
                         <span className="truncate">{ev.venue}</span>
                       </div>
-                      {/* MODALITY BADGE */}
-                      <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold shrink-0 ${
-                        ev.modality === 'Dalam Talian'
-                          ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-400/40'
-                          : ev.modality === 'Hibrid'
-                          ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-400/40'
-                          : 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
-                      }`}>
-                        {ev.modality === 'Dalam Talian' 
-                          ? `🌐 Dalam Talian (${ev.platform || 'Meet'})` 
-                          : ev.modality === 'Hibrid' 
-                          ? `🔄 Hibrid (${ev.platform || 'Online'})` 
-                          : '🏢 Bersemuka'}
-                      </span>
+                      {/* MODALITY BADGE & QUICK EDIT */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${modalityInfo.colorClass}`}>
+                          {modalityInfo.label}
+                        </span>
+                        {canManage && (
+                          <button
+                            type="button"
+                            onClick={() => openQuickModalityModal(ev)}
+                            title="Tukar Modaliti Program (Hibrid / Bersemuka / Online)"
+                            className="p-1 hover:bg-muted-foreground/15 rounded-md text-muted-foreground hover:text-primary transition-colors"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -935,15 +1119,15 @@ export default function Events() {
                     </div>
 
                     {/* DIRECT JOIN LINK FOR ONLINE / HYBRID SESSIONS */}
-                    {(ev.modality === 'Dalam Talian' || ev.modality === 'Hibrid') && ev.meeting_link && (isRegistered || isAttended || canManage) && (
+                    {(modalityInfo.modality === 'Dalam Talian' || modalityInfo.modality === 'Hibrid') && (modalityInfo.meeting_link || ev.meeting_link) && (isRegistered || isAttended || canManage) && (
                       <div className="pt-2 border-t border-blue-200/60 dark:border-blue-900/40">
                         <a 
-                          href={ev.meeting_link} 
+                          href={modalityInfo.meeting_link || ev.meeting_link} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="w-full flex items-center justify-center gap-2 py-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
                         >
-                          <Video className="w-3.5 h-3.5" /> Sertai Sesi {ev.platform || 'Dalam Talian'}
+                          <Video className="w-3.5 h-3.5" /> Sertai Sesi {modalityInfo.platform || ev.platform || 'Dalam Talian'}
                           <ExternalLink className="w-3 h-3 opacity-80" />
                         </a>
                       </div>
@@ -987,7 +1171,7 @@ export default function Events() {
                     }`}>
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 text-foreground">
-                          <UserCog className="w-3.5 h-3.5 text-primary" /> Felo Penyelaras:
+                          <UserCog className="w-3.5 h-3.5 text-primary" /> Pengesahan & Kelulusan:
                         </span>
                         <Badge className={`text-[9px] font-bold ${
                           isApproved 
@@ -996,12 +1180,12 @@ export default function Events() {
                             ? 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-400/40'
                             : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400/40 animate-pulse'
                         }`}>
-                          {isApproved ? '✓ Diluluskan' : isRejected ? '✕ Ditolak' : '⏳ Menunggu Kelulusan'}
+                          {isApproved ? '✓ Diluluskan Rasmi' : isRejected ? '✕ Ditolak' : '⏳ Menunggu Kelulusan'}
                         </Badge>
                       </div>
 
                       <p className="font-bold text-xs text-foreground">
-                        {ev.felo_coordinator_name || 'Pejabat Pentadbiran Felo KKTF'}
+                        {ev.felo_coordinator_name ? `Felo Penyelaras: ${ev.felo_coordinator_name}` : 'Pejabat Pentadbiran Felo KKTF'}
                       </p>
 
                       {isRejected && ev.rejection_reason && (
@@ -1010,25 +1194,33 @@ export default function Events() {
                         </p>
                       )}
 
-                      {/* BUTANG TINDAKAN KELULUSAN (PENGETUA / FELO / ADMIN) */}
-                      {!isApproved && !isRejected && isFeloCoordinatorOrAdmin && (
-                        <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-amber-200/50 dark:border-amber-900/40">
-                          <Button
-                            size="sm"
-                            onClick={() => handleApproveEvent(ev)}
-                            className="h-8 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl gap-1 shadow-xs"
-                          >
-                            <CheckCircle className="w-3.5 h-3.5" /> Luluskan
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openRejectModal(ev)}
-                            className="h-8 text-xs font-bold text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-xl gap-1"
-                          >
-                            <XCircle className="w-3.5 h-3.5" /> Tolak
-                          </Button>
-                        </div>
+                      {/* BUTANG TINDAKAN KELULUSAN (PENGETUA KOLEJ SAHAJA) */}
+                      {!isApproved && !isRejected && (
+                        canApproveEvents ? (
+                          <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-amber-200/50 dark:border-amber-900/40">
+                            <Button
+                              size="sm"
+                              onClick={() => handleApproveEvent(ev)}
+                              className="h-8 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl gap-1 shadow-xs"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" /> Luluskan
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openRejectModal(ev)}
+                              className="h-8 text-xs font-bold text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-xl gap-1"
+                            >
+                              <XCircle className="w-3.5 h-3.5" /> Tolak
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="pt-1.5 border-t border-amber-200/50 dark:border-amber-900/40">
+                            <p className="text-[10px] text-amber-800 dark:text-amber-300 bg-amber-500/10 px-2.5 py-1.5 rounded-xl border border-amber-300/40 font-medium">
+                              ⏳ Acara ini sedang menunggu perakuan & kelulusan rasmi Pengetua Kolej.
+                            </p>
+                          </div>
+                        )
                       )}
                     </div>
                   )}
@@ -1719,45 +1911,123 @@ export default function Events() {
       {/* ========================================================================= */}
       {/* MODAL 5: SENARAI PESERTA BERDAFTAR                                        */}
       {/* ========================================================================= */}
-      {viewingEvent && (
-        <Dialog open={!!viewingEvent} onOpenChange={() => { setViewingEvent(null); setParticipants([]); }}>
-          <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto p-6 bg-card border-border rounded-3xl shadow-xl">
-            <DialogHeader>
-              <DialogTitle className="font-heading font-bold text-base">Senarai Peserta — {viewingEvent.event_name}</DialogTitle>
-              <div className="flex items-center gap-2 pt-1 mb-2">
-                <span className="text-xs text-muted-foreground">{participants.length} orang telah mendaftar</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${
-                  viewingEvent.modality === 'Dalam Talian'
-                    ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-400/40'
-                    : viewingEvent.modality === 'Hibrid'
-                    ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-400/40'
-                    : 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border border-slate-300'
-                }`}>
-                  {viewingEvent.modality === 'Dalam Talian' 
-                    ? `🌐 Dalam Talian (${viewingEvent.platform || 'Meet'})` 
-                    : viewingEvent.modality === 'Hibrid' 
-                    ? `🔄 Hibrid (${viewingEvent.platform || 'Online'})` 
-                    : '🏢 Bersemuka'}
-                </span>
-              </div>
-            </DialogHeader>
-            {participants.length === 0 ? (
-              <p className="text-sm text-center text-muted-foreground py-6">Tiada pendaftaran setakat ini.</p>
-            ) : (
-              <div className="divide-y divide-border border border-border rounded-2xl overflow-hidden bg-card">
-                {participants.map((p, i) => (
-                  <div key={p.id || i} className="p-3 flex items-center justify-between text-xs">
-                    <div>
-                      <p className="font-semibold text-foreground">{p.student_name}</p>
-                      <p className="text-[10px] text-muted-foreground font-mono">{p.student_id}</p>
+      {viewingEvent && (() => {
+        const vInfo = getEventModalityInfo(viewingEvent);
+        return (
+          <Dialog open={!!viewingEvent} onOpenChange={() => { setViewingEvent(null); setParticipants([]); }}>
+            <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto p-6 bg-card border-border rounded-3xl shadow-xl">
+              <DialogHeader>
+                <DialogTitle className="font-heading font-bold text-base">Senarai Peserta — {viewingEvent.event_name}</DialogTitle>
+                <div className="flex items-center gap-2 pt-1 mb-2">
+                  <span className="text-xs text-muted-foreground">{participants.length} orang telah mendaftar</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${vInfo.colorClass}`}>
+                    {vInfo.label}
+                  </span>
+                </div>
+              </DialogHeader>
+              {participants.length === 0 ? (
+                <p className="text-sm text-center text-muted-foreground py-6">Tiada pendaftaran setakat ini.</p>
+              ) : (
+                <div className="divide-y divide-border border border-border rounded-2xl overflow-hidden bg-card">
+                  {participants.map((p, i) => (
+                    <div key={p.id || i} className="p-3 flex items-center justify-between text-xs">
+                      <div>
+                        <p className="font-semibold text-foreground">{p.student_name}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono">{p.student_id}</p>
+                      </div>
+                      <Badge className={`text-[9.5px] ${p.status === 'Attended' ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-400' : 'bg-muted text-muted-foreground'}`}>
+                        {p.status === 'Attended' ? '✓ Hadir' : 'Berdaftar'}
+                      </Badge>
                     </div>
-                    <Badge className={`text-[9.5px] ${p.status === 'Attended' ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-400' : 'bg-muted text-muted-foreground'}`}>
-                      {p.status === 'Attended' ? '✓ Hadir' : 'Berdaftar'}
-                    </Badge>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: KEMASKINI PANTAS MODALITI PROGRAM (HIBRID / ONLINE / BERSEMUKA) */}
+      {/* ========================================================================= */}
+      {quickModalityEvent && (
+        <Dialog open={!!quickModalityEvent} onOpenChange={() => setQuickModalityEvent(null)}>
+          <DialogContent className="max-w-md p-6 bg-card border-border rounded-3xl shadow-xl text-xs">
+            <DialogHeader>
+              <DialogTitle className="font-heading font-bold text-base text-primary flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-purple-600" /> Kemaskini Modaliti Acara
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Ubah format bagi <strong>{quickModalityEvent.event_name}</strong> secara langsung.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3.5 mt-2">
+              <div>
+                <Label className="text-xs font-bold">Modaliti Acara *</Label>
+                <Select 
+                  value={quickModalityForm.modality}
+                  onValueChange={(val) => setQuickModalityForm(f => ({ ...f, modality: val }))}
+                >
+                  <SelectTrigger className="h-9 text-xs mt-1 bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Bersemuka">🏢 Bersemuka (Fizikal Sahaja)</SelectItem>
+                    <SelectItem value="Hibrid">🔄 Hibrid (Bersemuka & Online)</SelectItem>
+                    <SelectItem value="Dalam Talian">🌐 Dalam Talian (Online Sahaja)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+
+              {(quickModalityForm.modality === 'Hibrid' || quickModalityForm.modality === 'Dalam Talian') && (
+                <>
+                  <div>
+                    <Label className="text-xs font-bold">Platform Sesi Atas Talian *</Label>
+                    <Select 
+                      value={quickModalityForm.platform}
+                      onValueChange={(val) => setQuickModalityForm(f => ({ ...f, platform: val }))}
+                    >
+                      <SelectTrigger className="h-9 text-xs mt-1 bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Google Meet">Google Meet</SelectItem>
+                        <SelectItem value="Zoom">Zoom Meeting</SelectItem>
+                        <SelectItem value="Cisco Webex">Cisco Webex</SelectItem>
+                        <SelectItem value="YouTube Live">YouTube Live</SelectItem>
+                        <SelectItem value="Microsoft Teams">Microsoft Teams</SelectItem>
+                        <SelectItem value="Lain-lain">Lain-lain</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-bold flex items-center gap-1.5 text-blue-700 dark:text-blue-300">
+                      <Globe className="w-3.5 h-3.5" /> Pautan Pertemuan / Sesi (Meeting Link) *
+                    </Label>
+                    <Input 
+                      value={quickModalityForm.meeting_link}
+                      onChange={(e) => setQuickModalityForm(f => ({ ...f, meeting_link: e.target.value }))}
+                      placeholder="cth: https://meet.google.com/abc-defg-hij"
+                      className="h-9 text-xs mt-1 font-mono bg-background"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Pautan ini akan dipaparkan kepada residen berdaftar dengan butang "Sertai Sesi Dalam Talian".
+                    </p>
+                  </div>
+                </>
+              )}
+
+              <div className="flex gap-2 justify-end pt-3 border-t border-border">
+                <Button variant="outline" size="sm" onClick={() => setQuickModalityEvent(null)} className="rounded-xl">
+                  Batal
+                </Button>
+                <Button size="sm" onClick={handleSaveQuickModality} className="bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl gap-1.5">
+                  <Check className="w-3.5 h-3.5" /> Simpan Modaliti
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       )}

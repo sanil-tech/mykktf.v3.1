@@ -34,8 +34,18 @@ import {
   Award,
   ChevronRight,
   KeyRound,
-  Clock
+  Clock,
+  CheckCircle,
+  XCircle,
+  Zap,
+  MapPin,
+  Globe,
+  AlertCircle
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { logAudit } from "@/lib/audit";
+import { getEventModalityInfo } from "@/pages/Events";
 import { fetchAndSyncDropKeyRequests } from '@/lib/dropKeyHelper';
 
 export default function AdminDashboard({ user }) {
@@ -49,13 +59,22 @@ export default function AdminDashboard({ user }) {
   const [dropKeyRequests, setDropKeyRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeView, setActiveView] = useState('executive'); // 'executive' | 'inventory'
+  const [activeView, setActiveView] = useState('executive'); // 'executive' | 'inventory' | 'event_approval'
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectingEvent, setRejectingEvent] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const isPrincipal = user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.role === 'principal' || user?.effectiveRole === 'principal';
 
-  const pendingFeloEvents = useMemo(() => {
-    return events.filter(e => e.felo_coordinator_id && (!e.felo_approval_status || e.felo_approval_status === 'Pending'));
+  // Senarai SEMUA acara yang menunggu kelulusan Pengetua
+  const pendingEventsForApproval = useMemo(() => {
+    return events.filter(e => {
+      const s = e.felo_approval_status;
+      return s === 'Pending' || (!s && e.status === 'Upcoming');
+    });
   }, [events]);
+
+  const pendingFeloEvents = pendingEventsForApproval;
 
   const pendingDropKeyCount = useMemo(() => {
     return dropKeyRequests.filter(r => r.status === 'pending_verification').length;
@@ -89,21 +108,71 @@ export default function AdminDashboard({ user }) {
     return Array.from(map.values());
   }, [wardenBlocks]);
 
-  const handleApproveFelo = async (eventId, eventName) => {
+  const handleApproveEventByPrincipal = async (ev) => {
     try {
-      await base44.entities.Event.update(eventId, { felo_approval_status: 'Approved' });
+      await base44.entities.Event.update(ev.id, { 
+        felo_approval_status: 'Approved',
+        status: 'Upcoming'
+      });
+      await logAudit(user, 'EVENT_APPROVED_PRINCIPAL', 'Events', { id: ev.id, name: ev.event_name });
+      
+      // Hantar hebahan automatik
+      try {
+        const modalityInfo = getEventModalityInfo(ev);
+        await base44.entities.Announcement.create({
+          title: `📢 Acara Diluluskan: ${ev.event_name}`,
+          content: `Acara kolej "${ev.event_name}" (${modalityInfo.label}) telah diluluskan rasmi oleh Pengetua Kolej.\n\n📅 Tarikh: ${ev.event_date} ${ev.event_time || ''}\n📍 Tempat: ${ev.venue}\n🏆 Ganjaran: +${ev.merit_points || 10} Merit Kolej\n\nSila layari menu 'Events' dalam sistem untuk mendaftar sekarang!`,
+          category: 'Event',
+          is_pinned: false,
+          author_role: 'principal',
+          author_name: user?.full_name || 'Pengetua Kolej'
+        }).catch(() => {});
+      } catch(e) {}
+
       toast({
-        title: "Lantikan Felo Disahkan",
-        description: `Lantikan Felo Penyelaras bagi "${eventName}" telah disahkan secara rasmi oleh Pengetua.`
+        title: "Acara Berjaya Diluluskan! ✓",
+        description: `Acara "${ev.event_name}" telah diluluskan rasmi oleh Pengetua dan sedia untuk pendaftaran.`
       });
       fetchDashboardData();
     } catch (err) {
-      console.error("Gagal mengesahkan felo:", err);
+      console.error("Gagal meluluskan acara:", err);
       toast({
         title: "Ralat",
-        description: "Gagal mengesahkan lantikan felo.",
+        description: "Gagal meluluskan acara.",
         variant: "destructive"
       });
+    }
+  };
+
+  const handleOpenRejectModal = (ev) => {
+    setRejectingEvent(ev);
+    setRejectReason('');
+    setRejectModalOpen(true);
+  };
+
+  const handleConfirmRejectEventByPrincipal = async () => {
+    if (!rejectingEvent) return;
+    try {
+      await base44.entities.Event.update(rejectingEvent.id, {
+        felo_approval_status: 'Rejected',
+        rejection_reason: rejectReason || 'Tidak memenuhi ketetapan aktiviti kolej oleh Pengetua.'
+      });
+      await logAudit(user, 'EVENT_REJECTED_PRINCIPAL', 'Events', { 
+        id: rejectingEvent.id, 
+        name: rejectingEvent.event_name, 
+        reason: rejectReason 
+      });
+
+      toast({
+        title: "Kertas Cadangan Ditolak",
+        description: `Acara "${rejectingEvent.event_name}" telah ditandakan Ditolak.`
+      });
+      setRejectModalOpen(false);
+      setRejectingEvent(null);
+      setRejectReason('');
+      fetchDashboardData();
+    } catch (err) {
+      toast({ title: 'Ralat menolak acara', variant: 'destructive' });
     }
   };
 
@@ -358,7 +427,7 @@ export default function AdminDashboard({ user }) {
 
         {/* VIEW TOGGLE PILLS FOR PRINCIPAL */}
         {isPrincipal && (
-          <div className="flex gap-2 mt-5 pt-4 border-t border-white/10 relative z-10">
+          <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t border-white/10 relative z-10">
             <button
               onClick={() => setActiveView('executive')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
@@ -368,6 +437,21 @@ export default function AdminDashboard({ user }) {
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" /> 🏛️ Suite Eksekutif Pengetua
+            </button>
+            <button
+              onClick={() => setActiveView('event_approval')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all relative ${
+                activeView === 'event_approval' 
+                  ? 'bg-amber-400 text-slate-950 shadow-md' 
+                  : 'bg-white/10 text-slate-200 hover:bg-white/20'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-500" /> ⚡ Kelulusan Acara
+              {pendingEventsForApproval.length > 0 && (
+                <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-rose-500 text-white font-extrabold shadow-xs animate-pulse">
+                  {pendingEventsForApproval.length}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setActiveView('inventory')}
@@ -390,54 +474,83 @@ export default function AdminDashboard({ user }) {
         <div className="space-y-6">
           {/* SEKSYEN 1: KAD TINDAKAN EKSEKUTIF MENUNGGU PENGETUA */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* KAD 1: PENGESAHAN FELO PENYELARAS PROGRAM */}
+            {/* KAD 1: KELULUSAN PANTAS ACARA & KERTAS CADANGAN KOLEJ */}
             <Card className="border-amber-200 dark:border-amber-900/60 bg-gradient-to-br from-amber-50/40 via-card to-background shadow-xs hover:shadow-md transition-all">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400 text-[10px] font-bold">
-                    ⏳ Menunggu Pengesahan
+                    ⏳ Menunggu Kelulusan ({pendingEventsForApproval.length})
                   </Badge>
                   <Calendar className="w-4 h-4 text-amber-600" />
                 </div>
                 <CardTitle className="text-sm font-bold text-foreground mt-2 flex items-center gap-1.5">
-                  Lantikan Felo Penyelaras Program
+                  Kelulusan Acara & Kertas Cadangan
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  {pendingFeloEvents.length > 0 
-                    ? `${pendingFeloEvents.length} program dicadangkan oleh JAKMAS memerlukan perakuan rasmi Pengetua.`
-                    : 'Semua permohonan Felo Penyelaras telah disahkan.'}
+                  {pendingEventsForApproval.length > 0 
+                    ? `${pendingEventsForApproval.length} acara dicadangkan oleh Felo / JAKMAS memerlukan perakuan rasmi Pengetua.`
+                    : 'Semua permohonan acara kolej telah disahkan rasmi.'}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2 pt-1">
-                {pendingFeloEvents.length === 0 ? (
+              <CardContent className="space-y-2.5 pt-1">
+                {pendingEventsForApproval.length === 0 ? (
                   <div className="p-3 bg-emerald-50/30 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Tiada lantikan menunggu kelulusan.
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Tiada acara menunggu kelulusan.
                   </div>
                 ) : (
-                  pendingFeloEvents.slice(0, 2).map(ev => (
-                    <div key={ev.id} className="p-2.5 bg-background rounded-xl border border-amber-200 dark:border-amber-900/60 text-xs space-y-1.5 shadow-2xs">
-                      <p className="font-bold text-foreground truncate">{ev.event_name}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Felo Dicadang: <span className="font-bold text-indigo-600 dark:text-indigo-400">{ev.felo_coordinator_name}</span>
-                      </p>
-                      <Button
-                        size="sm"
-                        onClick={() => handleApproveFelo(ev.id, ev.event_name)}
-                        className="w-full h-7 text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg gap-1"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Sahkan Lantikan (Pengetua)
-                      </Button>
-                    </div>
-                  ))
+                  pendingEventsForApproval.slice(0, 2).map(ev => {
+                    const modInfo = getEventModalityInfo(ev);
+                    return (
+                      <div key={ev.id} className="p-2.5 bg-background rounded-xl border border-amber-200 dark:border-amber-900/60 text-xs space-y-2 shadow-2xs">
+                        <div className="flex items-start justify-between gap-1.5">
+                          <p className="font-bold text-foreground truncate">{ev.event_name}</p>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold shrink-0 ${modInfo.colorClass}`}>
+                            {modInfo.label}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground space-y-0.5">
+                          <p>📍 {ev.venue || 'KKTF'} • 📅 {ev.event_date || 'Akan dimaklumkan'}</p>
+                          <p>👤 Dicadang: <span className="font-semibold text-foreground">{ev.organizer || ev.creator_name || 'Felo / JAKMAS'}</span></p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-border/50">
+                          <Button
+                            size="sm"
+                            onClick={() => handleApproveEventByPrincipal(ev)}
+                            className="h-7 text-[10.5px] font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg gap-1 shadow-xs"
+                          >
+                            <CheckCircle className="w-3 h-3" /> Luluskan
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenRejectModal(ev)}
+                            className="h-7 text-[10.5px] font-bold text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg gap-1"
+                          >
+                            <XCircle className="w-3 h-3" /> Tolak
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => navigate('/events')}
-                  className="w-full text-xs text-primary font-bold hover:bg-primary/10 rounded-xl mt-1"
-                >
-                  Semak Semua Acara & Takwim <ArrowUpRight className="w-3.5 h-3.5 ml-1" />
-                </Button>
+                <div className="flex gap-1.5 pt-1">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setActiveView('event_approval')}
+                    className="flex-1 text-xs border-amber-300 text-amber-800 dark:text-amber-300 font-bold hover:bg-amber-50 rounded-xl"
+                  >
+                    Buka Panel Kelulusan ⚡
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => navigate('/events')}
+                    className="text-xs text-primary font-bold hover:bg-primary/10 rounded-xl"
+                  >
+                    Semua Acara <ArrowUpRight className="w-3.5 h-3.5 ml-0.5" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
@@ -1053,6 +1166,156 @@ export default function AdminDashboard({ user }) {
       </Card>
       </div>
     )}
+
+    {/* ========================================================= */}
+    {/* ⚡ PAPARAN 3: KELULUSAN PANTAS ACARA PENGETUA            */}
+    {/* ========================================================= */}
+    {isPrincipal && activeView === 'event_approval' && (
+      <div className="space-y-6">
+        <Card className="border-border shadow-xs">
+          <CardHeader className="pb-3 border-b border-border/60">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-amber-500" />
+                  <CardTitle className="text-lg font-bold">Papan Kelulusan Rasmi Acara & Takwim Kolej</CardTitle>
+                  <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400 font-bold text-xs">
+                    {pendingEventsForApproval.length} Menunggu Tindakan
+                  </Badge>
+                </div>
+                <CardDescription className="text-xs mt-1">
+                  Semak, perakui, dan luluskan kertas cadangan aktiviti kolej yang dikemukakan oleh Felo Penyelaras & JAKMAS secara terus.
+                </CardDescription>
+              </div>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => navigate('/events')}
+                className="rounded-xl text-xs font-semibold gap-1.5"
+              >
+                Buka Pengurusan Penuh Acara <ArrowUpRight className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-5 space-y-4">
+            {pendingEventsForApproval.length === 0 ? (
+              <div className="text-center py-16 bg-muted/20 border border-border/60 rounded-3xl p-6">
+                <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-600 mb-3" />
+                <p className="font-bold text-base text-foreground">Semua Cadangan Acara Telah Diluluskan! 🎉</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                  Tiada acara atau kertas kerja aktiviti yang sedang menunggu pengesahan Pengetua buat masa ini.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {pendingEventsForApproval.map(ev => {
+                  const modInfo = getEventModalityInfo(ev);
+                  return (
+                    <div key={ev.id} className="p-4 rounded-3xl border border-amber-300/80 dark:border-amber-900/60 bg-gradient-to-br from-amber-50/30 via-card to-background shadow-xs hover:shadow-md transition-all space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-md border border-amber-300">
+                            📑 Cadangan Baharu
+                          </span>
+                          <h3 className="font-heading font-bold text-base text-foreground mt-1.5 leading-snug">
+                            {ev.event_name}
+                          </h3>
+                        </div>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold shrink-0 ${modInfo.colorClass}`}>
+                          {modInfo.label}
+                        </span>
+                      </div>
+
+                      {ev.description && (
+                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed bg-muted/40 p-2 rounded-xl">
+                          "{ev.description}"
+                        </p>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground bg-background/60 p-2.5 rounded-xl border border-border/50">
+                        <div>
+                          <p className="text-[10px] font-semibold text-muted-foreground">📅 Tarikh & Masa:</p>
+                          <p className="font-bold text-foreground truncate">{ev.event_date} {ev.event_time || ''}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold text-muted-foreground">📍 Lokasi / Venue:</p>
+                          <p className="font-bold text-foreground truncate">{ev.venue || 'KKTF'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold text-muted-foreground">👤 Dicadang Oleh:</p>
+                          <p className="font-bold text-indigo-700 dark:text-indigo-300 truncate">
+                            {ev.organizer || ev.creator_name || 'Felo / JAKMAS'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold text-muted-foreground">🏆 Ganjaran Merit:</p>
+                          <p className="font-bold text-emerald-700 dark:text-emerald-400">+{ev.merit_points || 10} Merit</p>
+                        </div>
+                      </div>
+
+                      {ev.felo_coordinator_name && (
+                        <p className="text-[11px] text-muted-foreground">
+                          Felo Penyelaras Bertugas: <span className="font-semibold text-foreground">{ev.felo_coordinator_name}</span>
+                        </p>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60">
+                        <Button
+                          onClick={() => handleApproveEventByPrincipal(ev)}
+                          className="h-9 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl gap-1.5 shadow-xs"
+                        >
+                          <CheckCircle className="w-4 h-4" /> Luluskan Rasmi (Pengetua)
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => handleOpenRejectModal(ev)}
+                          className="h-9 text-xs font-bold text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-xl gap-1.5"
+                        >
+                          <XCircle className="w-4 h-4" /> Tolak Kertas Cadangan
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )}
+
+    {/* DIALOG PENOLAKAN KERTAS CADANGAN OLEH PENGETUA */}
+    <Dialog open={rejectModalOpen} onOpenChange={setRejectModalOpen}>
+      <DialogContent className="max-w-md p-6 bg-card border-border rounded-3xl shadow-xl text-xs">
+        <DialogHeader>
+          <DialogTitle className="font-heading font-bold text-base text-rose-600 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5" /> Tolak Kertas Cadangan Acara
+          </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
+            Nyatakan ulasan atau justifikasi penolakan oleh Pengetua Kolej bagi acara <strong>"{rejectingEvent?.event_name}"</strong>.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 mt-2">
+          <div>
+            <Label className="text-xs font-bold">Catatan / Justifikasi Pengetua *</Label>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="cth: Tarikh bertembung dengan Minggu Peperiksaan / Belanjawan perlu disemak semula..."
+              className="w-full border border-input rounded-xl px-3 py-2 text-xs resize-none h-24 mt-1 bg-background"
+            />
+          </div>
+
+          <div className="flex gap-2 justify-end pt-2 border-t border-border">
+            <Button variant="outline" size="sm" onClick={() => setRejectModalOpen(false)} className="rounded-xl">Batal</Button>
+            <Button size="sm" onClick={handleConfirmRejectEventByPrincipal} className="bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl">
+              Sahkan Penolakan
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
 
     </div>
   );
