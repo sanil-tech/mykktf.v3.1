@@ -7,7 +7,7 @@ import {
   Megaphone, FileBarChart, ScrollText, X, ChevronLeft,
   MessageSquare, MessagesSquare, CalendarCheck, Star, UserCog,
   CalendarDays, Users, ClipboardList, Sparkles, ScanLine, Award, ClipboardCheck, BookOpen,
-  CheckSquare, PhoneCall, KeyRound
+  CheckSquare, PhoneCall, KeyRound, HeartHandshake
 } from 'lucide-react';
 
 const iconMap = {
@@ -16,7 +16,7 @@ const iconMap = {
   Megaphone, FileBarChart, ScrollText,
   MessageSquare, MessagesSquare, CalendarCheck, Star, UserCog,
   CalendarDays, Users, ClipboardList, Sparkles, ScanLine, Award, ClipboardCheck, BookOpen,
-  CheckSquare, PhoneCall, KeyRound
+  CheckSquare, PhoneCall, KeyRound, HeartHandshake
 };
 
 export default function Sidebar({ 
@@ -66,9 +66,11 @@ export default function Sidebar({
         </div>
 
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-          {navItems.map(item => {
+          {navItems.map((item, index) => {
             const Icon = iconMap[item.icon];
             const active = location.pathname === item.path;
+            const prevSection = index > 0 ? navItems[index - 1]?.section : null;
+            const isNewSection = item.section && item.section !== prevSection;
             const isAllowedWhenCheckedOut = isStudentCheckedOut && [
               '/',
               '/announcements',
@@ -85,43 +87,53 @@ export default function Sidebar({
 
             const isRestricted = !isStudentVerified && !isAllowedWhenCheckedOut && item.path !== '/' && item.path !== '/guide' && item.path !== '/contact';
 
-            if (isRestricted) {
-              return (
-                <div
-                  key={item.path}
-                  title="Wajib imbas Kod QR Pengaktifan di Dashboard untuk membuka akses"
-                  className={`
-                    flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium opacity-40 cursor-not-allowed select-none
-                    text-primary-foreground/50
-                    ${collapsed ? 'justify-center px-2' : ''}
-                  `}
-                >
-                  {Icon && <Icon className="w-[18px] h-[18px] flex-shrink-0" />}
-                  {!collapsed && (
-                    <div className="flex items-center justify-between flex-1 min-w-0">
-                      <span className="truncate">{item.label}</span>
-                      <span className="text-[9px] bg-white/10 px-1 py-0.5 rounded text-amber-300 font-mono shrink-0 ml-1">Kunci</span>
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
             return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={onClose}
-                title={collapsed ? item.label : undefined}
-                className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
-                  ${active ? 'bg-accent text-accent-foreground' : 'text-primary-foreground/70 hover:bg-white/10 hover:text-primary-foreground'}
-                  ${collapsed ? 'justify-center px-2' : ''}
-                `}
-              >
-                {Icon && <Icon className="w-[18px] h-[18px] flex-shrink-0" />}
-                {!collapsed && <span>{item.label}</span>}
-              </Link>
+              <React.Fragment key={item.path}>
+                {isNewSection && (
+                  <>
+                    {!collapsed ? (
+                      <div className={`px-3 ${index === 0 ? 'pb-1' : 'pt-3 pb-1'} text-[10px] font-extrabold tracking-wider text-white/50 uppercase select-none`}>
+                        {item.section}
+                      </div>
+                    ) : (
+                      index > 0 && <div className="my-1.5 mx-2 border-t border-white/10" />
+                    )}
+                  </>
+                )}
+
+                {isRestricted ? (
+                  <div
+                    title="Wajib imbas Kod QR Pengaktifan di Dashboard untuk membuka akses"
+                    className={`
+                      flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium opacity-40 cursor-not-allowed select-none
+                      text-primary-foreground/50
+                      ${collapsed ? 'justify-center px-2' : ''}
+                    `}
+                  >
+                    {Icon && <Icon className="w-[18px] h-[18px] flex-shrink-0" />}
+                    {!collapsed && (
+                      <div className="flex items-center justify-between flex-1 min-w-0">
+                        <span className="truncate">{item.label}</span>
+                        <span className="text-[9px] bg-white/10 px-1 py-0.5 rounded text-amber-300 font-mono shrink-0 ml-1">Kunci</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <Link
+                    to={item.path}
+                    onClick={onClose}
+                    title={collapsed ? item.label : undefined}
+                    className={`
+                      flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all
+                      ${active ? 'bg-accent text-accent-foreground font-semibold shadow-xs' : 'text-primary-foreground/75 hover:bg-white/10 hover:text-primary-foreground'}
+                      ${collapsed ? 'justify-center px-2' : ''}
+                    `}
+                  >
+                    {Icon && <Icon className="w-[18px] h-[18px] flex-shrink-0" />}
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                  </Link>
+                )}
+              </React.Fragment>
             );
           })}
         </nav>

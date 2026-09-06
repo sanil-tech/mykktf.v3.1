@@ -30,33 +30,51 @@ export function hasAccess(userRole, allowedRoles) {
 
 export function getNavItems(role, hasJakmas = false) {
   const all = [
-    { label: 'Dashboard', path: '/', icon: 'LayoutDashboard', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
-    { label: 'Imbas Pas Residen', path: '/scan-resident', icon: 'ScanLine', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS] },
-    { label: 'Students', path: '/students', icon: 'GraduationCap', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN] },
-    { label: 'Resident Directory', path: '/directory', icon: 'Users', roles: [] },
-    { label: 'Rooms', path: '/rooms', icon: 'DoorOpen', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
-    { label: 'Check-In/Out', path: '/check-in-out', icon: 'ArrowLeftRight', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.STAFF] },
-    { label: 'Drop-Key Check-Out', path: '/drop-key', icon: 'KeyRound', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.STAFF, ROLES.STUDENT] },
-    { label: 'Pemeriksaan Bilik (48 Jam)', path: '/room-inspections', icon: 'CheckSquare', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
-    { label: 'Leave', path: '/leave', icon: 'CalendarOff', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STUDENT] },
-    { label: 'Leave Monitor', path: '/leave-monitor', icon: 'CalendarCheck', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN] },
-    { label: 'Damage Reports', path: '/maintenance', icon: 'Wrench', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
-    { label: 'Facilities', path: '/facilities', icon: 'Building2', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.STAFF, ROLES.STUDENT] },
-    { label: 'Attendance', path: '/attendance', icon: 'ClipboardCheck', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.STAFF] },
-    { label: 'Merit & Dimerit', path: '/merit-demerit', icon: 'Award', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
-    { label: 'Announcements', path: '/announcements', icon: 'Megaphone', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.JAKMAS, ROLES.STUDENT] },
-    { label: 'Events', path: '/events', icon: 'CalendarDays', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
-    { label: 'Feedback & Welfare', path: '/complaints', icon: 'HeartHandshake', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.STUDENT] },
-    { label: 'Community Chat', path: '/chat', icon: 'MessagesSquare', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
-    { label: 'Reports', path: '/reports', icon: 'FileBarChart', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
-    { label: 'Survey Analytics', path: '/survey-analytics', icon: 'Star', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
-    { label: 'Block Assignments', path: '/block-assignment', icon: 'UserCog', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
-    { label: 'JAKMAS Management', path: '/jakmas-management', icon: 'UserCog', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
-    { label: 'AI Knowledge', path: '/ai-knowledge', icon: 'Sparkles', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
-    { label: 'My JAKMAS Tasks', path: '/jakmas-tasks', icon: 'ClipboardList', roles: [], jakmasOnly: true },
-    { label: 'Audit Log', path: '/audit-log', icon: 'ScrollText', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL] },
-    { label: 'Buku Panduan MyKKTF', path: '/guide', icon: 'BookOpen', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
-    { label: 'Hab Perhubungan & Hotline', path: '/contact', icon: 'PhoneCall', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
+    // =========================================================================
+    // 1. UTAMA (Daily / Kekerapan Tertinggi untuk Semua Peranan)
+    // =========================================================================
+    { label: 'Dashboard', path: '/', icon: 'LayoutDashboard', section: 'Utama', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
+    { label: 'Pengumuman & Hebahan', path: '/announcements', icon: 'Megaphone', section: 'Utama', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.JAKMAS, ROLES.STUDENT] },
+    { label: 'Acara & Program Kolej', path: '/events', icon: 'CalendarDays', section: 'Utama', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
+    { label: 'Mata Merit & Dimerit', path: '/merit-demerit', icon: 'Award', section: 'Utama', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
+
+    // =========================================================================
+    // 2. KEDIAMAN & KEBAJIKAN (Operasi Harian & Keselesaan Residen)
+    // =========================================================================
+    { label: 'Pemeriksaan Bilik (48 Jam)', path: '/room-inspections', icon: 'CheckSquare', section: 'Kediaman & Kebajikan', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
+    { label: 'Aduan & Pembaikan Kerosakan', path: '/maintenance', icon: 'Wrench', section: 'Kediaman & Kebajikan', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
+    { label: 'Permohonan Keluar Kolej', path: '/leave', icon: 'CalendarOff', section: 'Kediaman & Kebajikan', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STUDENT] },
+    { label: 'Pemantauan Keluar Kolej', path: '/leave-monitor', icon: 'CalendarCheck', section: 'Kediaman & Kebajikan', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN] },
+    { label: 'Tempahan Kemudahan', path: '/facilities', icon: 'Building2', section: 'Kediaman & Kebajikan', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.STAFF, ROLES.STUDENT] },
+    { label: 'Saluran Kebajikan & Aduan', path: '/complaints', icon: 'HeartHandshake', section: 'Kediaman & Kebajikan', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.STUDENT] },
+
+    // =========================================================================
+    // 3. OPERASI & PENTADBIRAN (Pengurusan Bilik, Pelajar & Verifikasi)
+    // =========================================================================
+    { label: 'Imbas Pas Residen', path: '/scan-resident', icon: 'ScanLine', section: 'Operasi & Pentadbiran', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS] },
+    { label: 'Daftar Masuk / Keluar', path: '/check-in-out', icon: 'ArrowLeftRight', section: 'Operasi & Pentadbiran', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.STAFF] },
+    { label: 'Peti Drop-Key (Express)', path: '/drop-key', icon: 'KeyRound', section: 'Operasi & Pentadbiran', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.STAFF, ROLES.STUDENT] },
+    { label: 'Senarai Pelajar (Students)', path: '/students', icon: 'GraduationCap', section: 'Operasi & Pentadbiran', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN] },
+    { label: 'Pengurusan Bilik & Blok', path: '/rooms', icon: 'DoorOpen', section: 'Operasi & Pentadbiran', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
+    { label: 'Pengesahan Kehadiran Kolej', path: '/attendance', icon: 'ClipboardCheck', section: 'Operasi & Pentadbiran', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.STAFF] },
+    { label: 'Tugasan JAKMAS Saya', path: '/jakmas-tasks', icon: 'ClipboardList', section: 'Operasi & Pentadbiran', roles: [], jakmasOnly: true },
+
+    // =========================================================================
+    // 4. PENGURUSAN & ANALISIS (Eksekutif, Tadbir Urus & Laporan Kolej)
+    // =========================================================================
+    { label: 'Laporan & Statistik', path: '/reports', icon: 'FileBarChart', section: 'Pengurusan & Analisis', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
+    { label: 'Analisis Maklum Balas', path: '/survey-analytics', icon: 'Star', section: 'Pengurusan & Analisis', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
+    { label: 'Agihan Blok Felo', path: '/block-assignment', icon: 'UserCog', section: 'Pengurusan & Analisis', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
+    { label: 'Pengurusan JAKMAS', path: '/jakmas-management', icon: 'UserCog', section: 'Pengurusan & Analisis', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
+    { label: 'Pangkalan Pengetahuan AI', path: '/ai-knowledge', icon: 'Sparkles', section: 'Pengurusan & Analisis', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
+    { label: 'Log Audit Keselamatan', path: '/audit-log', icon: 'ScrollText', section: 'Pengurusan & Analisis', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL] },
+
+    // =========================================================================
+    // 5. KOMUNITI & BANTUAN (Komunikasi, SOP & Rujukan Rasmi)
+    // =========================================================================
+    { label: 'Sembang Komuniti', path: '/chat', icon: 'MessagesSquare', section: 'Komuniti & Bantuan', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
+    { label: 'Hab Perhubungan & Hotline', path: '/contact', icon: 'PhoneCall', section: 'Komuniti & Bantuan', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
+    { label: 'Buku Panduan MyKKTF', path: '/guide', icon: 'BookOpen', section: 'Komuniti & Bantuan', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
   ];
   const base = all.filter(item => hasAccess(role, item.roles));
   if (!hasJakmas) return base;
