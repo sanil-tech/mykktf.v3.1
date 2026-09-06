@@ -28,14 +28,15 @@ import {
   Printer,
   ShieldCheck,
   Building,
-  Camera
+  Camera,
+  KeyRound
 } from 'lucide-react';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 import { logAudit } from '@/lib/audit';
 import { Link, useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { isOperatingAsWarden, getWardenBlocks } from '@/lib/wardenHelper';
-import { isBlockInList } from '@/lib/kktfBlocks';
+import { isBlockInList, getBlockSecurityPin, getBlockSecurityToken, getCanonicalBlockName } from '@/lib/kktfBlocks';
 
 const STATUS_BADGE = {
   Pending: 'bg-amber-50 text-amber-800 border-amber-200',
@@ -291,7 +292,10 @@ export default function Leave() {
 
   const getReturnUrl = (blockName) => {
     const origin = window.location.origin;
-    return `${origin}/return-leave?block=${encodeURIComponent(blockName)}`;
+    const canonical = getCanonicalBlockName(blockName);
+    const pin = getBlockSecurityPin(canonical);
+    const token = getBlockSecurityToken(canonical);
+    return `${origin}/return-leave?block=${encodeURIComponent(canonical)}&pin=${encodeURIComponent(pin)}&token=${encodeURIComponent(token)}`;
   };
 
   const getQrImageUrl = (url) => {
@@ -299,7 +303,9 @@ export default function Leave() {
   };
 
   const handlePrintPoster = (blockName) => {
-    const qrUrl = getReturnUrl(blockName);
+    const canonical = getCanonicalBlockName(blockName);
+    const pin = getBlockSecurityPin(canonical);
+    const qrUrl = getReturnUrl(canonical);
     const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(qrUrl)}&margin=10`;
     
     const printWindow = window.open('', '_blank', 'width=900,height=1100');
@@ -313,11 +319,11 @@ export default function Leave() {
       <html lang="ms">
       <head>
         <meta charset="UTF-8">
-        <title>Poster Rasmi Kod QR E-Leave - ${blockName}</title>
+        <title>Poster Rasmi Kod QR & PIN E-Leave - ${canonical}</title>
         <style>
           @page {
             size: A4 portrait;
-            margin: 12mm;
+            margin: 10mm;
           }
           * {
             box-sizing: border-box;
@@ -332,14 +338,14 @@ export default function Leave() {
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            padding: 10px;
+            padding: 8px;
           }
           .poster-card {
             width: 100%;
             max-width: 680px;
             border: 4px solid #0f1e36;
             border-radius: 28px;
-            padding: 36px 32px;
+            padding: 30px 28px;
             text-align: center;
             background: #ffffff;
           }
@@ -347,34 +353,34 @@ export default function Leave() {
             display: inline-block;
             background: #0f1e36;
             color: #ffffff;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 800;
             letter-spacing: 2px;
             text-transform: uppercase;
-            padding: 8px 24px;
+            padding: 6px 22px;
             border-radius: 999px;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
           }
           .inst-title {
-            font-size: 22px;
+            font-size: 21px;
             font-weight: 900;
             color: #0f1e36;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 4px;
+            margin-bottom: 3px;
           }
           .inst-sub {
-            font-size: 13px;
+            font-size: 12px;
             color: #64748b;
             font-weight: 600;
-            margin-bottom: 24px;
+            margin-bottom: 18px;
           }
           .location-box {
             background: #f8fafc;
-            border: 2px dashed #cbd5e1;
-            border-radius: 18px;
-            padding: 14px 20px;
-            margin-bottom: 24px;
+            border: 2px dashed #0f1e36;
+            border-radius: 16px;
+            padding: 10px 18px;
+            margin-bottom: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -382,76 +388,114 @@ export default function Leave() {
           }
           .location-title {
             font-size: 18px;
-            font-weight: 800;
-            color: #1e293b;
+            font-weight: 900;
+            color: #0f1e36;
+            letter-spacing: 0.5px;
           }
           .qr-frame {
             background: #ffffff;
             border: 3px solid #e2e8f0;
-            border-radius: 24px;
-            padding: 20px;
+            border-radius: 22px;
+            padding: 16px;
             display: inline-block;
-            margin-bottom: 20px;
-            box-shadow: 0 8px 24px rgba(15, 30, 54, 0.08);
+            margin-bottom: 12px;
+            box-shadow: 0 6px 20px rgba(15, 30, 54, 0.08);
           }
           .qr-frame img {
-            width: 270px;
-            height: 270px;
+            width: 230px;
+            height: 230px;
             display: block;
             margin: 0 auto;
           }
           .scan-cta {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 800;
             color: #047857;
-            margin-bottom: 24px;
+            margin-bottom: 16px;
+            letter-spacing: 0.5px;
+          }
+          .security-pin-box {
+            background: #f0fdf4;
+            border: 2px solid #86efac;
+            border-radius: 18px;
+            padding: 14px 20px;
+            margin-bottom: 18px;
+            text-align: center;
+          }
+          .pin-header-tag {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #166534;
+            margin-bottom: 4px;
+          }
+          .pin-value {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 26px;
+            font-weight: 900;
+            letter-spacing: 4px;
+            color: #0f1e36;
+            background: #ffffff;
+            border: 2px solid #16a34a;
+            border-radius: 12px;
+            padding: 6px 18px;
+            display: inline-block;
+            margin: 6px 0;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.04);
+          }
+          .pin-caption {
+            font-size: 11px;
+            color: #334155;
+            font-weight: 600;
+            line-height: 1.35;
           }
           .steps-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            margin-bottom: 24px;
+            gap: 10px;
+            margin-bottom: 16px;
             text-align: left;
           }
           .step-item {
-            background: #f1f5f9;
-            border-radius: 14px;
-            padding: 12px;
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 10px;
             border: 1px solid #e2e8f0;
           }
           .step-num {
             display: inline-block;
-            width: 22px;
-            height: 22px;
+            width: 20px;
+            height: 20px;
             background: #0f1e36;
             color: #fff;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 800;
             border-radius: 50%;
             text-align: center;
-            line-height: 22px;
-            margin-bottom: 6px;
+            line-height: 20px;
+            margin-bottom: 4px;
           }
           .step-title {
             font-size: 11px;
-            font-weight: 700;
+            font-weight: 800;
             color: #1e293b;
             margin-bottom: 2px;
           }
           .step-desc {
             font-size: 10px;
             color: #64748b;
-            line-height: 1.3;
+            line-height: 1.25;
           }
           .security-footer {
             border-top: 1px solid #e2e8f0;
-            padding-top: 16px;
-            font-size: 10px;
-            color: #94a3b8;
+            padding-top: 12px;
+            font-size: 9.5px;
+            color: #64748b;
             line-height: 1.4;
           }
           .security-footer strong {
-            color: #64748b;
+            color: #0f1e36;
           }
         </style>
       </head>
@@ -462,38 +506,48 @@ export default function Leave() {
           <p class="inst-sub">Kolej Kediaman Tun Fuad &bull; Pengesahan Kehadiran Kembali ke Kolej</p>
           
           <div class="location-box">
-            <span class="location-title">📍 LOKASI IMBASAN: ${blockName}</span>
+            <span class="location-title">🏢 LOKASI PENGESAHAN: ${canonical}</span>
           </div>
 
           <div class="qr-frame">
-            <img src="${qrImg}" alt="QR Kod E-Leave ${blockName}">
+            <img src="${qrImg}" alt="QR Kod E-Leave ${canonical}">
           </div>
 
           <div class="scan-cta">
-            📷 IMBAS KOD QR INI DENGAN KAMERA TELEFON
+            📷 KAEDAH 1: IMBAS KOD QR DENGAN APLIKASI MyKKTF / KAMERA
+          </div>
+
+          <!-- KOD PIN KESELAMATAN MANUAL TINGGI -->
+          <div class="security-pin-box">
+            <p class="pin-header-tag">🔐 KAEDAH 2: KOD PIN KESELAMATAN POSTER (MANUAL)</p>
+            <div class="pin-value">${pin}</div>
+            <p class="pin-caption">
+              Sekiranya kamera peranti anda bermasalah, masukkan Kod PIN di atas pada menu <em>Kembali ke Kolej</em>.<br>
+              <strong>PERINGATAN KESELAMATAN:</strong> Memasukkan sekadar nama blok (cth: "Blok A") <u>tidak lagi diterima</u> demi mencegah penipuan.
+            </p>
           </div>
 
           <div class="steps-grid">
             <div class="step-item">
               <span class="step-num">1</span>
-              <p class="step-title">Buka Kamera</p>
-              <p class="step-desc">Buka aplikasi MyKKTF atau kamera telefon pintar anda.</p>
+              <p class="step-title">Tiba di Pintu Blok</p>
+              <p class="step-desc">Berada di hadapan poster rasmi blok kediaman anda.</p>
             </div>
             <div class="step-item">
               <span class="step-num">2</span>
-              <p class="step-title">Imbas Kod QR</p>
-              <p class="step-desc">Halakan kamera tepat pada kod QR fizikal di atas.</p>
+              <p class="step-title">Imbas atau Masukkan PIN</p>
+              <p class="step-desc">Imbas kod QR di atas atau taip Kod PIN <strong>${pin}</strong>.</p>
             </div>
             <div class="step-item">
               <span class="step-num">3</span>
-              <p class="step-title">Sahkan Kehadiran</p>
-              <p class="step-desc">Status cuti anda automatik bertukar kepada TELAH KEMBALI.</p>
+              <p class="step-title">Pengesahan Dwi-Faktor</p>
+              <p class="step-desc">Sistem mengesahkan Kod PIN & Geofence GPS KKTF serentak.</p>
             </div>
           </div>
 
           <div class="security-footer">
-            <p><strong>Peringatan Keselamatan:</strong> Pengesahan kembali dilindungi dengan pengesahan Geofence GPS KKTF. Penipuan kehadiran adalah satu kesalahan tatatertib kolej.</p>
-            <p style="margin-top: 4px; font-weight: 600;">Pejabat Pentadbiran & Felo Kolej Kediaman Tun Fuad, Universiti Malaysia Sabah</p>
+            <p><strong>Peringatan Keselamatan & Tatatertib:</strong> Pengesahan kembali dilindungi secara dwi-faktor (Kod PIN Keselamatan Fizikal + Geofence GPS KKTF). Sebarang cubaan memalsukan kehadiran kembali adalah kesalahan tatatertib di bawah Kaedah-Kaedah Tatatertib Universiti Malaysia Sabah.</p>
+            <p style="margin-top: 4px; font-weight: 700; color: #0f1e36;">Pejabat Pentadbiran & Felo Kolej Kediaman Tun Fuad, Universiti Malaysia Sabah</p>
           </div>
         </div>
         <script>
@@ -961,6 +1015,19 @@ export default function Leave() {
                   alt="QR Return Code" 
                   className="w-full h-full object-contain"
                 />
+              </div>
+
+              {/* SECURITY PIN IN WARDEN PREVIEW */}
+              <div className="bg-white/10 rounded-xl p-2.5 border border-white/20 text-center space-y-1">
+                <span className="text-[10.5px] uppercase tracking-wider text-indigo-200 font-bold flex items-center justify-center gap-1">
+                  <KeyRound className="w-3.5 h-3.5 text-amber-300" /> Kod PIN Keselamatan Poster (Manual):
+                </span>
+                <div className="font-mono text-lg font-black text-amber-300 tracking-widest">
+                  {getBlockSecurityPin(selectedBlockQr)}
+                </div>
+                <p className="text-[10px] text-slate-300">
+                  Pelajar wajib memasukkan PIN ini (nama blok sahaja kini ditolak sistem).
+                </p>
               </div>
 
               <p className="text-xs text-indigo-200 font-medium">

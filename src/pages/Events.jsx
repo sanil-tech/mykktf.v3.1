@@ -251,6 +251,7 @@ export default function Events() {
   const [uploading, setUploading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'upcoming' | 'past' | 'cancelled_postponed'
   const [viewModeOverride, setViewModeOverride] = useState('auto'); // 'auto' | 'student' | 'admin'
+  const [cancellingId, setCancellingId] = useState(null);
 
   // AJK & Committee Management Modal State
   const [ajkModalEvent, setAjkModalEvent] = useState(null);
@@ -1187,26 +1188,83 @@ export default function Events() {
   }
 
   async function cancelRegistration(ev) {
-    const reg = myRegistrations.find(r => r.event_id === ev.id && r.status === 'Registered');
-    if (!reg) return;
+    if (!ev?.id) return;
+    setCancellingId(ev.id);
     try {
-      await base44.entities.EventRegistration.update(reg.id, { status: 'Cancelled' });
-      await base44.entities.Event.update(ev.id, { current_registrations: Math.max(0, (ev.current_registrations || 1) - 1) });
+      // 1. Cari rekod pendaftaran aktif dalam state atau pangkalan data
+      let reg = myRegistrations.find(r => r.event_id === ev.id && r.status !== 'Cancelled');
+      const currentUserId = user?.id || student?.user_id;
+      const currentMatric = student?.student_id || user?.student_id;
+
+      if (!reg || !reg.id) {
+        const fetched = await base44.entities.EventRegistration.filter({ event_id: ev.id }).catch(() => []);
+        reg = fetched.find(r => 
+          (currentUserId && r.student_user_id === currentUserId) ||
+          (currentMatric && r.student_id === currentMatric)
+        ) || reg;
+      }
+
+      // 2. Batalkan rekod EventRegistration (cuba kemas kini status 'Cancelled', jika gagal padam terus rekod)
+      if (reg?.id) {
+        try {
+          await base44.entities.EventRegistration.update(reg.id, { status: 'Cancelled' });
+        } catch (updateErr) {
+          console.warn('Update EventRegistration status gagal, mencuba delete:', updateErr);
+          await base44.entities.EventRegistration.delete(reg.id).catch((delErr) => {
+            console.warn('Delete EventRegistration gagal:', delErr);
+          });
+        }
+      } else if (currentUserId) {
+        const allEvRegs = await base44.entities.EventRegistration.filter({ event_id: ev.id }).catch(() => []);
+        for (const r of allEvRegs) {
+          if (r.student_user_id === currentUserId || (currentMatric && r.student_id === currentMatric)) {
+            await base44.entities.EventRegistration.update(r.id, { status: 'Cancelled' })
+              .catch(() => base44.entities.EventRegistration.delete(r.id).catch(() => {}));
+          }
+        }
+      }
+
+      // 3. Kemas kini Event count jika dibenarkan (tangani sekatan RLS pelajar secara senyap)
+      await base44.entities.Event.update(ev.id, { 
+        current_registrations: Math.max(0, (Number(ev.current_registrations) || 1) - 1) 
+      }).catch(() => {});
+
+      // 4. Segerakkan state tempatan serta-merta tanpa perlu tunggu reload
+      setMyRegistrations(prev => prev.filter(r => r.event_id !== ev.id));
       setEvents(prev => prev.map(e => e.id === ev.id ? { 
         ...e, 
         registered_count: Math.max(0, (Number(e.registered_count ?? e.current_registrations) || 1) - 1),
-        current_registrations: Math.max(0, (e.current_registrations || 1) - 1) 
+        current_registrations: Math.max(0, (Number(e.current_registrations) || 1) - 1) 
       } : e));
-      toast({ title: 'Pendaftaran acara dibatalkan' });
+
+      toast({ 
+        title: 'Pendaftaran Dibatalkan',
+        description: `Penyertaan anda dalam "${ev.event_name || 'acara ini'}" telah dibatalkan.`
+      });
+
+      await logAudit(user, 'EVENT_REGISTRATION_CANCELLED', 'Events', {
+        event_id: ev.id,
+        event_name: ev.event_name,
+        student_name: student?.full_name || user?.full_name
+      }).catch(() => {});
+
+      // Muat semula pendaftaran aktif di latar belakang
       init();
     } catch (err) {
-      toast({ title: 'Ralat pembatalan', variant: 'destructive' });
+      console.error('Ralat pembatalan pendaftaran:', err);
+      toast({ 
+        title: 'Ralat pembatalan', 
+        description: 'Sila cuba lagi atau hubungi pentadbir kolej.',
+        variant: 'destructive' 
+      });
+    } finally {
+      setCancellingId(null);
     }
   }
 
   async function viewParticipants(ev) {
     const regs = await base44.entities.EventRegistration.filter({ event_id: ev.id });
-    setParticipants(regs || []);
+    setParticipants((regs || []).filter(r => r.status !== 'Cancelled'));
     setViewingEvent(ev);
   }
 
@@ -1888,8 +1946,20 @@ export default function Events() {
                               <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300" /> Anda Telah Berdaftar
                               </span>
-                              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50" onClick={() => cancelRegistration(ev)}>
-                                Batal Pendaftaran
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                disabled={cancellingId === ev.id}
+                                className="h-6 px-2 text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 disabled:opacity-50" 
+                                onClick={() => cancelRegistration(ev)}
+                              >
+                                {cancellingId === ev.id ? (
+                                  <span className="flex items-center gap-1">
+                                    <Loader2 className="w-3 h-3 animate-spin" /> Membatalkan...
+                                  </span>
+                                ) : (
+                                  'Batal Pendaftaran'
+                                )}
                               </Button>
                             </div>
                           </div>
