@@ -71,6 +71,7 @@ const statusBadge = {
   Submitted: 'bg-slate-100 text-slate-800 border-slate-300',
   'Reported to MyServ': 'bg-blue-100 text-blue-800 border-blue-300',
   'Followed Up': 'bg-purple-100 text-purple-800 border-purple-300',
+  Assigned: 'bg-indigo-100 text-indigo-800 border-indigo-300',
   'In Progress': 'bg-indigo-100 text-indigo-800 border-indigo-300', 
   Completed: 'bg-emerald-100 text-emerald-800 border-emerald-300' 
 };
@@ -79,7 +80,8 @@ const STATUS_LABELS = {
   Submitted: '1. Aduan Baru (Menunggu TAMS)',
   'Reported to MyServ': '2. Didaftar ke TAMS',
   'Followed Up': '3. Susulan / Hebahan JPP',
-  'In Progress': '4. Tindakan JPP Berjalan',
+  Assigned: '4. Tindakan JPP / Pembaikan Kontraktor',
+  'In Progress': '4. Tindakan JPP / Pembaikan Kontraktor',
   Completed: '5. Disahkan Selesai (Siap)'
 };
 
@@ -857,7 +859,7 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
         updatePayload.completed_at = nowIso;
         updatePayload.completion_date = nowIso.split('T')[0];
         updatePayload.verified_by = `Staf/Felo: ${currentUser?.full_name || currentUser?.name || currentUser?.email}`;
-      } else if (newStatus === 'In Progress') {
+      } else if (newStatus === 'In Progress' || newStatus === 'Assigned') {
         updatePayload.last_followed_up_at = nowIso;
         updatePayload.latest_followup_note = 'Status dikemaskini: Tindakan pembaikan kontraktor JPP sedang berjalan.';
       }
@@ -905,6 +907,8 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
     } else if (filter === 'overdue') {
       const days = getDaysElapsed(r.submitted_at || r.created_date);
       if (r.status === 'Completed' || days < 3) return false;
+    } else if (filter === 'In Progress') {
+      if (r.status !== 'In Progress' && r.status !== 'Assigned') return false;
     } else if (filter !== r.status) {
       return false;
     }
@@ -1240,7 +1244,7 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
               <SelectItem value="Submitted">1. Aduan Baru ({requests.filter(r => r.status === 'Submitted').length})</SelectItem>
               <SelectItem value="Reported to MyServ">2. Didaftar TAMS ({requests.filter(r => r.status === 'Reported to MyServ').length})</SelectItem>
               <SelectItem value="Followed Up">3. Susulan / Hebahan JPP ({requests.filter(r => r.status === 'Followed Up').length})</SelectItem>
-              <SelectItem value="In Progress">4. Tindakan JPP Berjalan ({requests.filter(r => r.status === 'In Progress').length})</SelectItem>
+              <SelectItem value="In Progress">4. Tindakan JPP / Pembaikan ({requests.filter(r => r.status === 'In Progress' || r.status === 'Assigned').length})</SelectItem>
               <SelectItem value="Completed">5. Disahkan Selesai ({totalCompleted})</SelectItem>
             </SelectContent>
           </Select>
@@ -1282,7 +1286,7 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
           {filtered.map(r => {
             const hasRef = Boolean(r.myserv_ticket_no);
             const isCompleted = r.status === 'Completed';
-            const inAction = r.status === 'In Progress' || r.status === 'Followed Up' || isCompleted;
+            const inAction = r.status === 'In Progress' || r.status === 'Assigned' || r.status === 'Followed Up' || isCompleted;
             const unitInfo = CATEGORY_UNIT_MAP[r.category] || CATEGORY_UNIT_MAP['Others'];
             const daysElapsed = getDaysElapsed(r.submitted_at || r.created_date);
             const isOverdue = !isCompleted && daysElapsed >= 3;
@@ -1333,17 +1337,17 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       {isStaff && !isCompleted ? (
                         <Select 
-                          value={r.status} 
+                          value={r.status === 'Assigned' ? 'In Progress' : r.status} 
                           onValueChange={(newVal) => handleQuickStatusChange(r.id, newVal)}
                         >
-                          <SelectTrigger className="h-6 text-[10px] w-32 border-slate-300 bg-white dark:bg-slate-900 font-semibold">
+                          <SelectTrigger className="h-6 text-[10px] w-36 border-slate-300 bg-white dark:bg-slate-900 font-semibold">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="Submitted">1. Aduan Baru</SelectItem>
                             <SelectItem value="Reported to MyServ">2. Daftar TAMS</SelectItem>
                             <SelectItem value="Followed Up">3. Susulan JPP</SelectItem>
-                            <SelectItem value="In Progress">4. Pembaikan JPP</SelectItem>
+                            <SelectItem value="In Progress">4. Tindakan JPP / Pembaikan</SelectItem>
                             <SelectItem value="Completed">5. Selesai (Siap)</SelectItem>
                           </SelectContent>
                         </Select>

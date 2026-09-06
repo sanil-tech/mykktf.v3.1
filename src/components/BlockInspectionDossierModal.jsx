@@ -28,7 +28,8 @@ const STATUS_LABELS = {
   Submitted: '1. Aduan Baru (Menunggu TAMS)',
   'Reported to MyServ': '2. Didaftar ke TAMS',
   'Followed Up': '3. Susulan / Hebahan JPP',
-  'In Progress': '4. Tindakan JPP Berjalan',
+  Assigned: '4. Tindakan JPP / Pembaikan Kontraktor',
+  'In Progress': '4. Tindakan JPP / Pembaikan Kontraktor',
   Completed: '5. Disahkan Selesai (Siap)'
 };
 
@@ -100,6 +101,8 @@ export default function BlockInspectionDossierModal({
         if (r.status === 'Completed') return false;
       } else if (statusFilter === 'Completed' || statusFilter === 'completed') {
         if (r.status !== 'Completed') return false;
+      } else if (statusFilter === 'In Progress') {
+        if (r.status !== 'In Progress' && r.status !== 'Assigned') return false;
       } else if (statusFilter !== r.status) {
         return false;
       }
@@ -192,7 +195,7 @@ export default function BlockInspectionDossierModal({
                 <SelectItem value="Submitted">1. Aduan Baru ({requests.filter(r => r.status === 'Submitted').length})</SelectItem>
                 <SelectItem value="Reported to MyServ">2. Didaftar TAMS ({requests.filter(r => r.status === 'Reported to MyServ').length})</SelectItem>
                 <SelectItem value="Followed Up">3. Susulan / Hebahan JPP ({requests.filter(r => r.status === 'Followed Up').length})</SelectItem>
-                <SelectItem value="In Progress">4. Tindakan JPP Berjalan ({requests.filter(r => r.status === 'In Progress').length})</SelectItem>
+                <SelectItem value="In Progress">4. Tindakan JPP / Pembaikan ({requests.filter(r => r.status === 'In Progress' || r.status === 'Assigned').length})</SelectItem>
                 <SelectItem value="Completed">5. Disahkan Selesai ({requests.filter(r => r.status === 'Completed').length})</SelectItem>
               </SelectContent>
             </Select>
@@ -361,9 +364,9 @@ export default function BlockInspectionDossierModal({
                   filteredDossierRequests.map((r, idx) => {
                     const unitInfo = categoryUnitMap[r.category] || { unit: 'Penyelenggaraan Am' };
                     const isUrgent = r.urgency === 'Urgent';
-                    const isDone = r.status === 'Completed';
-                    const hasTams = Boolean(r.myserv_ticket_no);
-                    const inProgress = r.status === 'In Progress' || Boolean(r.latest_followup_note);
+                    const isDone = r.status === 'Completed' || r.status === 'completed' || r.status === 'Selesai' || r.status === 'Resolved';
+                    const hasTams = Boolean(r.myserv_ticket_no) || r.status === 'Reported to MyServ' || isDone;
+                    const inProgress = r.status === 'In Progress' || r.status === 'Assigned' || r.status === 'assigned' || r.status === 'Followed Up' || Boolean(r.latest_followup_note) || isDone;
                     const cDetails = resolveComplainantFullDetails(r, studentsMap, wardensMap, currentUser);
 
                     return (
@@ -475,7 +478,7 @@ export default function BlockInspectionDossierModal({
                               <span className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-bold ${
                                 isDone 
                                   ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs' 
-                                  : r.status === 'In Progress'
+                                  : r.status === 'In Progress' || r.status === 'Assigned' || r.status === 'assigned'
                                     ? 'bg-indigo-100 text-indigo-800 border border-indigo-300'
                                     : r.status === 'Followed Up'
                                       ? 'bg-purple-100 text-purple-800 border border-purple-300'
@@ -510,14 +513,14 @@ export default function BlockInspectionDossierModal({
                               </div>
 
                               {/* 3. TINDAKAN KONTRAKTOR / JPP */}
-                              <div className={`flex items-center gap-1 ${inProgress || isDone ? 'text-purple-900 font-semibold' : 'text-slate-400'}`}>
+                              <div className={`flex items-center gap-1 ${inProgress || isDone ? 'text-indigo-900 font-semibold' : 'text-slate-400'}`}>
                                 <span className={`w-3 h-3 rounded-[3px] flex items-center justify-center text-[7px] font-bold shrink-0 ${
-                                  inProgress || isDone ? 'bg-purple-600 text-white' : 'border border-slate-300 bg-slate-50 text-transparent'
+                                  inProgress || isDone ? 'bg-indigo-600 text-white' : 'border border-slate-300 bg-slate-50 text-transparent'
                                 }`}>
                                   ✓
                                 </span>
                                 <span className="truncate">
-                                  {inProgress || isDone ? '3. Pembaikan JPP' : '3. Menunggu JPP'}
+                                  {inProgress || isDone ? '3. Pembaikan Kontraktor / JPP' : '3. Menunggu JPP'}
                                 </span>
                               </div>
 
