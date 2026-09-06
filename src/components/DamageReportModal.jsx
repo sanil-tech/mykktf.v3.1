@@ -418,3 +418,5 @@ ${request.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di l
     </Dialog>
   );
 }
+
+export { DamageReportModal };

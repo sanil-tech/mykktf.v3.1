@@ -557,3 +557,5 @@ export default function BlockInspectionDossierModal({
     </Dialog>
   );
 }
+
+export { BlockInspectionDossierModal };
