@@ -40,13 +40,15 @@ import {
   Zap,
   MapPin,
   Globe,
-  AlertCircle
+  AlertCircle,
+  FileText
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { logAudit } from "@/lib/audit";
 import { getEventModalityInfo } from "@/pages/Events";
 import { fetchAndSyncDropKeyRequests } from '@/lib/dropKeyHelper';
+import PrincipalEventDetailModal from '@/components/PrincipalEventDetailModal';
 
 export default function AdminDashboard({ user }) {
   const navigate = useNavigate();
@@ -63,6 +65,7 @@ export default function AdminDashboard({ user }) {
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectingEvent, setRejectingEvent] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [selectedEventForReview, setSelectedEventForReview] = useState(null);
 
   const isPrincipal = user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.role === 'principal' || user?.effectiveRole === 'principal';
 
@@ -108,20 +111,28 @@ export default function AdminDashboard({ user }) {
     return Array.from(map.values());
   }, [wardenBlocks]);
 
-  const handleApproveEventByPrincipal = async (ev) => {
+  const handleApproveEventByPrincipal = async (ev, principalNotes = '') => {
     try {
-      await base44.entities.Event.update(ev.id, { 
+      const updatePayload = { 
         felo_approval_status: 'Approved',
         status: 'Upcoming'
+      };
+      if (principalNotes) {
+        updatePayload.principal_notes = principalNotes;
+      }
+      await base44.entities.Event.update(ev.id, updatePayload);
+      await logAudit(user, 'EVENT_APPROVED_PRINCIPAL', 'Events', { 
+        id: ev.id, 
+        name: ev.event_name,
+        principal_notes: principalNotes
       });
-      await logAudit(user, 'EVENT_APPROVED_PRINCIPAL', 'Events', { id: ev.id, name: ev.event_name });
       
       // Hantar hebahan automatik
       try {
         const modalityInfo = getEventModalityInfo(ev);
         await base44.entities.Announcement.create({
           title: `📢 Acara Diluluskan: ${ev.event_name}`,
-          content: `Acara kolej "${ev.event_name}" (${modalityInfo.label}) telah diluluskan rasmi oleh Pengetua Kolej.\n\n📅 Tarikh: ${ev.event_date} ${ev.event_time || ''}\n📍 Tempat: ${ev.venue}\n🏆 Ganjaran: +${ev.merit_points || 10} Merit Kolej\n\nSila layari menu 'Events' dalam sistem untuk mendaftar sekarang!`,
+          content: `Acara kolej "${ev.event_name}" (${modalityInfo.label}) telah diluluskan rasmi oleh Pengetua Kolej.\n\n📅 Tarikh: ${ev.event_date} ${ev.event_time || ''}\n📍 Tempat: ${ev.venue}\n🏆 Ganjaran: +${ev.merit_points || 10} Merit Kolej\n\n${principalNotes ? `Catatan Pengetua: "${principalNotes}"\n\n` : ''}Sila layari menu 'Events' dalam sistem untuk mendaftar sekarang!`,
           category: 'Event',
           is_pinned: false,
           author_role: 'principal',
@@ -512,22 +523,32 @@ export default function AdminDashboard({ user }) {
                           <p>📍 {ev.venue || 'KKTF'} • 📅 {ev.event_date || 'Akan dimaklumkan'}</p>
                           <p>👤 Dicadang: <span className="font-semibold text-foreground">{ev.organizer || ev.creator_name || 'Felo / JAKMAS'}</span></p>
                         </div>
-                        <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-border/50">
+                        <div className="space-y-1.5 pt-1 border-t border-border/50">
                           <Button
                             size="sm"
-                            onClick={() => handleApproveEventByPrincipal(ev)}
-                            className="h-7 text-[10.5px] font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg gap-1 shadow-xs"
+                            variant="secondary"
+                            onClick={() => setSelectedEventForReview(ev)}
+                            className="w-full h-7 text-[10.5px] font-bold bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900/80 text-amber-900 dark:text-amber-200 rounded-lg gap-1 border border-amber-300/60"
                           >
-                            <CheckCircle className="w-3 h-3" /> Luluskan
+                            <FileText className="w-3 h-3 text-amber-600" /> Semak Kertas Cadangan Penuh
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleOpenRejectModal(ev)}
-                            className="h-7 text-[10.5px] font-bold text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg gap-1"
-                          >
-                            <XCircle className="w-3 h-3" /> Tolak
-                          </Button>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <Button
+                              size="sm"
+                              onClick={() => handleApproveEventByPrincipal(ev)}
+                              className="h-7 text-[10.5px] font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg gap-1 shadow-xs"
+                            >
+                              <CheckCircle className="w-3 h-3" /> Luluskan
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOpenRejectModal(ev)}
+                              className="h-7 text-[10.5px] font-bold text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg gap-1"
+                            >
+                              <XCircle className="w-3 h-3" /> Tolak
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1259,20 +1280,30 @@ export default function AdminDashboard({ user }) {
                         </p>
                       )}
 
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60">
+                      <div className="space-y-2 pt-2 border-t border-border/60">
                         <Button
-                          onClick={() => handleApproveEventByPrincipal(ev)}
-                          className="h-9 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl gap-1.5 shadow-xs"
+                          variant="secondary"
+                          onClick={() => setSelectedEventForReview(ev)}
+                          className="w-full h-9 text-xs font-bold bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-900 dark:text-amber-200 rounded-xl gap-2 border border-amber-300 shadow-2xs"
                         >
-                          <CheckCircle className="w-4 h-4" /> Luluskan Rasmi (Pengetua)
+                          <FileText className="w-4 h-4 text-amber-600" /> Semak Kertas Cadangan Penuh & Catatan Pengetua
                         </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => handleOpenRejectModal(ev)}
-                          className="h-9 text-xs font-bold text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-xl gap-1.5"
-                        >
-                          <XCircle className="w-4 h-4" /> Tolak Kertas Cadangan
-                        </Button>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            onClick={() => handleApproveEventByPrincipal(ev)}
+                            className="h-9 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl gap-1.5 shadow-xs"
+                          >
+                            <CheckCircle className="w-4 h-4" /> Luluskan Rasmi (Pengetua)
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleOpenRejectModal(ev)}
+                            className="h-9 text-xs font-bold text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-xl gap-1.5"
+                          >
+                            <XCircle className="w-4 h-4" /> Tolak Kertas Cadangan
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1316,6 +1347,19 @@ export default function AdminDashboard({ user }) {
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* DOSIER KERTAS CADANGAN & KELULUSAN EKSEKUTIF PENGETUA */}
+    <PrincipalEventDetailModal
+      open={!!selectedEventForReview}
+      onOpenChange={(isOpen) => !isOpen && setSelectedEventForReview(null)}
+      event={selectedEventForReview}
+      user={user}
+      onApprove={handleApproveEventByPrincipal}
+      onReject={handleOpenRejectModal}
+      onEditModality={(ev) => {
+        navigate('/events');
+      }}
+    />
 
     </div>
   );

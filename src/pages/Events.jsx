@@ -33,13 +33,15 @@ import {
   Video,
   ExternalLink,
   Sparkles,
-  Pencil
+  Pencil,
+  FileText
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { CardGridSkeleton } from '@/components/shared/ListSkeletons';
 import { computeEffectiveRole, fetchActiveJakmasAppointment } from '@/lib/jakmas';
 import { logAudit } from '@/lib/audit';
 import { showPhoneNotification } from '@/lib/pushNotifications';
+import PrincipalEventDetailModal from '@/components/PrincipalEventDetailModal';
 
 const MANAGE_ROLES = ['super_admin', 'principal', 'college_admin', 'warden', 'staff', 'jakmas'];
 
@@ -272,6 +274,9 @@ export default function Events() {
     meeting_link: ''
   });
 
+  // Principal Event Dossier / Review Modal State
+  const [selectedEventForReview, setSelectedEventForReview] = useState(null);
+
   function openQuickModalityModal(ev) {
     const info = getEventModalityInfo(ev);
     setQuickModalityEvent(ev);
@@ -444,21 +449,42 @@ export default function Events() {
     }
   }
 
-  async function handleApproveEvent(ev) {
+  async function handleApproveEvent(ev, principalNotes = '') {
     try {
-      await base44.entities.Event.update(ev.id, { 
+      const updatePayload = { 
         felo_approval_status: 'Approved',
         status: 'Upcoming'
+      };
+      if (principalNotes) {
+        updatePayload.principal_notes = principalNotes;
+      }
+      await base44.entities.Event.update(ev.id, updatePayload);
+
+      // Simpan juga ke cache tempatan
+      try {
+        const metaKey = `mykktf_event_meta_${ev.id}`;
+        const existingMeta = JSON.parse(localStorage.getItem(metaKey) || '{}');
+        localStorage.setItem(metaKey, JSON.stringify({
+          ...existingMeta,
+          principal_notes: principalNotes || existingMeta.principal_notes,
+          felo_approval_status: 'Approved'
+        }));
+      } catch (e) {}
+
+      await logAudit(user, 'EVENT_APPROVED', 'Events', { 
+        id: ev.id, 
+        name: ev.event_name,
+        principal_notes: principalNotes || 'Diluluskan oleh Pengetua Kolej'
       });
-      await logAudit(user, 'EVENT_APPROVED', 'Events', { id: ev.id, name: ev.event_name });
       
       // Hantar notifikasi automatik kepada residen & penganjur
       await dispatchEventApprovalNotifications(ev, user);
 
       toast({ 
         title: 'Acara Diluluskan & Hebahan Dikeluarkan! 🎉', 
-        description: `Acara "${ev.event_name}" telah diluluskan. Notifikasi dan hebahan rasmi telah dihantar kepada residen serta penganjur.` 
+        description: `Acara "${ev.event_name}" telah diluluskan rasmi oleh Pengetua. Notifikasi dan hebahan telah dihantar kepada residen serta penganjur.` 
       });
+      setSelectedEventForReview(null);
       init();
     } catch (err) {
       toast({ title: 'Ralat meluluskan acara', variant: 'destructive' });
@@ -1195,30 +1221,53 @@ export default function Events() {
                       )}
 
                       {/* BUTANG TINDAKAN KELULUSAN (PENGETUA KOLEJ SAHAJA) */}
-                      {!isApproved && !isRejected && (
+                      {!isApproved && !isRejected ? (
                         canApproveEvents ? (
-                          <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-amber-200/50 dark:border-amber-900/40">
+                          <div className="space-y-1.5 pt-1.5 border-t border-amber-200/50 dark:border-amber-900/40">
                             <Button
                               size="sm"
-                              onClick={() => handleApproveEvent(ev)}
-                              className="h-8 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl gap-1 shadow-xs"
+                              variant="secondary"
+                              onClick={() => setSelectedEventForReview(ev)}
+                              className="w-full h-8 text-xs font-bold bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-900 dark:text-amber-200 rounded-xl gap-1.5 border border-amber-300 shadow-2xs"
                             >
-                              <CheckCircle className="w-3.5 h-3.5" /> Luluskan
+                              <FileText className="w-3.5 h-3.5 text-amber-600" /> Semak Kertas Cadangan & Perakuan
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openRejectModal(ev)}
-                              className="h-8 text-xs font-bold text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-xl gap-1"
-                            >
-                              <XCircle className="w-3.5 h-3.5" /> Tolak
-                            </Button>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleApproveEvent(ev)}
+                                className="h-8 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl gap-1 shadow-xs"
+                              >
+                                <CheckCircle className="w-3.5 h-3.5" /> Lulus Pantas
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openRejectModal(ev)}
+                                className="h-8 text-xs font-bold text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-xl gap-1"
+                              >
+                                <XCircle className="w-3.5 h-3.5" /> Tolak
+                              </Button>
+                            </div>
                           </div>
                         ) : (
                           <div className="pt-1.5 border-t border-amber-200/50 dark:border-amber-900/40">
                             <p className="text-[10px] text-amber-800 dark:text-amber-300 bg-amber-500/10 px-2.5 py-1.5 rounded-xl border border-amber-300/40 font-medium">
                               ⏳ Acara ini sedang menunggu perakuan & kelulusan rasmi Pengetua Kolej.
                             </p>
+                          </div>
+                        )
+                      ) : (
+                        canApproveEvents && (
+                          <div className="pt-1 border-t border-border/50">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSelectedEventForReview(ev)}
+                              className="w-full h-7 text-[11px] font-semibold text-primary hover:bg-primary/10 rounded-lg gap-1.5"
+                            >
+                              <FileText className="w-3.5 h-3.5" /> Papar Kertas Cadangan & Watikah Rasmi
+                            </Button>
                           </div>
                         )
                       )}
@@ -2031,6 +2080,25 @@ export default function Events() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 7: BORANG / DOSIER KERTAS CADANGAN RASMI KELULUSAN PENGETUA KOLEJ   */}
+      {/* ========================================================================= */}
+      <PrincipalEventDetailModal
+        open={!!selectedEventForReview}
+        onOpenChange={(isOpen) => !isOpen && setSelectedEventForReview(null)}
+        event={selectedEventForReview}
+        user={user}
+        onApprove={handleApproveEvent}
+        onReject={(ev) => {
+          setSelectedEventForReview(null);
+          openRejectModal(ev);
+        }}
+        onEditModality={(ev) => {
+          setSelectedEventForReview(null);
+          openQuickModalityModal(ev);
+        }}
+      />
     </div>
   );
 }
