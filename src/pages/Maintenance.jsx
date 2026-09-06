@@ -68,19 +68,19 @@ const CATEGORY_UNIT_MAP = {
 };
 
 const statusBadge = { 
-  Submitted: 'bg-slate-100 text-slate-700 border-slate-200',
-  'Reported to MyServ': 'bg-blue-50 text-blue-700 border-blue-200',
-  'Followed Up': 'bg-purple-50 text-purple-700 border-purple-200',
-  'In Progress': 'bg-amber-50 text-amber-700 border-amber-200', 
-  Completed: 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+  Submitted: 'bg-slate-100 text-slate-800 border-slate-300',
+  'Reported to MyServ': 'bg-blue-100 text-blue-800 border-blue-300',
+  'Followed Up': 'bg-purple-100 text-purple-800 border-purple-300',
+  'In Progress': 'bg-indigo-100 text-indigo-800 border-indigo-300', 
+  Completed: 'bg-emerald-100 text-emerald-800 border-emerald-300' 
 };
 
 const STATUS_LABELS = {
-  Submitted: 'Menunggu No. TAMS',
-  'Reported to MyServ': 'Telah Lapor TAMS/JPP',
-  'Followed Up': 'Dihebahkan / Susulan JPP',
-  'In Progress': 'Tindakan JPP Berjalan',
-  Completed: 'Disahkan Selesai'
+  Submitted: '1. Aduan Baru (Menunggu TAMS)',
+  'Reported to MyServ': '2. Didaftar ke TAMS',
+  'Followed Up': '3. Susulan / Hebahan JPP',
+  'In Progress': '4. Tindakan JPP Berjalan',
+  Completed: '5. Disahkan Selesai (Siap)'
 };
 
 const COMMON_FACILITIES = [
@@ -848,6 +848,29 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
     }
   }
 
+  // QUICK STATUS CHANGE BY WARDEN / STAFF
+  async function handleQuickStatusChange(reqId, newStatus) {
+    try {
+      const nowIso = new Date().toISOString();
+      const updatePayload = { status: newStatus };
+      if (newStatus === 'Completed') {
+        updatePayload.completed_at = nowIso;
+        updatePayload.completion_date = nowIso.split('T')[0];
+        updatePayload.verified_by = `Staf/Felo: ${currentUser?.full_name || currentUser?.name || currentUser?.email}`;
+      } else if (newStatus === 'In Progress') {
+        updatePayload.last_followed_up_at = nowIso;
+        updatePayload.latest_followup_note = 'Status dikemaskini: Tindakan pembaikan kontraktor JPP sedang berjalan.';
+      }
+      await base44.entities.MaintenanceRequest.update(reqId, updatePayload);
+      await logAudit(currentUser, 'MAINTENANCE_STATUS_CHANGED', 'Maintenance', { id: reqId, newStatus });
+      toast.success(`Status aduan dikemaskini kepada "${STATUS_LABELS[newStatus] || newStatus}"`);
+      init();
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal mengemaskini status');
+    }
+  }
+
   // SEARCH AND FILTER LOGIC
   const filtered = requests.filter(r => {
     // STRICT SECURITY ISOLATION FOR STUDENTS:
@@ -1206,18 +1229,19 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-full sm:w-56 h-9 text-xs bg-card border-border">
+            <SelectTrigger className="w-full sm:w-64 h-9 text-xs bg-card border-border">
               <SelectValue placeholder="Tapis Status & Keutamaan" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{isStaff ? `Semua Laporan (${requests.length})` : `Semua Aduan Saya (${requests.length})`}</SelectItem>
               <SelectItem value="overdue">🚨 Perlu Susulan (&ge;3 Hari) ({totalOverdue})</SelectItem>
-              <SelectItem value="pending_ref">Menunggu No. TAMS</SelectItem>
-              <SelectItem value="has_ref">Telah Ada No. TAMS</SelectItem>
-              <SelectItem value="Submitted">Status: Submitted</SelectItem>
-              <SelectItem value="Followed Up">Status: Followed Up</SelectItem>
-              <SelectItem value="In Progress">Status: In Progress</SelectItem>
-              <SelectItem value="Completed">Status: Completed ({totalCompleted})</SelectItem>
+              <SelectItem value="pending_ref">⏳ Menunggu No. TAMS ({requests.filter(r => !r.myserv_ticket_no && r.status !== 'Completed').length})</SelectItem>
+              <SelectItem value="has_ref">📋 Telah Ada No. TAMS ({requests.filter(r => Boolean(r.myserv_ticket_no) && r.status !== 'Completed').length})</SelectItem>
+              <SelectItem value="Submitted">1. Aduan Baru ({requests.filter(r => r.status === 'Submitted').length})</SelectItem>
+              <SelectItem value="Reported to MyServ">2. Didaftar TAMS ({requests.filter(r => r.status === 'Reported to MyServ').length})</SelectItem>
+              <SelectItem value="Followed Up">3. Susulan / Hebahan JPP ({requests.filter(r => r.status === 'Followed Up').length})</SelectItem>
+              <SelectItem value="In Progress">4. Tindakan JPP Berjalan ({requests.filter(r => r.status === 'In Progress').length})</SelectItem>
+              <SelectItem value="Completed">5. Disahkan Selesai ({totalCompleted})</SelectItem>
             </SelectContent>
           </Select>
 
@@ -1258,6 +1282,7 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
           {filtered.map(r => {
             const hasRef = Boolean(r.myserv_ticket_no);
             const isCompleted = r.status === 'Completed';
+            const inAction = r.status === 'In Progress' || r.status === 'Followed Up' || isCompleted;
             const unitInfo = CATEGORY_UNIT_MAP[r.category] || CATEGORY_UNIT_MAP['Others'];
             const daysElapsed = getDaysElapsed(r.submitted_at || r.created_date);
             const isOverdue = !isCompleted && daysElapsed >= 3;
@@ -1306,14 +1331,62 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
                     </div>
 
                     <div className="flex flex-col items-end gap-1 shrink-0">
-                      <Badge variant="outline" className={`text-[10px] font-semibold ${statusBadge[r.status] || 'bg-slate-100'}`}>
-                        {STATUS_LABELS[r.status] || r.status}
-                      </Badge>
+                      {isStaff && !isCompleted ? (
+                        <Select 
+                          value={r.status} 
+                          onValueChange={(newVal) => handleQuickStatusChange(r.id, newVal)}
+                        >
+                          <SelectTrigger className="h-6 text-[10px] w-32 border-slate-300 bg-white dark:bg-slate-900 font-semibold">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Submitted">1. Aduan Baru</SelectItem>
+                            <SelectItem value="Reported to MyServ">2. Daftar TAMS</SelectItem>
+                            <SelectItem value="Followed Up">3. Susulan JPP</SelectItem>
+                            <SelectItem value="In Progress">4. Pembaikan JPP</SelectItem>
+                            <SelectItem value="Completed">5. Selesai (Siap)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge variant="outline" className={`text-[10px] font-semibold ${statusBadge[r.status] || 'bg-slate-100'}`}>
+                          {STATUS_LABELS[r.status] || r.status}
+                        </Badge>
+                      )}
                       {isUrgent && (
                         <span className="flex items-center gap-0.5 text-[9px] font-bold text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded-full">
                           <Flame className="w-2.5 h-2.5" /> Kecemasan
                         </span>
                       )}
+                    </div>
+                  </div>
+
+                  {/* MINI TIMELINE / 4-STAGE CHECKBOX PROGRESS (DISELARASKAN DENGAN DOSSIER) */}
+                  <div className="p-2 mb-2 bg-slate-50/90 dark:bg-slate-900/50 rounded-xl border border-slate-200/80 dark:border-slate-800 text-[10px] space-y-1">
+                    <div className="grid grid-cols-4 gap-1 text-center text-[8.5px]">
+                      {/* 1. Direkod */}
+                      <div className="p-1 rounded bg-slate-200/80 text-slate-800 font-semibold flex items-center justify-center gap-0.5 truncate" title="1. Aduan Direkod">
+                        <span>✓</span> <span>1. Rekod</span>
+                      </div>
+                      {/* 2. TAMS */}
+                      <div className={`p-1 rounded font-semibold flex items-center justify-center gap-0.5 truncate ${
+                        hasRef || r.status === 'Reported to MyServ' || isCompleted 
+                          ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                          : 'bg-slate-100 text-slate-400'
+                      }`} title={hasRef ? `No. TAMS: ${r.myserv_ticket_no}` : 'Belum TAMS'}>
+                        <span>{hasRef || r.status === 'Reported to MyServ' || isCompleted ? '✓' : '○'}</span> <span>2. TAMS</span>
+                      </div>
+                      {/* 3. Pembaikan */}
+                      <div className={`p-1 rounded font-semibold flex items-center justify-center gap-0.5 truncate ${
+                        inAction ? 'bg-purple-100 text-purple-800 border border-purple-200' : 'bg-slate-100 text-slate-400'
+                      }`} title="3. Pembaikan JPP / Kontraktor">
+                        <span>{inAction ? '✓' : '○'}</span> <span>3. JPP</span>
+                      </div>
+                      {/* 4. Selesai */}
+                      <div className={`p-1 rounded font-semibold flex items-center justify-center gap-0.5 truncate ${
+                        isCompleted ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold' : 'bg-slate-100 text-slate-400'
+                      }`} title="4. Disahkan Selesai (Siap)">
+                        <span>{isCompleted ? '✓' : '○'}</span> <span>4. Siap</span>
+                      </div>
                     </div>
                   </div>
 
