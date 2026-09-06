@@ -13,7 +13,8 @@ import {
   Lightbulb, Zap, Key, Eye as WindowIcon, Bed, 
   Layers, Archive, BookOpen, Camera, Check, RefreshCw,
   Search, Filter, Building, FileText, ArrowRight, ExternalLink,
-  ShieldAlert, Building2, Wrench, Crown
+  ShieldAlert, Building2, Wrench, Crown,
+  Bell, BellRing, MessageSquare, Phone, AlertCircle, Copy, CheckCheck
 } from 'lucide-react';
 import { logAudit } from '@/lib/audit';
 import { ALL_KKTF_BLOCKS } from '@/lib/kktfBlocks';
@@ -93,6 +94,10 @@ export default function RoomInspections() {
   const [uploadingItem, setUploadingItem] = useState(null);
   const [wardenNote, setWardenNote] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [activeViewTab, setActiveViewTab] = useState('inspections'); // 'inspections' | 'pending'
+  const [remindingStudentId, setRemindingStudentId] = useState(null);
+  const [bulkReminding, setBulkReminding] = useState(false);
+  const [sentReminders, setSentReminders] = useState({});
 
   // Inspection form state
   const [form, setForm] = useState({
@@ -636,14 +641,217 @@ export default function RoomInspections() {
     return inspections;
   }, [inspections, isStudent, isFelo, wardenBlocks, myInspection]);
 
+  // Helper: semak sama ada pelajar telah hantar pemeriksaan bilik
+  function hasStudentSubmittedInspection(student, inspectionList) {
+    if (!student || !Array.isArray(inspectionList)) return false;
+    return inspectionList.some(ins => {
+      const sMatric = String(student.student_id || '').trim().toLowerCase();
+      const insMatric = String(ins.student_id || '').trim().toLowerCase();
+      if (sMatric && insMatric && sMatric === insMatric) return true;
+
+      if (student.user_id && ins.inspected_by_user_id && String(student.user_id) === String(ins.inspected_by_user_id)) return true;
+
+      const sEmail = String(student.email || '').trim().toLowerCase();
+      const insEmail = String(ins.inspected_by_name || '').trim().toLowerCase();
+      if (sEmail && insEmail && sEmail === insEmail) return true;
+
+      const sName = String(student.full_name || '').trim().toLowerCase();
+      const insName = String(ins.student_name || '').trim().toLowerCase();
+      if (sName && insName && sName === insName && isSameBlock(student.block_name, ins.block_name) && String(student.room_number || '') === String(ins.room_number || '')) {
+        return true;
+      }
+      return false;
+    });
+  }
+
+  // Senarai residen aktif mengikut skop peranan (Felo mengikut blok jagaan, Pengetua/Pentadbir semua 14 blok)
+  const scopedResidents = useMemo(() => {
+    const residents = students.filter(s => {
+      const isCheckedOut = String(s.room_status || '').trim().toLowerCase() === 'checked out';
+      const isInactive = String(s.status || '').trim().toLowerCase() === 'inactive' && !s.room_number;
+      return !isCheckedOut && !isInactive;
+    });
+
+    if (isFelo) {
+      if (wardenBlocks.length === 0) return [];
+      return residents.filter(s => isBlockInList(s.block_name, wardenBlocks));
+    }
+    return residents;
+  }, [students, isFelo, wardenBlocks]);
+
+  // Senarai pelajar yang BELUM menghantar borang pemeriksaan bilik
+  const pendingInspectionStudents = useMemo(() => {
+    return scopedResidents.filter(s => !hasStudentSubmittedInspection(s, inspections));
+  }, [scopedResidents, inspections]);
+
+  function getStudentInspectionAge(student) {
+    const dateStr = student.check_in_date || student.check_in_at || student.created_date || student.updated_date;
+    if (!dateStr) return { hours: 0, isOverdue: false, label: 'Baru Masuk' };
+    const time = new Date(dateStr).getTime();
+    if (isNaN(time)) return { hours: 0, isOverdue: false, label: 'Baru Masuk' };
+    const diffMs = Date.now() - time;
+    const hours = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+    const isOverdue = hours > 48;
+    return {
+      hours,
+      isOverdue,
+      label: isOverdue ? `Lewat (${hours}j)` : `Baki ${Math.max(1, 48 - hours)}j`
+    };
+  }
+
+  const pendingOverdueCount = useMemo(() => {
+    return pendingInspectionStudents.filter(s => getStudentInspectionAge(s).isOverdue).length;
+  }, [pendingInspectionStudents]);
+
+  // Tapisan pelajar pending mengikut bar carian dan pilihan blok
+  const filteredPendingStudents = useMemo(() => {
+    return pendingInspectionStudents.filter(s => {
+      const matchesSearch = 
+        !searchQuery ||
+        s.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.student_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.room_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.block_name?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesBlock = selectedBlock === 'ALL' || isSameBlock(s.block_name, selectedBlock);
+      return matchesSearch && matchesBlock;
+    });
+  }, [pendingInspectionStudents, searchQuery, selectedBlock]);
+
+  // Helper pautan WhatsApp
+  function formatWhatsAppLink(phone, student) {
+    if (!phone) return null;
+    let cleaned = String(phone).replace(/[^0-9]/g, '');
+    if (cleaned.startsWith('0')) {
+      cleaned = '6' + cleaned;
+    }
+    if (!cleaned.startsWith('60')) {
+      cleaned = '60' + cleaned;
+    }
+    const senderTitle = isFelo 
+      ? `Felo ${student?.block_name || ''}` 
+      : isPrincipal 
+        ? 'Pengetua Kolej' 
+        : 'Pentadbiran Kolej Kediaman Tun Fuad (KKTF)';
+
+    const msg = `Assalamualaikum & Salam Sejahtera ${student?.full_name || 'Saudara/i'},\n\nPeringatan daripada ${senderTitle}:\nRekod kami mendapati anda belum melengkapkan Borang Pemeriksaan Bilik (48 Jam) bagi Bilik ${student?.room_number || 'anda'}.\n\nSila log masuk ke portal MyKKTF dan hantar semakan 8 inventori bilik segera untuk mengelakkan liabiliti kerosakan sedia ada & pemotongan demerit kolej.\n\nPautan: https://mykktf.ums.edu.my/room-inspections\n\nTerima kasih.`;
+    return `https://wa.me/${cleaned}?text=${encodeURIComponent(msg)}`;
+  }
+
+  // Salin templat hebahan WhatsApp/Telegram untuk kumpulan blok
+  function copyAnnouncementTemplate() {
+    const sender = isFelo 
+      ? `Felo ${wardenBlocks.join(', ') || 'Blok'}` 
+      : isPrincipal 
+        ? 'Pengetua Kolej Kediaman Tun Fuad' 
+        : 'Pentadbiran Kolej Kediaman Tun Fuad';
+
+    const text = `*PERINGATAN PEMERIKSAAN BILIK (48 JAM) — KOLEJ KEDIAMAN TUN FUAD*\n\nPerhatian kepada semua residen yang belum melengkapkan pemeriksaan 8 inventori bilik:\n\n1. Sila periksa 8 komponen inventori bilik anda (suis lampu, soket elektrik, tombol pintu, tingkap/selak, tilam, katil, almari, meja belajar).\n2. Log masuk ke portal MyKKTF dan hantar laporan dalam tempoh 48 jam selepas menerima kunci.\n3. Sebarang kerosakan yang tidak dilaporkan dalam tempoh 48 jam akan dianggap berlaku semasa penginapan dan menjadi tanggungan pelajar semasa check-out.\n\nSila ambil tindakan segera.\n\nDaripada:\n${sender}\nKolej Kediaman Tun Fuad, Universiti Malaysia Sabah`;
+
+    navigator.clipboard.writeText(text);
+    toast({
+      title: 'Teks Hebahan Disalin!',
+      description: 'Templat peringatan WhatsApp/Telegram telah disalin ke papan keratan.'
+    });
+  }
+
+  // Hantar peringatan individu
+  async function handleSendSingleReminder(student) {
+    if (!student) return;
+    const targetUserId = student.user_id || student.id;
+    const studentKey = student.id || student.student_id;
+    setRemindingStudentId(studentKey);
+
+    try {
+      if (targetUserId) {
+        await base44.entities.Notification.create({
+          user_id: targetUserId,
+          title: '⚠️ Peringatan: Sila Lengkapkan Pemeriksaan Bilik (48 Jam)',
+          message: `Peringatan daripada ${isFelo ? `Felo ${student.block_name || ''}` : isPrincipal ? 'Pengetua Kolej' : 'Pentadbiran Kolej'}: Anda belum menghantar Borang Pemeriksaan Bilik (48 Jam) bagi Bilik ${student.room_number || ''}. Sila lengkapkan pemeriksaan inventori segera di portal MyKKTF.`,
+          type: 'warning',
+          link: '/room-inspections',
+        });
+      }
+
+      setSentReminders(prev => ({
+        ...prev,
+        [studentKey]: Date.now()
+      }));
+
+      await logAudit(user, 'SINGLE_INSPECTION_REMINDER_SENT', 'RoomInspection', {
+        student_id: student.student_id,
+        student_name: student.full_name,
+        block_name: student.block_name,
+        room_number: student.room_number,
+      }).catch(() => {});
+
+      toast({
+        title: `Notifikasi Dihantar`,
+        description: `Peringatan telah dihantar ke portal ${student.full_name}.`
+      });
+    } catch (err) {
+      console.error('Ralat hantar notifikasi individu:', err);
+      toast({ title: 'Gagal Hantar', description: err.message, variant: 'destructive' });
+    } finally {
+      setRemindingStudentId(null);
+    }
+  }
+
+  // Hantar peringatan pukal kepada semua pelajar pending yang ditapis
+  async function handleSendBulkReminders() {
+    if (filteredPendingStudents.length === 0) {
+      toast({ title: 'Tiada Pelajar Pending', description: 'Semua pelajar telah melengkapkan pemeriksaan bilik.' });
+      return;
+    }
+
+    setBulkReminding(true);
+    try {
+      let sentCount = 0;
+      const newSent = { ...sentReminders };
+
+      for (const student of filteredPendingStudents) {
+        const targetUserId = student.user_id || student.id;
+        if (targetUserId) {
+          try {
+            await base44.entities.Notification.create({
+              user_id: targetUserId,
+              title: '⚠️ Peringatan Penting: Sila Lengkapkan Pemeriksaan Bilik (48 Jam)',
+              message: `Peringatan daripada ${isFelo ? `Felo ${student.block_name || ''}` : isPrincipal ? 'Pengetua Kolej' : 'Pentadbiran Kolej'}: Anda belum menghantar Borang Pemeriksaan Bilik (48 Jam) bagi Bilik ${student.room_number || ''}. Sila lengkapkan pemeriksaan 8 komponen inventori segera untuk mengelakkan liabiliti kerosakan sedia ada & penalti kolej.`,
+              type: 'warning',
+              link: '/room-inspections',
+            });
+            newSent[student.id || student.student_id] = Date.now();
+            sentCount++;
+          } catch (notifErr) {
+            console.warn('Gagal hantar notifikasi kepada', student.student_id, notifErr);
+          }
+        }
+      }
+
+      setSentReminders(newSent);
+
+      await logAudit(user, 'BULK_INSPECTION_REMINDERS_SENT', 'RoomInspection', {
+        sent_count: sentCount,
+        recipient_count: filteredPendingStudents.length,
+        scope: isFelo ? wardenBlocks.join(', ') : 'All Blocks'
+      }).catch(() => {});
+
+      toast({
+        title: `✅ ${sentCount} Peringatan Berjaya Dihantar`,
+        description: `Notifikasi telah dihantar ke portal pelajar yang belum membuat pemeriksaan bilik.`
+      });
+    } catch (err) {
+      console.error('Ralat semasa menghantar notifikasi pukal:', err);
+      toast({ title: 'Ralat Penghantaran', description: err.message, variant: 'destructive' });
+    } finally {
+      setBulkReminding(false);
+    }
+  }
+
   // Scoped students count for progress percentage
   const scopedStudentsCount = useMemo(() => {
-    if (isFelo && wardenBlocks.length > 0) {
-      const bs = students.filter(s => isBlockInList(s.block_name, wardenBlocks));
-      return bs.length || 1;
-    }
-    return students.length || 1;
-  }, [students, isFelo, wardenBlocks]);
+    return scopedResidents.length || 1;
+  }, [scopedResidents]);
 
   // List of blocks available for filtering
   const availableFilterBlocks = useMemo(() => {
@@ -654,8 +862,9 @@ export default function RoomInspections() {
     const blkNames = new Set(ALL_KKTF_BLOCKS);
     allBlocks.forEach(b => { if (b.block_name) blkNames.add(b.block_name); });
     inspections.forEach(i => { if (i.block_name) blkNames.add(i.block_name); });
+    scopedResidents.forEach(s => { if (s.block_name) blkNames.add(s.block_name); });
     return Array.from(blkNames).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [isFelo, wardenBlocks, allBlocks, inspections]);
+  }, [isFelo, wardenBlocks, allBlocks, inspections, scopedResidents]);
 
   // Filtered inspections for management list
   const filteredInspections = useMemo(() => {
@@ -774,7 +983,9 @@ export default function RoomInspections() {
                 <span className="text-xs font-bold text-amber-300">
                   {submittedCount} menunggu semakan {isFelo && wardenBlocks.length > 0 ? `(${wardenBlocks.join(', ')})` : isPrincipal ? '(Semua 14 Blok)' : '(Semua Blok)'}
                 </span>
-                <span className="text-[11px] text-slate-300">{verifiedCount} telah disahkan • {needAttentionCount} ada kerosakan</span>
+                <span className="text-[11px] text-slate-300">
+                  <strong className="text-amber-200">{pendingInspectionStudents.length}</strong> pending pemeriksaan • {verifiedCount} disahkan • {needAttentionCount} ada kerosakan
+                </span>
               </div>
             ) : isStudent && myInspection ? (
               <div className="flex items-center gap-2 bg-emerald-500/20 border border-emerald-400/40 px-4 py-2.5 rounded-xl text-emerald-200 text-xs font-semibold">
@@ -921,9 +1132,15 @@ export default function RoomInspections() {
             </div>
           )}
 
-          {/* Summary Metric Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs">
+          {/* Summary Metric Cards (5 Cards: Termasuk Pending Pemeriksaan Bilik mengikut skop blok) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {/* 1. JUMLAH HANTAR */}
+            <div 
+              onClick={() => setActiveViewTab('inspections')}
+              className={`bg-white border rounded-xl p-4 shadow-xs cursor-pointer transition-all hover:border-sky-300 ${
+                activeViewTab === 'inspections' ? 'border-sky-300 ring-1 ring-sky-200' : 'border-slate-100'
+              }`}
+            >
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Jumlah Hantar</p>
               <p className="text-2xl font-black text-slate-800 mt-1">{totalInspections}</p>
               <p className="text-[10px] text-slate-400 mt-0.5">{submissionPct}% daripada {scopedStudentsCount} pelajar {isFelo && wardenBlocks.length > 0 ? `(${wardenBlocks.join(', ')})` : isPrincipal ? '(Semua 14 Blok)' : ''}</p>
@@ -931,16 +1148,55 @@ export default function RoomInspections() {
                 <div className="h-full bg-sky-500 rounded-full transition-all" style={{ width: `${Math.min(submissionPct, 100)}%` }} />
               </div>
             </div>
+
+            {/* 2. PENDING PEMERIKSAAN (KAD STATISTIK BAHARU) */}
+            <div 
+              onClick={() => setActiveViewTab('pending')}
+              className={`bg-white border rounded-xl p-4 shadow-xs cursor-pointer transition-all hover:shadow-md hover:border-amber-400 relative group ${
+                activeViewTab === 'pending' ? 'ring-2 ring-amber-400 border-amber-300 bg-amber-50/20' : 'border-slate-100'
+              }`}
+              title="Klik untuk lihat senarai pelajar belum hantar & buat tindakan peringatan"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-amber-600" /> Pending Pemeriksaan
+                </p>
+                {pendingOverdueCount > 0 && (
+                  <span className="text-[9px] bg-rose-100 text-rose-700 font-bold px-1.5 py-0.5 rounded-full animate-pulse">
+                    {pendingOverdueCount} Lewat
+                  </span>
+                )}
+              </div>
+              <p className="text-2xl font-black text-amber-600 mt-1">{pendingInspectionStudents.length}</p>
+              <p className="text-[10px] text-amber-800/80 mt-0.5 font-medium truncate">
+                {isFelo 
+                  ? `${pendingInspectionStudents.length} pelajar (${wardenBlocks.join(', ') || 'Blok Jagaan'})` 
+                  : isPrincipal 
+                    ? `${pendingInspectionStudents.length} pelajar (Semua 14 Blok)` 
+                    : `${pendingInspectionStudents.length} pelajar kolej`}
+              </p>
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-[10px] font-bold text-amber-800 bg-amber-100/90 group-hover:bg-amber-200 px-2 py-0.5 rounded-md transition-colors flex items-center gap-1">
+                  <BellRing className="w-3 h-3 text-amber-700" /> Follow Up Pelajar →
+                </span>
+              </div>
+            </div>
+
+            {/* 3. MENUNGGU SEMAKAN */}
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs">
               <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Menunggu Semakan</p>
               <p className="text-2xl font-black text-amber-600 mt-1">{submittedCount}</p>
-              <p className="text-[10px] text-amber-400 mt-0.5">{isFelo ? `Tindakan Felo ${wardenBlocks.join(', ')}` : isPrincipal ? 'Tindakan Pengetua / Pentadbir (Semua 14 Blok)' : 'Perlu tindakan pentadbir/staf'}</p>
+              <p className="text-[10px] text-amber-400 mt-0.5 truncate">{isFelo ? `Tindakan Felo ${wardenBlocks.join(', ')}` : isPrincipal ? 'Tindakan Pengetua / Pentadbir (Semua 14 Blok)' : 'Perlu tindakan pentadbir/staf'}</p>
             </div>
+
+            {/* 4. ADA KEROSAKAN */}
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs">
               <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Ada Kerosakan</p>
               <p className="text-2xl font-black text-rose-600 mt-1">{needAttentionCount}</p>
               <p className="text-[10px] text-rose-400 mt-0.5">{reviewedCount} telah disemak</p>
             </div>
+
+            {/* 5. TELAH DISAHKAN */}
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs">
               <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Telah Disahkan</p>
               <p className="text-2xl font-black text-emerald-600 mt-1">{verifiedCount}</p>
@@ -948,135 +1204,379 @@ export default function RoomInspections() {
             </div>
           </div>
 
-          {/* Filters and Search Bar */}
-          <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs flex flex-col sm:flex-row items-center gap-3">
-            <div className="relative flex-1 w-full">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <Input
-                placeholder="Cari nama pelajar, no matrik, blok atau no bilik..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="pl-9 h-9 text-xs"
-              />
-            </div>
+          {/* View Tab Switcher: Inspections vs Pending Students */}
+          <div className="flex items-center gap-2 border-b border-slate-200 pt-1">
+            <button
+              type="button"
+              onClick={() => setActiveViewTab('inspections')}
+              className={`pb-3 px-3.5 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
+                activeViewTab === 'inspections'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              Laporan Telah Dihantar
+              <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold">
+                {accessibleInspections.length}
+              </span>
+            </button>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Select value={selectedBlock} onValueChange={setSelectedBlock}>
-                <SelectTrigger className="h-9 text-xs w-[140px]">
-                  <SelectValue placeholder="Pilih Blok" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(!isFelo || wardenBlocks.length > 1) && (
-                    <SelectItem value="ALL">
-                      {isFelo ? 'Semua Blok Jagaan' : isPrincipal ? 'Semua 14 Blok' : 'Semua Blok'}
-                    </SelectItem>
-                  )}
-                  {availableFilterBlocks.map(b => (
-                    <SelectItem key={b} value={b}>{b}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger className="h-9 text-xs w-[140px]">
-                  <SelectValue placeholder="Semua Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Semua Status</SelectItem>
-                  <SelectItem value="Submitted">Submitted</SelectItem>
-                  <SelectItem value="Reviewed">Reviewed</SelectItem>
-                  <SelectItem value="Verified">Verified</SelectItem>
-                  <SelectItem value="Rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {(searchQuery || selectedBlock !== 'ALL' || selectedStatus !== 'ALL') && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => { setSearchQuery(''); setSelectedBlock(isFelo && wardenBlocks.length === 1 ? wardenBlocks[0] : 'ALL'); setSelectedStatus('ALL'); }}
-                  className="text-xs text-slate-500 h-9 px-2"
-                >
-                  Reset
-                </Button>
+            <button
+              type="button"
+              onClick={() => setActiveViewTab('pending')}
+              className={`pb-3 px-3.5 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
+                activeViewTab === 'pending'
+                  ? 'border-amber-500 text-amber-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Clock className="w-4 h-4 text-amber-500" />
+              Pending Pemeriksaan (Belum Hantar)
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                pendingInspectionStudents.length > 0 ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {pendingInspectionStudents.length}
+              </span>
+              {pendingOverdueCount > 0 && (
+                <span className="text-[10px] bg-rose-500 text-white font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
+                  {pendingOverdueCount} Lewat
+                </span>
               )}
-            </div>
+            </button>
           </div>
 
-          {/* Inspections Table */}
-          <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-800">Senarai Rekod Pemeriksaan Bilik Mahasiswa</h3>
-              <span className="text-xs text-slate-400 font-medium">{filteredInspections.length} rekod dijumpai</span>
-            </div>
+          {/* TAB 1: LAPORAN TELAH DIHANTAR */}
+          {activeViewTab === 'inspections' && (
+            <>
+              {/* Filters and Search Bar */}
+              <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs flex flex-col sm:flex-row items-center gap-3">
+                <div className="relative flex-1 w-full">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <Input
+                    placeholder="Cari nama pelajar, no matrik, blok atau no bilik..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="pl-9 h-9 text-xs"
+                  />
+                </div>
 
-            {filteredInspections.length === 0 ? (
-              <div className="text-center py-16 text-slate-400 text-xs">
-                Tiada rekod pemeriksaan dijumpai mengikut tapisan yang dipilih.
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Select value={selectedBlock} onValueChange={setSelectedBlock}>
+                    <SelectTrigger className="h-9 text-xs w-[140px]">
+                      <SelectValue placeholder="Pilih Blok" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(!isFelo || wardenBlocks.length > 1) && (
+                        <SelectItem value="ALL">
+                          {isFelo ? 'Semua Blok Jagaan' : isPrincipal ? 'Semua 14 Blok' : 'Semua Blok'}
+                        </SelectItem>
+                      )}
+                      {availableFilterBlocks.map(b => (
+                        <SelectItem key={b} value={b}>{b}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                    <SelectTrigger className="h-9 text-xs w-[140px]">
+                      <SelectValue placeholder="Semua Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Semua Status</SelectItem>
+                      <SelectItem value="Submitted">Submitted</SelectItem>
+                      <SelectItem value="Reviewed">Reviewed</SelectItem>
+                      <SelectItem value="Verified">Verified</SelectItem>
+                      <SelectItem value="Rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {(searchQuery || selectedBlock !== 'ALL' || selectedStatus !== 'ALL') && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => { setSearchQuery(''); setSelectedBlock(isFelo && wardenBlocks.length === 1 ? wardenBlocks[0] : 'ALL'); setSelectedStatus('ALL'); }}
+                      className="text-xs text-slate-500 h-9 px-2"
+                    >
+                      Reset
+                    </Button>
+                  )}
+                </div>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b bg-slate-50/70 text-slate-500">
-                      <th className="text-left px-4 py-3 font-semibold uppercase tracking-wider">Pelajar</th>
-                      <th className="text-left px-4 py-3 font-semibold uppercase tracking-wider">Lokasi / Bilik</th>
-                      <th className="text-left px-4 py-3 font-semibold uppercase tracking-wider">Tarikh Periksa</th>
-                      <th className="text-left px-4 py-3 font-semibold uppercase tracking-wider">Status Komponen</th>
-                      <th className="text-left px-4 py-3 font-semibold uppercase tracking-wider">Status Laporan</th>
-                      <th className="text-right px-4 py-3 font-semibold uppercase tracking-wider">Tindakan</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredInspections.map(ins => {
-                      const hasDamage = ins.visible_damage !== 'None' || (ins.flagged_issues && ins.flagged_issues.trim() !== '');
-                      return (
-                        <tr key={ins.id} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="px-4 py-3">
-                            <p className="font-bold text-slate-800">{ins.student_name}</p>
-                            <p className="text-[10px] text-slate-400 font-mono">{ins.student_id || 'ID Pelajar'}</p>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="font-medium text-slate-700">{ins.block_name ? `${ins.block_name} · ` : ''}</span>
-                            <span className="font-bold text-slate-900">Bilik {ins.room_number}</span>
-                          </td>
-                          <td className="px-4 py-3 text-slate-600">
-                            {ins.inspection_date || '—'}
-                          </td>
-                          <td className="px-4 py-3">
-                            {hasDamage ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
-                                <AlertTriangle className="w-3 h-3" /> Ada Kerosakan
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <Check className="w-3 h-3" /> Semua Baik
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${STATUS_COLORS[ins.status] || 'bg-slate-100 text-slate-700'}`}>
-                              {ins.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => setViewing(ins)}
-                              className="h-7 text-xs font-semibold text-sky-700 hover:bg-sky-50"
-                            >
-                              <Eye className="w-3.5 h-3.5 mr-1" /> Semak
-                            </Button>
-                          </td>
+
+              {/* Inspections Table */}
+              <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs">
+                <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-800">Senarai Rekod Pemeriksaan Bilik Mahasiswa</h3>
+                  <span className="text-xs text-slate-400 font-medium">{filteredInspections.length} rekod dijumpai</span>
+                </div>
+
+                {filteredInspections.length === 0 ? (
+                  <div className="text-center py-16 text-slate-400 text-xs">
+                    Tiada rekod pemeriksaan dijumpai mengikut tapisan yang dipilih.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b bg-slate-50/70 text-slate-500">
+                          <th className="text-left px-4 py-3 font-semibold uppercase tracking-wider">Pelajar</th>
+                          <th className="text-left px-4 py-3 font-semibold uppercase tracking-wider">Lokasi / Bilik</th>
+                          <th className="text-left px-4 py-3 font-semibold uppercase tracking-wider">Tarikh Periksa</th>
+                          <th className="text-left px-4 py-3 font-semibold uppercase tracking-wider">Status Komponen</th>
+                          <th className="text-left px-4 py-3 font-semibold uppercase tracking-wider">Status Laporan</th>
+                          <th className="text-right px-4 py-3 font-semibold uppercase tracking-wider">Tindakan</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredInspections.map(ins => {
+                          const hasDamage = ins.visible_damage !== 'None' || (ins.flagged_issues && ins.flagged_issues.trim() !== '');
+                          return (
+                            <tr key={ins.id} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="px-4 py-3">
+                                <p className="font-bold text-slate-800">{ins.student_name}</p>
+                                <p className="text-[10px] text-slate-400 font-mono">{ins.student_id || 'ID Pelajar'}</p>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="font-medium text-slate-700">{ins.block_name ? `${ins.block_name} · ` : ''}</span>
+                                <span className="font-bold text-slate-900">Bilik {ins.room_number}</span>
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">
+                                {ins.inspection_date || '—'}
+                              </td>
+                              <td className="px-4 py-3">
+                                {hasDamage ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+                                    <AlertTriangle className="w-3 h-3" /> Ada Kerosakan
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <Check className="w-3 h-3" /> Semua Baik
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${STATUS_COLORS[ins.status] || 'bg-slate-100 text-slate-700'}`}>
+                                  {ins.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => setViewing(ins)}
+                                  className="h-7 text-xs font-semibold text-sky-700 hover:bg-sky-50"
+                                >
+                                  <Eye className="w-3.5 h-3.5 mr-1" /> Semak
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
+
+          {/* TAB 2: PENDING PEMERIKSAAN BILIK (TINDAKAN PERINGATAN & FOLLOW UP PELAJAR) */}
+          {activeViewTab === 'pending' && (
+            <>
+              {/* Action and Filter Bar */}
+              <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+                <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto flex-1">
+                  <div className="relative flex-1 w-full sm:max-w-xs">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <Input
+                      placeholder="Cari nama pelajar, no matrik, bilik..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="pl-9 h-9 text-xs"
+                    />
+                  </div>
+
+                  <Select value={selectedBlock} onValueChange={setSelectedBlock}>
+                    <SelectTrigger className="h-9 text-xs w-full sm:w-[140px]">
+                      <SelectValue placeholder="Pilih Blok" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(!isFelo || wardenBlocks.length > 1) && (
+                        <SelectItem value="ALL">
+                          {isFelo ? 'Semua Blok Jagaan' : isPrincipal ? 'Semua 14 Blok' : 'Semua Blok'}
+                        </SelectItem>
+                      )}
+                      {availableFilterBlocks.map(b => (
+                        <SelectItem key={b} value={b}>{b}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {(searchQuery || selectedBlock !== 'ALL') && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => { setSearchQuery(''); setSelectedBlock(isFelo && wardenBlocks.length === 1 ? wardenBlocks[0] : 'ALL'); }}
+                      className="text-xs text-slate-500 h-9 px-2"
+                    >
+                      Reset
+                    </Button>
+                  )}
+                </div>
+
+                {/* Follow-up Quick Action Buttons */}
+                <div className="flex items-center gap-2 w-full md:w-auto shrink-0 justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={copyAnnouncementTemplate}
+                    className="h-9 text-xs font-semibold text-slate-700 hover:bg-slate-50 gap-1.5 rounded-lg border-slate-200"
+                    title="Salin templat peringatan untuk kumpulan WhatsApp/Telegram Blok"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-slate-500" /> Salin Teks Hebahan
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSendBulkReminders}
+                    disabled={bulkReminding || filteredPendingStudents.length === 0}
+                    className="h-9 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white gap-1.5 rounded-lg shadow-xs"
+                  >
+                    <BellRing className={`w-3.5 h-3.5 ${bulkReminding ? 'animate-spin' : ''}`} />
+                    {bulkReminding ? 'Menghantar...' : `Hantar Peringatan Pukal (${filteredPendingStudents.length})`}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Pending Students Table */}
+              <div className="bg-white border border-amber-200/70 rounded-2xl overflow-hidden shadow-xs">
+                <div className="p-4 bg-amber-50/50 border-b border-amber-100 flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-amber-950 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-amber-600" />
+                      Senarai Mahasiswa Belum Membuat Pemeriksaan Bilik (48 Jam)
+                    </h3>
+                    <p className="text-[11px] text-amber-800/80">
+                      {isFelo 
+                        ? `Pelajar di bawah seliaan Felo (${wardenBlocks.join(', ') || 'Blok Jagaan'}) yang belum menghantar inventori bilik`
+                        : 'Pelajar kolej (Semua 14 Blok) yang belum menghantar borang pemeriksaan inventori 48 jam'}
+                    </p>
+                  </div>
+                  <span className="text-xs text-amber-900 font-bold bg-amber-100/90 border border-amber-300 px-3 py-1 rounded-full">
+                    {filteredPendingStudents.length} pelajar pending
+                  </span>
+                </div>
+
+                {filteredPendingStudents.length === 0 ? (
+                  <div className="text-center py-16 px-4 space-y-2">
+                    <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+                      <Check className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-800">Tiada Pelajar Pending</h4>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                      Semua pelajar bagi blok yang ditapis telah melengkapkan Laporan Pemeriksaan Bilik. Tahniah!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b bg-slate-50/80 text-slate-600">
+                          <th className="text-left px-4 py-3 font-semibold uppercase tracking-wider">Mahasiswa</th>
+                          <th className="text-left px-4 py-3 font-semibold uppercase tracking-wider">Lokasi / Bilik</th>
+                          <th className="text-left px-4 py-3 font-semibold uppercase tracking-wider">Status Tempoh 48 Jam</th>
+                          <th className="text-left px-4 py-3 font-semibold uppercase tracking-wider">Maklumat Hubungan</th>
+                          <th className="text-right px-4 py-3 font-semibold uppercase tracking-wider">Tindakan Peringatan</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredPendingStudents.map(student => {
+                          const age = getStudentInspectionAge(student);
+                          const phone = student.phone || student.parent_phone || student.emergency_contact;
+                          const waUrl = formatWhatsAppLink(phone, student);
+                          const studentKey = student.id || student.student_id;
+                          const isSent = !!sentReminders[studentKey];
+
+                          return (
+                            <tr key={studentKey} className="hover:bg-amber-50/30 transition-colors">
+                              <td className="px-4 py-3">
+                                <p className="font-bold text-slate-900">{student.full_name || 'Pelajar'}</p>
+                                <p className="text-[10px] text-slate-500 font-mono">{student.student_id || 'Tiada No Matrik'}</p>
+                                {student.email && <p className="text-[10px] text-slate-400">{student.email}</p>}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="font-semibold text-slate-800">{student.block_name || 'Blok'} · </span>
+                                <span className="font-bold text-primary">Bilik {student.room_number || '—'}</span>
+                              </td>
+                              <td className="px-4 py-3">
+                                {age.isOverdue ? (
+                                  <div>
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-200">
+                                      <AlertCircle className="w-3 h-3 text-rose-600" /> Melebihi 48 Jam ({age.hours}j)
+                                    </span>
+                                    <p className="text-[9px] text-rose-600 mt-0.5 font-medium">Risiko liabiliti kerosakan bilik & demerit</p>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                                      <Clock className="w-3 h-3 text-amber-600" /> Dalam Tempoh ({age.label})
+                                    </span>
+                                    <p className="text-[9px] text-amber-600 mt-0.5 font-medium">Peringatan awal semakan 8 inventori</p>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                {phone ? (
+                                  <div className="space-y-1">
+                                    <p className="text-[11px] text-slate-700 font-mono flex items-center gap-1">
+                                      <Phone className="w-3 h-3 text-slate-400" /> {phone}
+                                    </p>
+                                    {waUrl && (
+                                      <a
+                                        href={waUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-2xs"
+                                        title="Hantar peringatan terus ke WhatsApp pelajar"
+                                      >
+                                        <MessageSquare className="w-3 h-3" /> WhatsApp
+                                      </a>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic">Tiada nombor telefon</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                {isSent ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <CheckCheck className="w-3.5 h-3.5 text-emerald-600" /> Peringatan Dihantar
+                                  </span>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleSendSingleReminder(student)}
+                                    disabled={remindingStudentId === studentKey}
+                                    className="h-7 text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg gap-1 shadow-xs"
+                                  >
+                                    <Bell className="w-3 h-3" /> 
+                                    {remindingStudentId === studentKey ? 'Menghantar...' : 'Hantar Notifikasi'}
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 
