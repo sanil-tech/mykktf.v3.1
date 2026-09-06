@@ -36,6 +36,7 @@ export function getNavItems(role, hasJakmas = false) {
     { label: 'Resident Directory', path: '/directory', icon: 'Users', roles: [] },
     { label: 'Rooms', path: '/rooms', icon: 'DoorOpen', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
     { label: 'Check-In/Out', path: '/check-in-out', icon: 'ArrowLeftRight', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.STAFF] },
+    { label: 'Drop-Key Check-Out', path: '/drop-key', icon: 'KeyRound', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
     { label: 'Pemeriksaan Bilik (48 Jam)', path: '/room-inspections', icon: 'CheckSquare', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
     { label: 'Leave', path: '/leave', icon: 'CalendarOff', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STUDENT] },
     { label: 'Leave Monitor', path: '/leave-monitor', icon: 'CalendarCheck', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN] },

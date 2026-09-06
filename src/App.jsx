@@ -45,6 +45,7 @@ import ResidentScanner from '@/pages/ResidentScanner';
 import MeritDemerit from '@/pages/MeritDemerit';
 import Contact from '@/pages/Contact';
 import RoomInspections from '@/pages/RoomInspections';
+import ExpressDropKey from '@/pages/ExpressDropKey';
 import { useState, useEffect } from 'react';
 
 const AuthenticatedApp = () => {
@@ -134,6 +135,8 @@ const AuthenticatedApp = () => {
           <Route path="/buku-panduan" element={<Presentation />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/hotline" element={<Contact />} />
+          <Route path="/drop-key" element={<ExpressDropKey />} />
+          <Route path="/express-checkout" element={<ExpressDropKey />} />
         </Route>
       </Route>
 

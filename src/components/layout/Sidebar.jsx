@@ -7,7 +7,7 @@ import {
   Megaphone, FileBarChart, ScrollText, X, ChevronLeft,
   MessageSquare, MessagesSquare, CalendarCheck, Star, UserCog,
   CalendarDays, Users, ClipboardList, Sparkles, ScanLine, Award, ClipboardCheck, BookOpen,
-  CheckSquare, PhoneCall
+  CheckSquare, PhoneCall, KeyRound
 } from 'lucide-react';
 
 const iconMap = {
@@ -16,7 +16,7 @@ const iconMap = {
   Megaphone, FileBarChart, ScrollText,
   MessageSquare, MessagesSquare, CalendarCheck, Star, UserCog,
   CalendarDays, Users, ClipboardList, Sparkles, ScanLine, Award, ClipboardCheck, BookOpen,
-  CheckSquare, PhoneCall
+  CheckSquare, PhoneCall, KeyRound
 };
 
 export default function Sidebar({ userRole, hasJakmas, isStudentVerified = true, open, onClose, collapsed, onToggleCollapse }) {

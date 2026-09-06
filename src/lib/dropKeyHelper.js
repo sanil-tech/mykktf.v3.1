@@ -253,3 +253,50 @@ export async function rejectDropKeyRequest({
 
   return req;
 }
+
+/**
+ * Menentukan sama ada waktu semasa adalah Waktu Pejabat Rasmi (Office Hours)
+ * atau Luar Waktu Pejabat & Hujung Minggu (After Hours & Weekends).
+ * 
+ * Peraturan:
+ * - Waktu Pejabat: Isnin - Jumaat, 8:00 AM - 5:00 PM (17:00)
+ * - Luar Waktu Pejabat / Hujung Minggu:
+ *   - Hari Sabtu & Ahad: Sepanjang hari
+ *   - Hari Isnin - Jumaat: Sebelum 8:00 AM atau selepas 5:00 PM
+ */
+export function getOfficeHoursStatus(customDate = new Date()) {
+  const day = customDate.getDay(); // 0 = Ahad, 1 = Isnin, ..., 5 = Jumaat, 6 = Sabtu
+  const hour = customDate.getHours();
+  const minute = customDate.getMinutes();
+  const timeInMinutes = hour * 60 + minute;
+
+  const isWeekend = (day === 0 || day === 6);
+  // Waktu pejabat: Isnin - Jumaat, 08:00 pagi (480 minit) hingga 5:00 petang (1020 minit)
+  const isOfficeHoursTime = (timeInMinutes >= 8 * 60 && timeInMinutes < 17 * 60);
+
+  const isOfficeHours = !isWeekend && isOfficeHoursTime;
+  const isAfterHours = !isOfficeHours;
+
+  let reason = '';
+  if (isWeekend) {
+    reason = day === 6 ? 'Hujung Minggu (Hari Sabtu)' : 'Hujung Minggu (Hari Ahad)';
+  } else if (timeInMinutes < 8 * 60) {
+    reason = 'Awal pagi sebelum pejabat dibuka (sebelum 8:00 pagi)';
+  } else if (timeInMinutes >= 17 * 60) {
+    reason = 'Petang / malam selepas pejabat ditutup (selepas 5:00 petang)';
+  } else {
+    reason = 'Waktu Pejabat Pentadbiran Beroperasi (8:00 pagi - 5:00 petang)';
+  }
+
+  const dayNames = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
+
+  return {
+    isOfficeHours,
+    isAfterHours,
+    isWeekend,
+    reason,
+    dayName: dayNames[day],
+    currentTimeStr: customDate.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', hour12: true }),
+    currentDateStr: customDate.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' })
+  };
+}

@@ -242,17 +242,6 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
 
             <div className="flex items-center gap-2 flex-wrap">
               <DigitalResidentPass student={student} user={user} />
-              {student?.block_name && student?.room_number && student?.room_status !== 'Checked Out' && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setCheckOutModalOpen(true)}
-                  className="h-8 text-xs font-bold bg-white/10 hover:bg-white/20 text-white border-white/20 backdrop-blur-sm gap-1.5 rounded-xl shadow-xs"
-                >
-                  <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{activeDropKey ? 'Status Drop-Key' : 'Check-Out (Drop-Key)'}</span>
-                </Button>
-              )}
             </div>
           </div>
           
@@ -296,13 +285,14 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
               </p>
             </div>
           </div>
-          <Button
-            size="sm"
-            onClick={() => setCheckOutModalOpen(true)}
-            className="bg-amber-600 hover:bg-amber-700 text-white text-xs h-8 font-semibold rounded-xl gap-1 shrink-0"
-          >
-            Lihat Resit / Imbas Peti
-          </Button>
+          <Link to="/drop-key">
+            <Button
+              size="sm"
+              className="bg-amber-600 hover:bg-amber-700 text-white text-xs h-8 font-semibold rounded-xl gap-1 shrink-0"
+            >
+              Urus di Drop-Key
+            </Button>
+          </Link>
         </div>
       )}
 
@@ -521,11 +511,12 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
       {/* Quick Access Matrix */}
       <div>
         <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 pl-1">Menu Tindakan Pantas</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           <QuickAction to="/leave" icon={CalendarOff} label="Mohon Cuti" description="Pelepasan balik hujung minggu" color="bg-purple-600" />
           <QuickAction to="/maintenance" icon={Wrench} label="Aduan Fasiliti" description="Laporan kerosakan bilik/blok" color="bg-amber-500" />
           <QuickAction to="/merit?claim=sports" icon={Medal} label="Tuntut Merit" description="Tuntutan atlet & sukan kolej" color="bg-amber-600" />
           <QuickAction to="/room-inspections" icon={CheckSquare} label="Pemeriksaan Bilik" description="Semak status inspeksi bilik anda" color="bg-green-600" />
+          <QuickAction to="/drop-key" icon={KeyRound} label="Express Drop-Key" description="Check-out luar waktu pejabat" color="bg-amber-700" />
           <QuickAction to="/facilities" icon={Home} label="Tempahan" description="Bilik belajar, dewan & peralatan" color="bg-sky-600" />
           <QuickAction to="/visitors" icon={ClipboardList} label="Daftar Pelawat" description="Log kemasukan pelawat luar" color="bg-emerald-600" />
           <QuickAction to="/attendance" icon={Calendar} label="Kehadiran" description="Semak rekod kehadiran kolej" color="bg-[#132A4A]" />
