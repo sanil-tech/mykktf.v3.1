@@ -22,13 +22,15 @@ import {
   DoorOpen,
   Image as ImageIcon,
   Check,
-  Printer
+  Printer,
+  Star
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import confetti from 'canvas-confetti';
 import { submitDropKeyRequest, getStudentActiveDropKeyRequest, recordDropBoxQrScan } from '@/lib/dropKeyHelper';
 import { base44 } from '@/api/base44Client';
 import { uploadOrPrepareImage } from '@/lib/imageWatermark';
+import SurveyModal from '@/components/SurveyModal';
 
 // Pemampatan imej untuk mengelakkan had kuota localStorage
 function compressImage(file, maxWidth = 500, maxHeight = 500, quality = 0.6) {
@@ -69,6 +71,7 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
   const [step, setStep] = useState(1); // 1: Info, 2: Photos, 3: Declaration, 4: QR Scan / Receipt
   const [submitting, setSubmitting] = useState(false);
   const [activeRequest, setActiveRequest] = useState(null);
+  const [showSurvey, setShowSurvey] = useState(false);
   const { toast } = useToast();
 
   const showToast = (title, description = '', variant = 'default', duration = 3500) => {
@@ -669,6 +672,26 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
                   </div>
                 )}
 
+                {/* SURVEY & COMPLETION BANNER IF APPROVED */}
+                {req.status === 'approved' && (
+                  <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-2.5 text-emerald-950 text-xs">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <div>
+                        <p className="font-bold">Permohonan Check-Out Telah Diluluskan!</p>
+                        <p className="text-emerald-800 text-[11px]">Bilik anda telah dibebaskan. Sila lengkapkan Kajian Kepuasan Pelajar sebelum beredar.</p>
+                      </div>
+                    </div>
+                    <Button 
+                      type="button" 
+                      onClick={() => setShowSurvey(true)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 px-3.5 rounded-xl font-bold gap-1.5 shrink-0 shadow-xs"
+                    >
+                      <Star className="w-3.5 h-3.5 text-amber-300 fill-amber-300" /> Isi Kajian Kepuasan
+                    </Button>
+                  </div>
+                )}
+
                 <div className="flex justify-end pt-2">
                   <Button 
                     onClick={() => onOpenChange(false)}
@@ -682,6 +705,19 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
           })()}
         </div>
       </DialogContent>
+
+      <SurveyModal
+        open={showSurvey}
+        onClose={() => setShowSurvey(false)}
+        onComplete={() => {
+          setShowSurvey(false);
+          onOpenChange(false);
+          onCompleted?.();
+        }}
+        user={user}
+        student={student}
+        checkoutId={activeRequest?.checkout_record_id || activeRequest?.id}
+      />
     </Dialog>
   );
 }

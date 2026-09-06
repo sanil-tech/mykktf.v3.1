@@ -38,7 +38,8 @@ import {
   Loader2,
   Users,
   Search,
-  CheckSquare
+  CheckSquare,
+  Star
 } from 'lucide-react';
 import { 
   getOfficeHoursStatus, 
@@ -49,6 +50,7 @@ import {
   rejectDropKeyRequest 
 } from '@/lib/dropKeyHelper';
 import StudentCheckOutModal from '@/components/dashboard/StudentCheckOutModal';
+import SurveyModal from '@/components/SurveyModal';
 import { InstitutionalDualLogo } from '@/components/shared/KKTFLogo';
 import { Link } from 'react-router-dom';
 
@@ -86,6 +88,7 @@ export default function ExpressDropKey() {
   const [showPosterModal, setShowPosterModal] = useState(false);
   const [selectedDropKey, setSelectedDropKey] = useState(null);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [showSurvey, setShowSurvey] = useState(false);
   const [verificationForm, setVerificationForm] = useState({
     room_condition: 'Good',
     damage_notes: ''
@@ -832,16 +835,24 @@ export default function ExpressDropKey() {
               </div>
             </div>
           ) : isCheckedOut ? (
-            <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-5 shadow-xs flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                <CheckCircle2 className="w-5 h-5" />
+            <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-5 shadow-xs flex items-center justify-between gap-3.5 flex-wrap sm:flex-nowrap">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-emerald-950">Status Check-Out: Selesai</h3>
+                  <p className="text-xs text-emerald-800 mt-0.5">
+                    Anda telah selamat mendaftar keluar daripada Kolej Kediaman Tun Fuad. Sila lengkapkan Kajian Kepuasan Pelajar bagi membantu meningkatkan kemudahan kolej.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-emerald-950">Status Check-Out: Selesai</h3>
-                <p className="text-xs text-emerald-800 mt-0.5">
-                  Anda telah selamat mendaftar keluar daripada Kolej Kediaman Tun Fuad. Terima kasih atas kerjasama anda sepanjang menetap di kolej.
-                </p>
-              </div>
+              <Button
+                onClick={() => setShowSurvey(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 px-4 rounded-xl gap-1.5 shrink-0 font-bold shadow-xs"
+              >
+                <Star className="w-4 h-4 text-amber-300 fill-amber-300" /> Isi Kajian Kepuasan Pelajar
+              </Button>
             </div>
           ) : null}
 
@@ -1335,6 +1346,32 @@ export default function ExpressDropKey() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ========================================================================= */}
+      {/* MODAL 4: BORANG CHECK-OUT RESIDEN & PENGIMBAS PETI DROP-KEY              */}
+      {/* ========================================================================= */}
+      <StudentCheckOutModal
+        open={checkOutModalOpen}
+        onOpenChange={setCheckOutModalOpen}
+        student={student}
+        user={user}
+        onCompleted={refreshAllData}
+      />
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: KAJIAN KEPUASAN PELAJAR (STUDENT SATISFACTION SURVEY)            */}
+      {/* ========================================================================= */}
+      <SurveyModal
+        open={showSurvey}
+        onClose={() => setShowSurvey(false)}
+        onComplete={() => {
+          setShowSurvey(false);
+          refreshAllData();
+        }}
+        user={user}
+        student={student}
+        checkoutId={activeRequest?.checkout_record_id || activeRequest?.id}
+      />
     </div>
   );
 }
