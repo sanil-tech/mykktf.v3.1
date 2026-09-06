@@ -78,10 +78,17 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
+    let isMounted = true;
+    // Safety timer: ensure loading is turned off even on slow networks / hanging requests
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, 4500);
+
     async function initDashboard() {
       try {
         setLoading(true);
-        const user = await base44.auth.me();
+        const user = await base44.auth.me().catch(() => null);
+        if (!isMounted) return;
         setCurrentUser(user);
 
         // Jika jemputan MAPEK masuk kali pertama, terus buka Buku Panduan MyKKTF
@@ -94,85 +101,105 @@ export default function Dashboard() {
         // JAKMAS capability is appointment-derived (mirrors WardenBlock pattern).
         let appt = null;
         if (!user?.role || user?.role === 'student' || user?.role === 'user') {
-          appt = await fetchActiveJakmasAppointment(user.id);
+          appt = await fetchActiveJakmasAppointment(user?.id).catch(() => null);
         }
+        if (!isMounted) return;
         setJakmasAppointment(appt);
         const effectiveRole = computeEffectiveRole(user?.role, appt);
 
-        // --- PENGAMBILAN DATA REAL-TIME ---
-        let allStudents = [];
-        try {
-          allStudents = await base44.entities.Student.filter({});
-          const checkedIn = allStudents.filter(s => s.block_name && s.room_number && s.room_status === 'Checked In').length;
-          const pendingRoom = allStudents.filter(s => !s.block_name || !s.room_number || s.room_status !== 'Checked In').length;
-
-          const allRooms = await base44.entities.Room.filter({});
-          let availableRooms = 0;
-
-          const NON_OPERATIONAL_STATUSES = ['Reserved', 'Maintenance', 'Under Maintenance', 'Not Available'];
-          allRooms.forEach(room => {
-            if (NON_OPERATIONAL_STATUSES.includes(room.status)) return;
-            const currentOccupants = allStudents.filter(s => 
-              s.block_name === room.block_name && s.room_number === room.room_number && s.room_status === 'Checked In'
-            ).length;
-            const roomCapacity = room.capacity || room.max_beds || 2;
-            if (currentOccupants < roomCapacity) {
-              availableRooms++;
-            }
-          });
-
-          setCheckedInCount(checkedIn);
-          setPendingRoomCount(pendingRoom);
-          setAvailableRoomCount(availableRooms);
-        } catch (countErr) {
-          console.error("Gagal mengira statistik:", countErr);
-        }
-
-        // Non-resident roles (warden, staff, admin)
-        if (
+        const isStaffOrAdmin = 
           effectiveRole === 'warden' ||
           effectiveRole === 'staff' ||
           effectiveRole === 'super_admin' ||
           effectiveRole === 'college_admin' ||
           effectiveRole === 'principal' ||
           user?.role === 'principal' ||
-          user?.isGuestDemo
-        ) {
+          Boolean(user?.isGuestDemo);
+
+        // --- PENGAMBILAN DATA REAL-TIME (HANYA UNTUK PENTADBIR/FELO) ---
+        // Pelajar biasa TIDAK memerlukan allStudents & allRooms; elakkan RLS bottleneck & loading tersekat
+        if (isStaffOrAdmin) {
+          try {
+            const [allStudentsRes, allRoomsRes] = await Promise.all([
+              base44.entities.Student.filter({}).catch(() => []),
+              base44.entities.Room.filter({}).catch(() => [])
+            ]);
+            const allStudents = Array.isArray(allStudentsRes) ? allStudentsRes : [];
+            const allRooms = Array.isArray(allRoomsRes) ? allRoomsRes : [];
+
+            const checkedIn = allStudents.filter(s => s.block_name && s.room_number && s.room_status === 'Checked In').length;
+            const pendingRoom = allStudents.filter(s => !s.block_name || !s.room_number || s.room_status !== 'Checked In').length;
+
+            let availableRooms = 0;
+            const NON_OPERATIONAL_STATUSES = ['Reserved', 'Maintenance', 'Under Maintenance', 'Not Available'];
+            allRooms.forEach(room => {
+              if (NON_OPERATIONAL_STATUSES.includes(room.status)) return;
+              const currentOccupants = allStudents.filter(s => 
+                s.block_name === room.block_name && s.room_number === room.room_number && s.room_status === 'Checked In'
+              ).length;
+              const roomCapacity = room.capacity || room.max_beds || 2;
+              if (currentOccupants < roomCapacity) {
+                availableRooms++;
+              }
+            });
+
+            if (isMounted) {
+              setCheckedInCount(checkedIn);
+              setPendingRoomCount(pendingRoom);
+              setAvailableRoomCount(availableRooms);
+            }
+          } catch (countErr) {
+            console.warn("Gagal mengira statistik pentadbir:", countErr);
+          }
+
           if (user?.id) {
             try {
-              const stray = await base44.entities.Student.filter({ user_id: user.id });
+              const stray = await base44.entities.Student.filter({ user_id: user.id }).catch(() => []);
               if (stray.length > 0) {
-                await base44.entities.Student.deleteMany({ user_id: user.id });
+                await base44.entities.Student.deleteMany({ user_id: user.id }).catch(() => {});
               }
             } catch (e) { /* best-effort cleanup */ }
           }
-          setHasStudentProfile(true);
-          setIsRoomAssigned(true);
+          if (isMounted) {
+            setHasStudentProfile(true);
+            setIsRoomAssigned(true);
+          }
           return;
         }
 
         // JAKMAS members ARE students
         if (effectiveRole === 'jakmas') {
-          setHasStudentProfile(true);
-          setIsRoomAssigned(true);
+          if (isMounted) {
+            setHasStudentProfile(true);
+            setIsRoomAssigned(true);
+          }
           return;
         }
 
+        // --- CARIAN PROFIL PELAJAR ---
         let studs = [];
         if (user?.id) {
-          studs = await base44.entities.Student.filter({ user_id: user.id }, '-created_date');
+          try {
+            studs = await base44.entities.Student.filter({ user_id: user.id }, '-created_date');
+          } catch (e) {
+            studs = [];
+          }
         }
         if (!studs.length && user?.email) {
           const cleanEmail = user.email.trim();
-          studs = await base44.entities.Student.filter({ email: cleanEmail }, '-created_date');
-        }
-        // Fallback case-insensitive check from allStudents
-        if (!studs.length && allStudents && allStudents.length > 0) {
-          const userEmailClean = (user?.email || '').trim().toLowerCase();
-          studs = allStudents.filter(s => 
-            (user?.id && s.user_id === user.id) || 
-            (userEmailClean && (s.email || '').trim().toLowerCase() === userEmailClean)
-          );
+          try {
+            studs = await base44.entities.Student.filter({ email: cleanEmail }, '-created_date');
+          } catch (e) {
+            studs = [];
+          }
+          // Jika huruf besar/kecil berbeza, cuba versi huruf kecil
+          if (!studs.length && cleanEmail.toLowerCase() !== cleanEmail) {
+            try {
+              studs = await base44.entities.Student.filter({ email: cleanEmail.toLowerCase() }, '-created_date');
+            } catch (e) {
+              studs = [];
+            }
+          }
         }
         
         if (studs.length > 0 && studs[0]?.student_id) {
@@ -181,16 +208,12 @@ export default function Dashboard() {
             (st.qr_verified === true || st.qr_verified === 'true' || st.qr_verified === 1 || st.qr_verified === '1') &&
             String(st.room_status || '').trim().toLowerCase() === 'checked in'
           ) || studs[0];
+
+          if (!isMounted) return;
           setStudentProfile(s);
           setHasStudentProfile(true);
 
           // PENGESAHAN STATUS RESIDEN (PINTU UTAMA - IMBASAN QR WAJIB):
-          // Pelajar HANYA dibenarkan masuk ke Dashboard Residen Aktif jika:
-          // 1. Mempunyai penempatan blok & nombor bilik
-          // 2. Telah melalui imbasan fizikal Kod QR Pengaktifan rasmi kolej (qr_verified === true)
-          // 3. Status bilik ialah 'Checked In' (bukan 'Pending Verification' atau 'Pending Key')
-          // Walaupun pelajar telah memilih blok & nombor bilik dalam pra-pendaftaran,
-          // pintu utama iaitu imbasan QR tetap DIWAJIBKAN dan TIDAK BOLEH dibypass.
           const hasRoom = Boolean(s.block_name && s.room_number);
           const isQrVerified = Boolean(
             s.qr_verified === true || 
@@ -204,15 +227,22 @@ export default function Dashboard() {
 
           const isStrictlyVerified = hasRoom && isQrVerified && isRoomCheckedIn && !isPending;
 
-          // Semak sama ada pelajar telah check-out (sama ada status 'Checked Out' atau ada rekod CheckOut yang sah)
+          // Semak checkout dan survey secara selari (non-blocking)
           let latestCheckout = null;
+          let latestSurvey = null;
           try {
-            const checkouts = await base44.entities.CheckOut.filter({ student_id: s.student_id }, '-check_out_date');
-            if (checkouts && checkouts.length > 0) {
-              latestCheckout = checkouts[0];
+            const [checkoutsRes, surveysRes] = await Promise.all([
+              s.student_id ? base44.entities.CheckOut.filter({ student_id: s.student_id }, '-check_out_date').catch(() => []) : Promise.resolve([]),
+              s.student_id ? base44.entities.Survey.filter({ student_id: s.student_id }, '-created_date').catch(() => []) : Promise.resolve([])
+            ]);
+            if (Array.isArray(checkoutsRes) && checkoutsRes.length > 0) {
+              latestCheckout = checkoutsRes[0];
+            }
+            if (Array.isArray(surveysRes) && surveysRes.length > 0) {
+              latestSurvey = surveysRes[0];
             }
           } catch (chkErr) {
-            console.warn('Gagal memuat turun rekod checkout:', chkErr);
+            console.warn('Gagal memuat turun rekod checkout/survey:', chkErr);
           }
 
           if (!latestCheckout) {
@@ -239,16 +269,7 @@ export default function Dashboard() {
             } catch (e) {}
           }
 
-          let latestSurvey = null;
-          try {
-            const surveys = await base44.entities.Survey.filter({ student_id: s.student_id }, '-created_date');
-            if (surveys && surveys.length > 0) {
-              latestSurvey = surveys[0];
-            }
-          } catch (survErr) {
-            console.warn('Gagal memuat turun rekod survey:', survErr);
-          }
-
+          if (!isMounted) return;
           setCheckoutRecord(latestCheckout);
           setSurveyRecord(latestSurvey);
           setHasCompletedSurvey(Boolean(latestSurvey));
@@ -303,7 +324,8 @@ export default function Dashboard() {
       } catch (err) {
         console.error("Gagal memuatkan peranan:", err);
       } finally {
-        setLoading(false);
+        if (safetyTimer) clearTimeout(safetyTimer);
+        if (isMounted) setLoading(false);
       }
     }
 
@@ -316,6 +338,8 @@ export default function Dashboard() {
     window.addEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
     window.addEventListener('DROP_KEY_UPDATED', handleGlobalRefresh);
     return () => {
+      isMounted = false;
+      if (safetyTimer) clearTimeout(safetyTimer);
       window.removeEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
       window.removeEventListener('DROP_KEY_UPDATED', handleGlobalRefresh);
     };
