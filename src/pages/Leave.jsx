@@ -50,10 +50,17 @@ const BLOCKS = [
   'Blok D',
   'Blok E',
   'Blok F',
-  'Blok G'
+  'Blok G',
+  'Blok H',
+  'Blok I',
+  'Blok J',
+  'Blok K',
+  'Blok L',
+  'Blok M',
+  'Blok N'
 ];
 
-const REVIEWER_ROLES = ['warden', 'super_admin', 'college_admin', 'staff'];
+const REVIEWER_ROLES = ['warden', 'super_admin', 'college_admin', 'staff', 'principal'];
 const INITIAL_FORM = {
   leave_type: 'Weekend', destination: '', reason: '',
   departure_date: '', departure_time: '', return_date: '', return_time: ''
@@ -75,7 +82,8 @@ export default function Leave() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const isReviewer = currentUser && REVIEWER_ROLES.includes(currentUser.role);
+  const isPrincipal = currentUser?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || currentUser?.role === 'principal' || currentUser?.effectiveRole === 'principal';
+  const isReviewer = isPrincipal || (currentUser && REVIEWER_ROLES.includes(currentUser.role)) || currentUser?.effectiveRole === 'super_admin' || currentUser?.effectiveRole === 'college_admin' || currentUser?.effectiveRole === 'warden' || currentUser?.effectiveRole === 'principal';
   const today = new Date().toLocaleDateString('en-CA');
 
   useEffect(() => {
@@ -85,12 +93,13 @@ export default function Leave() {
   const fetchLeaveData = useCallback(async (user, student) => {
     try {
       let leaveList = [];
-      const isRev = REVIEWER_ROLES.includes(user?.role);
+      const isPrincipalUser = user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.role === 'principal' || user?.effectiveRole === 'principal';
+      const isRev = isPrincipalUser || (user && REVIEWER_ROLES.includes(user.role)) || user?.effectiveRole === 'super_admin' || user?.effectiveRole === 'college_admin' || user?.effectiveRole === 'warden' || user?.effectiveRole === 'principal';
 
       if (isRev) {
         leaveList = await base44.entities.LeaveApplication.list('-created_date');
 
-        if (user.role === 'warden') {
+        if (user?.role === 'warden' && !isPrincipalUser) {
           const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
           if (wb.length > 0) {
             const blockNames = wb.map(w => w.block_name);
@@ -141,23 +150,27 @@ export default function Leave() {
       const user = await base44.auth.me();
       setCurrentUser(user);
       
+      const isPrincipalUser = user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.role === 'principal' || user?.effectiveRole === 'principal';
+      const isRev = isPrincipalUser || (user && REVIEWER_ROLES.includes(user.role)) || user?.effectiveRole === 'super_admin' || user?.effectiveRole === 'college_admin' || user?.effectiveRole === 'warden' || user?.effectiveRole === 'principal';
+
       let studentProfile = null;
-      if (user && !REVIEWER_ROLES.includes(user.role)) {
+      if (user && !isRev) {
         let students = await base44.entities.Student.filter({ user_id: user.id });
         if (!students.length) students = await base44.entities.Student.filter({ email: user.email });
         studentProfile = students[0] || null;
         setMyStudent(studentProfile);
       }
 
-      if (user?.role === 'warden') {
+      if (user?.role === 'warden' && !isPrincipalUser) {
         const wb = await base44.entities.WardenBlock.filter({ warden_user_id: user.id });
         if (wb.length > 0) {
           const wardenBlockNames = wb.map(w => w.block_name);
-          setAccessibleQrBlocks(wardenBlockNames);
-          setSelectedBlockQr(wardenBlockNames[0]);
+          const available = ['Pondok Pengawal (Pintu Utama)', ...wardenBlockNames];
+          setAccessibleQrBlocks(available);
+          setSelectedBlockQr(wardenBlockNames[0] || available[0]);
         } else {
-          setAccessibleQrBlocks(['Pondok Pengawal (Pintu Utama)']);
-          setSelectedBlockQr('Pondok Pengawal (Pintu Utama)');
+          setAccessibleQrBlocks(BLOCKS);
+          setSelectedBlockQr(BLOCKS[0]);
         }
       } else {
         setAccessibleQrBlocks(BLOCKS);
@@ -878,9 +891,17 @@ export default function Leave() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <Label className="text-xs font-semibold text-slate-700">Pilih Lokasi Blok / Pintu Masuk</Label>
-                {currentUser?.role === 'warden' && (
+                {isPrincipal ? (
+                  <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                    Akses Pengetua: Semua 14 Blok & Pintu Utama
+                  </Badge>
+                ) : currentUser?.role === 'warden' ? (
                   <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200">
-                    Akses Warden: {accessibleQrBlocks.join(', ')}
+                    Akses Warden: {accessibleQrBlocks.filter(b => b !== 'Pondok Pengawal (Pintu Utama)').join(', ') || 'Blok Jagaan'}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-700 border-slate-200">
+                    Semua 14 Blok & Pintu Utama
                   </Badge>
                 )}
               </div>
