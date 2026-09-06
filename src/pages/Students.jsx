@@ -39,7 +39,12 @@ export default function Students() {
   const [wardenAssignedBlocks, setWardenAssignedBlocks] = useState([]);
   const { toast } = useToast();
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { 
+    load(); 
+    const handleGlobalRefresh = () => { load(); };
+    window.addEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
+    return () => window.removeEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
+  }, []);
   useEffect(() => { setPage(1); }, [search, filterFaculty, filterStatus, filterBlock]);
 
   async function load() {
@@ -135,7 +140,6 @@ export default function Students() {
       return;
     }
 
-    // Selaraskan emergency_contact dengan parent_phone
     const resolvedEmergency = form.emergency_contact || form.parent_phone || '';
     const resolvedParentPhone = form.parent_phone || form.emergency_contact || '';
     const payload = {
@@ -154,6 +158,7 @@ export default function Students() {
       toast({ title: 'Pelajar berjaya ditambah' });
     }
     setDialogOpen(false);
+    window.dispatchEvent(new CustomEvent('KRMS_MODULES_REFRESH'));
     load();
   }
 
@@ -162,10 +167,90 @@ export default function Students() {
       toast({ title: 'Akses Ditolak', description: 'Warden tidak dibenarkan memadam profil pelajar.', variant: 'destructive' });
       return;
     }
-    await base44.entities.Student.delete(student.id);
-    await logAudit(user, 'STUDENT_DELETED', 'Students', { id: student.id, name: student.full_name, student_id: student.student_id });
-    toast({ title: 'Profil pelajar berjaya dipadam' });
-    load();
+    try {
+      const hasRoom = Boolean(student.room_id || (student.block_name && student.room_number));
+      let targetRoom = null;
+
+      if (hasRoom) {
+        if (student.room_id) {
+          try {
+            targetRoom = await base44.entities.Room.get(student.room_id);
+          } catch (e) {}
+        }
+        if (!targetRoom && student.block_name && student.room_number) {
+          try {
+            const matched = await base44.entities.Room.filter({
+              block_name: student.block_name,
+              room_number: student.room_number
+            });
+            if (matched && matched.length > 0) targetRoom = matched[0];
+          } catch (e) {}
+        }
+      }
+
+      await base44.entities.Student.delete(student.id);
+
+      if (targetRoom) {
+        try {
+          const allRoomStudents = await base44.entities.Student.filter({
+            block_name: targetRoom.block_name,
+            room_number: targetRoom.room_number
+          }).catch(() => []);
+
+          const remainingOccupants = allRoomStudents.filter(s => 
+            s.id !== student.id &&
+            String(s.resident_status || '').toLowerCase() !== 'archived' &&
+            String(s.room_status || '').toLowerCase() !== 'checked out'
+          ).length;
+
+          const capacity = targetRoom.capacity || targetRoom.max_beds || 4;
+          let newStatus = 'Available';
+          if (remainingOccupants >= capacity) {
+            newStatus = 'Full';
+          } else if (remainingOccupants > 0) {
+            newStatus = 'Partially Occupied';
+          }
+
+          await base44.entities.Room.update(targetRoom.id, {
+            current_occupancy: remainingOccupants,
+            status: newStatus
+          });
+        } catch (roomErr) {
+          console.warn('Gagal selaras bilik secara automatik:', roomErr);
+        }
+      }
+
+      try {
+        const stored = JSON.parse(localStorage.getItem('kktf_drop_key_requests') || '[]');
+        const filtered = stored.filter(r => 
+          r.student_id !== student.id && 
+          r.student_id !== student.student_id && 
+          r.student_matric !== student.student_id
+        );
+        localStorage.setItem('kktf_drop_key_requests', JSON.stringify(filtered));
+      } catch (storageErr) {}
+
+      await logAudit(user, 'STUDENT_DELETED', 'Students', { 
+        id: student.id, 
+        name: student.full_name, 
+        student_id: student.student_id,
+        deallocated_room: targetRoom ? `${targetRoom.block_name} - Bilik ${targetRoom.room_number}` : null
+      });
+
+      window.dispatchEvent(new CustomEvent('KRMS_MODULES_REFRESH'));
+      window.dispatchEvent(new CustomEvent('DROP_KEY_UPDATED'));
+
+      toast({ 
+        title: 'Profil pelajar berjaya dipadam',
+        description: targetRoom 
+          ? `Bilik ${targetRoom.block_name} (${targetRoom.room_number}) dan statistik kolej telah disegerakkan.` 
+          : 'Statistik pendaftaran kolej telah dikemas kini.' 
+      });
+      load();
+    } catch (err) {
+      console.error('Ralat semasa memadam pelajar:', err);
+      toast({ title: 'Ralat Memadam', description: err.message || 'Gagal memadam profil pelajar.', variant: 'destructive' });
+    }
   }
 
   if (loading) {

@@ -247,6 +247,17 @@ export default function Dashboard() {
     }
 
     initDashboard();
+
+    const handleGlobalRefresh = () => {
+      initDashboard();
+    };
+
+    window.addEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
+    window.addEventListener('DROP_KEY_UPDATED', handleGlobalRefresh);
+    return () => {
+      window.removeEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
+      window.removeEventListener('DROP_KEY_UPDATED', handleGlobalRefresh);
+    };
   }, []);
 
   const updateFormKey = (key, value) => {
