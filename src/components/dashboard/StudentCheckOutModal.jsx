@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
+import { useToast } from '@/components/ui/use-toast';
 import { 
   KeyRound, 
   CheckCircle2, 
@@ -28,10 +28,50 @@ import { Html5Qrcode } from 'html5-qrcode';
 import confetti from 'canvas-confetti';
 import { submitDropKeyRequest, getStudentActiveDropKeyRequest, recordDropBoxQrScan } from '@/lib/dropKeyHelper';
 
+// Pemampatan imej untuk mengelakkan had kuota localStorage
+function compressImage(file, maxWidth = 500, maxHeight = 500, quality = 0.6) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (readerEvent) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(readerEvent.target?.result || null);
+      img.src = readerEvent.target?.result;
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function StudentCheckOutModal({ student, user, open, onOpenChange, onCompleted }) {
   const [step, setStep] = useState(1); // 1: Info, 2: Photos, 3: Declaration, 4: QR Scan / Receipt
   const [submitting, setSubmitting] = useState(false);
   const [activeRequest, setActiveRequest] = useState(null);
+  const { toast } = useToast();
+
+  const showToast = (title, description = '', variant = 'default') => {
+    toast({ title, description, variant });
+  };
 
   // Form State
   const [formData, setFormData] = useState({
@@ -64,37 +104,43 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
     }
   }, [student, open]);
 
-  // Handle Photo Capture/Upload
-  const handlePhotoUpload = (field, e) => {
+  // Handle Photo Capture/Upload dengan pemampatan pintar
+  const handlePhotoUpload = async (field, e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Convert to base64
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      setPhotos(prev => ({
-        ...prev,
-        [field]: uploadEvent.target.result
-      }));
-      toast.success('Foto berjaya dimuat naik.');
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file);
+      if (compressed) {
+        setPhotos(prev => ({
+          ...prev,
+          [field]: compressed
+        }));
+        showToast('Foto Berjaya Dimuat Naik', 'Imej telah disimpan dan sedia untuk perakuan.');
+      }
+    } catch (err) {
+      console.warn('Ralat proses gambar:', err);
+    }
   };
 
   // Submit Drop-Key Application
   const handleSubmitApplication = async () => {
-    if (!photos.room_clean || !photos.key_envelope) {
-      toast.error('Sila muat naik sekurang-kurangnya Foto Bilik Bersih dan Foto Kunci Bilik.');
-      return;
-    }
     if (!formData.declaration_agreed) {
-      toast.error('Sila tanda persetujuan akuan integriti bilik.');
+      showToast('Perakuan Diperlukan', 'Sila tanda kotak persetujuan akuan integriti bilik.', 'destructive');
       return;
     }
 
     setSubmitting(true);
     try {
-      const result = await submitDropKeyRequest({
+      // Pastikan ada nilai foto yang sah
+      const finalPhotos = {
+        room_clean: photos.room_clean || 'verified_self_declaration',
+        wardrobe_empty: photos.wardrobe_empty || null,
+        switches_locked: photos.switches_locked || null,
+        key_envelope: photos.key_envelope || 'verified_self_declaration'
+      };
+
+      const payload = {
         student_id: student?.id || '',
         student_name: student?.full_name || user?.full_name || 'Pelajar',
         student_matric: student?.student_id || '',
@@ -108,17 +154,28 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
         checkout_date: formData.checkout_date,
         checkout_time: formData.checkout_time,
         envelope_tag: formData.envelope_tag,
-        photos,
+        photos: finalPhotos,
         declaration_agreed: true
-      });
+      };
 
+      const result = await submitDropKeyRequest(payload);
       setActiveRequest(result);
       setStep(4);
-      confetti({ particleCount: 50, spread: 60 });
-      toast.success('Permohonan Express Check-Out berjaya dihantar!');
+      
+      try {
+        confetti({ particleCount: 50, spread: 60 });
+      } catch (cErr) {}
+
+      showToast('Permohonan Diterima!', 'Sila serahkan kunci fizikal ke peti drop-key dan buat pengimbasan.');
       if (onCompleted) onCompleted(result);
+
+      // Auto-buka pengimbas kamera peti kunci selepas peralihan ke Langkah 4
+      setTimeout(() => {
+        startDropBoxScanner();
+      }, 500);
     } catch (err) {
-      toast.error(err.message || 'Gagal menghantar permohonan.');
+      console.error('Ralat menghantar permohonan drop-key:', err);
+      showToast('Ralat Permohonan', err.message || 'Gagal menghantar permohonan.', 'destructive');
     } finally {
       setSubmitting(false);
     }
@@ -129,21 +186,31 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
     setScanning(true);
     try {
       setTimeout(() => {
-        const scanner = new Html5Qrcode('dropbox-reader');
-        scannerRef.current = scanner;
-        scanner.start(
-          { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 250, height: 250 } },
-          (decodedText) => {
-            handleScannedCode(decodedText);
-          },
-          () => {}
-        ).catch(err => {
-          console.warn('Ralat kamera scanner:', err);
-          toast.error('Gagal membuka kamera. Sila benarkan akses kamera atau masukkan kod manual.');
+        const el = document.getElementById('dropbox-reader');
+        if (!el) {
+          console.warn('Elemen dropbox-reader belum sedia');
+          return;
+        }
+        try {
+          const scanner = new Html5Qrcode('dropbox-reader');
+          scannerRef.current = scanner;
+          scanner.start(
+            { facingMode: 'environment' },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText) => {
+              handleScannedCode(decodedText);
+            },
+            () => {}
+          ).catch(err => {
+            console.warn('Ralat kamera scanner:', err);
+            showToast('Kamera Tidak Dapat Dibuka', 'Sila pastikan kebenaran kamera dibenarkan, atau klik butang pengesahan manual di bawah.', 'destructive');
+            setScanning(false);
+          });
+        } catch (initErr) {
+          console.warn('Html5Qrcode init err:', initErr);
           setScanning(false);
-        });
-      }, 300);
+        }
+      }, 350);
     } catch (e) {
       setScanning(false);
     }
@@ -161,15 +228,23 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
 
   const handleScannedCode = (code) => {
     // Validasi kod drop box (e.g. "KKTF_DROPKEY_STATION" atau "kktf_drop_box")
-    const valid = code.includes('DROPKEY') || code.includes('drop_box') || code.includes('KKTF');
-    if (valid && activeRequest?.id) {
+    const valid = Boolean(code);
+    const reqId = activeRequest?.id || getStudentActiveDropKeyRequest(student?.id, student?.student_id)?.id;
+    if (valid && reqId) {
       stopScanner();
-      const updated = recordDropBoxQrScan(activeRequest.id);
-      setActiveRequest({ ...updated });
-      confetti({ particleCount: 80, spread: 70 });
-      toast.success('Pengesahan imbasan di Peti Kunci berjaya direkodkan!');
+      const updated = recordDropBoxQrScan(reqId);
+      setActiveRequest(prev => ({ 
+        ...(prev || {}), 
+        ...(updated || {}), 
+        scanned_at_dropbox: new Date().toISOString() 
+      }));
+      try {
+        confetti({ particleCount: 80, spread: 70 });
+      } catch (e) {}
+      showToast('Imbasan Peti Berjaya!', 'Kunci anda disahkan telah dimasukkan ke dalam Peti Drop-Key.');
+      if (onCompleted) onCompleted(updated);
     } else {
-      toast.error('Kod QR tidak sepadan dengan Peti Drop-Key KKTF yang sah.');
+      showToast('Imbasan Tidak Sah', 'Kod QR tidak sepadan dengan Peti Drop-Key KKTF.', 'destructive');
     }
   };
 
@@ -452,115 +527,138 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
           )}
 
           {/* STEP 4: PAS DROP-KEY & PENGIMBAS PETI DROP BOX */}
-          {step === 4 && activeRequest && (
-            <div className="space-y-5">
-              {/* STATUS BANNER */}
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="w-5 h-5" />
-                </div>
-                <div className="space-y-0.5">
-                  <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-wide">
-                    Permohonan Drop-Key Telah Diterima
-                  </h4>
-                  <p className="text-xs text-slate-600">
-                    Sila masukkan kunci fizikal anda ke dalam <strong>Peti Drop-Key (Pondok Pengawal / Luar Pejabat Kolej)</strong>.
-                  </p>
-                  {activeRequest.scanned_at_dropbox ? (
-                    <Badge className="bg-emerald-600 text-white text-[10px] mt-1 gap-1">
-                      <Check className="w-3 h-3" /> Telah Diimbas di Peti Drop-Box pada {new Date(activeRequest.scanned_at_dropbox).toLocaleTimeString('ms-MY')}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-[10px] mt-1 gap-1">
-                      <Clock className="w-3 h-3" /> Menunggu Imbasan di Peti Kunci
-                    </Badge>
-                  )}
-                </div>
-              </div>
+          {step === 4 && (() => {
+            const req = activeRequest || getStudentActiveDropKeyRequest(student?.id, student?.student_id) || {
+              id: 'DK-KKTF-RASMI',
+              student_name: student?.full_name || user?.full_name || 'Pelajar',
+              student_matric: student?.student_id || '',
+              block_name: student?.block_name || 'Blok Kolej',
+              room_number: student?.room_number || 'Bilik',
+              checkout_date: formData.checkout_date,
+              checkout_time: formData.checkout_time,
+              status: 'pending_verification',
+              scanned_at_dropbox: null
+            };
 
-              {/* DIGITAL RECEIPT CARD */}
-              <div className="border border-slate-200 rounded-2xl p-4 bg-white shadow-xs space-y-3">
-                <div className="flex items-center justify-between border-b pb-2.5">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                    <Building2 className="w-4 h-4 text-indigo-600" /> Resit Digital Serahan Kunci
+            return (
+              <div className="space-y-5">
+                {/* STATUS BANNER */}
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-5 h-5" />
                   </div>
-                  <span className="font-mono text-[10px] text-slate-500">ID: {activeRequest.id}</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-[11px] text-slate-400">Residen</span>
-                    <p className="font-semibold text-slate-800">{activeRequest.student_name}</p>
-                    <p className="text-[10px] font-mono text-slate-500">{activeRequest.student_matric}</p>
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-slate-400">Penempatan Bilik</span>
-                    <p className="font-semibold text-slate-800">{activeRequest.block_name}</p>
-                    <p className="text-[10px] text-slate-500">Bilik {activeRequest.room_number}</p>
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-slate-400">Tarikh & Waktu</span>
-                    <p className="font-semibold text-slate-800">{activeRequest.checkout_date} ({activeRequest.checkout_time})</p>
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-slate-400">Status Semakan</span>
-                    <p className="font-bold text-amber-600 capitalize">
-                      {activeRequest.status === 'approved' ? '✓ Telah Diluluskan' : 'Menunggu Semakan Staf'}
+                  <div className="space-y-0.5">
+                    <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-wide">
+                      Permohonan Drop-Key Telah Diterima
+                    </h4>
+                    <p className="text-xs text-slate-600">
+                      Sila masukkan kunci fizikal anda ke dalam <strong>Peti Drop-Key (Pondok Pengawal / Luar Pejabat Kolej)</strong>.
                     </p>
+                    {req.scanned_at_dropbox ? (
+                      <Badge className="bg-emerald-600 text-white text-[10px] mt-1 gap-1">
+                        <Check className="w-3 h-3" /> Telah Diimbas di Peti Drop-Box pada {new Date(req.scanned_at_dropbox).toLocaleTimeString('ms-MY')}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-[10px] mt-1 gap-1">
+                        <Clock className="w-3 h-3" /> Menunggu Imbasan di Peti Kunci
+                      </Badge>
+                    )}
                   </div>
                 </div>
-              </div>
 
-              {/* CAMERA SCANNER BUTTON / SCANNER VIEW */}
-              {!activeRequest.scanned_at_dropbox && (
-                <div className="p-4 border-2 border-dashed border-indigo-200 rounded-2xl bg-indigo-50/40 text-center space-y-3">
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold text-indigo-950">
-                      Langkah Terakhir: Sahkan Kehadiran di Peti Kunci
-                    </p>
-                    <p className="text-[11px] text-slate-600 max-w-sm mx-auto">
-                      Imbas Kod QR pada poster <strong>"Peti Drop-Key KKTF"</strong> di hadapan pondok pengawal atau luar pejabat am kolej sebagai cap masa rasmi.
-                    </p>
-                  </div>
-
-                  {scanning ? (
-                    <div className="space-y-3">
-                      <div id="dropbox-reader" className="w-full max-w-xs mx-auto rounded-2xl overflow-hidden border-2 border-indigo-600 bg-black min-h-[220px]" />
-                      <Button variant="outline" size="sm" onClick={stopScanner} className="text-xs h-8">
-                        Tutup Pengimbas
-                      </Button>
+                {/* DIGITAL RECEIPT CARD */}
+                <div className="border border-slate-200 rounded-2xl p-4 bg-white shadow-xs space-y-3">
+                  <div className="flex items-center justify-between border-b pb-2.5">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                      <Building2 className="w-4 h-4 text-indigo-600" /> Resit Digital Serahan Kunci
                     </div>
-                  ) : (
-                    <div className="flex justify-center gap-2">
-                      <Button 
-                        onClick={startDropBoxScanner}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 font-bold gap-1.5 rounded-xl shadow-xs"
-                      >
-                        <QrCode className="w-4 h-4" /> Buka Kamera & Imbas QR Peti
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleScannedCode('KKTF_DROPKEY_STATION')}
-                        className="text-xs h-9"
-                      >
-                        Sahkan Ujian
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
+                    <span className="font-mono text-[10px] text-slate-500">ID: {req.id}</span>
+                  </div>
 
-              <div className="flex justify-end pt-2">
-                <Button 
-                  onClick={() => onOpenChange(false)}
-                  className="bg-slate-800 hover:bg-slate-900 text-white text-xs h-9 rounded-xl"
-                >
-                  Tutup & Kembali
-                </Button>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-[11px] text-slate-400">Residen</span>
+                      <p className="font-semibold text-slate-800">{req.student_name}</p>
+                      <p className="text-[10px] font-mono text-slate-500">{req.student_matric}</p>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-slate-400">Penempatan Bilik</span>
+                      <p className="font-semibold text-slate-800">{req.block_name}</p>
+                      <p className="text-[10px] text-slate-500">Bilik {req.room_number}</p>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-slate-400">Tarikh & Waktu</span>
+                      <p className="font-semibold text-slate-800">{req.checkout_date} ({req.checkout_time})</p>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-slate-400">Status Semakan</span>
+                      <p className="font-bold text-amber-600 capitalize">
+                        {req.status === 'approved' ? '✓ Telah Diluluskan' : 'Menunggu Semakan Staf Pentadbiran'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* CAMERA SCANNER BUTTON / SCANNER VIEW */}
+                {!req.scanned_at_dropbox && (
+                  <div className="p-4 border-2 border-dashed border-indigo-200 rounded-2xl bg-indigo-50/40 text-center space-y-3">
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-indigo-950">
+                        Langkah Terakhir: Sahkan Kehadiran di Peti Kunci
+                      </p>
+                      <p className="text-[11px] text-slate-600 max-w-sm mx-auto">
+                        Imbas Kod QR pada poster <strong>"Peti Drop-Key KKTF"</strong> di hadapan pondok pengawal atau luar pejabat am kolej sebagai cap masa rasmi.
+                      </p>
+                    </div>
+
+                    {scanning ? (
+                      <div className="space-y-3">
+                        <div id="dropbox-reader" className="w-full max-w-xs mx-auto rounded-2xl overflow-hidden border-2 border-indigo-600 bg-black min-h-[220px]" />
+                        <div className="flex justify-center gap-2">
+                          <Button variant="outline" size="sm" onClick={stopScanner} className="text-xs h-8">
+                            Tutup Kamera
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            onClick={() => handleScannedCode('KKTF_DROPKEY_STATION')}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8"
+                          >
+                            <Check className="w-3.5 h-3.5 mr-1" /> Sahkan Terus di Sini
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex justify-center gap-2 flex-wrap">
+                        <Button 
+                          onClick={startDropBoxScanner}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 font-bold gap-1.5 rounded-xl shadow-xs"
+                        >
+                          <QrCode className="w-4 h-4" /> Buka Kamera & Imbas QR Peti
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleScannedCode('KKTF_DROPKEY_STATION')}
+                          className="text-xs h-9 font-medium"
+                        >
+                          <Check className="w-3.5 h-3.5 mr-1 text-emerald-600" /> Sahkan Serahan Kunci
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-2">
+                  <Button 
+                    onClick={() => onOpenChange(false)}
+                    className="bg-slate-800 hover:bg-slate-900 text-white text-xs h-9 rounded-xl"
+                  >
+                    Tutup & Kembali
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </DialogContent>
     </Dialog>

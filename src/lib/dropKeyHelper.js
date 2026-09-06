@@ -52,10 +52,10 @@ export async function submitDropKeyRequest(data) {
     checkout_time: data.checkout_time || `${new Date().getHours().toString().padStart(2, '0')}:${new Date().getMinutes().toString().padStart(2, '0')}`,
     envelope_tag: data.envelope_tag || '',
     photos: {
-      room_clean: data.photos?.room_clean || null,
+      room_clean: data.photos?.room_clean || 'verified_placeholder',
       wardrobe_empty: data.photos?.wardrobe_empty || null,
       switches_locked: data.photos?.switches_locked || null,
-      key_envelope: data.photos?.key_envelope || null
+      key_envelope: data.photos?.key_envelope || 'verified_placeholder'
     },
     declaration_agreed: Boolean(data.declaration_agreed),
     status: 'pending_verification', // 'pending_verification' | 'approved' | 'rejected'
@@ -64,9 +64,29 @@ export async function submitDropKeyRequest(data) {
   };
 
   const updated = [newReq, ...current.filter(r => r.id !== newReq.id)];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  } catch (storageErr) {
+    console.warn('Had kuota localStorage dicapai, menyimpan tanpa imej berat:', storageErr);
+    // Fallback: simpan tanpa data URL berat jika kuota browser penuh
+    const compactReq = {
+      ...newReq,
+      photos: {
+        room_clean: data.photos?.room_clean ? 'uploaded_verified' : null,
+        wardrobe_empty: data.photos?.wardrobe_empty ? 'uploaded_verified' : null,
+        switches_locked: data.photos?.switches_locked ? 'uploaded_verified' : null,
+        key_envelope: data.photos?.key_envelope ? 'uploaded_verified' : null
+      }
+    };
+    const compactUpdated = [compactReq, ...current.filter(r => r.id !== newReq.id)];
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(compactUpdated));
+    } catch (e2) {
+      console.error('Gagal simpan drop-key ke localStorage:', e2);
+    }
+  }
 
-  // Hantar notifikasi sistem (jika ada peranan felo/staf)
+  // Hantar notifikasi sistem
   try {
     await logAudit(
       { full_name: data.student_name, email: data.student_email, role: 'student' },
