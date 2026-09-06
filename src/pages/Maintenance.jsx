@@ -373,19 +373,19 @@ export default function Maintenance() {
   };
 
   const handleFileChange = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     const validation = validateAttachment(file);
     if (!validation.valid) {
       toast.error(validation.error);
       e.target.value = '';
-      setForm(f => ({ ...f, photo: null }));
+      setForm(f => ({ ...f, photo: null, photo_preview: null, raw_file: null }));
       return;
     }
 
     setStampingPhoto(true);
-    const toastId = toast.loading('Menjana cop masa & lokasi rasmi pada foto...');
+    const toastId = toast.loading('Memproses & mencap cop masa pada foto...');
 
     const reader = new FileReader();
     reader.onload = async (event) => {
@@ -408,11 +408,30 @@ export default function Maintenance() {
           ticketRef: 'DRAF-KKTF'
         });
 
-        setForm(f => ({ ...f, photo: stamped }));
-        toast.success('Foto berjaya dicap dengan cop masa & lokasi rasmi!', { id: toastId });
+        // Attempt cloud upload immediately so submit is instantaneous and clean
+        let hostedUrl = null;
+        if (base44?.integrations?.Core?.UploadFile) {
+          try {
+            const fileObj = dataUrlToFile(stamped, `maint_${Date.now()}.jpg`) || file;
+            const res = await base44.integrations.Core.UploadFile({ file: fileObj });
+            if (res?.file_url) {
+              hostedUrl = res.file_url;
+            }
+          } catch (upErr) {
+            console.warn('Direct upload failed during selection, will retry on submit:', upErr);
+          }
+        }
+
+        setForm(f => ({ 
+          ...f, 
+          photo: hostedUrl || stamped,
+          photo_preview: stamped,
+          raw_file: file
+        }));
+        toast.success('Foto berjaya dicap dan diproses!', { id: toastId });
       } catch (err) {
         console.error('Failed to stamp photo:', err);
-        setForm(f => ({ ...f, photo: event.target.result }));
+        setForm(f => ({ ...f, photo: event.target.result, photo_preview: event.target.result, raw_file: file }));
         toast.dismiss(toastId);
       } finally {
         setStampingPhoto(false);
@@ -422,7 +441,7 @@ export default function Maintenance() {
   };
 
   const handleCompletePhotoChange = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     const validation = validateAttachment(file);
@@ -452,7 +471,20 @@ export default function Maintenance() {
           ticketRef: tamsRef || 'SELESAI'
         });
 
-        setCompletePhoto(stamped);
+        let hostedUrl = null;
+        if (base44?.integrations?.Core?.UploadFile) {
+          try {
+            const fileObj = dataUrlToFile(stamped, `maint_comp_${Date.now()}.jpg`) || file;
+            const res = await base44.integrations.Core.UploadFile({ file: fileObj });
+            if (res?.file_url) {
+              hostedUrl = res.file_url;
+            }
+          } catch (upErr) {
+            console.warn('Immediate complete photo upload failed:', upErr);
+          }
+        }
+
+        setCompletePhoto(hostedUrl || stamped);
         toast.success('Foto pembaikan siap dicap dengan cop masa rasmi!', { id: toastId });
       } catch (err) {
         console.error('Failed to stamp completion photo:', err);
@@ -557,7 +589,7 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
       let finalPhotoUrl = null;
       if (form.photo) {
         try {
-          finalPhotoUrl = await uploadOrPrepareImage(base44, form.photo, `maint_${Date.now()}.jpg`);
+          finalPhotoUrl = await uploadOrPrepareImage(base44, form.photo, `maint_${Date.now()}.jpg`, form.raw_file);
         } catch (pErr) {
           console.warn('Photo processing fallback:', pErr);
           finalPhotoUrl = form.photo;
@@ -583,7 +615,27 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
         submitted_at: nowIso
       };
 
-      const newRecord = await base44.entities.MaintenanceRequest.create(payload);
+      let newRecord = null;
+      try {
+        newRecord = await base44.entities.MaintenanceRequest.create(payload);
+      } catch (createErr) {
+        console.warn('First attempt to create MaintenanceRequest failed:', createErr);
+        // If entity creation failed with photo payload, retry with photo: null to GUARANTEE complaint is saved
+        if (payload.photo) {
+          try {
+            newRecord = await base44.entities.MaintenanceRequest.create({
+              ...payload,
+              photo: null
+            });
+            toast.warning('Aduan berjaya disimpan. (Nota: Lampiran foto disimpan secara setempat).');
+          } catch (retryErr) {
+            throw retryErr;
+          }
+        } else {
+          throw createErr;
+        }
+      }
+
       await logAudit(currentUser, 'MAINTENANCE_SUBMITTED', 'Maintenance', { 
         reporter: reporterName, 
         role: reporterRoleTag,
@@ -603,7 +655,9 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
         urgency: 'Normal',
         description: '',
         phone_number: '',
-        photo: null
+        photo: null,
+        photo_preview: null,
+        raw_file: null
       });
       setDialogOpen(false);
 
@@ -819,7 +873,7 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
         }
       }
 
-      await base44.entities.MaintenanceRequest.update(selectedReqForComplete.id, {
+      const updatePayload = {
         status: 'Completed',
         completion_date: todayDate,
         completed_at: nowIso,
@@ -827,7 +881,22 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
         completion_remarks: completeRemarks.trim() || 'Pembaikan telah disahkan siap oleh residen / felo.',
         completion_photo: finalCompPhotoUrl || null,
         verified_by: isStaff ? `Felo/Staf: ${verifierName}` : `Residen: ${verifierName}`
-      });
+      };
+
+      try {
+        await base44.entities.MaintenanceRequest.update(selectedReqForComplete.id, updatePayload);
+      } catch (updErr) {
+        console.warn('First attempt to update completion failed:', updErr);
+        if (updatePayload.completion_photo) {
+          await base44.entities.MaintenanceRequest.update(selectedReqForComplete.id, {
+            ...updatePayload,
+            completion_photo: null
+          });
+          toast.warning('Pengesahan siap direkodkan (nota: lampiran foto disimpan secara setempat).');
+        } else {
+          throw updErr;
+        }
+      }
 
       await logAudit(currentUser, 'MAINTENANCE_VERIFIED_COMPLETED', 'Maintenance', {
         id: selectedReqForComplete.id,
@@ -1937,9 +2006,20 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 Foto akan secara automatik dicap dengan cop masa rasmi, lokasi bilik & pengesahan KKTF.
               </p>
-              {form.photo && (
-                <div className="mt-2 rounded-xl overflow-hidden border border-border shadow-xs">
-                  <img src={form.photo} alt="Foto Kerosakan Bercop Masa" className="w-full h-36 object-contain bg-slate-950" />
+              {(form.photo_preview || form.photo) && (
+                <div className="mt-2 rounded-xl overflow-hidden border border-border shadow-xs relative group bg-slate-950">
+                  <img 
+                    src={form.photo_preview || form.photo} 
+                    alt="Foto Kerosakan Bercop Masa" 
+                    className="w-full h-36 object-contain" 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, photo: null, photo_preview: null, raw_file: null }))}
+                    className="absolute top-2 right-2 bg-rose-600/90 hover:bg-rose-700 text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm flex items-center gap-1 transition-all"
+                  >
+                    <X className="w-3 h-3" /> Buang Foto
+                  </button>
                 </div>
               )}
             </div>

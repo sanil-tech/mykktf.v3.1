@@ -149,7 +149,14 @@ export function dataUrlToFile(dataUrl, filename = 'image.jpg') {
       u8arr[n] = bstr.charCodeAt(n);
     }
     const blob = new Blob([u8arr], { type: mime });
-    return new File([blob], filename, { type: mime });
+    try {
+      return new File([blob], filename, { type: mime, lastModified: Date.now() });
+    } catch {
+      // In older environments where File constructor with Blob is unsupported
+      blob.name = filename;
+      blob.lastModified = Date.now();
+      return blob;
+    }
   } catch (err) {
     console.warn('dataUrlToFile conversion error:', err);
     return null;
@@ -159,7 +166,7 @@ export function dataUrlToFile(dataUrl, filename = 'image.jpg') {
 /**
  * Aggressively compresses a data URL if offline or if storage integration is unavailable.
  */
-export async function compressDataUrl(dataUrl, maxDim = 800, quality = 0.65) {
+export async function compressDataUrl(dataUrl, maxDim = 400, quality = 0.5) {
   if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
     return dataUrl;
   }
@@ -180,8 +187,8 @@ export async function compressDataUrl(dataUrl, maxDim = 800, quality = 0.65) {
         }
       }
       const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = Math.max(1, width);
+      canvas.height = Math.max(1, height);
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, width, height);
       resolve(canvas.toDataURL('image/jpeg', quality));
@@ -195,9 +202,10 @@ export async function compressDataUrl(dataUrl, maxDim = 800, quality = 0.65) {
  * Prepares and uploads image safely:
  * 1. If already hosted URL (http/https), returns as is.
  * 2. If base44.integrations.Core.UploadFile is available, converts to File and uploads to cloud, returning clean URL.
- * 3. Fallback: compresses dataUrl to ultra-light JPEG (< 50KB) so entity save never fails.
+ * 3. Fallback: tries uploading rawFallbackFile if synthetic File fails.
+ * 4. Fallback: compresses dataUrl to ultra-light JPEG (< 25KB) so entity save never fails.
  */
-export async function uploadOrPrepareImage(base44Client, photoDataOrFile, filename = 'damage_photo.jpg') {
+export async function uploadOrPrepareImage(base44Client, photoDataOrFile, filename = 'damage_photo.jpg', rawFallbackFile = null) {
   if (!photoDataOrFile) return null;
 
   // 1. Already a remote URL
@@ -213,22 +221,39 @@ export async function uploadOrPrepareImage(base44Client, photoDataOrFile, filena
     fileObj = dataUrlToFile(photoDataOrFile, filename);
   }
 
+  if (!fileObj && rawFallbackFile instanceof File) {
+    fileObj = rawFallbackFile;
+  }
+
   // 3. Attempt cloud upload via base44.integrations.Core.UploadFile
-  if (fileObj && base44Client?.integrations?.Core?.UploadFile) {
-    try {
-      const res = await base44Client.integrations.Core.UploadFile({ file: fileObj });
-      if (res?.file_url) {
-        return res.file_url;
+  if (base44Client?.integrations?.Core?.UploadFile) {
+    if (fileObj) {
+      try {
+        const res = await base44Client.integrations.Core.UploadFile({ file: fileObj });
+        if (res?.file_url) {
+          return res.file_url;
+        }
+      } catch (uploadErr) {
+        console.warn('base44.integrations.Core.UploadFile with fileObj failed:', uploadErr);
       }
-    } catch (uploadErr) {
-      console.warn('base44.integrations.Core.UploadFile failed, falling back to compressed data URL:', uploadErr);
+    }
+
+    if (rawFallbackFile instanceof File && rawFallbackFile !== fileObj) {
+      try {
+        const res2 = await base44Client.integrations.Core.UploadFile({ file: rawFallbackFile });
+        if (res2?.file_url) {
+          return res2.file_url;
+        }
+      } catch (rawErr) {
+        console.warn('base44.integrations.Core.UploadFile with rawFallbackFile failed:', rawErr);
+      }
     }
   }
 
-  // 4. Fallback: Compress data URL to safe size (< 50KB)
+  // 4. Fallback: Compress data URL to safe size (< 25KB) so database entity creation does not reject payload
   if (typeof photoDataOrFile === 'string' && photoDataOrFile.startsWith('data:')) {
     try {
-      return await compressDataUrl(photoDataOrFile, 800, 0.65);
+      return await compressDataUrl(photoDataOrFile, 400, 0.5);
     } catch (compErr) {
       console.warn('Image compression fallback error:', compErr);
       return photoDataOrFile;
