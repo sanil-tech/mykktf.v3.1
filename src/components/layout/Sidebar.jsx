@@ -24,7 +24,6 @@ export default function Sidebar({
   hasJakmas, 
   isStudentVerified = true, 
   isStudentCheckedOut = false,
-  hasRoomInspection = true,
   open, 
   onClose, 
   collapsed, 
@@ -84,35 +83,13 @@ export default function Sidebar({
               '/survey-analytics'
             ].includes(item.path);
 
-            const isInspectionExempt = [
-              '/',
-              '/room-inspections',
-              '/inspection',
-              '/announcements',
-              '/guide',
-              '/buku-panduan',
-              '/contact',
-              '/hotline',
-              '/profile'
-            ].includes(item.path);
-
-            const isQrRestricted = !isStudentVerified && !isAllowedWhenCheckedOut && item.path !== '/' && item.path !== '/guide' && item.path !== '/contact';
-            const isInspectionRestricted = isStudentVerified && !isStudentCheckedOut && !hasRoomInspection && !isInspectionExempt;
-
-            const isRestricted = isQrRestricted || isInspectionRestricted;
-            const lockTooltip = isInspectionRestricted
-              ? 'Wajib lengkapkan Pemeriksaan Bilik (48 Jam) terlebih dahulu untuk membuka akses'
-              : 'Wajib imbas Kod QR Pengaktifan di Dashboard untuk membuka akses';
-            const lockBadgeText = isInspectionRestricted ? 'Kunci 48J' : 'Kunci';
-
-            const isInspectionModule = item.path === '/room-inspections' || item.path === '/inspection';
-            const showInspectionUrgentBadge = isInspectionModule && isStudentVerified && !isStudentCheckedOut && !hasRoomInspection;
+            const isRestricted = !isStudentVerified && !isAllowedWhenCheckedOut && item.path !== '/' && item.path !== '/guide' && item.path !== '/contact';
 
             if (isRestricted) {
               return (
                 <div
                   key={item.path}
-                  title={lockTooltip}
+                  title="Wajib imbas Kod QR Pengaktifan di Dashboard untuk membuka akses"
                   className={`
                     flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium opacity-40 cursor-not-allowed select-none
                     text-primary-foreground/50
@@ -123,7 +100,7 @@ export default function Sidebar({
                   {!collapsed && (
                     <div className="flex items-center justify-between flex-1 min-w-0">
                       <span className="truncate">{item.label}</span>
-                      <span className="text-[9px] bg-white/10 px-1 py-0.5 rounded text-amber-300 font-mono shrink-0 ml-1">{lockBadgeText}</span>
+                      <span className="text-[9px] bg-white/10 px-1 py-0.5 rounded text-amber-300 font-mono shrink-0 ml-1">Kunci</span>
                     </div>
                   )}
                 </div>
@@ -140,20 +117,10 @@ export default function Sidebar({
                   flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
                   ${active ? 'bg-accent text-accent-foreground' : 'text-primary-foreground/70 hover:bg-white/10 hover:text-primary-foreground'}
                   ${collapsed ? 'justify-center px-2' : ''}
-                  ${showInspectionUrgentBadge ? 'ring-1 ring-emerald-400 bg-emerald-950/40 text-emerald-200' : ''}
                 `}
               >
                 {Icon && <Icon className="w-[18px] h-[18px] flex-shrink-0" />}
-                {!collapsed && (
-                  <div className="flex items-center justify-between flex-1 min-w-0">
-                    <span className="truncate">{item.label}</span>
-                    {showInspectionUrgentBadge && (
-                      <span className="text-[9px] bg-emerald-500 text-white font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 ml-1 animate-pulse">
-                        Wajib 48J
-                      </span>
-                    )}
-                  </div>
-                )}
+                {!collapsed && <span>{item.label}</span>}
               </Link>
             );
           })}
