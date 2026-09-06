@@ -519,7 +519,7 @@ export default function Leave() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-2 pb-12">
+    <div className="space-y-4 sm:space-y-5 max-w-7xl mx-auto px-2 pb-12">
       <PageHeader
         title="E-Leave KKTF"
         description={isReviewer ? "Portal Kelulusan, Pemantauan dan Log Keluar/Masuk Pelajar KKTF" : "Sistem Permohonan Kebenaran Bermalam Di Luar Kolej"}
@@ -539,56 +539,81 @@ export default function Leave() {
         }
       />
 
-      {/* PANDUAN RINGKAS ALIRAN E-LEAVE KHAS PELAJAR */}
+      {/* PANDUAN RINGKAS ALIRAN E-LEAVE KHAS PELAJAR (COMPACT & BALANCED) */}
       {!isReviewer && (
-        <div className="bg-gradient-to-r from-slate-900 via-[#132644] to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-indigo-500/30 shadow-md">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-            <div className="space-y-1.5 max-w-xl">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-400/30 text-[11px] px-2.5 py-0.5 font-medium flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" /> Panduan Aliran E-Leave Mahasiswa
-                </Badge>
-                <span className="text-xs text-indigo-200 font-mono">Mohon ➔ Lulus ➔ Bercuti ➔ Imbas QR Pulang</span>
+        <div className="bg-gradient-to-r from-slate-900 via-[#132644] to-slate-900 text-white rounded-2xl p-3.5 sm:p-4 border border-indigo-500/30 shadow-sm">
+          {/* Header Row: Title & Flow summary across the width */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-4 h-4 text-indigo-300" />
               </div>
-              <h3 className="text-sm sm:text-base font-heading font-bold text-white">
-                4 Langkah Mudah Kebenaran Bermalam di Luar Kolej
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Permohonan wajib dihantar secara dalam talian sebelum keluar. Apabila anda tiba semula di kolej, imbas Kod QR fizikal yang dipamerkan di <strong>Pintu Masuk atau Papan Kenyataan Blok Kediaman</strong> masing-masing untuk mengesahkan kepulangan anda secara automatik.
-              </p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-xs sm:text-sm font-heading font-bold text-white tracking-wide">
+                    Panduan Aliran E-Leave Mahasiswa
+                  </h3>
+                  <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-400/30 text-[10px] px-2 py-0 font-medium">
+                    4 Langkah Mudah
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-slate-300 line-clamp-1 mt-0.5">
+                  Mohon secara online sebelum keluar &bull; Imbas Kod QR fizikal di pintu blok kediaman sebaik tiba untuk tamatkan cuti secara automatik.
+                </p>
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs w-full lg:w-auto shrink-0">
-              <div className="bg-white/10 border border-white/15 rounded-xl p-2.5 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center text-xs shrink-0">1</span>
-                <div>
-                  <p className="font-semibold text-white">Mohon Cuti</p>
-                  <p className="text-[10px] text-slate-300">Isi borang keluar</p>
-                </div>
-              </div>
+            {/* Pipeline Indicator (Compact Pill) */}
+            <div className="hidden lg:flex items-center gap-1.5 text-[11px] font-medium text-indigo-200 bg-white/5 border border-white/10 px-3 py-1 rounded-full shrink-0">
+              <span>1. Mohon</span>
+              <span className="text-indigo-400">&rarr;</span>
+              <span>2. Lulus Felo</span>
+              <span className="text-indigo-400">&rarr;</span>
+              <span>3. Bercuti</span>
+              <span className="text-indigo-400">&rarr;</span>
+              <span className="text-emerald-300 font-semibold">4. Imbas QR Pulang</span>
+            </div>
+          </div>
 
-              <div className="bg-white/10 border border-white/15 rounded-xl p-2.5 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-bold flex items-center justify-center text-xs shrink-0">2</span>
-                <div>
-                  <p className="font-semibold text-white">Kelulusan Felo</p>
-                  <p className="text-[10px] text-slate-300">Semak status Lulus</p>
-                </div>
+          {/* 4 Steps Grid: Evenly distributed 4-column layout on tablet and desktop */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5 pt-2.5 w-full">
+            <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-2.5 flex items-center gap-2.5 transition-colors">
+              <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                1
+              </span>
+              <div className="min-w-0">
+                <p className="font-semibold text-white text-xs truncate">Mohon Cuti</p>
+                <p className="text-[10px] text-slate-300 truncate">Isi borang keluar</p>
               </div>
+            </div>
 
-              <div className="bg-white/10 border border-white/15 rounded-xl p-2.5 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-sky-500 text-white font-bold flex items-center justify-center text-xs shrink-0">3</span>
-                <div>
-                  <p className="font-semibold text-white">Keluar Cuti</p>
-                  <p className="text-[10px] text-slate-300">Bercuti ikut tarikh</p>
-                </div>
+            <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-2.5 flex items-center gap-2.5 transition-colors">
+              <span className="w-6 h-6 rounded-lg bg-amber-500 text-slate-950 font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                2
+              </span>
+              <div className="min-w-0">
+                <p className="font-semibold text-white text-xs truncate">Kelulusan Felo</p>
+                <p className="text-[10px] text-slate-300 truncate">Semak status kelulusan</p>
               </div>
+            </div>
 
-              <div className="bg-white/10 border border-white/15 rounded-xl p-2.5 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-emerald-500 text-white font-bold flex items-center justify-center text-xs shrink-0">4</span>
-                <div>
-                  <p className="font-semibold text-white">Imbas QR Pulang</p>
-                  <p className="text-[10px] text-slate-300">Sahkan tiba di kolej</p>
-                </div>
+            <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-2.5 flex items-center gap-2.5 transition-colors">
+              <span className="w-6 h-6 rounded-lg bg-sky-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                3
+              </span>
+              <div className="min-w-0">
+                <p className="font-semibold text-white text-xs truncate">Keluar Cuti</p>
+                <p className="text-[10px] text-slate-300 truncate">Bercuti ikut tarikh</p>
+              </div>
+            </div>
+
+            <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-2.5 flex items-center gap-2.5 transition-colors">
+              <span className="w-6 h-6 rounded-lg bg-emerald-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                4
+              </span>
+              <div className="min-w-0">
+                <p className="font-semibold text-white text-xs truncate">Imbas QR Pulang</p>
+                <p className="text-[10px] text-slate-300 truncate">Sahkan tiba di kolej</p>
               </div>
             </div>
           </div>
