@@ -872,18 +872,18 @@ const ALL_SLIDES = [
     allowedRoles: ['warden', 'staff', 'college_admin', 'super_admin']
   },
   { 
-    kind: 'section', label: 'Modul 4', title: 'Penyelenggaraan & WhatsApp Group JPP', icon: 'Wrench',
+    kind: 'section', label: 'Modul 4', title: 'Penyelenggaraan JPP & Inisiatif Susulan Kolej', icon: 'Wrench',
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
   },
   {
     kind: 'feature', icon: 'Wrench', tone: 'amber',
-    title: 'Pemantauan Kerosakan & WhatsApp Group JPP',
-    tagline: 'Format pintar mengikut unit kerosakan & pemantauan MyServ UMS.',
+    title: 'Penyelenggaraan JPP & Tindakan Susulan',
+    tagline: 'Aliran pembaikan rasmi JPP & inisiatif tindakan susulan Felo.',
     does: [
-      'Aliran pemantauan kolej (Monitoring Only) berpusat ke sistem MyServ UMS',
-      'Format pintar 1-klik siap tag unit (@M&E Elektrik, @Awam & Paip, @Cleaner / Kebersihan)',
-      'Pemajuan terus aduan ke WhatsApp Group Penyelenggaraan KKTF bersama PIC JPP',
-      'Penjejakan nota susulan (Follow-Up Note) dan peringatan SLA kerosakan'
+      'Pelajar: Lapor kerosakan, pautkan No. TAMS/MyServ & buat pengesahan siap bilik',
+      'Skop Tugas JPP: Kerja pembaikan fizikal oleh juruteknik JPP & kontraktor bermula sejurus didaftarkan di TAMS',
+      'Felo & Staf: Pemantauan berpusat & inisiatif susulan pantas melalui WhatsApp Group Penyelenggaraan KKTF',
+      'Penjejakan nota susulan (Follow-Up Note) dan pematuhan SLA kerosakan'
     ],
     roles: ['Pelajar', 'Felo', 'Staf', 'Admin'],
     allowedRoles: ['student', 'warden', 'staff', 'college_admin', 'super_admin', 'jakmas']
