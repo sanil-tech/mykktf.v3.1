@@ -21,13 +21,19 @@ import {
   Bell,
   CalendarDays,
   ExternalLink,
-  Pin
+  Pin,
+  Lock,
+  ShieldAlert,
+  AlertTriangle,
+  CheckSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
 import { InstitutionalDualLogo } from '@/components/shared/KKTFLogo';
 import { base44 } from '@/api/base44Client';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 export default function PostCheckOutDashboard({
   user,
@@ -40,6 +46,39 @@ export default function PostCheckOutDashboard({
 }) {
   const [announcements, setAnnouncements] = useState([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+
+  // Kawalan Kunci Sementara Pendaftaran Masuk Sem 2 (Cuti Semester Gate)
+  const [isSem2RegistrationLocked, setIsSem2RegistrationLocked] = useState(true);
+  const [showCounterConfirmDialog, setShowCounterConfirmDialog] = useState(false);
+  const [confirmedAtCounter, setConfirmedAtCounter] = useState(false);
+  const [counterStaffCode, setCounterStaffCode] = useState('');
+  const [passcodeError, setPasscodeError] = useState('');
+
+  const handleProceedToPhysicalCheckIn = () => {
+    if (!confirmedAtCounter) {
+      setPasscodeError('Sila tandakan kotak pengesahan bahawa anda kini hadir secara fizikal di Kaunter KKTF.');
+      return;
+    }
+
+    const clean = counterStaffCode.trim().toUpperCase();
+    const validPasscodes = [
+      'KKTF-STAFF-AUTH-2026', 
+      'KKTF-PEJABAT-PAS-9982', 
+      'KKTF-KAUNTER-FELO-VALID', 
+      'KKTF-SECURE-OVERRIDE', 
+      'KKTF2026',
+      'BUKA'
+    ];
+
+    if (!validPasscodes.includes(clean)) {
+      setPasscodeError('Kod Pelepasan Kaunter tidak sah. Sila dapatkan kod daripada staf kaunter Pejabat KKTF.');
+      return;
+    }
+
+    setPasscodeError('');
+    setShowCounterConfirmDialog(false);
+    onOpenCheckInSem2?.();
+  };
 
   useEffect(() => {
     async function fetchNotices() {
@@ -376,55 +415,162 @@ export default function PostCheckOutDashboard({
             </Button>
           </div>
 
-          {/* KAD 2: PERSAMAAN & KEMASUKAN SEMULA SEMESTER 2 (CHECK-IN SEMESTER 2) */}
+          {/* KAD 2: PERSAMAAN & KEMASUKAN SEMULA SEMESTER 2 (CHECK-IN SEMESTER 2 - DIKUNCI SEMENTARA) */}
           <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 sm:p-7 shadow-2xl flex flex-col justify-between space-y-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-lime-500/20 to-emerald-500/10 border border-lime-400/30 flex items-center justify-center text-lime-400">
-                  <Building2 className="w-6 h-6" />
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 border border-amber-400/30 flex items-center justify-center text-amber-400">
+                  <Lock className="w-6 h-6" />
                 </div>
-                <Badge className="bg-lime-500/20 text-lime-300 border-lime-400/40 text-xs px-3 py-1">
-                  Kemasukan Semula (Sem 2)
+                <Badge className="bg-amber-500/20 text-amber-300 border-amber-400/40 text-xs px-3 py-1 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Kemasukan Sem 2 (Kunci Semasa Cuti)</span>
                 </Badge>
               </div>
 
               <div>
                 <h3 className="text-xl font-bold text-white">Kemasukan Semula Kolej Semester 2</h3>
-                <p className="text-xs text-slate-400 font-mono mt-0.5">Returning Boarding & Room Re-Check-In</p>
+                <p className="text-xs text-slate-400 font-mono mt-0.5">Returning Boarding & Physical Counter Verification</p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3">
+              {/* Sekatan Keselamatan Cuti Semester */}
+              <div className="p-4 rounded-2xl bg-amber-950/30 border border-amber-500/30 space-y-2.5">
+                <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
+                  <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+                  Kawalan Keselamatan Pendaftaran Cuti Semester
+                </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  Apabila sesi cuti semester tamat dan anda kembali ke kampus untuk memulakan <strong>Semester 2</strong>, anda boleh mendaftar masuk semula ke kolej kediaman.
+                  Sistem pendaftaran masuk Semester 2 <strong>dikunci sementara</strong> semasa cuti semester. Pendaftaran bilik pramatang dari luar kampus sebelum anda tiba di kolej adalah dilarang bagi mengelakkan penetapan bilik palsu.
                 </p>
-                
-                <div className="space-y-2 pt-1 text-xs text-slate-300">
-                  <div className="flex items-start gap-2">
-                    <span className="w-5 h-5 rounded-full bg-slate-800 text-lime-400 font-bold flex items-center justify-center shrink-0 border border-slate-700 text-[11px]">1</span>
-                    <span>Dapatkan kunci fizikal bilik Semester 2 di Kaunter Pejabat KKTF.</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="w-5 h-5 rounded-full bg-slate-800 text-lime-400 font-bold flex items-center justify-center shrink-0 border border-slate-700 text-[11px]">2</span>
-                    <span>Klik butang di bawah untuk mendaftar masuk dan mengaktifkan bilik Semester 2.</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="w-5 h-5 rounded-full bg-slate-800 text-lime-400 font-bold flex items-center justify-center shrink-0 border border-slate-700 text-[11px]">3</span>
-                    <span>Imbas Kod QR pintu masuk rasmi kolej untuk mengaktifkan Pas Residen Semester 2!</span>
-                  </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-amber-200/90 pt-1 font-medium border-t border-amber-500/20">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Pendaftaran hanya boleh disahkan di Kaunter Pejabat KKTF apabila sesi kemasukan dibuka secara rasmi.</span>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-2 text-xs text-slate-300">
+                <p className="font-bold text-slate-200 text-[11px] uppercase tracking-wider">3 Syarat Pendaftaran Masuk Sem 2:</p>
+                <div className="flex items-start gap-2">
+                  <span className="w-5 h-5 rounded-full bg-slate-800 text-amber-400 font-bold flex items-center justify-center shrink-0 border border-slate-700 text-[11px]">1</span>
+                  <span>Tiba secara fizikal di kolej mengikut takwim rasmi pentadbiran.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="w-5 h-5 rounded-full bg-slate-800 text-amber-400 font-bold flex items-center justify-center shrink-0 border border-slate-700 text-[11px]">2</span>
+                  <span>Ambil kunci fizikal bilik di Kaunter Pejabat KKTF.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="w-5 h-5 rounded-full bg-slate-800 text-amber-400 font-bold flex items-center justify-center shrink-0 border border-slate-700 text-[11px]">3</span>
+                  <span>Imbas Kod QR Kaunter atau minta Kod Pelepasan daripada staf bertugas.</span>
                 </div>
               </div>
             </div>
 
             <Button
-              onClick={onOpenCheckInSem2}
-              className="w-full h-12 bg-gradient-to-r from-lime-500 to-emerald-600 hover:from-lime-600 hover:to-emerald-700 text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-[0_0_25px_rgba(132,204,22,0.25)] flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.01]"
+              onClick={() => setShowCounterConfirmDialog(true)}
+              className="w-full h-12 bg-gradient-to-r from-slate-900 to-slate-800 hover:from-slate-800 hover:to-slate-700 text-amber-300 border border-amber-500/40 font-bold text-xs sm:text-sm rounded-2xl shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.01]"
             >
-              <KeyRound className="w-4 h-4 text-slate-950" />
-              <span>Daftar Masuk Semula Kolej (Check-In Semester 2)</span>
+              <Lock className="w-4 h-4 text-amber-400" />
+              <span>🔒 Buka Pengesahan Kaunter (Check-In Sem 2)</span>
             </Button>
           </div>
 
         </div>
+
+        {/* DIALOG PENGESAHAN KEHADIRAN FIZIKAL DI KAUNTER KKTF (ANTI-BYPASS DARI RUMAH) */}
+        <Dialog open={showCounterConfirmDialog} onOpenChange={setShowCounterConfirmDialog}>
+          <DialogContent className="max-w-md p-6 bg-slate-950 border border-slate-800 text-white rounded-3xl" onPointerDownOutside={e => e.preventDefault()}>
+            <DialogHeader className="border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-400/30 flex items-center justify-center shrink-0">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-white">
+                    Pengesahan Kehadiran di Kaunter KKTF
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-slate-400">
+                    Kawalan Integriti & Pencegahan Pendaftaran Pramatang
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-4 pt-2">
+              <div className="p-3.5 rounded-2xl bg-red-950/40 border border-red-500/30 text-xs text-red-200 space-y-1.5">
+                <p className="font-bold flex items-center gap-1.5 text-red-300">
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" /> Peringatan Disiplin Kediaman UMS:
+                </p>
+                <p className="leading-relaxed">
+                  Pendaftaran bilik secara jarak jauh dari rumah semasa cuti semester tanpa memegang kunci fizikal bilik adalah <strong>dilarang sama sekali</strong>.
+                </p>
+              </div>
+
+              {/* Checkbox Aku Janji */}
+              <label className="flex items-start gap-3 p-3 rounded-2xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700 transition-colors">
+                <input 
+                  type="checkbox"
+                  checked={confirmedAtCounter}
+                  onChange={(e) => setConfirmedAtCounter(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 text-emerald-600 rounded bg-slate-950 border-slate-700 focus:ring-emerald-500 shrink-0"
+                />
+                <span className="text-xs text-slate-300 leading-relaxed select-none">
+                  Saya mengesahkan dengan penuh integriti bahawa <strong>saya kini telah tiba secara fizikal</strong> di Kaunter Pejabat KKTF dan sedang berurusan mengambil kunci fizikal Semester 2.
+                </span>
+              </label>
+
+              {/* Kod Keselamatan Kaunter Staf */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-200">
+                    Kod Pelepasan Kaunter Staf Pejabat:
+                  </label>
+                  <span className="text-[10px] text-amber-400 font-mono">Diberi oleh Staf</span>
+                </div>
+                <Input 
+                  value={counterStaffCode}
+                  onChange={(e) => {
+                    setCounterStaffCode(e.target.value.toUpperCase());
+                    setPasscodeError('');
+                  }}
+                  placeholder="Masukkan Kod Pelepasan Kaunter Staf"
+                  className="h-10 text-xs uppercase font-mono bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
+                />
+                {passcodeError && (
+                  <p className="text-[11px] text-red-400 font-medium">⚠️ {passcodeError}</p>
+                )}
+                <p className="text-[10px] text-slate-400 italic">
+                  * Kod pelepasan kaunter hanya dibekalkan oleh Pegawai / Felo bertugas di Kaunter KKTF semasa penyerahan kunci fizikal.
+                </p>
+              </div>
+
+              {/* Tindakan */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    setShowCounterConfirmDialog(false);
+                    setPasscodeError('');
+                  }}
+                  className="text-xs h-9 border-slate-700 bg-slate-900 text-slate-300 hover:text-white"
+                >
+                  Batal / Masih Cuti
+                </Button>
+                <Button 
+                  type="button" 
+                  size="sm" 
+                  onClick={handleProceedToPhysicalCheckIn}
+                  disabled={!confirmedAtCounter || !counterStaffCode.trim()}
+                  className="text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1.5 shadow-md"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Sahkan & Teruskan</span>
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* ========================================================================= */}
         {/* KAD MAKLUMAT TAMBAHAN & PAUTAN PANTAS                                     */}

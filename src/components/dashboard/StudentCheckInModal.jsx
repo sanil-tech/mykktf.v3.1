@@ -248,16 +248,30 @@ export default function StudentCheckInModal({
     await processSuccessfulCheckIn(cleanText);
   };
 
-  // Handle Manual Code Check-In fallback
+  // Handle Manual Code Check-In fallback (Kawalan Keselamatan Diperketatkan)
   const handleManualSubmit = async () => {
     if (isProcessingRef.current) return;
     if (!manualCode.trim()) {
-      toast({ title: 'Sila masukkan kod pengesahan', variant: 'destructive' });
+      toast({ title: 'Sila masukkan Kod Kebenaran Kaunter Staf', variant: 'destructive' });
       return;
     }
     const clean = manualCode.trim().toUpperCase();
-    if (clean !== 'KKTF2026' && clean !== 'KKTF2025' && clean !== 'KKTF-CHECKIN' && clean !== 'KKTF-ACTIVATION' && !clean.includes('KKTF')) {
-      toast({ title: 'Kod Tidak Sah', description: 'Kod pengesahan kaunter salah. Sila dapatkan kod dari Felo bertugas (KKTF2026).', variant: 'destructive' });
+    
+    // Senarai kod pelepasan fizikal berpusat yang sah sahaja (Elak kemasukan kod mudah diteka/tidak sengaja)
+    const validCounterStaffCodes = [
+      'KKTF-STAFF-AUTH-2026',
+      'KKTF-PEJABAT-PAS-9982',
+      'KKTF-KAUNTER-FELO-VALID',
+      'KKTF-SECURE-OVERRIDE'
+    ];
+
+    if (!validCounterStaffCodes.includes(clean)) {
+      toast({ 
+        title: 'Kod Pengesahan Tidak Sah', 
+        description: 'Kod pelepasan kaunter salah atau tidak sah. Anda diwajibkan mengimbas Kod QR fizikal di Kaunter Pejabat KKTF atau mendapatkan Kod Pelepasan Rasmi daripada Staf Bertugas jika kamera bermasalah.', 
+        variant: 'destructive',
+        duration: 5000
+      });
       return;
     }
 
@@ -644,14 +658,21 @@ export default function StudentCheckInModal({
                 Imbas kod QR pada poster <strong>"Pengaktifan Residen KKTF"</strong> di Kaunter Kunci atau blok kediaman anda.
               </p>
 
-              {/* MANUAL CODE ENTRY AS BACKUP */}
+              {/* MANUAL CODE ENTRY AS BACKUP (SECURED) */}
               <div className="pt-2 border-t border-slate-100 space-y-2">
-                <p className="text-[11px] font-semibold text-slate-600">Kamera tidak berfungsi? Masukkan Kod Pengaktifan Kaunter:</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold text-slate-700">
+                    Kamera tidak berfungsi? Masukkan Kod Pelepasan Staf Kaunter:
+                  </p>
+                  <span className="text-[10px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full font-bold">
+                    Kawalan Staf
+                  </span>
+                </div>
                 <div className="flex gap-2">
                   <Input 
                     value={manualCode}
                     onChange={(e) => setManualCode(e.target.value.toUpperCase())}
-                    placeholder="Contoh: KKTF2026"
+                    placeholder="Kod Pelepasan Sah Staf Kaunter"
                     className="h-9 text-xs uppercase font-mono"
                     disabled={submitting}
                   />
@@ -659,11 +680,14 @@ export default function StudentCheckInModal({
                     size="sm" 
                     onClick={handleManualSubmit}
                     disabled={submitting || !manualCode.trim()}
-                    className="h-9 text-xs bg-lime-600 hover:bg-lime-700 text-white font-bold"
+                    className="h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                   >
                     {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sahkan'}
                   </Button>
                 </div>
+                <p className="text-[10px] text-slate-500 italic">
+                  * Kod pelepasan kaunter hanya dibekalkan oleh Pegawai / Felo bertugas di Pejabat Kolej sekiranya kamera peranti mengalami masalah teknikal.
+                </p>
               </div>
 
               <div className="flex items-center justify-between pt-2">
