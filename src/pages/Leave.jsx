@@ -523,6 +523,62 @@ export default function Leave() {
         }
       />
 
+      {/* PANDUAN RINGKAS ALIRAN E-LEAVE KHAS PELAJAR */}
+      {!isReviewer && (
+        <div className="bg-gradient-to-r from-slate-900 via-[#132644] to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-indigo-500/30 shadow-md">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div className="space-y-1.5 max-w-xl">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-400/30 text-[11px] px-2.5 py-0.5 font-medium flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" /> Panduan Aliran E-Leave Mahasiswa
+                </Badge>
+                <span className="text-xs text-indigo-200 font-mono">Mohon ➔ Lulus ➔ Bercuti ➔ Imbas QR Pulang</span>
+              </div>
+              <h3 className="text-sm sm:text-base font-heading font-bold text-white">
+                4 Langkah Mudah Kebenaran Bermalam di Luar Kolej
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Permohonan wajib dihantar secara dalam talian sebelum keluar. Apabila anda tiba semula di kolej, imbas Kod QR fizikal yang dipamerkan di <strong>Pondok Pengawal (Pintu Utama)</strong> atau <strong>Papan Kenyataan Blok Kediaman</strong> untuk mengesahkan kepulangan anda secara automatik.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs w-full lg:w-auto shrink-0">
+              <div className="bg-white/10 border border-white/15 rounded-xl p-2.5 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center text-xs shrink-0">1</span>
+                <div>
+                  <p className="font-semibold text-white">Mohon Cuti</p>
+                  <p className="text-[10px] text-slate-300">Isi borang keluar</p>
+                </div>
+              </div>
+
+              <div className="bg-white/10 border border-white/15 rounded-xl p-2.5 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-bold flex items-center justify-center text-xs shrink-0">2</span>
+                <div>
+                  <p className="font-semibold text-white">Kelulusan Felo</p>
+                  <p className="text-[10px] text-slate-300">Semak status Lulus</p>
+                </div>
+              </div>
+
+              <div className="bg-white/10 border border-white/15 rounded-xl p-2.5 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-sky-500 text-white font-bold flex items-center justify-center text-xs shrink-0">3</span>
+                <div>
+                  <p className="font-semibold text-white">Keluar Cuti</p>
+                  <p className="text-[10px] text-slate-300">Bercuti ikut tarikh</p>
+                </div>
+              </div>
+
+              <div className="bg-white/10 border border-white/15 rounded-xl p-2.5 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-emerald-500 text-white font-bold flex items-center justify-center text-xs shrink-0">4</span>
+                <div>
+                  <p className="font-semibold text-white">Imbas QR Pulang</p>
+                  <p className="text-[10px] text-slate-300">Sahkan tiba di kolej</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* STATS OVERVIEW FOR REVIEWERS */}
       {isReviewer && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -697,11 +753,24 @@ export default function Leave() {
                 <div className="border-t border-border pt-3 mt-4 space-y-2">
                   {/* STUDENT ACTION: RETURN CHECK-IN BUTTON */}
                   {!isReviewer && !isReturned && (a.status === 'Approved' || isOverdue) && (
-                    <Link to="/return-leave">
-                      <Button className="w-full h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl gap-1.5 shadow-sm">
-                        <Camera className="w-3.5 h-3.5" /> Buka Kamera & Imbas QR Blok
-                      </Button>
-                    </Link>
+                    <div className="space-y-1.5">
+                      <Link to="/return-leave">
+                        <Button className="w-full h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl gap-1.5 shadow-sm">
+                          <Camera className="w-3.5 h-3.5" /> Buka Kamera & Imbas QR Blok
+                        </Button>
+                      </Link>
+                      <p className="text-[10.5px] text-slate-500 text-center leading-tight">
+                        📍 <em>Tekan butang di atas untuk imbas Kod QR fizikal di <strong>Pondok Pengawal</strong> atau <strong>Papan Blok</strong> sebaik tiba semula di kolej.</em>
+                      </p>
+                    </div>
+                  )}
+
+                  {!isReviewer && a.status === 'Pending' && (
+                    <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-center">
+                      <p className="text-[11px] font-medium text-amber-800">
+                        ⏳ Permohonan anda sedang menunggu semakan & kelulusan Felo/Warden sebelum keluar bermalam.
+                      </p>
+                    </div>
                   )}
 
                   {/* WARDEN / REVIEWER ACTIONS */}
