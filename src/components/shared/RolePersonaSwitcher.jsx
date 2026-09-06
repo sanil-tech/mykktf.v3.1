@@ -25,7 +25,13 @@ const COLLEGE_BLOCKS = [
   'Block E',
   'Block F',
   'Block G',
-  'Block H'
+  'Block H',
+  'Block I',
+  'Block J',
+  'Block K',
+  'Block L',
+  'Block M',
+  'Block N'
 ];
 
 export default function RolePersonaSwitcher({ user }) {

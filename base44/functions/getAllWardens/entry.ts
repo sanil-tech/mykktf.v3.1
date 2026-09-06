@@ -10,8 +10,9 @@ export default async function(req) {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const adminRoles = ['super_admin', 'college_admin'];
-    if (!adminRoles.includes(user.role)) {
+    const adminRoles = ['super_admin', 'college_admin', 'principal'];
+    const isPrincipal = user.role === 'principal' || (user.email && user.email.toLowerCase() === 'nurfadilahdarmansah@gmail.com');
+    if (!adminRoles.includes(user.role) && !isPrincipal) {
       return Response.json({ error: 'Permission denied' }, { status: 403 });
     }
 

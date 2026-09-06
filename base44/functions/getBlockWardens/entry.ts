@@ -42,7 +42,7 @@ export default async function(req) {
     if (body?.include_staff) {
       const allUsers = await base44.asServiceRole.entities.User.list().catch(() => []);
       staffMembers = allUsers
-        .filter(u => ['staff', 'college_admin', 'super_admin'].includes(u.role))
+        .filter(u => ['staff', 'college_admin', 'super_admin', 'principal'].includes(u.role) || (u.email && u.email.toLowerCase() === 'nurfadilahdarmansah@gmail.com'))
         .map(u => ({
           id: u.id,
           name: u.full_name || u.email,

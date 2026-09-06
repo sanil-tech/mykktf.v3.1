@@ -13,6 +13,7 @@ import { Trash2, UserCog, Plus, ShieldAlert, ChevronDown, ShieldCheck, CalendarD
 import { toast } from '@/components/ui/use-toast';
 import { logAudit } from '@/lib/audit';
 import EmptyState from '@/components/shared/EmptyState';
+import { ALL_KKTF_BLOCKS, isSameBlock } from '@/lib/kktfBlocks';
 
 const ADMIN_ROLES = ['super_admin', 'college_admin', 'principal'];
 
@@ -35,18 +36,38 @@ export default function BlockAssignment() {
     setLoading(true);
     const u = await base44.auth.me();
     setCurrentUser(u);
+    const isPrincipal = u?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || u?.role === 'principal' || u?.effectiveRole === 'principal';
     // User.list() is admin-only; skip the restricted fetch for non-admins.
-    if (!ADMIN_ROLES.includes(u?.role)) {
+    if (!ADMIN_ROLES.includes(u?.role) && !isPrincipal) {
       setLoading(false);
       return;
     }
     const [a, b, wardensRes] = await Promise.all([
-      base44.entities.WardenBlock.list(),
-      base44.entities.Block.list(),
-      base44.functions.invoke('getAllWardens', {}),
+      base44.entities.WardenBlock.list().catch(() => []),
+      base44.entities.Block.list().catch(() => []),
+      base44.functions.invoke('getAllWardens', {}).catch(() => ({ wardens: [] })),
     ]);
-    setAssignments(a);
-    setBlocks(b);
+
+    // Ensure all 14 residential blocks of KKTF exist in blocks list
+    let fullBlocks = Array.isArray(b) ? [...b] : [];
+    const existingBlockNames = new Set(fullBlocks.map(blk => (blk.block_name || '').replace(/^(block|blok)\s+/i, '').trim().toUpperCase()));
+
+    ALL_KKTF_BLOCKS.forEach(bName => {
+      const clean = bName.replace(/^(block|blok)\s+/i, '').trim().toUpperCase();
+      if (!existingBlockNames.has(clean)) {
+        fullBlocks.push({
+          id: `kktf_block_${clean.toLowerCase()}`,
+          block_name: bName,
+          gender_restriction: ['I', 'J', 'K', 'L', 'M', 'N'].includes(clean) ? 'Male' : 'Female',
+          total_floors: 4
+        });
+      }
+    });
+
+    fullBlocks.sort((x, y) => (x.block_name || '').localeCompare(y.block_name || '', undefined, { numeric: true }));
+
+    setAssignments(Array.isArray(a) ? a : []);
+    setBlocks(fullBlocks);
     setWardens(wardensRes?.data?.wardens || wardensRes?.wardens || []);
     setLoading(false);
   }
@@ -57,7 +78,10 @@ export default function BlockAssignment() {
     const toCreate = form.block_ids
       .map(bid => blocks.find(b => b.id === bid))
       .filter(Boolean)
-      .filter(b => !assignments.find(a => a.warden_user_id === form.warden_user_id && a.block_id === b.id));
+      .filter(b => !assignments.find(a => 
+        a.warden_user_id === form.warden_user_id && 
+        (a.block_id === b.id || (a.block_name && b.block_name && isSameBlock(a.block_name, b.block_name)))
+      ));
     if (toCreate.length === 0) {
       toast({ title: 'Blok sudah ditugaskan kepada warden ini', variant: 'destructive' });
       return;
@@ -120,8 +144,10 @@ export default function BlockAssignment() {
     return acc;
   }, {});
 
-  if (!loading && currentUser && !ADMIN_ROLES.includes(currentUser.role)) {
-    return <EmptyState icon={ShieldAlert} title="Access denied" description="Hanya Super Admin / College Admin boleh menguruskan tugasan blok warden." />;
+  const isPrincipal = currentUser?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || currentUser?.role === 'principal' || currentUser?.effectiveRole === 'principal';
+
+  if (!loading && currentUser && !ADMIN_ROLES.includes(currentUser.role) && !isPrincipal) {
+    return <EmptyState icon={ShieldAlert} title="Akses Ditolak" description="Hanya Super Admin, Pengetua Kolej, dan Pentadbir Kolej boleh menguruskan tugasan blok warden." />;
   }
 
   return (
@@ -189,7 +215,7 @@ export default function BlockAssignment() {
                     Term: {data.appointment_term || 'Sesi 2025/2026'}
                   </Badge>
 
-                  {(currentUser?.role === 'principal' || currentUser?.role === 'super_admin' || currentUser?.role === 'college_admin') && (
+                  {(currentUser?.role === 'principal' || currentUser?.role === 'super_admin' || currentUser?.role === 'college_admin' || isPrincipal) && (
                     <Button 
                       variant="outline" 
                       size="sm" 

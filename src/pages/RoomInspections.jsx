@@ -12,10 +12,11 @@ import {
   Lightbulb, Zap, Key, Eye as WindowIcon, Bed, 
   Layers, Archive, BookOpen, Camera, Check, RefreshCw,
   Search, Filter, Building, FileText, ArrowRight, ExternalLink,
-  ShieldAlert, Building2, Wrench
+  ShieldAlert, Building2, Wrench, Crown
 } from 'lucide-react';
 import { logAudit } from '@/lib/audit';
 import { Link } from 'react-router-dom';
+import { ALL_KKTF_BLOCKS } from '@/lib/kktfBlocks';
 
 const STATUS_COLORS = {
   Submitted: 'bg-amber-100 text-amber-800 border-amber-200',
@@ -124,8 +125,14 @@ export default function RoomInspections() {
       setStudents(Array.isArray(studs) ? studs : []);
       setAllBlocks(Array.isArray(blkList) ? blkList : []);
 
-      // If user is warden / felo, find their officially assigned blocks
-      const isUserFelo = u && (u.role === 'warden' || u.role === 'felo');
+      // Principal check (by email or explicit role)
+      const isUserPrincipal = 
+        u?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' ||
+        u?.role === 'principal' ||
+        u?.effectiveRole === 'principal';
+
+      // If user is warden / felo (and not principal), find their officially assigned blocks
+      const isUserFelo = !isUserPrincipal && u && (u.role === 'warden' || u.role === 'felo' || u.effectiveRole === 'warden');
       let myBlocks = [];
 
       if (isUserFelo) {
@@ -161,8 +168,8 @@ export default function RoomInspections() {
         }
       }
 
-      // If student, find their profile
-      if (u) {
+      // If student (not principal/staff/admin/felo), find their profile
+      if (u && !isUserPrincipal && !['super_admin', 'college_admin', 'staff'].includes(u.role) && !isUserFelo) {
         const myStud = studs.find(s => 
           (s.user_id && s.user_id === u.id) || 
           (s.email && u.email && s.email.toLowerCase() === u.email.toLowerCase())
@@ -193,17 +200,30 @@ export default function RoomInspections() {
     }
   }
 
-  const isStudent = !user?.role || user?.role === 'student' || user?.role === 'user';
-  const isStaffOrAdmin = user && ['super_admin', 'principal', 'college_admin', 'staff'].includes(user.role);
-  const isFelo = user && (user.role === 'warden' || user.role === 'felo');
-  const canVerify = isStaffOrAdmin || isFelo || user?.role === 'jakmas';
+  // Executive & Administrative Roles
+  const isPrincipal = 
+    user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' ||
+    user?.role === 'principal' ||
+    user?.effectiveRole === 'principal';
+
+  const isStaffOrAdmin = 
+    isPrincipal ||
+    (user && ['super_admin', 'principal', 'college_admin', 'staff'].includes(user.role)) ||
+    user?.effectiveRole === 'super_admin' ||
+    user?.effectiveRole === 'college_admin' ||
+    user?.effectiveRole === 'principal';
+
+  const isFelo = !isPrincipal && user && (user.role === 'warden' || user.role === 'felo' || user.effectiveRole === 'warden');
+  const isStudent = !isPrincipal && !isStaffOrAdmin && !isFelo && (!user?.role || user?.role === 'student' || user?.role === 'user');
+  const canVerify = isPrincipal || isStaffOrAdmin || isFelo || user?.role === 'jakmas';
 
   // Helper to test if the current user has authority to act on a specific inspection
   function canUserActOnInspection(ins) {
     if (!ins || !user) return false;
-    if (isStaffOrAdmin) return true; // Staf Pentadbiran Kolej & Super Admin can manage all blocks
+    // Pengetua Kolej & Staf Pentadbiran Kolej mempunyai kuasa penuh ke atas semua 14 blok
+    if (isPrincipal || isStaffOrAdmin) return true;
     if (isFelo) {
-      // Felo can ONLY manage their assigned block(s)
+      // Felo hanya menguruskan blok yang ditugaskan kepada mereka
       return isBlockInList(ins.block_name, wardenBlocks);
     }
     return false;
@@ -652,10 +672,11 @@ export default function RoomInspections() {
     if (isFelo && wardenBlocks.length > 0) {
       return wardenBlocks;
     }
-    const blkNames = new Set(allBlocks.map(b => b.block_name).filter(Boolean));
+    // Pengetua, Pentadbir Kolej, Super Admin, dan Staf mempunyai capaian ke atas semua 14 blok (A hingga N)
+    const blkNames = new Set(ALL_KKTF_BLOCKS);
+    allBlocks.forEach(b => { if (b.block_name) blkNames.add(b.block_name); });
     inspections.forEach(i => { if (i.block_name) blkNames.add(i.block_name); });
-    ['Block A', 'Block B', 'Block C', 'Block D', 'Block E', 'Block M'].forEach(b => blkNames.add(b));
-    return Array.from(blkNames).sort();
+    return Array.from(blkNames).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [isFelo, wardenBlocks, allBlocks, inspections]);
 
   // Filtered inspections for management list
@@ -698,7 +719,13 @@ export default function RoomInspections() {
         title="Pemeriksaan Keadaan Bilik (Room Inspection)"
         description="Pemeriksaan 8 komponen inventori bilik dalam tempoh 48 jam selepas mendaftar masuk kolej"
         actions={
-          isFelo ? (
+          isPrincipal ? (
+            // Pengetua Kolej: Mod Pemantauan Eksekutif Semua 14 Blok
+            <div className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-orange-500/10 border border-amber-300 dark:border-amber-700 rounded-xl text-xs text-amber-900 dark:text-amber-300 font-bold shadow-xs select-none">
+              <Crown className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <span>Mod Pemantauan Eksekutif — Pengetua Kolej (Semua 14 Blok)</span>
+            </div>
+          ) : isFelo ? (
             // Felo: papar blok kawal selia
             <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-700 font-semibold select-none">
               <Building2 className="w-4 h-4 text-indigo-600" />
@@ -712,7 +739,7 @@ export default function RoomInspections() {
             // Pentadbir/Staf Kolej: papar mod pantau semua blok
             <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700 font-semibold select-none">
               <ShieldCheck className="w-4 h-4 text-blue-600" />
-              <span>Mod Pemantauan — Pentadbir / Staf (Semua Blok)</span>
+              <span>Mod Pemantauan — Pentadbir / Staf (Semua 14 Blok)</span>
             </div>
           ) : isStudent && myInspection?.status === 'Verified' ? (
             // Pelajar: rekod dikunci selepas Verified
@@ -764,10 +791,10 @@ export default function RoomInspections() {
 
           <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
             {canVerify ? (
-              // Pentadbir/Felo: tunjuk stats ringkas mengikut skop
+              // Pentadbir/Pengetua/Felo: tunjuk stats ringkas mengikut skop
               <div className="flex flex-col items-end gap-1 text-right">
                 <span className="text-xs font-bold text-amber-300">
-                  {submittedCount} menunggu semakan {isFelo && wardenBlocks.length > 0 ? `(${wardenBlocks.join(', ')})` : ''}
+                  {submittedCount} menunggu semakan {isFelo && wardenBlocks.length > 0 ? `(${wardenBlocks.join(', ')})` : isPrincipal ? '(Semua 14 Blok)' : '(Semua Blok)'}
                 </span>
                 <span className="text-[11px] text-slate-300">{verifiedCount} telah disahkan • {needAttentionCount} ada kerosakan</span>
               </div>
@@ -886,6 +913,21 @@ export default function RoomInspections() {
       {/* Staff / Warden / Admin Section: Metrics & Table */}
       {canVerify && (
         <div className="space-y-4">
+          {/* Pengetua Executive Oversight Banner */}
+          {isPrincipal && (
+            <div className="p-3.5 bg-gradient-to-r from-amber-50/90 via-orange-50/60 to-amber-50/90 border border-amber-300 rounded-xl text-xs flex items-center justify-between flex-wrap gap-2 text-amber-950 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <Crown className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  Akses Eksekutif Pengetua: Anda mempunyai kuasa penuh memantau, menyemak dan mengesahkan rekod pemeriksaan di <strong>keseluruhan 14 blok kediaman KKTF</strong> (Blok A hingga Blok N).
+                </span>
+              </div>
+              <span className="text-[11px] text-amber-900 font-bold bg-white/90 px-3 py-1 rounded-md border border-amber-300 shadow-2xs">
+                14 Blok Kediaman Aktif (A – N)
+              </span>
+            </div>
+          )}
+
           {/* Felo Jurisdiction Alert */}
           {isFelo && (
             <div className="p-3.5 bg-indigo-50/70 border border-indigo-200/80 rounded-xl text-xs flex items-center justify-between flex-wrap gap-2 text-indigo-900">
@@ -906,7 +948,7 @@ export default function RoomInspections() {
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Jumlah Hantar</p>
               <p className="text-2xl font-black text-slate-800 mt-1">{totalInspections}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">{submissionPct}% daripada {scopedStudentsCount} pelajar {isFelo && wardenBlocks.length > 0 ? `(${wardenBlocks.join(', ')})` : ''}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{submissionPct}% daripada {scopedStudentsCount} pelajar {isFelo && wardenBlocks.length > 0 ? `(${wardenBlocks.join(', ')})` : isPrincipal ? '(Semua 14 Blok)' : ''}</p>
               <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden">
                 <div className="h-full bg-sky-500 rounded-full transition-all" style={{ width: `${Math.min(submissionPct, 100)}%` }} />
               </div>
@@ -914,7 +956,7 @@ export default function RoomInspections() {
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs">
               <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Menunggu Semakan</p>
               <p className="text-2xl font-black text-amber-600 mt-1">{submittedCount}</p>
-              <p className="text-[10px] text-amber-400 mt-0.5">{isFelo ? `Tindakan Felo ${wardenBlocks.join(', ')}` : 'Perlu tindakan pentadbir/staf'}</p>
+              <p className="text-[10px] text-amber-400 mt-0.5">{isFelo ? `Tindakan Felo ${wardenBlocks.join(', ')}` : isPrincipal ? 'Tindakan Pengetua / Pentadbir (Semua 14 Blok)' : 'Perlu tindakan pentadbir/staf'}</p>
             </div>
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-xs">
               <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Ada Kerosakan</p>
@@ -948,7 +990,7 @@ export default function RoomInspections() {
                 <SelectContent>
                   {(!isFelo || wardenBlocks.length > 1) && (
                     <SelectItem value="ALL">
-                      {isFelo ? 'Semua Blok Jagaan' : 'Semua Blok'}
+                      {isFelo ? 'Semua Blok Jagaan' : isPrincipal ? 'Semua 14 Blok' : 'Semua Blok'}
                     </SelectItem>
                   )}
                   {availableFilterBlocks.map(b => (
@@ -1354,6 +1396,13 @@ export default function RoomInspections() {
                 </div>
               )}
 
+              {canVerify && canUserActOnInspection(viewing) && isPrincipal && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs flex items-center gap-2 text-amber-900 font-medium">
+                  <Crown className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Kuasa Eksekutif Pengetua: Anda mempunyai kuasa penuh menyemak, mengesahkan dan mengambil tindakan lanjut bagi bilik ini (Blok {viewing.block_name}).</span>
+                </div>
+              )}
+
               {canVerify && canUserActOnInspection(viewing) && isFelo && (
                 <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs flex items-center gap-2 text-emerald-800">
                   <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1361,10 +1410,10 @@ export default function RoomInspections() {
                 </div>
               )}
 
-              {/* Warden Notes Input */}
+              {/* Warden / Principal Notes Input */}
               {canVerify && canUserActOnInspection(viewing) && (
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-700">Nota Semakan {isFelo ? `Felo (${viewing.block_name})` : 'Pegawai / Staf'}</Label>
+                  <Label className="text-xs font-semibold text-slate-700">Nota Semakan {isPrincipal ? 'Pengetua Kolej' : isFelo ? `Felo (${viewing.block_name})` : 'Pegawai / Staf'}</Label>
                   <textarea
                     value={wardenNote}
                     onChange={e => setWardenNote(e.target.value)}
