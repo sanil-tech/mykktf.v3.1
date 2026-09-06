@@ -97,7 +97,7 @@ export default function AppLayout({ user }) {
             <div className="flex items-center gap-2">
               <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>
-                <strong>MOD OPERASI FELO AKTIF ({user.active_warden_block || 'Blok B'}):</strong> Skop kerja, pemantauan aduan kerosakan, dan borang A4 dikhususkan atas nama Felo Blok ini.
+                <strong>MOD OPERASI FELO AKTIF ({user.active_warden_block || 'Blok Jagaan'}):</strong> Skop kerja, pemantauan aduan kerosakan, dan borang A4 dikhususkan atas nama Felo Blok ini.
               </span>
             </div>
             <button 

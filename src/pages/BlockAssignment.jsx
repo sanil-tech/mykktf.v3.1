@@ -66,9 +66,55 @@ export default function BlockAssignment() {
 
     fullBlocks.sort((x, y) => (x.block_name || '').localeCompare(y.block_name || '', undefined, { numeric: true }));
 
+    let wardensList = Array.isArray(wardensRes?.data?.wardens || wardensRes?.wardens) 
+      ? [...(wardensRes?.data?.wardens || wardensRes?.wardens)] 
+      : [];
+
+    // Ensure all registered staff / admins / wardens can be selected by Pengetua for block appointment
+    try {
+      const allUsers = await base44.entities.User.list();
+      if (Array.isArray(allUsers)) {
+        allUsers.forEach(usr => {
+          if (['warden', 'felo', 'super_admin', 'college_admin', 'staff'].includes(usr.role) || usr.email?.toLowerCase() === 'sanil@ums.edu.my') {
+            if (!wardensList.some(w => w.id === usr.id || (w.email && usr.email && w.email.toLowerCase() === usr.email.toLowerCase()))) {
+              wardensList.push({
+                id: usr.id,
+                full_name: usr.full_name || usr.email,
+                email: usr.email,
+                role: usr.role
+              });
+            }
+          }
+        });
+      }
+    } catch (e) {}
+
+    // Ensure current user (e.g. Sanil / Super Admin) is available for Pengetua to assign
+    if (u && !wardensList.some(w => w.id === u.id || (w.email && u.email && w.email.toLowerCase() === u.email.toLowerCase()))) {
+      wardensList.push({
+        id: u.id,
+        full_name: u.full_name || u.email,
+        email: u.email,
+        role: u.role
+      });
+    }
+
+    // Also include any wardens already in assignments
+    if (Array.isArray(a)) {
+      a.forEach(assign => {
+        if (assign.warden_user_id && !wardensList.some(w => w.id === assign.warden_user_id)) {
+          wardensList.push({
+            id: assign.warden_user_id,
+            full_name: assign.warden_name || assign.warden_email,
+            email: assign.warden_email
+          });
+        }
+      });
+    }
+
     setAssignments(Array.isArray(a) ? a : []);
     setBlocks(fullBlocks);
-    setWardens(wardensRes?.data?.wardens || wardensRes?.wardens || []);
+    setWardens(wardensList);
     setLoading(false);
   }
 
