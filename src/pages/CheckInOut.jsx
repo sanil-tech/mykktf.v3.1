@@ -536,6 +536,8 @@ export default function CheckInOut() {
     return new Map(checkIns.map(ci => [String(ci.student_id), ci]));
   }, [checkIns]);
 
+  const pendingDropKeys = dropKeyRequests.filter(r => r.status === 'pending_verification');
+
   const stats = useMemo(() => {
     const active = students.filter(s => String(s.resident_status || '').toLowerCase() !== 'archived');
 
@@ -816,7 +818,6 @@ export default function CheckInOut() {
 
   const displayCheckIns = checkIns.filter(ci => (ci.semester || 'Sem1_2526') === selectedSemesterFilter);
   const displayCheckOuts = checkOuts.filter(co => (co.semester || 'Sem1_2526') === selectedSemesterFilter);
-  const pendingDropKeys = dropKeyRequests.filter(r => r.status === 'pending_verification');
 
   const totalCiPages = Math.ceil(displayCheckIns.length / PAGE_SIZE);
   const totalCoPages = Math.ceil(displayCheckOuts.length / PAGE_SIZE);
