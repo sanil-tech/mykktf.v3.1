@@ -21,7 +21,8 @@ import { toast } from "sonner";
 import { 
   formatDisplayPhone, 
   formatWhatsAppDigits, 
-  resolveComplainantPhone 
+  resolveComplainantPhone,
+  resolveComplainantFullDetails
 } from "@/lib/phoneUtils";
 
 const UMS_TAMS_URL = 'https://aset.ums.edu.my/myserv/';
@@ -59,8 +60,7 @@ export default function DamageReportModal({
   const ticketYear = request.submitted_at ? new Date(request.submitted_at).getFullYear() : new Date().getFullYear();
   const internalKktfRef = `KKTF/MNT/${ticketYear}/${request.id ? String(request.id).slice(-5).toUpperCase() : 'REQ-01'}`;
 
-  const resolvedPhone = resolveComplainantPhone(request, studentsMap, wardensMap, currentUser);
-  const displayPhone = formatDisplayPhone(resolvedPhone);
+  const cDetails = resolveComplainantFullDetails(request, studentsMap, wardensMap, currentUser);
 
   // Copy structured text formatted specifically for TAMS input fields
   const handleCopyTamsFormat = () => {
@@ -70,8 +70,9 @@ Lokasi: ${request.specific_location || `Bilik ${request.room_number || '-'}`} ($
 Kategori: ${request.category || 'Penyelenggaraan Am'}
 Unit Pelaksana JPP: ${unitInfo.unit}
 Tahap Keutamaan: ${isUrgent ? 'KECEMASAN / TINGGI' : 'BIASA (Standard SLA)'}
-Nama Pengadu / Felo: ${request.student_name || 'Felo Pemeriksa'} (ID/Matrik: ${request.student_id || '-'})
-No. Telefon Pengadu: ${displayPhone !== '-' ? displayPhone : (request.phone_number || '-')}
+Pengadu: ${cDetails.name} [${cDetails.role}] (ID/Matrik: ${cDetails.matricOrId || '-'})
+No. Telefon Pengadu: ${cDetails.displayPhone !== '-' ? cDetails.displayPhone : '-'}
+E-mel Pengadu: ${cDetails.email || '-'}
 Tarikh Pemeriksaan: ${formattedDate}
 
 KETERANGAN KEROSAKAN:
@@ -233,25 +234,43 @@ ${request.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di l
 
             <div className="space-y-1.5 text-right">
               <div>
-                <p className="text-[9.5px] font-bold text-slate-500 uppercase">Pengadu / Felo Pemeriksa:</p>
-                <p className="font-extrabold text-xs text-slate-950">
-                  {request.student_name || 'Felo / Staf KKTF'}
-                </p>
-                <p className="text-[10px] text-slate-600 font-mono">
-                  No. Matrik / ID: {request.student_id || '-'}
-                </p>
-                {resolvedPhone ? (
+                <p className="text-[9.5px] font-bold text-slate-500 uppercase">Maklumat Pengadu:</p>
+                <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                  <span className="font-extrabold text-xs text-slate-950">
+                    {cDetails.name}
+                  </span>
+                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-semibold ${
+                    cDetails.role.toLowerCase().includes('felo') || cDetails.role.toLowerCase().includes('warden')
+                      ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                      : cDetails.role.toLowerCase().includes('staf') || cDetails.role.toLowerCase().includes('pentadbir') || cDetails.role.toLowerCase().includes('admin')
+                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                        : 'bg-blue-50 text-blue-700 border border-blue-200'
+                  }`}>
+                    {cDetails.role}
+                  </span>
+                </div>
+                {cDetails.matricOrId && (
+                  <p className="text-[9.5px] text-slate-600 font-mono">
+                    ID / Matrik: {cDetails.matricOrId}
+                  </p>
+                )}
+                {cDetails.phone ? (
                   <a
-                    href={`https://wa.me/${formatWhatsAppDigits(resolvedPhone)}`}
+                    href={`https://wa.me/${cDetails.waDigits}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[10.5px] text-emerald-700 font-mono font-bold hover:underline flex items-center gap-0.5 justify-end mt-0.5"
+                    className="text-[10px] text-emerald-700 font-mono font-bold hover:underline flex items-center gap-0.5 justify-end mt-0.5"
                     title="Hubungi pengadu melalui WhatsApp"
                   >
-                    <span>📱</span> {displayPhone}
+                    <span>📱</span> {cDetails.displayPhone}
                   </a>
                 ) : (
-                  <p className="text-[10px] text-slate-400 font-mono">Tel: -</p>
+                  <p className="text-[9.5px] text-slate-400 font-mono">Tel: -</p>
+                )}
+                {cDetails.email && (
+                  <p className="text-[9px] text-slate-500 font-mono flex items-center gap-0.5 justify-end">
+                    <span>✉️</span> {cDetails.email}
+                  </p>
                 )}
               </div>
 

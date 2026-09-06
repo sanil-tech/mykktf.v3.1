@@ -20,7 +20,8 @@ import { toast } from "sonner";
 import { 
   formatDisplayPhone, 
   formatWhatsAppDigits, 
-  resolveComplainantPhone 
+  resolveComplainantPhone,
+  resolveComplainantFullDetails
 } from "@/lib/phoneUtils";
 
 const COLLEGE_BLOCKS = [
@@ -120,9 +121,10 @@ export default function BlockInspectionDossierModal({
     filteredDossierRequests.forEach((r, idx) => {
       const loc = r.specific_location || `Bilik ${r.room_number || '-'}`;
       const tams = r.myserv_ticket_no ? `[TAMS: ${r.myserv_ticket_no}]` : `[Belum TAMS]`;
-      const phone = resolveComplainantPhone(r, studentsMap, wardensMap, currentUser);
-      const phoneTxt = phone ? ` | Tel: +${formatWhatsAppDigits(phone)}` : '';
-      summaryText += `${idx + 1}. ${loc} - ${r.category || 'Am'}: ${r.description} ${tams}${phoneTxt} (${r.status})\n`;
+      const cDetails = resolveComplainantFullDetails(r, studentsMap, wardensMap, currentUser);
+      const phoneTxt = cDetails.displayPhone !== '-' ? ` | Tel: ${cDetails.displayPhone}` : '';
+      const emailTxt = cDetails.email ? ` | E-mel: ${cDetails.email}` : '';
+      summaryText += `${idx + 1}. ${loc} - ${r.category || 'Am'}: ${r.description} ${tams} [Pengadu: ${cDetails.name} (${cDetails.role})${phoneTxt}${emailTxt}] (${r.status})\n`;
     });
 
     navigator.clipboard.writeText(summaryText);
@@ -322,10 +324,10 @@ export default function BlockInspectionDossierModal({
                   <th className="p-2 border border-slate-300 w-28">Kategori / Unit JPP</th>
                   <th className="p-2 border border-slate-300">Deskripsi Kerosakan di Tapak</th>
                   <th className="p-2 border border-slate-300 text-center w-14">Bukti Foto</th>
-                  <th className="p-2 border border-slate-300 text-center w-16">Keutamaan</th>
-                  <th className="p-2 border border-slate-300 w-24">No. Telefon</th>
+                  <th className="p-2 border border-slate-300 w-14 sm:w-16 text-center">Keutamaan</th>
+                  <th className="p-2 border border-slate-300 w-36 sm:w-44">Maklumat Pengadu</th>
                   <th className="p-2 border border-slate-300 w-20">No. TAMS</th>
-                  <th className="p-2 border border-slate-300 text-center w-20">Status</th>
+                  <th className="p-2 border border-slate-300 text-center w-16 sm:w-20">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -340,7 +342,7 @@ export default function BlockInspectionDossierModal({
                     const unitInfo = categoryUnitMap[r.category] || { unit: 'Penyelenggaraan Am' };
                     const isUrgent = r.urgency === 'Urgent';
                     const isDone = r.status === 'Completed';
-                    const resolvedPhone = resolveComplainantPhone(r, studentsMap, wardensMap, currentUser);
+                    const cDetails = resolveComplainantFullDetails(r, studentsMap, wardensMap, currentUser);
 
                     return (
                       <tr 
@@ -392,21 +394,47 @@ export default function BlockInspectionDossierModal({
                           )}
                         </td>
 
-                        {/* PHONE NUMBER WITH WHATSAPP LINK & FORMATTING */}
-                        <td className="p-1.5 border border-slate-300 font-mono text-[9px]">
-                          {resolvedPhone ? (
-                            <a
-                              href={`https://wa.me/${formatWhatsAppDigits(resolvedPhone)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-emerald-700 font-semibold hover:underline flex items-center gap-0.5"
-                              title="Hubungi pengadu melalui WhatsApp"
-                            >
-                              <span>📱</span> {formatDisplayPhone(resolvedPhone)}
-                            </a>
-                          ) : (
-                            <span className="text-slate-400 italic">-</span>
-                          )}
+                        {/* MAKLUMAT PENGADU (NAMA, ROLE, NO TELEFON, EMAIL) */}
+                        <td className="p-1.5 border border-slate-300 leading-tight">
+                          <div className="space-y-0.5">
+                            {/* NAMA & ROLE BADGE */}
+                            <div className="flex items-center justify-between gap-1 flex-wrap">
+                              <span className="font-bold text-slate-950 text-[9.5px] truncate max-w-[110px]" title={cDetails.name}>
+                                {cDetails.name}
+                              </span>
+                              <span className={`px-1 py-0.2 rounded text-[7.5px] font-semibold shrink-0 ${
+                                cDetails.role.toLowerCase().includes('felo') || cDetails.role.toLowerCase().includes('warden')
+                                  ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                  : cDetails.role.toLowerCase().includes('staf') || cDetails.role.toLowerCase().includes('pentadbir') || cDetails.role.toLowerCase().includes('admin')
+                                    ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                    : 'bg-blue-50 text-blue-700 border border-blue-200'
+                              }`}>
+                                {cDetails.role}
+                              </span>
+                            </div>
+
+                            {/* NO TELEFON DENGAN PAUTAN WHATSAPP */}
+                            {cDetails.phone ? (
+                              <a
+                                href={`https://wa.me/${cDetails.waDigits}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-emerald-700 font-semibold hover:underline flex items-center gap-1 font-mono text-[8.5px]"
+                                title="Hubungi pengadu melalui WhatsApp"
+                              >
+                                <span>📱</span> <span>{cDetails.displayPhone}</span>
+                              </a>
+                            ) : (
+                              <span className="text-slate-400 italic text-[8px] block">Tiada telefon</span>
+                            )}
+
+                            {/* EMAIL PENGADU */}
+                            {cDetails.email ? (
+                              <div className="text-[8px] text-slate-500 font-mono flex items-center gap-1 truncate max-w-[140px]" title={cDetails.email}>
+                                <span>✉️</span> <span className="truncate">{cDetails.email}</span>
+                              </div>
+                            ) : null}
+                          </div>
                         </td>
 
                         <td className="p-1.5 border border-slate-300 font-mono text-[9px]">

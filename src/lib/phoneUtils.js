@@ -1,7 +1,7 @@
 /**
- * Phone Number Utilities for MyKKTF Maintenance & Dossier modules.
- * Standardizes Malaysian phone formats, resolves complainant phones from student and felo/warden records,
- * and formats links for WhatsApp direct dispatch.
+ * Phone & Complainant Utilities for MyKKTF Maintenance & Dossier modules.
+ * Standardizes Malaysian phone formats, resolves complainant details (name, role, phone, email)
+ * from student, felo/warden and user records, and formats links for WhatsApp direct dispatch.
  */
 
 export function cleanPhoneDigits(rawPhone) {
@@ -131,4 +131,95 @@ export function resolveComplainantPhone(request, studentsMap = {}, wardensMap = 
   }
 
   return '';
+}
+
+/**
+ * Resolves full complainant information:
+ * - name (Clean Name)
+ * - role (Pelajar / Felo / Warden / Staf Pentadbiran)
+ * - phone & displayPhone & waDigits
+ * - email
+ * - matricOrId
+ */
+export function resolveComplainantFullDetails(request, studentsMap = {}, wardensMap = {}, currentUser = null) {
+  if (!request) {
+    return {
+      name: '-',
+      role: 'Pelajar',
+      phone: '',
+      displayPhone: '-',
+      waDigits: '',
+      email: '',
+      matricOrId: ''
+    };
+  }
+
+  const rawName = request.student_name || '';
+  const sId = request.student_id || '';
+  
+  // 1. Resolve phone
+  const phone = resolveComplainantPhone(request, studentsMap, wardensMap, currentUser);
+  const displayPhone = formatDisplayPhone(phone);
+  const waDigits = formatWhatsAppDigits(phone);
+
+  // 2. Resolve Role & Clean Name
+  let name = rawName;
+  let role = 'Pelajar';
+
+  // Extract explicit role tag if present in name e.g. "Ahmad [Felo / Warden - Block B]"
+  const roleMatch = rawName.match(/\[(.*?)\]/);
+  if (roleMatch && roleMatch[1]) {
+    role = roleMatch[1].trim();
+    name = rawName.replace(/\[.*?\]/g, '').trim();
+  } else if (rawName.toLowerCase().includes('felo') || rawName.toLowerCase().includes('warden')) {
+    role = 'Felo / Warden';
+  } else if (rawName.toLowerCase().includes('staf') || rawName.toLowerCase().includes('staff')) {
+    role = 'Staf Pentadbiran';
+  } else if (rawName.toLowerCase().includes('jakmas')) {
+    role = 'JAKMAS';
+  } else if (rawName.toLowerCase().includes('pentadbir') || rawName.toLowerCase().includes('admin')) {
+    role = 'Pentadbir';
+  } else if (wardensMap && (wardensMap[sId] || Object.values(wardensMap).some(w => w?.warden_user_id === sId))) {
+    role = 'Felo / Warden';
+  } else {
+    role = 'Pelajar';
+  }
+
+  if (!name || name === '-') {
+    name = request.created_by || 'Pengadu';
+  }
+
+  // 3. Resolve Email
+  let email = request.email || request.student_email || '';
+  if (!email && sId && studentsMap && studentsMap[sId]) {
+    email = studentsMap[sId].email || '';
+  }
+  if (!email && sId && wardensMap && wardensMap[sId]) {
+    email = wardensMap[sId].warden_email || wardensMap[sId].email || '';
+  }
+  if (!email && currentUser) {
+    const isCurrent = 
+      (sId && (currentUser.id === sId || currentUser.user_id === sId)) ||
+      (rawName && (currentUser.full_name && rawName.includes(currentUser.full_name))) ||
+      (rawName && (currentUser.name && rawName.includes(currentUser.name)));
+    if (isCurrent) {
+      email = currentUser.email || '';
+    }
+  }
+
+  // 4. Resolve Matric / ID
+  let matricOrId = request.student_id || '';
+  if (sId && studentsMap && studentsMap[sId]?.student_id) {
+    matricOrId = studentsMap[sId].student_id;
+  }
+
+  return {
+    name,
+    role,
+    phone,
+    displayPhone,
+    waDigits,
+    email,
+    matricOrId
+  };
 }
