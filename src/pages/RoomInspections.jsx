@@ -372,6 +372,7 @@ export default function RoomInspections() {
           hasDamages,
           flaggedIssues
         });
+        window.dispatchEvent(new Event('ROOM_INSPECTION_SUBMITTED'));
         toast({ 
           title: 'Pemeriksaan Bilik Dikemaskini',
           description: hasDamages 
@@ -387,6 +388,7 @@ export default function RoomInspections() {
           hasDamages,
           flaggedIssues
         });
+        window.dispatchEvent(new Event('ROOM_INSPECTION_SUBMITTED'));
         toast({ 
           title: 'Pemeriksaan Bilik Berjaya Dihantar',
           description: hasDamages 

@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { Wrench, CalendarOff, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare, Medal, ClipboardCheck, CheckSquare, KeyRound } from 'lucide-react';
+import { Wrench, CalendarOff, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare, Medal, ClipboardCheck, CheckSquare, KeyRound, Lock, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from '@/components/ui/dialog';
 import JakmasPanel from '@/components/dashboard/JakmasPanel';
 import DigitalResidentPass from '@/components/shared/DigitalResidentPass';
 import StudentCheckOutModal from '@/components/dashboard/StudentCheckOutModal';
@@ -37,9 +45,42 @@ function StatusBadge({ status }) {
   );
 }
 
-function QuickAction({ to, icon: Icon, label, color, description }) {
+function QuickAction({ to, icon: Icon, label, color, description, isLocked, isPriority, onLockedClick }) {
+  if (isLocked) {
+    return (
+      <div 
+        onClick={onLockedClick}
+        title="Modul ini dikunci sementara sehingga anda menghantar Laporan Pemeriksaan Bilik (48 Jam)"
+        className="relative flex flex-col items-center gap-2 p-5 bg-slate-100/70 border border-dashed border-slate-300 rounded-2xl opacity-60 cursor-pointer hover:opacity-90 hover:border-amber-400 hover:bg-amber-50/20 transition-all text-center group select-none shadow-2xs"
+      >
+        <div className="absolute top-2.5 right-2.5 bg-amber-100 text-amber-800 border border-amber-200 rounded-full p-1 shadow-2xs">
+          <Lock className="w-3 h-3" />
+        </div>
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-xs grayscale ${color}`}>
+          <Icon className="w-5 h-5 text-white" />
+        </div>
+        <span className="text-xs font-bold text-slate-600 tracking-tight mt-1">{label}</span>
+        <span className="text-[10px] font-bold text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-md border border-amber-200">
+          Kunci (48 Jam)
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <Link to={to} className="flex flex-col items-center gap-2 p-5 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md hover:border-sky-200 transition-all hover:-translate-y-1 text-center group">
+    <Link 
+      to={to} 
+      className={`relative flex flex-col items-center gap-2 p-5 bg-white border rounded-2xl shadow-sm hover:shadow-md transition-all hover:-translate-y-1 text-center group ${
+        isPriority 
+          ? 'border-emerald-500 ring-2 ring-emerald-500/20 hover:border-emerald-600 bg-emerald-50/20' 
+          : 'border-slate-100 hover:border-sky-200'
+      }`}
+    >
+      {isPriority && (
+        <span className="absolute -top-2.5 bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-xs animate-pulse">
+          Wajib (48 Jam)
+        </span>
+      )}
       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-sm ${color}`}>
         <Icon className="w-5 h-5 text-white" />
       </div>
@@ -61,6 +102,7 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
   const [checkOutModalOpen, setCheckOutModalOpen] = useState(false);
   const [activeDropKey, setActiveDropKey] = useState(null);
+  const [showInspectionLockModal, setShowInspectionLockModal] = useState(false);
 
   // Kemaskini state jika props studentProfile berubah dari luar
   useEffect(() => {
@@ -87,6 +129,22 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
       window.removeEventListener('storage', syncDropKey);
     };
   }, [student]);
+
+  // Kemaskini status pemeriksaan bilik jika diserahkan
+  useEffect(() => {
+    const handleInspectionRefresh = () => {
+      base44.entities.RoomInspection.list('-created_date').then(inspections => {
+        const found = Array.isArray(inspections) ? inspections.find(i => 
+          (student?.student_id && i.student_id === student.student_id) ||
+          (user?.id && i.inspected_by_user_id === user.id)
+        ) : null;
+        setMyInspection(found);
+      }).catch(() => {});
+    };
+
+    window.addEventListener('ROOM_INSPECTION_SUBMITTED', handleInspectionRefresh);
+    return () => window.removeEventListener('ROOM_INSPECTION_SUBMITTED', handleInspectionRefresh);
+  }, [student?.student_id, user?.id]);
 
   // Ambil data mesej terkini untuk saluran komuniti
   async function loadRecentChats() {
@@ -237,6 +295,7 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
   const activeMaint = myMaint.filter(m => m.status !== 'Completed').length;
   const pendingLeave = myLeave.filter(l => l.status === 'Pending').length;
   const unreadAnn = announcements.filter(a => !readMap[a.id]);
+  const hasInspectionDone = Boolean(myInspection);
 
   return (
     <div className="space-y-6 bg-[#F8FAFC] p-1 rounded-2xl">
@@ -455,6 +514,10 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
               <div className="space-y-0.5">
                 <span className={`text-[11px] font-bold uppercase tracking-wide ${labelCls}`}>{label}</span>
                 <p className="text-xs text-slate-600 max-w-sm">{desc}</p>
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-300/60 w-fit mt-1">
+                  <Lock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  <span>Modul kolej lain dikunci sementara sehingga anda menghantar laporan ini.</span>
+                </div>
               </div>
             </div>
             <Link to="/room-inspections" className="shrink-0 w-full md:w-auto">
@@ -513,33 +576,121 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
       {(activeMaint > 0 || pendingLeave > 0) && (
         <div className="flex flex-wrap gap-2.5">
           {activeMaint > 0 && (
-            <Link to="/maintenance" className="flex items-center gap-2 bg-sky-50/70 border border-sky-200/60 text-sky-900 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-sky-100/80 transition-colors shadow-2xs">
-              <Wrench className="w-4 h-4 text-sky-600" /> {activeMaint} Aduan Kerosakan Sedang Diproses
-              <ChevronRight className="w-3 h-3 ml-0.5 opacity-60" />
-            </Link>
+            hasInspectionDone ? (
+              <Link to="/maintenance" className="flex items-center gap-2 bg-sky-50/70 border border-sky-200/60 text-sky-900 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-sky-100/80 transition-colors shadow-2xs">
+                <Wrench className="w-4 h-4 text-sky-600" /> {activeMaint} Aduan Kerosakan Sedang Diproses
+                <ChevronRight className="w-3 h-3 ml-0.5 opacity-60" />
+              </Link>
+            ) : (
+              <button onClick={() => setShowInspectionLockModal(true)} className="flex items-center gap-2 bg-slate-100 border border-slate-200 text-slate-600 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-200 transition-colors shadow-2xs cursor-pointer">
+                <Lock className="w-3.5 h-3.5 text-amber-600" /> {activeMaint} Aduan Kerosakan (Kunci 48J)
+              </button>
+            )
           )}
           {pendingLeave > 0 && (
-            <Link to="/leave" className="flex items-center gap-2 bg-purple-50/70 border border-purple-200/60 text-purple-900 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-purple-100/80 transition-colors shadow-2xs">
-              <CalendarOff className="w-4 h-4 text-purple-600" /> {pendingLeave} Permohonan Pelepasan Keluar
-              <ChevronRight className="w-3 h-3 ml-0.5 opacity-60" />
-            </Link>
+            hasInspectionDone ? (
+              <Link to="/leave" className="flex items-center gap-2 bg-purple-50/70 border border-purple-200/60 text-purple-900 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-purple-100/80 transition-colors shadow-2xs">
+                <CalendarOff className="w-4 h-4 text-purple-600" /> {pendingLeave} Permohonan Pelepasan Keluar
+                <ChevronRight className="w-3 h-3 ml-0.5 opacity-60" />
+              </Link>
+            ) : (
+              <button onClick={() => setShowInspectionLockModal(true)} className="flex items-center gap-2 bg-slate-100 border border-slate-200 text-slate-600 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-200 transition-colors shadow-2xs cursor-pointer">
+                <Lock className="w-3.5 h-3.5 text-amber-600" /> {pendingLeave} Permohonan Cuti (Kunci 48J)
+              </button>
+            )
           )}
         </div>
       )}
 
       {/* Quick Access Matrix */}
       <div>
-        <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 pl-1">Menu Tindakan Pantas</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-3 pl-1">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">Menu Tindakan Pantas</h2>
+          {!hasInspectionDone && (
+            <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full flex items-center gap-1.5 w-fit">
+              <Lock className="w-3 h-3 text-amber-600" /> Modul di bawah dikunci sehingga Laporan Pemeriksaan Bilik dihantar
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          <QuickAction to="/leave" icon={CalendarOff} label="Mohon Cuti" description="Pelepasan balik hujung minggu" color="bg-purple-600" />
-          <QuickAction to="/maintenance" icon={Wrench} label="Aduan Fasiliti" description="Laporan kerosakan bilik/blok" color="bg-amber-500" />
-          <QuickAction to="/merit?claim=sports" icon={Medal} label="Tuntut Merit" description="Tuntutan atlet & sukan kolej" color="bg-amber-600" />
-          <QuickAction to="/room-inspections" icon={CheckSquare} label="Pemeriksaan Bilik" description="Semak status inspeksi bilik anda" color="bg-green-600" />
-          <QuickAction to="/drop-key" icon={KeyRound} label="Express Drop-Key" description="Check-out luar waktu pejabat" color="bg-amber-700" />
-          <QuickAction to="/facilities" icon={Home} label="Tempahan" description="Bilik belajar, dewan & peralatan" color="bg-sky-600" />
-          <QuickAction to="/visitors" icon={ClipboardList} label="Daftar Pelawat" description="Log kemasukan pelawat luar" color="bg-emerald-600" />
-          <QuickAction to="/attendance" icon={Calendar} label="Kehadiran" description="Semak rekod kehadiran kolej" color="bg-[#132A4A]" />
-          <QuickAction to="/announcements" icon={Bell} label="Notis Kolej" description="Arkib makluman universiti" color="bg-red-600" />
+          <QuickAction 
+            to="/room-inspections" 
+            icon={CheckSquare} 
+            label="Pemeriksaan Bilik" 
+            description="Semak & hantar 8 inventori bilik anda" 
+            color="bg-green-600" 
+            isPriority={!hasInspectionDone}
+          />
+          <QuickAction 
+            to="/leave" 
+            icon={CalendarOff} 
+            label="Mohon Cuti" 
+            description="Pelepasan balik hujung minggu" 
+            color="bg-purple-600" 
+            isLocked={!hasInspectionDone}
+            onLockedClick={() => setShowInspectionLockModal(true)}
+          />
+          <QuickAction 
+            to="/maintenance" 
+            icon={Wrench} 
+            label="Aduan Fasiliti" 
+            description="Laporan kerosakan bilik/blok" 
+            color="bg-amber-500" 
+            isLocked={!hasInspectionDone}
+            onLockedClick={() => setShowInspectionLockModal(true)}
+          />
+          <QuickAction 
+            to="/merit?claim=sports" 
+            icon={Medal} 
+            label="Tuntut Merit" 
+            description="Tuntutan atlet & sukan kolej" 
+            color="bg-amber-600" 
+            isLocked={!hasInspectionDone}
+            onLockedClick={() => setShowInspectionLockModal(true)}
+          />
+          <QuickAction 
+            to="/drop-key" 
+            icon={KeyRound} 
+            label="Express Drop-Key" 
+            description="Check-out luar waktu pejabat" 
+            color="bg-amber-700" 
+            isLocked={!hasInspectionDone}
+            onLockedClick={() => setShowInspectionLockModal(true)}
+          />
+          <QuickAction 
+            to="/facilities" 
+            icon={Home} 
+            label="Tempahan" 
+            description="Bilik belajar, dewan & peralatan" 
+            color="bg-sky-600" 
+            isLocked={!hasInspectionDone}
+            onLockedClick={() => setShowInspectionLockModal(true)}
+          />
+          <QuickAction 
+            to="/visitors" 
+            icon={ClipboardList} 
+            label="Daftar Pelawat" 
+            description="Log kemasukan pelawat luar" 
+            color="bg-emerald-600" 
+            isLocked={!hasInspectionDone}
+            onLockedClick={() => setShowInspectionLockModal(true)}
+          />
+          <QuickAction 
+            to="/attendance" 
+            icon={Calendar} 
+            label="Kehadiran" 
+            description="Semak rekod kehadiran kolej" 
+            color="bg-[#132A4A]" 
+            isLocked={!hasInspectionDone}
+            onLockedClick={() => setShowInspectionLockModal(true)}
+          />
+          <QuickAction 
+            to="/announcements" 
+            icon={Bell} 
+            label="Notis Kolej" 
+            description="Arkib makluman universiti" 
+            color="bg-red-600" 
+          />
         </div>
       </div>
 
@@ -782,6 +933,51 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
           setActiveDropKey(req);
         }}
       />
+
+      {/* 6. Room Inspection Required Dialog (Bila Pelajar Klik Menu Yang Dikunci) */}
+      <Dialog open={showInspectionLockModal} onOpenChange={setShowInspectionLockModal}>
+        <DialogContent className="sm:max-w-md bg-white rounded-3xl p-6 border border-amber-200 shadow-2xl">
+          <DialogHeader className="space-y-3 text-center sm:text-left">
+            <div className="mx-auto sm:mx-0 w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 border border-amber-200 flex items-center justify-center">
+              <ShieldAlert className="w-6 h-6 text-amber-600" />
+            </div>
+            <DialogTitle className="text-base font-extrabold text-slate-800">
+              Modul Dikunci: Pemeriksaan Bilik (48 Jam) Diperlukan
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-600 leading-relaxed space-y-2">
+              <span>
+                Sebagai residen baharu Kolej Kediaman Tun Fuad, anda <strong>diwajibkan</strong> memeriksa 8 komponen inventori bilik dan menghantar <strong>Borang Pemeriksaan Bilik (48 Jam)</strong> terlebih dahulu.
+              </span>
+              <span className="block bg-amber-50 p-2.5 rounded-xl border border-amber-200/80 text-amber-900 font-medium my-1">
+                🛡️ Tindakan ini penting bagi melindungi rekod anda daripada sebarang pertikaian kerosakan sedia ada atau tuntutan gantirugi di akhir semester.
+              </span>
+              <span className="block text-[11px] text-slate-500">
+                Semua menu tindakan pantas (Mohon Cuti, Aduan Fasiliti, Tempahan, dll.) dan menu sisi akan <strong>terbuka serta-merta</strong> sebaik sahaja laporan pemeriksaan ini dihantar.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowInspectionLockModal(false)}
+              className="text-xs rounded-xl"
+            >
+              Kembali ke Dashboard
+            </Button>
+            <Link to="/room-inspections" onClick={() => setShowInspectionLockModal(false)}>
+              <Button
+                type="button"
+                size="sm"
+                className="w-full sm:w-auto text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl gap-1.5 shadow-sm"
+              >
+                <CheckSquare className="w-4 h-4" /> Buka Borang Pemeriksaan (48 Jam)
+              </Button>
+            </Link>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

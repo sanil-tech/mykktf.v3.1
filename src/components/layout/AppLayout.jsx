@@ -13,6 +13,7 @@ export default function AppLayout({ user }) {
   const [jakmasAppointment, setJakmasAppointment] = useState(null);
   const [isStudentVerified, setIsStudentVerified] = useState(true);
   const [isStudentCheckedOut, setIsStudentCheckedOut] = useState(false);
+  const [hasRoomInspection, setHasRoomInspection] = useState(true);
 
   const baseRole = user?.role || 'student';
   const isStudentBase = !baseRole || baseRole === 'student' || baseRole === 'user';
@@ -26,12 +27,22 @@ export default function AppLayout({ user }) {
   const effectiveRole = computeEffectiveRole(baseRole, jakmasAppointment);
   const enrichedUser = { ...user, jakmasAppointment, effectiveRole };
 
+  // Dengar event jika pemeriksaan bilik baru dihantar
+  useEffect(() => {
+    const handleInspectionEvent = () => {
+      setHasRoomInspection(true);
+    };
+    window.addEventListener('ROOM_INSPECTION_SUBMITTED', handleInspectionEvent);
+    return () => window.removeEventListener('ROOM_INSPECTION_SUBMITTED', handleInspectionEvent);
+  }, []);
+
   // Semakan ketat pintu utama untuk peranan pelajar:
   // Pelajar yang belum melengkapkan pengaktifan QR disekat dari mengakses modul kolej
   useEffect(() => {
     if (!isStudentBase || hasJakmas) {
       setIsStudentVerified(true);
       setIsStudentCheckedOut(false);
+      setHasRoomInspection(true);
       return;
     }
 
@@ -58,11 +69,32 @@ export default function AppLayout({ user }) {
                             String(s.room_status || '').trim().toLowerCase() === 'pending key';
           const isCheckedOut = String(s.room_status || '').trim().toLowerCase() === 'checked out';
 
-          setIsStudentVerified(hasRoom && isQrVerified && isRoomCheckedIn && !isPending);
+          const verified = hasRoom && isQrVerified && isRoomCheckedIn && !isPending;
+          setIsStudentVerified(verified);
           setIsStudentCheckedOut(isCheckedOut);
+
+          // PENTING: Pelajar yang sudah daftar masuk mesti membuat Room Inspection (48 Jam)
+          if (verified && !isCheckedOut) {
+            try {
+              let insp = [];
+              if (s.student_id) {
+                insp = await base44.entities.RoomInspection.filter({ student_id: s.student_id }, '-created_date');
+              }
+              if (!insp.length && user?.id) {
+                insp = await base44.entities.RoomInspection.filter({ inspected_by_user_id: user.id }, '-created_date');
+              }
+              setHasRoomInspection(Array.isArray(insp) && insp.length > 0);
+            } catch (err) {
+              console.warn('AppLayout inspection check error:', err);
+              setHasRoomInspection(true);
+            }
+          } else {
+            setHasRoomInspection(true);
+          }
         } else {
           setIsStudentVerified(false);
           setIsStudentCheckedOut(false);
+          setHasRoomInspection(true);
         }
       } catch (err) {
         console.warn('AppLayout verification check error:', err);
@@ -89,11 +121,31 @@ export default function AppLayout({ user }) {
     '/profile',
     '/survey-analytics'
   ];
+  const pendingInspectionAllowedPaths = [
+    ...baseAllowedPaths,
+    '/room-inspections',
+    '/inspection',
+    '/announcements',
+    '/profile'
+  ];
 
-  const allowedPaths = isStudentCheckedOut ? checkedOutAllowedPaths : baseAllowedPaths;
-  const isBlockedRoute = isStudentBase && !hasJakmas && !isStudentVerified && !allowedPaths.includes(location.pathname);
+  let allowedPaths = baseAllowedPaths;
+  if (isStudentCheckedOut) {
+    allowedPaths = checkedOutAllowedPaths;
+  } else if (!hasRoomInspection && isStudentVerified) {
+    allowedPaths = pendingInspectionAllowedPaths;
+  }
+
+  const isBlockedRoute = isStudentBase && !hasJakmas && (
+    (!isStudentVerified && !allowedPaths.includes(location.pathname)) ||
+    (isStudentVerified && !hasRoomInspection && !allowedPaths.includes(location.pathname))
+  );
 
   if (isBlockedRoute) {
+    // Jika sudah aktif residen tetapi belum lengkapkan room inspection, bawa ke modul pemeriksaan bilik
+    if (isStudentVerified && !hasRoomInspection) {
+      return <Navigate to="/room-inspections" replace />;
+    }
     return <Navigate to="/" replace />;
   }
 
@@ -104,6 +156,7 @@ export default function AppLayout({ user }) {
         hasJakmas={hasJakmas}
         isStudentVerified={isStudentVerified}
         isStudentCheckedOut={isStudentCheckedOut}
+        hasRoomInspection={hasRoomInspection}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         collapsed={collapsed}
