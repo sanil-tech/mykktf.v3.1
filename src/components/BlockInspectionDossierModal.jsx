@@ -24,6 +24,14 @@ import {
   resolveComplainantFullDetails
 } from "@/lib/phoneUtils";
 
+const STATUS_LABELS = {
+  Submitted: '1. Aduan Baru (Menunggu TAMS)',
+  'Reported to MyServ': '2. Didaftar ke TAMS',
+  'Followed Up': '3. Susulan / Hebahan JPP',
+  'In Progress': '4. Tindakan JPP Berjalan',
+  Completed: '5. Disahkan Selesai (Siap)'
+};
+
 const COLLEGE_BLOCKS = [
   'Block A',
   'Block B',
@@ -73,7 +81,7 @@ export default function BlockInspectionDossierModal({
     return Array.from(blocks);
   }, [requests]);
 
-  // Filter requests according to selected block and status
+  // Filter requests according to selected block and status (100% harmonized with Maintenance.jsx)
   const filteredDossierRequests = useMemo(() => {
     return requests.filter(r => {
       // Block match
@@ -82,12 +90,18 @@ export default function BlockInspectionDossierModal({
         if (!itemBlock.includes(selectedBlock.toUpperCase())) return false;
       }
       // Status match
-      if (statusFilter === 'pending') {
+      if (statusFilter === 'all') {
+        return true;
+      } else if (statusFilter === 'pending_ref' || statusFilter === 'no_tams') {
+        if (r.status === 'Completed' || r.myserv_ticket_no) return false;
+      } else if (statusFilter === 'has_ref' || statusFilter === 'has_tams') {
+        if (!r.myserv_ticket_no) return false;
+      } else if (statusFilter === 'pending') {
         if (r.status === 'Completed') return false;
-      } else if (statusFilter === 'completed') {
+      } else if (statusFilter === 'Completed' || statusFilter === 'completed') {
         if (r.status !== 'Completed') return false;
-      } else if (statusFilter === 'no_tams') {
-        if (r.myserv_ticket_no) return false;
+      } else if (statusFilter !== r.status) {
+        return false;
       }
       return true;
     });
@@ -124,19 +138,9 @@ export default function BlockInspectionDossierModal({
       const cDetails = resolveComplainantFullDetails(r, studentsMap, wardensMap, currentUser);
       const phoneTxt = cDetails.displayPhone !== '-' ? ` | Tel: ${cDetails.displayPhone}` : '';
       const emailTxt = cDetails.email ? ` | E-mel: ${cDetails.email}` : '';
-      
-      const hasTams = Boolean(r.myserv_ticket_no);
-      const inProgress = r.status === 'In Progress' || Boolean(r.latest_followup_note);
-      const isDone = r.status === 'Completed';
-      const statusDetail = isDone 
-        ? 'Siap Sepenuhnya' 
-        : inProgress 
-          ? 'Dalam Tindakan Kontraktor JPP' 
-          : hasTams 
-            ? 'Didaftar di TAMS' 
-            : 'Menunggu Daftar TAMS';
+      const statusLabel = STATUS_LABELS[r.status] || r.status;
 
-      summaryText += `${idx + 1}. ${loc} - ${r.category || 'Am'}: ${r.description} ${tams} [Pengadu: ${cDetails.name} (${cDetails.role})${phoneTxt}${emailTxt}] -> Status: ${statusDetail}\n`;
+      summaryText += `${idx + 1}. ${loc} - ${r.category || 'Am'}: ${r.description} ${tams} [Pengadu: ${cDetails.name} (${cDetails.role})${phoneTxt}${emailTxt}] -> Status: ${statusLabel}\n`;
     });
 
     navigator.clipboard.writeText(summaryText);
@@ -176,16 +180,20 @@ export default function BlockInspectionDossierModal({
               </SelectContent>
             </Select>
 
-            {/* STATUS SELECTOR */}
+            {/* STATUS SELECTOR (SYNCHRONIZED WITH MAINTENANCE.JSX) */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-8 text-xs w-36 rounded-xl bg-background border-border">
-                <SelectValue placeholder="Status" />
+              <SelectTrigger className="h-8 text-xs w-60 rounded-xl bg-background border-border">
+                <SelectValue placeholder="Tapis Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Semua Status</SelectItem>
-                <SelectItem value="pending">Menunggu Tindakan</SelectItem>
-                <SelectItem value="no_tams">Belum Ada TAMS</SelectItem>
-                <SelectItem value="completed">Telah Selesai</SelectItem>
+                <SelectItem value="all">Semua Status ({requests.length})</SelectItem>
+                <SelectItem value="pending_ref">⏳ Menunggu No. TAMS ({requests.filter(r => !r.myserv_ticket_no && r.status !== 'Completed').length})</SelectItem>
+                <SelectItem value="has_ref">📋 Telah Ada No. TAMS ({requests.filter(r => Boolean(r.myserv_ticket_no) && r.status !== 'Completed').length})</SelectItem>
+                <SelectItem value="Submitted">1. Aduan Baru ({requests.filter(r => r.status === 'Submitted').length})</SelectItem>
+                <SelectItem value="Reported to MyServ">2. Didaftar TAMS ({requests.filter(r => r.status === 'Reported to MyServ').length})</SelectItem>
+                <SelectItem value="Followed Up">3. Susulan / Hebahan JPP ({requests.filter(r => r.status === 'Followed Up').length})</SelectItem>
+                <SelectItem value="In Progress">4. Tindakan JPP Berjalan ({requests.filter(r => r.status === 'In Progress').length})</SelectItem>
+                <SelectItem value="Completed">5. Disahkan Selesai ({requests.filter(r => r.status === 'Completed').length})</SelectItem>
               </SelectContent>
             </Select>
 
@@ -462,24 +470,20 @@ export default function BlockInspectionDossierModal({
                         {/* STATUS TINDAKAN DENGAN 4 MINI CHECKBOX PROGRESS OTOMATIK */}
                         <td className="p-1.5 border border-slate-300 leading-tight">
                           <div className="space-y-1">
-                            {/* BADGE UTAMA */}
+                            {/* BADGE UTAMA (SELARAS 100% DENGAN MAINTENANCE.JSX) */}
                             <div>
                               <span className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-bold ${
                                 isDone 
                                   ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs' 
-                                  : inProgress
-                                    ? 'bg-purple-100 text-purple-800 border border-purple-300'
-                                    : hasTams 
-                                      ? 'bg-blue-100 text-blue-800 border border-blue-300' 
-                                      : 'bg-amber-100 text-amber-800 border border-amber-300'
+                                  : r.status === 'In Progress'
+                                    ? 'bg-indigo-100 text-indigo-800 border border-indigo-300'
+                                    : r.status === 'Followed Up'
+                                      ? 'bg-purple-100 text-purple-800 border border-purple-300'
+                                      : hasTams || r.status === 'Reported to MyServ'
+                                        ? 'bg-blue-100 text-blue-800 border border-blue-300' 
+                                        : 'bg-slate-100 text-slate-800 border border-slate-300'
                               }`}>
-                                {isDone 
-                                  ? '✅ SELESAI / SIAP' 
-                                  : inProgress 
-                                    ? '⚙️ Tindakan JPP / Kontraktor' 
-                                    : hasTams 
-                                      ? '📋 Didaftar di TAMS' 
-                                      : '⏳ Menunggu Daftar TAMS'}
+                                {STATUS_LABELS[r.status] || (isDone ? '5. Disahkan Selesai (Siap)' : r.status)}
                               </span>
                             </div>
 
