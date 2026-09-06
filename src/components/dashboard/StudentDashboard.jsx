@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { Wrench, CalendarOff, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare, Medal, ClipboardCheck, CheckSquare } from 'lucide-react';
+import { Wrench, CalendarOff, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare, Medal, ClipboardCheck, CheckSquare, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import JakmasPanel from '@/components/dashboard/JakmasPanel';
 import DigitalResidentPass from '@/components/shared/DigitalResidentPass';
+import StudentCheckOutModal from '@/components/dashboard/StudentCheckOutModal';
+import { getStudentActiveDropKeyRequest } from '@/lib/dropKeyHelper';
 
 const PRIORITY_BORDER = { 
   Critical: 'border-l-4 border-l-red-600 shadow-[0_0_15px_rgba(220,38,38,0.1)]', 
@@ -56,6 +59,8 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
   const [readMap, setReadMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
+  const [checkOutModalOpen, setCheckOutModalOpen] = useState(false);
+  const [activeDropKey, setActiveDropKey] = useState(null);
 
   // Kemaskini state jika props studentProfile berubah dari luar
   useEffect(() => {
@@ -118,6 +123,12 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
           (user?.id && i.inspected_by_user_id === user.id)
         ) : null;
         setMyInspection(foundInsp);
+
+        // Semak status permohonan Drop-Key Check-Out
+        if (myStudent?.id || myStudent?.student_id) {
+          const activeDk = getStudentActiveDropKeyRequest(myStudent.id, myStudent.student_id);
+          setActiveDropKey(activeDk);
+        }
 
         // Daily Reminder Dispatcher for active Damage Reports (>24h without completion)
         const now = Date.now();
@@ -229,7 +240,20 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
               {student?.full_name || user?.full_name || 'Resident'}
             </h1>
 
-            <DigitalResidentPass student={student} user={user} />
+            <div className="flex items-center gap-2 flex-wrap">
+              <DigitalResidentPass student={student} user={user} />
+              {student?.block_name && student?.room_number && student?.room_status !== 'Checked Out' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCheckOutModalOpen(true)}
+                  className="h-8 text-xs font-bold bg-white/10 hover:bg-white/20 text-white border-white/20 backdrop-blur-sm gap-1.5 rounded-xl shadow-xs"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{activeDropKey ? 'Status Drop-Key' : 'Check-Out (Drop-Key)'}</span>
+                </Button>
+              )}
+            </div>
           </div>
           
           {student ? (
@@ -251,6 +275,36 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
           )}
         </div>
       </div>
+
+      {/* DROP-KEY CHECK-OUT STATUS BANNER JIKA ADA PERMOHONAN AKTIF */}
+      {activeDropKey && (
+        <div className="p-4 bg-gradient-to-r from-amber-500/15 via-indigo-500/10 to-transparent border border-amber-300 dark:border-amber-800 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-200">
+              <KeyRound className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wide">Permohonan Check-Out Drop-Key</span>
+                <Badge className="bg-amber-500 text-white text-[10px] px-1.5 py-0">Menunggu Semakan</Badge>
+              </div>
+              <p className="text-xs text-slate-700 font-medium mt-0.5">
+                {activeDropKey.block_name} Bilik {activeDropKey.room_number} &bull; Tarikh: {activeDropKey.checkout_date} ({activeDropKey.checkout_time})
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {activeDropKey.scanned_at_dropbox ? 'Kunci telah diimbas di peti drop-box. Staf pentadbiran akan menyemak fizikal kunci dan melepaskan status anda.' : 'Sila letakkan kunci dalam sampul berlabel di Peti Drop-Key dan imbas kod QR peti.'}
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setCheckOutModalOpen(true)}
+            className="bg-amber-600 hover:bg-amber-700 text-white text-xs h-8 font-semibold rounded-xl gap-1 shrink-0"
+          >
+            Lihat Resit / Imbas Peti
+          </Button>
+        </div>
+      )}
 
       {jakmasAppointment && <JakmasPanel user={user} appointment={jakmasAppointment} />}
 
@@ -707,6 +761,17 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
           </div>
         </div>
       )}
+
+      {/* 5. Student Express Drop-Key Check-Out Modal */}
+      <StudentCheckOutModal
+        student={student}
+        user={user}
+        open={checkOutModalOpen}
+        onOpenChange={setCheckOutModalOpen}
+        onCompleted={(req) => {
+          setActiveDropKey(req);
+        }}
+      />
     </div>
   );
 }

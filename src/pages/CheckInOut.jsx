@@ -13,7 +13,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { 
   Archive, LogIn, LogOut, Search, User, Loader2, Calendar, QrCode, Printer,
-  Users, CheckCircle2, ShieldCheck, AlertCircle, Building2, KeyRound, Sparkles
+  Users, CheckCircle2, ShieldCheck, AlertCircle, Building2, KeyRound, Sparkles,
+  RefreshCw, Check, X, Camera, Eye, FileText, CheckSquare, Clock, ArrowRight
 } from 'lucide-react';
 import SurveyModal from '@/components/SurveyModal';
 import TablePagination from '@/components/shared/TablePagination';
@@ -21,6 +22,7 @@ import { InstitutionalDualLogo } from '@/components/shared/KKTFLogo';
 import { useQuery } from '@tanstack/react-query';
 import { realTimeQueryOptions } from '@/lib/query-client';
 import { logAudit } from '@/lib/audit';
+import { getDropKeyRequests, approveDropKeyRequest, rejectDropKeyRequest } from '@/lib/dropKeyHelper';
 
 const PAGE_SIZE = 10;
 
@@ -49,6 +51,7 @@ export default function CheckInOut() {
 
   const [submitting, setSubmitting] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   
   // Filter Global Sesi (Kekal Dropdown < 3 pilihan)
   const [selectedSemesterFilter, setSelectedSemesterFilter] = useState('Sem1_2526');
@@ -60,6 +63,26 @@ export default function CheckInOut() {
   const [pendingCheckout, setPendingCheckout] = useState(null);
   const [showSurvey, setShowSurvey] = useState(false);
   const [showQrPosterModal, setShowQrPosterModal] = useState(false);
+  const [showDropKeyQrModal, setShowDropKeyQrModal] = useState(false);
+
+  // Drop-Key States
+  const [dropKeyRequests, setDropKeyRequests] = useState([]);
+  const [selectedDropKey, setSelectedDropKey] = useState(null);
+  const [dropKeyModalOpen, setDropKeyModalOpen] = useState(false);
+  const [dropKeyVerificationForm, setDropKeyVerificationForm] = useState({
+    room_condition: 'Good',
+    damage_notes: ''
+  });
+  const [dropKeyRejectReason, setDropKeyRejectReason] = useState('');
+  const [showRejectInput, setShowRejectInput] = useState(false);
+
+  const refreshDropKeys = () => {
+    setDropKeyRequests(getDropKeyRequests());
+  };
+
+  useEffect(() => {
+    refreshDropKeys();
+  }, []);
 
   // Pagination States
   const [ciPage, setCiPage] = useState(1);
@@ -111,7 +134,18 @@ export default function CheckInOut() {
 
   const hasActiveRoom = (student) => {
     if (!student) return false;
-    if (student.room_status && String(student.room_status).trim().toLowerCase() === 'checked in') return true;
+    const roomStatus = String(student.room_status || '').trim().toLowerCase();
+    const residentStatus = String(student.resident_status || '').trim().toLowerCase();
+    // Pelajar yang telah Checked Out atau Diarkibkan tidak mempunyai bilik aktif
+    if (roomStatus === 'checked out' || residentStatus === 'archived') return false;
+
+    // 1. Status 'checked in' secara eksplisit
+    if (roomStatus === 'checked in') return true;
+
+    // 2. Mempunyai penempatan blok dan bilik fizikal
+    if (student.block_name && student.room_number) return true;
+
+    // 3. Mempunyai pautan room_id yang sah
     if (student.room_id !== undefined && student.room_id !== null) {
       const val = String(student.room_id).trim().toLowerCase();
       if (val !== '' && val !== 'none' && val !== 'null' && val !== 'undefined') return true;
@@ -137,9 +171,9 @@ export default function CheckInOut() {
     const query = studentSearch.toLowerCase().trim();
     
     let baseFiltered = students.filter(s => {
-      const isActiveResident = !s.resident_status || String(s.resident_status).toLowerCase() === 'active';
-      const matchesSearch = s.student_id?.toLowerCase().includes(query) || s.full_name?.toLowerCase().includes(query);
-      return isActiveResident && matchesSearch;
+      const isArchived = String(s.resident_status || '').toLowerCase() === 'archived';
+      const matchesSearch = (s.student_id || '').toLowerCase().includes(query) || (s.full_name || '').toLowerCase().includes(query);
+      return !isArchived && matchesSearch;
     });
 
     if (ciDialog) {
@@ -218,10 +252,13 @@ export default function CheckInOut() {
   }
 
   async function load() {
-    refetchStudents();
-    refetchRooms();
-    refetchCheckIns();
-    refetchCheckOuts();
+    await Promise.all([
+      refetchStudents(),
+      refetchRooms(),
+      refetchCheckIns(),
+      refetchCheckOuts()
+    ]);
+    refreshDropKeys();
   }
 
   function dispatchGlobalRefresh() {
@@ -311,11 +348,14 @@ export default function CheckInOut() {
 
     setSubmitting(true); 
     try {
-      const room = rooms.find(r => String(r.id) === String(selectedStudent.room_id));
+      let room = rooms.find(r => String(r.id) === String(selectedStudent.room_id));
+      if (!room && selectedStudent.block_name && selectedStudent.room_number) {
+        room = rooms.find(r => r.block_name === selectedStudent.block_name && String(r.room_number) === String(selectedStudent.room_number));
+      }
 
       const checkout = await base44.entities.CheckOut.create({
         student_id: selectedStudent.id,
-        room_id: selectedStudent.room_id,
+        room_id: selectedStudent.room_id || room?.id || '',
         check_out_date: coForm.check_out_date,
         check_out_time: coForm.check_out_time,
         room_condition: coForm.room_condition,
@@ -335,7 +375,7 @@ export default function CheckInOut() {
         await base44.entities.Room.update(room.id, {
           current_occupancy: nextOcc,
           status: nextOcc === 0 ? 'Available' : 'Occupied',
-        });
+        }).catch(() => {});
       }
 
       await logAudit(currentUser, 'CHECKOUT_RECORDED', 'Check-In/Out', { student: selectedStudent.full_name, student_id: selectedStudent.student_id, room: selectedStudent.room_number, condition: coForm.room_condition });
@@ -560,8 +600,133 @@ export default function CheckInOut() {
     setCoDialog(true);
   }
 
+  // 1-Click Sync Residen Aktif Berbilik ke dalam Log Check-In
+  async function handleSyncActiveResidents() {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const activeRoomStudents = students.filter(s => {
+        const isArchived = String(s.resident_status || '').toLowerCase() === 'archived';
+        const isCheckedOut = String(s.room_status || '').toLowerCase() === 'checked out';
+        return !isArchived && !isCheckedOut && Boolean(s.block_name && s.room_number);
+      });
+
+      const existingCiMap = new Set(checkIns.map(ci => String(ci.student_id)));
+      const needSync = activeRoomStudents.filter(s => !existingCiMap.has(String(s.id)));
+
+      if (needSync.length === 0) {
+        toast({ title: 'Semua Residen Telah Diselaraskan', description: 'Semua residen berbilik aktif telah mempunyai rekod pendaftaran rasmi.' });
+        return;
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      const curTime = `${new Date().getHours().toString().padStart(2, '0')}:${new Date().getMinutes().toString().padStart(2, '0')}`;
+
+      let count = 0;
+      for (const st of needSync) {
+        const targetRoom = rooms.find(r => r.block_name === st.block_name && String(r.room_number) === String(st.room_number));
+        await base44.entities.CheckIn.create({
+          student_id: st.id,
+          room_id: targetRoom?.id || st.room_id || '',
+          room_number: st.room_number,
+          block_name: st.block_name,
+          check_in_date: st.check_in_date || today,
+          check_in_time: curTime,
+          semester: selectedSemesterFilter,
+          notes: 'Penyelarasan automatik rekod residen berbilik ke dalam Log Check-In',
+          student_name: st.full_name || ''
+        }).catch(() => {});
+
+        await base44.entities.Student.update(st.id, {
+          room_status: 'Checked In',
+          resident_status: 'Active',
+          qr_verified: true,
+          qr_verified_at: st.qr_verified_at || new Date().toISOString()
+        }).catch(() => {});
+        count++;
+      }
+
+      toast({
+        title: 'Penyelarasan Selesai!',
+        description: `${count} orang residen aktif berjaya diselaraskan ke dalam Log Check-In rasmi.`
+      });
+      await load();
+      dispatchGlobalRefresh();
+    } catch (err) {
+      toast({ title: 'Ralat Penyelarasan', description: err.message, variant: 'destructive' });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  // Pengurusan Drop-Key oleh Staf
+  const handleOpenDropKeyModal = (req) => {
+    setSelectedDropKey(req);
+    setDropKeyVerificationForm({
+      room_condition: req.room_condition || 'Good',
+      damage_notes: req.damage_notes || ''
+    });
+    setShowRejectInput(false);
+    setDropKeyRejectReason('');
+    setDropKeyModalOpen(true);
+  };
+
+  const handleApproveDropKey = async () => {
+    if (!selectedDropKey) return;
+    setSubmitting(true);
+    try {
+      await approveDropKeyRequest({
+        requestId: selectedDropKey.id,
+        staffUser: currentUser,
+        roomCondition: dropKeyVerificationForm.room_condition,
+        damageNotes: dropKeyVerificationForm.damage_notes,
+        rooms
+      });
+      toast({
+        title: 'Check-Out Drop-Key Diluluskan',
+        description: `Kunci bilik ${selectedDropKey.block_name} (${selectedDropKey.room_number}) bagi ${selectedDropKey.student_name} telah disahkan dan status check-out selesai.`
+      });
+      setDropKeyModalOpen(false);
+      setSelectedDropKey(null);
+      await load();
+      dispatchGlobalRefresh();
+    } catch (err) {
+      toast({ title: 'Ralat Kelulusan', description: err.message, variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRejectDropKey = async () => {
+    if (!selectedDropKey) return;
+    if (!dropKeyRejectReason.trim()) {
+      toast({ title: 'Sila masukkan sebab penolakan', variant: 'destructive' });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await rejectDropKeyRequest({
+        requestId: selectedDropKey.id,
+        staffUser: currentUser,
+        reason: dropKeyRejectReason
+      });
+      toast({
+        title: 'Permohonan Ditolak',
+        description: `Notifikasi telah dihantar kepada pelajar berkaitan isu serahan kunci.`
+      });
+      setDropKeyModalOpen(false);
+      setSelectedDropKey(null);
+      refreshDropKeys();
+    } catch (err) {
+      toast({ title: 'Ralat Penolakan', description: err.message, variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const displayCheckIns = checkIns.filter(ci => (ci.semester || 'Sem1_2526') === selectedSemesterFilter);
   const displayCheckOuts = checkOuts.filter(co => (co.semester || 'Sem1_2526') === selectedSemesterFilter);
+  const pendingDropKeys = dropKeyRequests.filter(r => r.status === 'pending_verification');
 
   const totalCiPages = Math.ceil(displayCheckIns.length / PAGE_SIZE);
   const totalCoPages = Math.ceil(displayCheckOuts.length / PAGE_SIZE);
@@ -574,11 +739,17 @@ export default function CheckInOut() {
     <div>
       <PageHeader
         title="Check-In / Check-Out"
-        description="Urus pergerakan residen dengan validasi hibrid"
+        description="Urus pergerakan residen dengan validasi hibrid & Express Drop-Key"
         actions={
           <div className="flex gap-2 flex-wrap">
             <Button size="sm" variant="outline" className="border-lime-500/60 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100/60" onClick={() => setShowQrPosterModal(true)}>
               <QrCode className="w-4 h-4 mr-1.5 text-emerald-600" /> Kod QR Pengaktifan
+            </Button>
+            <Button size="sm" variant="outline" className="border-amber-500/60 text-amber-800 bg-amber-50/50 hover:bg-amber-100" onClick={() => setShowDropKeyQrModal(true)}>
+              <QrCode className="w-4 h-4 mr-1.5 text-amber-600" /> QR Peti Drop-Key
+            </Button>
+            <Button size="sm" variant="outline" disabled={syncing} onClick={handleSyncActiveResidents} className="border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100">
+              <RefreshCw className={`w-4 h-4 mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Selaras Residen Aktif
             </Button>
             <Button size="sm" variant="secondary" onClick={() => setArchiveDialog(true)}>
               <Archive className="w-4 h-4 mr-1.5" /> Tutup Sesi
@@ -635,6 +806,15 @@ export default function CheckInOut() {
             <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-muted">
               {displayCheckOuts.length}
             </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="drop_key" className="flex items-center gap-1.5 text-xs">
+            <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+            <span>Permohonan Drop-Key</span>
+            {pendingDropKeys.length > 0 && (
+              <Badge className="ml-1 text-[10px] px-1.5 py-0 bg-amber-500 text-white animate-pulse font-bold">
+                {pendingDropKeys.length}
+              </Badge>
+            )}
           </TabsTrigger>
         </TabsList>
 
@@ -834,14 +1014,27 @@ export default function CheckInOut() {
                                   <LogOut className="w-3 h-3 mr-1" /> Check-Out
                                 </Button>
                               ) : isPendingQr ? (
-                                <Button
-                                  size="sm"
-                                  disabled={submitting}
-                                  onClick={() => handleQuickCounterActivation(st)}
-                                  className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
-                                >
-                                  <ShieldCheck className="w-3 h-3 mr-1" /> Sahkan Kaunter
-                                </Button>
+                                <div className="flex items-center justify-end gap-1 flex-wrap">
+                                  <Button
+                                    size="sm"
+                                    disabled={submitting}
+                                    onClick={() => handleQuickCounterActivation(st)}
+                                    className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+                                    title="Sahkan pengaktifan fizikal kaunter"
+                                  >
+                                    <ShieldCheck className="w-3 h-3 mr-1" /> Sahkan Kaunter
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={submitting}
+                                    onClick={() => handleTriggerCheckOut(st)}
+                                    className="h-7 text-xs text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                                    title="Terus Check-Out residen ini"
+                                  >
+                                    <LogOut className="w-3 h-3 mr-1" /> Check-Out
+                                  </Button>
+                                </div>
                               ) : isPendingKey ? (
                                 <Button
                                   size="sm"
@@ -936,6 +1129,175 @@ export default function CheckInOut() {
                 </table>
               </div>
               <TablePagination page={safeCoPage} totalPages={totalCoPages} onPageChange={setCoPage} />
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="drop_key" className="space-y-4">
+          {/* STATS HEADER */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-card border rounded-2xl p-3.5 shadow-xs">
+              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                <KeyRound className="w-4 h-4 text-amber-600" />
+                <span className="text-xs font-semibold">Semua Permohonan</span>
+              </div>
+              <p className="text-2xl font-black text-foreground font-mono">{dropKeyRequests.length}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Penyerahan luar waktu</p>
+            </div>
+
+            <div className="bg-amber-50/50 border border-amber-200/80 rounded-2xl p-3.5 shadow-xs">
+              <div className="flex items-center gap-2 text-amber-700 mb-1">
+                <Clock className="w-4 h-4 text-amber-600" />
+                <span className="text-xs font-semibold">Menunggu Semakan</span>
+              </div>
+              <p className="text-2xl font-black text-amber-800 font-mono">{pendingDropKeys.length}</p>
+              <p className="text-[10px] text-amber-600 mt-0.5">Perlu semakan staf / felo</p>
+            </div>
+
+            <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-2xl p-3.5 shadow-xs">
+              <div className="flex items-center gap-2 text-emerald-700 mb-1">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-semibold">Diluluskan</span>
+              </div>
+              <p className="text-2xl font-black text-emerald-800 font-mono">
+                {dropKeyRequests.filter(r => r.status === 'approved').length}
+              </p>
+              <p className="text-[10px] text-emerald-600 mt-0.5">Kunci diterima & bilik dikosongkan</p>
+            </div>
+
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 shadow-xs">
+              <div className="flex items-center gap-2 text-rose-700 mb-1">
+                <AlertCircle className="w-4 h-4 text-rose-600" />
+                <span className="text-xs font-semibold">Ditolak / Isu</span>
+              </div>
+              <p className="text-2xl font-black text-rose-800 font-mono">
+                {dropKeyRequests.filter(r => r.status === 'rejected').length}
+              </p>
+              <p className="text-[10px] text-rose-600 mt-0.5">Kunci tidak ditemui / isu bilik</p>
+            </div>
+          </div>
+
+          {/* TABLE OF DROP KEY SUBMISSIONS */}
+          {dropKeyRequests.length === 0 ? (
+            <EmptyState 
+              icon={KeyRound} 
+              title="Tiada permohonan check-out Express Drop-Key ditemui" 
+              description="Pelajar boleh mengemukakan permohonan pemulangan kunci di luar waktu pejabat melalui aplikasi MyKKTF mereka."
+            />
+          ) : (
+            <div className="bg-card border rounded-2xl overflow-hidden shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b bg-muted/40 text-muted-foreground font-semibold">
+                      <th className="text-left px-4 py-3">Residen</th>
+                      <th className="text-left px-4 py-3">Bilik Asal</th>
+                      <th className="text-left px-4 py-3">Tarikh & Masa Keluar</th>
+                      <th className="text-left px-4 py-3">Sebab Keluar</th>
+                      <th className="text-left px-4 py-3">Bukti Foto</th>
+                      <th className="text-left px-4 py-3">Status Peti Fizikal</th>
+                      <th className="text-left px-4 py-3">Status Semakan</th>
+                      <th className="text-right px-4 py-3">Tindakan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {dropKeyRequests.map((req) => {
+                      const photoCount = [req.photo_room_clean, req.photo_key_tag, req.photo_wardrobe_open, req.photo_switches_off].filter(Boolean).length;
+                      const isPending = req.status === 'pending_verification';
+                      const isApproved = req.status === 'approved';
+                      const isRejected = req.status === 'rejected';
+
+                      return (
+                        <tr key={req.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="font-bold text-foreground">{req.student_name}</div>
+                            <div className="text-[11px] text-muted-foreground font-mono">{req.student_id}</div>
+                            {req.phone && (
+                              <div className="text-[10px] text-slate-500">Tel: {req.phone}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="font-bold text-indigo-900 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded font-mono text-xs">
+                              {req.block_name} - {req.room_number}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-foreground">{req.checkout_date}</div>
+                            <div className="text-[11px] text-muted-foreground font-mono">{req.checkout_time || '-'}</div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-foreground font-medium">{req.reason || 'Tamat Semester'}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge variant="outline" className="text-slate-700 bg-slate-50 border-slate-300 text-[10px] gap-1">
+                              <Camera className="w-3 h-3 text-slate-500" /> {photoCount}/4 Foto
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            {req.box_qr_scanned ? (
+                              <div className="space-y-0.5">
+                                <Badge className="bg-emerald-600 text-white text-[10px] gap-1 px-2 py-0.5">
+                                  <CheckCircle2 className="w-3 h-3" /> Diimbas di Peti
+                                </Badge>
+                                {req.box_qr_scanned_at && (
+                                  <p className="text-[9px] text-muted-foreground font-mono">
+                                    {new Date(req.box_qr_scanned_at).toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <Badge variant="outline" className="text-amber-700 bg-amber-50 border-amber-200 text-[10px]">
+                                Belum Imbas Peti
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {isPending && (
+                              <Badge className="bg-amber-500 text-white text-[10px] gap-1 px-2 py-0.5">
+                                <Clock className="w-3 h-3" /> Menunggu Semakan
+                              </Badge>
+                            )}
+                            {isApproved && (
+                              <div className="space-y-0.5">
+                                <Badge className="bg-emerald-600 text-white text-[10px] gap-1 px-2 py-0.5">
+                                  <Check className="w-3 h-3" /> Selesai Diluluskan
+                                </Badge>
+                                {req.verified_by && (
+                                  <p className="text-[9px] text-muted-foreground">Oleh: {req.verified_by}</p>
+                                )}
+                              </div>
+                            )}
+                            {isRejected && (
+                              <div className="space-y-0.5">
+                                <Badge className="bg-rose-600 text-white text-[10px] gap-1 px-2 py-0.5">
+                                  <X className="w-3 h-3" /> Ditolak
+                                </Badge>
+                                {req.rejection_reason && (
+                                  <p className="text-[9px] text-rose-600 truncate max-w-[140px]">{req.rejection_reason}</p>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Button
+                              size="sm"
+                              onClick={() => handleOpenDropKeyModal(req)}
+                              className={`h-7 text-xs font-semibold shadow-xs ${
+                                isPending 
+                                  ? 'bg-amber-600 hover:bg-amber-700 text-white' 
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border'
+                              }`}
+                            >
+                              <Eye className="w-3 h-3 mr-1" />
+                              {isPending ? 'Semak Permohonan' : 'Lihat Rekod'}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </TabsContent>
@@ -1243,6 +1605,334 @@ export default function CheckInOut() {
             </Button>
             <Button size="sm" className="bg-[#002147] hover:bg-[#001833] text-white gap-1.5" onClick={() => window.print()}>
               <Printer className="w-4 h-4" /> Cetak Poster
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* DROP-KEY REVIEW & VERIFICATION MODAL */}
+      <Dialog open={dropKeyModalOpen} onOpenChange={(val) => !submitting && setDropKeyModalOpen(val)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-6 rounded-3xl">
+          <DialogHeader>
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-700 flex items-center justify-center font-bold">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-foreground">
+                    Semakan Check-Out Express Drop-Key
+                  </DialogTitle>
+                  <p className="text-xs text-muted-foreground font-mono">
+                    ID Permohonan: {selectedDropKey?.id}
+                  </p>
+                </div>
+              </div>
+              <Badge 
+                className={
+                  selectedDropKey?.status === 'approved' 
+                    ? 'bg-emerald-600 text-white' 
+                    : selectedDropKey?.status === 'rejected' 
+                      ? 'bg-rose-600 text-white' 
+                      : 'bg-amber-500 text-white'
+                }
+              >
+                {selectedDropKey?.status === 'approved' 
+                  ? 'Diluluskan' 
+                  : selectedDropKey?.status === 'rejected' 
+                    ? 'Ditolak' 
+                    : 'Menunggu Semakan'}
+              </Badge>
+            </div>
+          </DialogHeader>
+
+          {selectedDropKey && (
+            <div className="space-y-4 pt-2 text-xs">
+              {/* STUDENT & ROOM DETAILS */}
+              <div className="bg-muted/40 border rounded-2xl p-3.5 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <span className="text-muted-foreground block text-[10px]">Nama Pelajar</span>
+                  <span className="font-bold text-foreground text-xs">{selectedDropKey.student_name}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px]">No. Matrik</span>
+                  <span className="font-bold text-foreground font-mono text-xs">{selectedDropKey.student_id}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px]">Bilik & Blok</span>
+                  <span className="font-bold text-indigo-700 font-mono text-xs">{selectedDropKey.block_name} - {selectedDropKey.room_number}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px]">Tarikh & Masa</span>
+                  <span className="font-bold text-foreground text-xs">{selectedDropKey.checkout_date} ({selectedDropKey.checkout_time || '-'})</span>
+                </div>
+              </div>
+
+              {/* SEBAB & DROP BOX STATUS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-card border rounded-xl p-3">
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold block mb-1">Sebab Keluar & Catatan</span>
+                  <p className="font-semibold text-foreground">{selectedDropKey.reason || 'Tamat Semester'}</p>
+                  {selectedDropKey.notes && (
+                    <p className="text-muted-foreground italic mt-1 text-[11px]">"{selectedDropKey.notes}"</p>
+                  )}
+                </div>
+
+                <div className="bg-card border rounded-xl p-3">
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold block mb-1">Status Peti Drop-Box Fizikal</span>
+                  {selectedDropKey.box_qr_scanned ? (
+                    <div className="flex items-center gap-2 text-emerald-700 font-semibold mt-1">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Kunci Dimasukkan & QR Diimbas</span>
+                      {selectedDropKey.box_qr_scanned_at && (
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          ({new Date(selectedDropKey.box_qr_scanned_at).toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })})
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-amber-700 font-semibold mt-1">
+                      <AlertCircle className="w-4 h-4 text-amber-600" />
+                      <span>Belum Diimbas di Peti (Serahan Manual)</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 4 FOTO BUKTI PEMERIKSAAN BILIK */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-foreground flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-indigo-600" />
+                    Bukti Foto Keadaan Bilik & Serahan Kunci (4 Foto)
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">Klik foto untuk lihat paparan penuh</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground block truncate">1. Lantai & Kebersihan</span>
+                    <div className="h-28 rounded-xl border overflow-hidden bg-slate-100 relative group">
+                      {selectedDropKey.photo_room_clean ? (
+                        <img 
+                          src={selectedDropKey.photo_room_clean} 
+                          alt="Lantai Bilik" 
+                          className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" 
+                          onClick={() => window.open(selectedDropKey.photo_room_clean, '_blank')}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-400 text-[10px]">Tiada Foto</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground block truncate">2. Kunci & Tag Bilik</span>
+                    <div className="h-28 rounded-xl border overflow-hidden bg-slate-100 relative group">
+                      {selectedDropKey.photo_key_tag ? (
+                        <img 
+                          src={selectedDropKey.photo_key_tag} 
+                          alt="Kunci & Tag" 
+                          className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" 
+                          onClick={() => window.open(selectedDropKey.photo_key_tag, '_blank')}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-400 text-[10px]">Tiada Foto</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground block truncate">3. Almari Terbuka</span>
+                    <div className="h-28 rounded-xl border overflow-hidden bg-slate-100 relative group">
+                      {selectedDropKey.photo_wardrobe_open ? (
+                        <img 
+                          src={selectedDropKey.photo_wardrobe_open} 
+                          alt="Almari Terbuka" 
+                          className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" 
+                          onClick={() => window.open(selectedDropKey.photo_wardrobe_open, '_blank')}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-400 text-[10px]">Tiada Foto</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground block truncate">4. Suis & Tingkap</span>
+                    <div className="h-28 rounded-xl border overflow-hidden bg-slate-100 relative group">
+                      {selectedDropKey.photo_switches_off ? (
+                        <img 
+                          src={selectedDropKey.photo_switches_off} 
+                          alt="Suis & Tingkap" 
+                          className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" 
+                          onClick={() => window.open(selectedDropKey.photo_switches_off, '_blank')}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-400 text-[10px]">Tiada Foto</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* INTEGRITY PLEDGE BADGE */}
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="text-[11px]">
+                  Residen telah menandatangani <strong>Akuan Rasmi Integriti Residen KKTF</strong> secara digital.
+                </span>
+              </div>
+
+              {/* ACTION / VERIFICATION SECTION */}
+              {selectedDropKey.status === 'pending_verification' ? (
+                <div className="border-t pt-3 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs font-semibold">Pengesahan Keadaan Bilik *</Label>
+                      <Select 
+                        value={dropKeyVerificationForm.room_condition} 
+                        onValueChange={(v) => setDropKeyVerificationForm({ ...dropKeyVerificationForm, room_condition: v })}
+                      >
+                        <SelectTrigger className="h-9 text-xs mt-1">
+                          <SelectValue placeholder="Pilih keadaan bilik" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Good">Sangat Baik / Bersih (Tiada Isu)</SelectItem>
+                          <SelectItem value="Fair">Sederhana (Perlu Pembersihan Ringan)</SelectItem>
+                          <SelectItem value="Damaged">Mempunyai Kerosakan Fizikal / Aset Hilang</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs font-semibold">Catatan Kerosakan / Pemeriksaan</Label>
+                      <Input 
+                        placeholder="Contoh: Kunci diterima lengkap dlm peti..." 
+                        value={dropKeyVerificationForm.damage_notes}
+                        onChange={(e) => setDropKeyVerificationForm({ ...dropKeyVerificationForm, damage_notes: e.target.value })}
+                        className="h-9 text-xs mt-1"
+                      />
+                    </div>
+                  </div>
+
+                  {showRejectInput && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
+                      <Label className="text-xs font-bold text-rose-800">Sebab Penolakan Permohonan *</Label>
+                      <Input 
+                        placeholder="Contoh: Kunci tiada dlm peti drop-box / Bilik didapati belum dikosongkan..." 
+                        value={dropKeyRejectReason}
+                        onChange={(e) => setDropKeyRejectReason(e.target.value)}
+                        className="h-9 text-xs bg-white"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowRejectInput(false)}>Batal</Button>
+                        <Button size="sm" variant="destructive" className="h-7 text-xs" disabled={submitting} onClick={handleRejectDropKey}>
+                          {submitting ? 'Memproses...' : 'Sahkan Tolak Permohonan'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {!showRejectInput && (
+                    <div className="flex items-center justify-between pt-2">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-rose-600 border-rose-200 hover:bg-rose-50"
+                        onClick={() => setShowRejectInput(true)}
+                        disabled={submitting}
+                      >
+                        <X className="w-3.5 h-3.5 mr-1" /> Tolak Permohonan
+                      </Button>
+
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => setDropKeyModalOpen(false)}>
+                          Tutup
+                        </Button>
+                        <Button 
+                          type="button" 
+                          size="sm" 
+                          disabled={submitting} 
+                          onClick={handleApproveDropKey}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                        >
+                          {submitting ? (
+                            <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Mengesahkan...</>
+                          ) : (
+                            <><CheckCircle2 className="w-4 h-4 mr-1.5" /> Sahkan Kunci & Luluskan Check-Out</>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="border-t pt-3 flex justify-between items-center text-xs text-muted-foreground">
+                  <div>
+                    {selectedDropKey.status === 'approved' && (
+                      <span>Disahkan oleh: <strong>{selectedDropKey.verified_by || 'Staf KKTF'}</strong> ({selectedDropKey.verified_at ? new Date(selectedDropKey.verified_at).toLocaleDateString('ms-MY') : '-'})</span>
+                    )}
+                    {selectedDropKey.status === 'rejected' && (
+                      <span className="text-rose-600">Ditolak: {selectedDropKey.rejection_reason}</span>
+                    )}
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setDropKeyModalOpen(false)}>
+                    Tutup
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* DROP-KEY QR POSTER DIALOG (UNTUK DITAMPAL DI PETI KUNCI FIZIKAL) */}
+      <Dialog open={showDropKeyQrModal} onOpenChange={setShowDropKeyQrModal}>
+        <DialogContent className="max-w-md p-6 bg-white rounded-3xl border border-amber-300 text-center shadow-2xl">
+          <div className="flex items-center justify-between border-b pb-3">
+            <InstitutionalDualLogo />
+            <Badge className="bg-amber-500 text-slate-950 font-bold text-[10px]">
+              PETI SERAHAN KUNCI
+            </Badge>
+          </div>
+
+          <div className="space-y-1 pt-2">
+            <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">
+              Peti Drop-Key Check-Out KKTF
+            </h3>
+            <p className="text-xs text-slate-500">
+              Pamerkan poster ini di atas peti fizikal Drop-Key (Pondok Keselamatan / Foyer Pejabat Pentadbiran).
+            </p>
+          </div>
+
+          <div className="p-4 bg-white rounded-2xl border-4 border-amber-400 shadow-md inline-block mx-auto my-2">
+            <img 
+              src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=KKTF_DROPKEY_STATION" 
+              alt="QR Rasmi Peti Drop-Key KKTF" 
+              className="w-56 h-56 mx-auto object-contain"
+            />
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-xl text-left space-y-1.5 text-xs text-amber-900">
+            <p className="font-bold text-amber-950 flex items-center gap-1.5">
+              <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+              Panduan Residen Semasa Pemulangan:
+            </p>
+            <ol className="list-decimal pl-4 text-[11px] text-amber-800 space-y-0.5">
+              <li>Lengkapkan borang Check-Out Drop-Key di aplikasi MyKKTF beserta 4 keping foto.</li>
+              <li>Masukkan kunci bersama tag bilik ke dalam peti ini.</li>
+              <li>Imbas Kod QR di atas menggunakan kamera telefon untuk mengesahkan penyerahan.</li>
+            </ol>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setShowDropKeyQrModal(false)}>
+              Tutup
+            </Button>
+            <Button size="sm" className="bg-[#002147] hover:bg-[#001833] text-white gap-1.5" onClick={() => window.print()}>
+              <Printer className="w-4 h-4" /> Cetak Poster Peti
             </Button>
           </div>
         </DialogContent>
