@@ -18,10 +18,23 @@ import {
   Hash
 } from "lucide-react";
 import { toast } from "sonner";
+import { 
+  formatDisplayPhone, 
+  formatWhatsAppDigits, 
+  resolveComplainantPhone 
+} from "@/lib/phoneUtils";
 
 const UMS_TAMS_URL = 'https://aset.ums.edu.my/myserv/';
 
-export default function DamageReportModal({ open, onOpenChange, request, categoryUnitMap = {} }) {
+export default function DamageReportModal({ 
+  open, 
+  onOpenChange, 
+  request, 
+  categoryUnitMap = {},
+  studentsMap = {},
+  wardensMap = {},
+  currentUser = null
+}) {
   if (!request) return null;
 
   const unitInfo = categoryUnitMap[request.category] || { 
@@ -46,6 +59,9 @@ export default function DamageReportModal({ open, onOpenChange, request, categor
   const ticketYear = request.submitted_at ? new Date(request.submitted_at).getFullYear() : new Date().getFullYear();
   const internalKktfRef = `KKTF/MNT/${ticketYear}/${request.id ? String(request.id).slice(-5).toUpperCase() : 'REQ-01'}`;
 
+  const resolvedPhone = resolveComplainantPhone(request, studentsMap, wardensMap, currentUser);
+  const displayPhone = formatDisplayPhone(resolvedPhone);
+
   // Copy structured text formatted specifically for TAMS input fields
   const handleCopyTamsFormat = () => {
     const tamsText = `[LAPORAN KEROSAKAN FASILITI KKTF - TAMS UMS]
@@ -55,7 +71,7 @@ Kategori: ${request.category || 'Penyelenggaraan Am'}
 Unit Pelaksana JPP: ${unitInfo.unit}
 Tahap Keutamaan: ${isUrgent ? 'KECEMASAN / TINGGI' : 'BIASA (Standard SLA)'}
 Nama Pengadu / Felo: ${request.student_name || 'Felo Pemeriksa'} (ID/Matrik: ${request.student_id || '-'})
-No. Telefon Pengadu: ${request.phone_number || '-'}
+No. Telefon Pengadu: ${displayPhone !== '-' ? displayPhone : (request.phone_number || '-')}
 Tarikh Pemeriksaan: ${formattedDate}
 
 KETERANGAN KEROSAKAN:
@@ -224,14 +240,15 @@ ${request.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di l
                 <p className="text-[10px] text-slate-600 font-mono">
                   No. Matrik / ID: {request.student_id || '-'}
                 </p>
-                {request.phone_number ? (
+                {resolvedPhone ? (
                   <a
-                    href={`https://wa.me/60${request.phone_number.replace(/^(\+60|60|0)/, '').replace(/\D/g, '')}`}
+                    href={`https://wa.me/${formatWhatsAppDigits(resolvedPhone)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[10px] text-emerald-700 font-mono font-semibold hover:underline flex items-center gap-0.5 justify-end mt-0.5"
+                    className="text-[10.5px] text-emerald-700 font-mono font-bold hover:underline flex items-center gap-0.5 justify-end mt-0.5"
+                    title="Hubungi pengadu melalui WhatsApp"
                   >
-                    📱 +60{request.phone_number.replace(/^(\+60|60|0)/, '').replace(/\D/g, '')}
+                    <span>📱</span> {displayPhone}
                   </a>
                 ) : (
                   <p className="text-[10px] text-slate-400 font-mono">Tel: -</p>
@@ -331,7 +348,7 @@ ${request.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di l
           </div>
 
           {/* SECTION 4: OFFICIAL 4-SIGNATURE & ENDORSEMENT BLOCKS */}
-          <div className="pt-2 border-t-2 border-slate-900 space-y-2">
+          <div className="pt-2 border-t-2 border-slate-900 space-y-2" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
             <h4 className="text-[9.5px] font-bold uppercase tracking-wider text-slate-800 text-center">
               Perakuan Pemeriksaan, Penerimaan TAMS & Pengesahan Pembaikan Fizikal
             </h4>

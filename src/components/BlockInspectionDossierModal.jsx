@@ -12,9 +12,16 @@ import {
   AlertCircle, 
   ShieldCheck, 
   Filter,
-  FileText
+  FileText,
+  Image as ImageIcon,
+  Check
 } from "lucide-react";
 import { toast } from "sonner";
+import { 
+  formatDisplayPhone, 
+  formatWhatsAppDigits, 
+  resolveComplainantPhone 
+} from "@/lib/phoneUtils";
 
 const COLLEGE_BLOCKS = [
   'Block A',
@@ -40,7 +47,9 @@ export default function BlockInspectionDossierModal({
   currentBlockFilter = 'all', 
   categoryUnitMap = {},
   assignedBlocks = [],
-  currentUser = null
+  currentUser = null,
+  studentsMap = {},
+  wardensMap = {}
 }) {
   const [selectedBlock, setSelectedBlock] = useState(
     currentBlockFilter !== 'all' 
@@ -48,6 +57,7 @@ export default function BlockInspectionDossierModal({
       : (assignedBlocks.length > 0 ? assignedBlocks[0] : 'all')
   );
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showPhotoAppendix, setShowPhotoAppendix] = useState(true);
 
   // Extract unique blocks combining college blocks and requests
   const availableBlocks = useMemo(() => {
@@ -82,6 +92,11 @@ export default function BlockInspectionDossierModal({
     });
   }, [requests, selectedBlock, statusFilter]);
 
+  // Requests that have photo attachments (before or completion)
+  const requestsWithPhotos = useMemo(() => {
+    return filteredDossierRequests.filter(r => Boolean(r.photo || r.completion_photo));
+  }, [filteredDossierRequests]);
+
   // Stats
   const totalItems = filteredDossierRequests.length;
   const totalCompleted = filteredDossierRequests.filter(r => r.status === 'Completed').length;
@@ -105,7 +120,9 @@ export default function BlockInspectionDossierModal({
     filteredDossierRequests.forEach((r, idx) => {
       const loc = r.specific_location || `Bilik ${r.room_number || '-'}`;
       const tams = r.myserv_ticket_no ? `[TAMS: ${r.myserv_ticket_no}]` : `[Belum TAMS]`;
-      summaryText += `${idx + 1}. ${loc} - ${r.category || 'Am'}: ${r.description} ${tams} (${r.status})\n`;
+      const phone = resolveComplainantPhone(r, studentsMap, wardensMap, currentUser);
+      const phoneTxt = phone ? ` | Tel: +${formatWhatsAppDigits(phone)}` : '';
+      summaryText += `${idx + 1}. ${loc} - ${r.category || 'Am'}: ${r.description} ${tams}${phoneTxt} (${r.status})\n`;
     });
 
     navigator.clipboard.writeText(summaryText);
@@ -157,6 +174,18 @@ export default function BlockInspectionDossierModal({
                 <SelectItem value="completed">Telah Selesai</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* TOGGLE PHOTO APPENDIX */}
+            <Button
+              size="sm"
+              variant={showPhotoAppendix ? "secondary" : "outline"}
+              onClick={() => setShowPhotoAppendix(!showPhotoAppendix)}
+              className="h-8 text-xs font-semibold rounded-xl gap-1.5"
+              title="Sertakan lampiran foto kerosakan dalam cetakan PDF"
+            >
+              <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Lampiran Foto ({requestsWithPhotos.length})</span>
+            </Button>
 
             <Button 
               size="sm" 
@@ -288,20 +317,21 @@ export default function BlockInspectionDossierModal({
             <table className="w-full text-[10px] border-collapse border border-slate-300">
               <thead>
                 <tr className="bg-slate-100 text-slate-800 text-left font-bold">
-                  <th className="p-2 border border-slate-300 text-center w-8">Bil</th>
-                  <th className="p-2 border border-slate-300 w-28">Lokasi & Bilik</th>
-                  <th className="p-2 border border-slate-300 w-32">Kategori / Unit JPP</th>
+                  <th className="p-2 border border-slate-300 text-center w-7">Bil</th>
+                  <th className="p-2 border border-slate-300 w-24">Lokasi & Bilik</th>
+                  <th className="p-2 border border-slate-300 w-28">Kategori / Unit JPP</th>
                   <th className="p-2 border border-slate-300">Deskripsi Kerosakan di Tapak</th>
-                  <th className="p-2 border border-slate-300 text-center w-20">Keutamaan</th>
+                  <th className="p-2 border border-slate-300 text-center w-14">Bukti Foto</th>
+                  <th className="p-2 border border-slate-300 text-center w-16">Keutamaan</th>
                   <th className="p-2 border border-slate-300 w-24">No. Telefon</th>
-                  <th className="p-2 border border-slate-300 w-24">No. TAMS</th>
-                  <th className="p-2 border border-slate-300 text-center w-24">Status</th>
+                  <th className="p-2 border border-slate-300 w-20">No. TAMS</th>
+                  <th className="p-2 border border-slate-300 text-center w-20">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredDossierRequests.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-slate-400 italic">
+                    <td colSpan={9} className="p-6 text-center text-slate-400 italic">
                       Tiada rekod kerosakan ditemui mengikut tapisan blok yang dipilih.
                     </td>
                   </tr>
@@ -310,6 +340,7 @@ export default function BlockInspectionDossierModal({
                     const unitInfo = categoryUnitMap[r.category] || { unit: 'Penyelenggaraan Am' };
                     const isUrgent = r.urgency === 'Urgent';
                     const isDone = r.status === 'Completed';
+                    const resolvedPhone = resolveComplainantPhone(r, studentsMap, wardensMap, currentUser);
 
                     return (
                       <tr 
@@ -332,6 +363,27 @@ export default function BlockInspectionDossierModal({
                             </p>
                           )}
                         </td>
+
+                        {/* FOTO EVIDENCE THUMBNAIL */}
+                        <td className="p-1.5 border border-slate-300 text-center">
+                          {r.photo || r.completion_photo ? (
+                            <div className="flex flex-col items-center justify-center gap-0.5">
+                              <img 
+                                src={r.photo || r.completion_photo} 
+                                alt="Foto Kerosakan" 
+                                className="w-10 h-10 object-cover rounded border border-slate-300 shadow-2xs cursor-pointer hover:scale-110 transition-transform bg-slate-100 shrink-0"
+                                onClick={() => window.open(r.photo || r.completion_photo, '_blank')}
+                                title="Klik untuk lihat gambar penuh"
+                              />
+                              {r.completion_photo && (
+                                <span className="text-[7.5px] font-bold text-emerald-700 bg-emerald-50 px-1 rounded border border-emerald-200">Siap</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[8.5px] text-slate-400 italic">-</span>
+                          )}
+                        </td>
+
                         <td className="p-1.5 border border-slate-300 text-center font-semibold">
                           {isUrgent ? (
                             <span className="text-rose-700 font-bold">Kecemasan</span>
@@ -339,20 +391,24 @@ export default function BlockInspectionDossierModal({
                             <span className="text-slate-600">Biasa</span>
                           )}
                         </td>
+
+                        {/* PHONE NUMBER WITH WHATSAPP LINK & FORMATTING */}
                         <td className="p-1.5 border border-slate-300 font-mono text-[9px]">
-                          {r.phone_number ? (
+                          {resolvedPhone ? (
                             <a
-                              href={`https://wa.me/60${r.phone_number.replace(/^(\+60|60|0)/, '').replace(/\D/g, '')}`}
+                              href={`https://wa.me/${formatWhatsAppDigits(resolvedPhone)}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-emerald-700 font-semibold hover:underline"
+                              className="text-emerald-700 font-semibold hover:underline flex items-center gap-0.5"
+                              title="Hubungi pengadu melalui WhatsApp"
                             >
-                              📱 +60{r.phone_number.replace(/^(\+60|60|0)/, '').replace(/\D/g, '')}
+                              <span>📱</span> {formatDisplayPhone(resolvedPhone)}
                             </a>
                           ) : (
                             <span className="text-slate-400 italic">-</span>
                           )}
                         </td>
+
                         <td className="p-1.5 border border-slate-300 font-mono text-[9px]">
                           {r.myserv_ticket_no ? (
                             <span className="font-bold text-blue-900">{r.myserv_ticket_no}</span>
@@ -379,8 +435,88 @@ export default function BlockInspectionDossierModal({
             </table>
           </div>
 
+          {/* PHOTO EVIDENCE APPENDIX (A4 COMPATIBLE / CONTROLLED FIXED ASPECT RATIO) */}
+          {showPhotoAppendix && requestsWithPhotos.length > 0 && (
+            <div className="space-y-3 pt-3 border-t-2 border-slate-900" style={{ pageBreakBefore: 'auto' }}>
+              <div className="flex items-center justify-between pb-1 border-b border-slate-300">
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-950 font-serif">
+                    LAMPIRAN DOKUMENTASI BERGAMBAR KEROSAKAN TAPAK (PHOTO EVIDENCE)
+                  </h3>
+                  <p className="text-[9.5px] text-slate-600 font-medium">
+                    Dossier Pemeriksaan Fizikal &bull; {selectedBlock === 'all' ? 'Semua Blok KKTF' : `Blok ${selectedBlock.toUpperCase()}`} ({requestsWithPhotos.length} Lampiran Bergambar)
+                  </p>
+                </div>
+                <span className="text-[8.5px] font-mono text-slate-500">
+                  Rujukan: {dossierRef}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-[9px]">
+                {requestsWithPhotos.map((r, pIdx) => {
+                  const resolvedPhone = resolveComplainantPhone(r, studentsMap, wardensMap, currentUser);
+                  const displayPhone = formatDisplayPhone(resolvedPhone);
+                  return (
+                    <div 
+                      key={r.id || pIdx} 
+                      className="border border-slate-300 rounded-xl p-2.5 bg-slate-50/70 space-y-2 flex flex-col justify-between"
+                      style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1 border-b border-slate-200 pb-1">
+                          <span className="font-extrabold text-[10px] text-slate-900 truncate">
+                            #{pIdx + 1}. {r.specific_location || `Bilik ${r.room_number || '-'}`}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${
+                            r.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {r.status === 'Completed' ? 'Selesai' : (r.myserv_ticket_no ? `TAMS: ${r.myserv_ticket_no}` : 'Menunggu')}
+                          </span>
+                        </div>
+
+                        <p className="text-slate-700 line-clamp-2 leading-tight">
+                          <strong>{r.category || 'Penyelenggaraan'}:</strong> {r.description}
+                        </p>
+
+                        <div className="flex items-center justify-between text-[8px] text-slate-500 font-mono">
+                          <span>Pengadu: {r.student_name || 'Pelapor'}</span>
+                          <span>Tel: {displayPhone}</span>
+                        </div>
+                      </div>
+
+                      {/* Photo Container with fixed aspect ratio to prevent template distortion */}
+                      <div className="grid grid-cols-1 gap-1.5 pt-1">
+                        {r.photo && (
+                          <div className="rounded-lg overflow-hidden border border-slate-300 bg-slate-900 h-36 flex items-center justify-center">
+                            <img 
+                              src={r.photo} 
+                              alt={`Bukti Kerosakan #${pIdx + 1}`} 
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                        )}
+                        {r.completion_photo && (
+                          <div className="rounded-lg overflow-hidden border border-emerald-400 bg-slate-900 h-36 flex items-center justify-center">
+                            <img 
+                              src={r.completion_photo} 
+                              alt={`Pengesahan Siap #${pIdx + 1}`} 
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* SIGNATURE & ENDORSEMENT FOOTER */}
-          <div className="pt-4 border-t-2 border-slate-900 grid grid-cols-3 gap-4 text-[9px]">
+          <div 
+            className="pt-4 border-t-2 border-slate-900 grid grid-cols-3 gap-4 text-[9px]"
+            style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+          >
             {/* 1. FELO JAGAAN BLOK */}
             <div className="border border-slate-300 rounded-lg p-2.5 flex flex-col justify-between h-24 bg-slate-50/50">
               <p className="font-bold uppercase text-slate-900">Perakuan Felo Jagaan Blok:</p>

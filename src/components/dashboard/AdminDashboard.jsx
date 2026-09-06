@@ -32,7 +32,9 @@ import {
   ArrowUpRight,
   MessageCircle,
   Award,
-  ChevronRight
+  ChevronRight,
+  KeyRound,
+  Clock
 } from "lucide-react";
 
 export default function AdminDashboard({ user }) {
@@ -43,6 +45,7 @@ export default function AdminDashboard({ user }) {
   const [wardenBlocks, setWardenBlocks] = useState([]);
   const [disciplineRecords, setDisciplineRecords] = useState([]);
   const [attendances, setAttendances] = useState([]);
+  const [dropKeyRequests, setDropKeyRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeView, setActiveView] = useState('executive'); // 'executive' | 'inventory'
@@ -52,6 +55,17 @@ export default function AdminDashboard({ user }) {
   const pendingFeloEvents = useMemo(() => {
     return events.filter(e => e.felo_coordinator_id && (!e.felo_approval_status || e.felo_approval_status === 'Pending'));
   }, [events]);
+
+  const pendingDropKeyCount = useMemo(() => {
+    return dropKeyRequests.filter(r => r.status === 'pending_verification').length;
+  }, [dropKeyRequests]);
+
+  const recentPendingDropKeys = useMemo(() => {
+    return dropKeyRequests
+      .filter(r => r.status === 'pending_verification')
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 3);
+  }, [dropKeyRequests]);
 
   const approvedEventsCount = useMemo(() => {
     return events.filter(e => e.felo_approval_status === 'Approved' || e.status === 'Completed').length;
@@ -109,6 +123,38 @@ export default function AdminDashboard({ user }) {
       setWardenBlocks(wbData || []);
       setDisciplineRecords(discData || []);
       setAttendances(attData || []);
+
+      // Ambil permohonan drop-key daripada localStorage + CheckOut DB
+      try {
+        const localRequests = JSON.parse(localStorage.getItem('kktf_drop_key_requests') || '[]');
+        // Gabungkan dengan rekod CheckOut dari DB
+        const dbCheckouts = await base44.entities.CheckOut.list('-created_date').catch(() => []);
+        const dbPending = (dbCheckouts || []).filter(c =>
+          c.status === 'pending_verification' ||
+          String(c.room_condition || '').includes('Drop-Key') ||
+          String(c.damage_assessment || '').includes('Drop-Key')
+        ).map(c => ({
+          id: `dk_db_${c.id}`,
+          checkout_record_id: c.id,
+          student_name: c.student_name || 'Pelajar',
+          student_matric: c.student_matric || '',
+          block_name: c.block_name || '',
+          room_number: c.room_number || '',
+          checkout_date: c.check_out_date || '',
+          status: c.status || 'pending_verification',
+          created_at: c.created_date || new Date().toISOString(),
+          source: 'db'
+        }));
+        // Gabungkan: utamakan local (lebih lengkap), tambah DB jika tiada dalam local
+        const localIds = new Set(localRequests.map(r => r.checkout_record_id || r.id));
+        const merged = [
+          ...localRequests,
+          ...dbPending.filter(d => !localIds.has(d.checkout_record_id) && !localIds.has(d.id))
+        ];
+        setDropKeyRequests(merged);
+      } catch (dkErr) {
+        console.warn('Gagal ambil drop-key requests:', dkErr);
+      }
     } catch (err) {
       console.error("Gagal memuatkan data pentadbir:", err);
       toast({
@@ -124,13 +170,14 @@ export default function AdminDashboard({ user }) {
   useEffect(() => {
     fetchDashboardData();
 
-    const handleGlobalRefresh = () => {
-      fetchDashboardData();
-    };
+    const handleGlobalRefresh = () => { fetchDashboardData(); };
+    const handleDropKeyUpdate = () => { fetchDashboardData(); };
 
     window.addEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
+    window.addEventListener('DROP_KEY_UPDATED', handleDropKeyUpdate);
     return () => {
       window.removeEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
+      window.removeEventListener('DROP_KEY_UPDATED', handleDropKeyUpdate);
     };
   }, []);
 
@@ -491,6 +538,54 @@ export default function AdminDashboard({ user }) {
               </CardContent>
             </Card>
           </div>
+
+          {/* KAD DROP-KEY: MENUNGGU SEMAKAN STAF */}
+          {pendingDropKeyCount > 0 && (
+            <div className="mt-2">
+              <Card className="border-orange-300 dark:border-orange-900/60 bg-gradient-to-br from-orange-50/60 via-card to-background shadow-sm hover:shadow-md transition-all">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <Badge className="bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-400 text-[10px] font-bold animate-pulse">
+                      🔑 Perlu Semakan Segera
+                    </Badge>
+                    <KeyRound className="w-4 h-4 text-orange-600" />
+                  </div>
+                  <CardTitle className="text-sm font-bold text-foreground mt-2 flex items-center gap-2">
+                    Express Drop-Key Check-Out
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-500 text-white text-[10px] font-black">
+                      {pendingDropKeyCount}
+                    </span>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    {pendingDropKeyCount} permohonan check-out menunggu semakan dan kelulusan staf pentadbiran.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2 pt-1">
+                  {recentPendingDropKeys.map((req, idx) => (
+                    <div key={req.id || idx} className="p-2.5 bg-background rounded-xl border border-orange-200 dark:border-orange-900/60 text-xs space-y-1 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <p className="font-bold text-foreground truncate">{req.student_name || 'Pelajar'}</p>
+                        <Badge variant="outline" className="text-[9px] border-orange-300 text-orange-700 shrink-0 ml-1">
+                          {req.student_matric || '—'}
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {req.block_name} • Bilik {req.room_number} • {req.checkout_date || '—'}
+                      </p>
+                    </div>
+                  ))}
+                  <Button
+                    size="sm"
+                    onClick={() => navigate('/express-drop-key')}
+                    className="w-full h-8 text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white rounded-xl gap-1.5 shadow-xs mt-1"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" /> Semak & Luluskan Permohonan
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* SEKSYEN 2: INDEKS PRESTASI STRATEGIK KOLEJ (KPI PULSE) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

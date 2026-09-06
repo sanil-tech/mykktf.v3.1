@@ -1,8 +1,9 @@
 /**
  * Utility to stamp inspection photos with institutional watermark, location, and precise timestamp.
  * Runs completely client-side using HTML5 Canvas.
- * Also compresses high-resolution camera photos (e.g. 8MB) to an optimized, crisp JPEG (~250KB).
+ * Also compresses high-resolution camera photos to an optimized, crisp JPEG.
  */
+
 export async function stampInspectionWatermark(imageSource, {
   location = '',
   category = '',
@@ -10,14 +11,14 @@ export async function stampInspectionWatermark(imageSource, {
   inspectorName = '',
   ticketRef = ''
 } = {}) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       try {
-        // Calculate dimensions (max 1280px width or height to keep performance fast and storage light)
-        const MAX_WIDTH = 1280;
-        const MAX_HEIGHT = 1280;
+        // Calculate dimensions (max 1024px width or height to keep performance fast, crisp, and storage light)
+        const MAX_WIDTH = 1024;
+        const MAX_HEIGHT = 1024;
         let width = img.width;
         let height = img.height;
 
@@ -57,7 +58,7 @@ export async function stampInspectionWatermark(imageSource, {
         const fullTimestamp = `${dateStr}, ${timeStr} MYT`;
 
         // 3. Responsive Banner Sizing
-        const bannerHeight = Math.max(120, Math.round(height * 0.16));
+        const bannerHeight = Math.max(110, Math.round(height * 0.16));
         const bannerY = height - bannerHeight;
 
         // Dark gradient overlay at bottom
@@ -113,12 +114,11 @@ export async function stampInspectionWatermark(imageSource, {
           ctx.fillText(`👤 PEMERIKSA / PELAPOR: ${inspectorName}`, paddingLeft, cursorY);
         }
 
-        // Export as compressed high-quality JPEG
-        const stampedDataUrl = canvas.toDataURL('image/jpeg', 0.86);
+        // Export as compressed high-quality JPEG (0.78 quality produces ~60-120KB crisp images)
+        const stampedDataUrl = canvas.toDataURL('image/jpeg', 0.78);
         resolve(stampedDataUrl);
       } catch (err) {
         console.error('Watermark stamping failed:', err);
-        // Fallback to original image if canvas fails
         resolve(imageSource);
       }
     };
@@ -129,4 +129,111 @@ export async function stampInspectionWatermark(imageSource, {
 
     img.src = imageSource;
   });
+}
+
+/**
+ * Converts a base64 DataURL into a standard JavaScript File object for cloud upload.
+ */
+export function dataUrlToFile(dataUrl, filename = 'image.jpg') {
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
+    return null;
+  }
+  try {
+    const arr = dataUrl.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    const blob = new Blob([u8arr], { type: mime });
+    return new File([blob], filename, { type: mime });
+  } catch (err) {
+    console.warn('dataUrlToFile conversion error:', err);
+    return null;
+  }
+}
+
+/**
+ * Aggressively compresses a data URL if offline or if storage integration is unavailable.
+ */
+export async function compressDataUrl(dataUrl, maxDim = 800, quality = 0.65) {
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
+    return dataUrl;
+  }
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height) {
+        if (width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        }
+      } else {
+        if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * Prepares and uploads image safely:
+ * 1. If already hosted URL (http/https), returns as is.
+ * 2. If base44.integrations.Core.UploadFile is available, converts to File and uploads to cloud, returning clean URL.
+ * 3. Fallback: compresses dataUrl to ultra-light JPEG (< 50KB) so entity save never fails.
+ */
+export async function uploadOrPrepareImage(base44Client, photoDataOrFile, filename = 'damage_photo.jpg') {
+  if (!photoDataOrFile) return null;
+
+  // 1. Already a remote URL
+  if (typeof photoDataOrFile === 'string' && (photoDataOrFile.startsWith('http://') || photoDataOrFile.startsWith('https://'))) {
+    return photoDataOrFile;
+  }
+
+  // 2. Prepare File object
+  let fileObj = null;
+  if (photoDataOrFile instanceof File || photoDataOrFile instanceof Blob) {
+    fileObj = photoDataOrFile;
+  } else if (typeof photoDataOrFile === 'string' && photoDataOrFile.startsWith('data:')) {
+    fileObj = dataUrlToFile(photoDataOrFile, filename);
+  }
+
+  // 3. Attempt cloud upload via base44.integrations.Core.UploadFile
+  if (fileObj && base44Client?.integrations?.Core?.UploadFile) {
+    try {
+      const res = await base44Client.integrations.Core.UploadFile({ file: fileObj });
+      if (res?.file_url) {
+        return res.file_url;
+      }
+    } catch (uploadErr) {
+      console.warn('base44.integrations.Core.UploadFile failed, falling back to compressed data URL:', uploadErr);
+    }
+  }
+
+  // 4. Fallback: Compress data URL to safe size (< 50KB)
+  if (typeof photoDataOrFile === 'string' && photoDataOrFile.startsWith('data:')) {
+    try {
+      return await compressDataUrl(photoDataOrFile, 800, 0.65);
+    } catch (compErr) {
+      console.warn('Image compression fallback error:', compErr);
+      return photoDataOrFile;
+    }
+  }
+
+  return photoDataOrFile;
 }

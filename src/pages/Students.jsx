@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, Search, GraduationCap, Edit, Trash2, Eye, Lock, User, Building, Phone, Mail } from 'lucide-react';
+import { Plus, Search, GraduationCap, Edit, Trash2, Eye, Lock, User, Building, Phone, Mail, FlaskConical, RotateCcw, AlertTriangle } from 'lucide-react';
 import TablePagination from '@/components/shared/TablePagination';
 import { TableSkeleton } from '@/components/shared/ListSkeletons';
 import { logAudit } from '@/lib/audit';
@@ -18,12 +18,13 @@ import { isOperatingAsWarden, getWardenBlocks } from '@/lib/wardenHelper';
 
 const FACULTIES = ['Engineering', 'Science', 'Arts', 'Business', 'Medicine', 'Education', 'Law', 'IT'];
 const PAGE_SIZE = 10;
-const emptyForm = { student_id: '', full_name: '', ic_passport: '', gender: 'Male', date_of_birth: '', faculty: '', programme: '', year_of_study: 1, phone: '', email: '', block_name: '', room_number: '', parent_name: '', parent_phone: '', emergency_contact: '', vehicle_reg: '', status: 'Active' };
+const emptyForm = { student_id: '', full_name: '', ic_passport: '', gender: 'Male', date_of_birth: '', faculty: '', programme: '', year_of_study: 1, phone: '', email: '', block_name: '', room_number: '', parent_name: '', parent_phone: '', emergency_contact: '', vehicle_reg: '', status: 'Active', is_test: false };
 
 const ADMIN_ROLES = ['super_admin', 'college_admin', 'staff', 'principal'];
 
 export default function Students() {
   const [students, setStudents] = useState([]);
+  const isDeletingRef = React.useRef(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -38,10 +39,15 @@ export default function Students() {
   const [page, setPage] = useState(1);
   const [wardenAssignedBlocks, setWardenAssignedBlocks] = useState([]);
   const { toast } = useToast();
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => { 
     load(); 
-    const handleGlobalRefresh = () => { load(); };
+    const handleGlobalRefresh = () => { 
+      // Jangan reload semasa proses pemadaman sedang berjalan - elak race condition
+      if (!isDeletingRef.current) { load(); }
+    };
     window.addEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
     return () => window.removeEventListener('KRMS_MODULES_REFRESH', handleGlobalRefresh);
   }, []);
@@ -89,6 +95,8 @@ export default function Students() {
   }
 
   const canManageStudents = ADMIN_ROLES.includes(user?.role) || user?.role === 'principal';
+  const isSuperAdmin = user?.role === 'super_admin';
+  const testStudents = students.filter(s => s.is_test === true);
 
   const filtered = students.filter(s => {
     const q = search.toLowerCase();
@@ -162,7 +170,100 @@ export default function Students() {
     load();
   }
 
+  // ─── RESET DATA UJIAN (CASCADE CLEAN TEST ACCOUNTS) ────────────────────────
+  async function handleResetTestData() {
+    if (!isSuperAdmin) return;
+    setIsResetting(true);
+    setConfirmResetOpen(false);
+    let resetCount = 0;
+    let roomsUpdated = 0;
+
+    try {
+      for (const student of testStudents) {
+        try {
+          // 1. Cari bilik berkaitan dan kira semula occupancy
+          if (student.block_name && student.room_number) {
+            try {
+              const matched = await base44.entities.Room.filter({
+                block_name: student.block_name,
+                room_number: student.room_number
+              }).catch(() => []);
+              if (matched && matched.length > 0) {
+                const targetRoom = matched[0];
+                const allRoomStudents = await base44.entities.Student.filter({
+                  block_name: targetRoom.block_name,
+                  room_number: targetRoom.room_number
+                }).catch(() => []);
+                const remaining = allRoomStudents.filter(s =>
+                  s.id !== student.id &&
+                  !s.is_test &&
+                  String(s.resident_status || '').toLowerCase() !== 'archived'
+                ).length;
+                const capacity = targetRoom.capacity || targetRoom.max_beds || 4;
+                const newStatus = remaining >= capacity ? 'Full' : remaining > 0 ? 'Partially Occupied' : 'Available';
+                await base44.entities.Room.update(targetRoom.id, {
+                  current_occupancy: remaining,
+                  status: newStatus
+                });
+                roomsUpdated++;
+              }
+            } catch (roomErr) {}
+          }
+
+          // 2. Reset profil pelajar ke keadaan asal (tiada bilik, status Inactive)
+          await base44.entities.Student.update(student.id, {
+            block_name: '',
+            room_number: '',
+            room_id: null,
+            status: 'Inactive',
+            room_status: null,
+            resident_status: 'pending',
+            check_in_date: null,
+            check_out_date: null,
+            key_number: null,
+          });
+          resetCount++;
+        } catch (studentErr) {
+          console.warn(`Gagal reset pelajar ujian ${student.student_id}:`, studentErr);
+        }
+      }
+
+      // 3. Bersihkan drop-key requests berkaitan akaun ujian
+      try {
+        const testIds = new Set(testStudents.map(s => s.student_id));
+        const stored = JSON.parse(localStorage.getItem('kktf_drop_key_requests') || '[]');
+        const cleaned = stored.filter(r => !testIds.has(r.student_matric) && !testIds.has(r.student_id));
+        localStorage.setItem('kktf_drop_key_requests', JSON.stringify(cleaned));
+      } catch (storageErr) {}
+
+      // 4. Log audit
+      await logAudit(user, 'TEST_DATA_RESET', 'Students', {
+        reset_count: resetCount,
+        rooms_updated: roomsUpdated,
+        test_student_ids: testStudents.map(s => s.student_id)
+      }).catch(() => {});
+
+      window.dispatchEvent(new CustomEvent('KRMS_MODULES_REFRESH'));
+      window.dispatchEvent(new CustomEvent('DROP_KEY_UPDATED'));
+
+      toast({
+        title: `✅ Reset Data Ujian Berjaya`,
+        description: `${resetCount} pelajar ujian telah direset. ${roomsUpdated} bilik telah disegerakkan semula.`
+      });
+
+      await new Promise(r => setTimeout(r, 400));
+      await load();
+    } catch (err) {
+      console.error('Ralat semasa reset data ujian:', err);
+      toast({ title: 'Ralat Reset', description: err.message || 'Gagal reset data ujian.', variant: 'destructive' });
+    } finally {
+      setIsResetting(false);
+    }
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   async function handleDelete(student) {
+    isDeletingRef.current = true;
     if (!canManageStudents) {
       toast({ title: 'Akses Ditolak', description: 'Warden tidak dibenarkan memadam profil pelajar.', variant: 'destructive' });
       return;
@@ -271,7 +372,6 @@ export default function Students() {
       } catch (auditErr) {}
 
       // 6. Siarkan acara kemas kini ke seluruh modul
-      window.dispatchEvent(new CustomEvent('KRMS_MODULES_REFRESH'));
       window.dispatchEvent(new CustomEvent('DROP_KEY_UPDATED'));
 
       toast({ 
@@ -280,10 +380,14 @@ export default function Students() {
           ? `Bilik ${targetRoom.block_name} (${targetRoom.room_number}) dan statistik kolej telah disegerakkan.` 
           : 'Rekod pelajar telah dibersihkan daripada pangkalan data.' 
       });
-      load();
+      // Beri masa API untuk commit sebelum reload - elak race condition
+      await new Promise(r => setTimeout(r, 600));
+      isDeletingRef.current = false;
+      await load();
+      window.dispatchEvent(new CustomEvent('KRMS_MODULES_REFRESH'));
     } catch (err) {
       console.error('Ralat semasa memadam pelajar:', err);
-      load();
+      isDeletingRef.current = false;
       toast({ title: 'Ralat Memadam', description: err.message || 'Gagal memadam profil pelajar.', variant: 'destructive' });
     }
   }
@@ -310,11 +414,25 @@ export default function Students() {
             : "Urus profil, penginapan dan maklumat pelajar kolej"
         } 
         actions={
-          canManageStudents && (
-            <Button onClick={openAdd} size="sm" className="bg-[#132644] hover:bg-[#1e385f] text-white">
-              <Plus className="w-4 h-4 mr-1.5" /> Add Student
-            </Button>
-          )
+          <div className="flex items-center gap-2">
+            {isSuperAdmin && testStudents.length > 0 && (
+              <Button
+                onClick={() => setConfirmResetOpen(true)}
+                size="sm"
+                variant="outline"
+                className="border-amber-400 text-amber-700 hover:bg-amber-50 gap-1.5"
+                disabled={isResetting}
+              >
+                <FlaskConical className="w-4 h-4" />
+                {isResetting ? 'Mereset...' : `Reset Data Ujian (${testStudents.length})`}
+              </Button>
+            )}
+            {canManageStudents && (
+              <Button onClick={openAdd} size="sm" className="bg-[#132644] hover:bg-[#1e385f] text-white">
+                <Plus className="w-4 h-4 mr-1.5" /> Add Student
+              </Button>
+            )}
+          </div>
         } 
       />
 
@@ -384,8 +502,13 @@ export default function Students() {
               </thead>
               <tbody>
                 {paginated.map(s => (
-                  <tr key={s.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-700">{s.student_id}</td>
+                  <tr key={s.id} className={`border-b border-border last:border-0 hover:bg-muted/30 transition-colors ${s.is_test ? 'bg-amber-50/50' : ''}`}>
+                    <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-700">
+                      <div className="flex items-center gap-1.5">
+                        {s.student_id}
+                        {s.is_test && <span title="Akaun Ujian" className="inline-flex items-center gap-0.5 text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-300 rounded px-1 py-0.5"><FlaskConical className="w-2.5 h-2.5" />TEST</span>}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 font-bold text-slate-900">{s.full_name}</td>
                     <td className="px-4 py-3 hidden md:table-cell font-mono text-xs text-slate-600">
                       {s.block_name ? `${s.block_name} (${s.room_number || 'N/A'})` : '—'}
@@ -516,6 +639,30 @@ export default function Students() {
                 <SelectContent><SelectItem value="Active">Active</SelectItem><SelectItem value="Inactive">Inactive</SelectItem></SelectContent>
               </Select>
             </div>
+            
+            {/* TEST ACCOUNT TOGGLE - ADMIN ONLY */}
+            {canManageStudents && (
+              <div className="col-span-1 sm:col-span-2 border border-amber-200 bg-amber-50 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <FlaskConical className="w-4 h-4 text-amber-600 shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-amber-800">Akaun Ujian (Test Account)</p>
+                    <p className="text-[11px] text-amber-600">Tandai pelajar ini sebagai akaun simulasi. Boleh direset tanpa memadam rekod.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setForm(prev => ({ ...prev, is_test: !prev.is_test }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ${
+                    form.is_test ? 'bg-amber-500' : 'bg-slate-200'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    form.is_test ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => setDialogOpen(false)} size="sm">Batal</Button>
@@ -595,6 +742,40 @@ export default function Students() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* CONFIRM RESET TEST DATA DIALOG */}
+      <Dialog open={confirmResetOpen} onOpenChange={setConfirmResetOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-700">
+              <AlertTriangle className="w-5 h-5" /> Sahkan Reset Data Ujian
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground pt-1">
+              Tindakan ini akan <strong>mereset</strong> semua akaun ujian ke keadaan awal. Rekod pelajar tidak akan dipadam.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs space-y-1.5 my-2">
+            <p className="font-semibold text-amber-800">Tindakan yang akan dilakukan:</p>
+            <ul className="text-amber-700 space-y-1 list-disc list-inside">
+              <li>Kosongkan blok & bilik semua {testStudents.length} akaun ujian</li>
+              <li>Tukar status kepada <strong>Inactive</strong></li>
+              <li>Reset tarikh check-in, check-out & nombor kunci</li>
+              <li>Kemas kini occupancy bilik berkaitan</li>
+              <li>Bersihkan permohonan drop-key berkaitan</li>
+            </ul>
+          </div>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="outline" size="sm" onClick={() => setConfirmResetOpen(false)}>Batal</Button>
+            <Button
+              size="sm"
+              className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5"
+              onClick={handleResetTestData}
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Ya, Reset Sekarang
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -46,7 +46,8 @@ import { validateAttachment } from '@/lib/validators';
 import { logAudit } from '@/lib/audit';
 import DamageReportModal from '@/components/DamageReportModal';
 import BlockInspectionDossierModal from '@/components/BlockInspectionDossierModal';
-import { stampInspectionWatermark } from '@/lib/imageWatermark';
+import { stampInspectionWatermark, uploadOrPrepareImage } from '@/lib/imageWatermark';
+import { formatDisplayPhone, formatWhatsAppDigits, resolveComplainantPhone } from '@/lib/phoneUtils';
 import { isOperatingAsWarden, getWardenBlocks } from '@/lib/wardenHelper';
 import { isBlockInList } from '@/lib/kktfBlocks';
 
@@ -200,6 +201,10 @@ export default function Maintenance() {
   const [stampingPhoto, setStampingPhoto] = useState(false);
   const [stampingCompletePhoto, setStampingCompletePhoto] = useState(false);
 
+  // Student & Warden directory map for phone & identity resolution
+  const [studentsMap, setStudentsMap] = useState({});
+  const [wardensMap, setWardensMap] = useState({});
+
   // New Request Form
   const [form, setForm] = useState({
     location_type: 'My Room',
@@ -226,7 +231,31 @@ export default function Maintenance() {
     const isPrincipalUser = user?.email?.toLowerCase() === 'nurfadilahdarmansah@gmail.com' || user?.role === 'principal' || user?.effectiveRole === 'principal';
     const isWarden = isOperatingAsWarden(user);
     const isStaffRole = isPrincipalUser || STAFF_ROLES.includes(user?.role) || user?.effectiveRole === 'super_admin' || user?.effectiveRole === 'college_admin' || isWarden || user?.effectiveRole === 'principal';
-    let reqs;
+    // Load students & felo/wardens directory map for phone and contact resolution
+    try {
+      const [allStudents, allWb] = await Promise.all([
+        base44.entities.Student.list().catch(() => []),
+        base44.entities.WardenBlock.list().catch(() => [])
+      ]);
+      const sMap = {};
+      allStudents.forEach(s => {
+        if (s.id) sMap[s.id] = s;
+        if (s.student_id) sMap[s.student_id] = s;
+        if (s.user_id) sMap[s.user_id] = s;
+      });
+      setStudentsMap(sMap);
+
+      const wMap = {};
+      allWb.forEach(w => {
+        if (w.id) wMap[w.id] = w;
+        if (w.warden_user_id) wMap[w.warden_user_id] = w;
+        if (w.block_name) wMap[w.block_name.toUpperCase()] = w;
+      });
+      setWardensMap(wMap);
+    } catch (sErr) {
+      console.warn('Could not load directory maps:', sErr);
+    }
+
     if (isStaffRole) {
       reqs = await base44.entities.MaintenanceRequest.list('-created_date');
       if (isWarden) {
@@ -325,6 +354,7 @@ export default function Maintenance() {
   const handleOpenDialog = () => {
     const isStaffUser = currentUser && STAFF_ROLES.includes(currentUser.role);
     const defaultBlock = assignedBlocks.length > 0 ? assignedBlocks[0] : (myStudent?.block_name || 'Block B');
+    const defaultPhone = myStudent?.phone_number || myStudent?.phone || currentUser?.phone_number || currentUser?.phone || currentUser?.contact_number || (currentUser?.id ? localStorage.getItem(`warden_phone_${currentUser.id}`) : '') || '';
     setForm({
       location_type: isStaffUser ? 'Student Room' : 'My Room',
       room_number: myStudent?.room_number || '',
@@ -333,6 +363,7 @@ export default function Maintenance() {
       category: 'Electrical',
       urgency: 'Normal',
       description: '',
+      phone_number: defaultPhone,
       photo: null
     });
     setDialogOpen(true);
@@ -519,6 +550,19 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
 
       const nowIso = new Date().toISOString();
 
+      // Safely upload to cloud storage or compress image to prevent payload errors
+      let finalPhotoUrl = null;
+      if (form.photo) {
+        try {
+          finalPhotoUrl = await uploadOrPrepareImage(base44, form.photo, `maint_${Date.now()}.jpg`);
+        } catch (pErr) {
+          console.warn('Photo processing fallback:', pErr);
+          finalPhotoUrl = form.photo;
+        }
+      }
+
+      const phoneToSave = form.phone_number || myStudent?.phone_number || myStudent?.phone || currentUser?.phone_number || currentUser?.phone || '';
+
       const payload = {
         student_id: myStudent?.id || currentUser?.id,
         student_name: `${reporterName} [${reporterRoleTag}${blockName ? ` - ${blockName}` : ''}]`,
@@ -529,9 +573,9 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
         category: form.category,
         urgency: form.urgency || 'Normal',
         description: form.description,
-        phone_number: form.phone_number || '',
+        phone_number: phoneToSave,
         myserv_ticket_no: '',
-        photo: form.photo || null,
+        photo: finalPhotoUrl || null,
         status: 'Submitted',
         submitted_at: nowIso
       };
@@ -633,8 +677,11 @@ ${r.latest_followup_note || 'Telah disahkan dalam pemeriksaan fizikal di lokasi 
       : '📋 *No. MyServ:* (Menunggu kemaskini pemohon)';
 
     const reporterLine = `👤 *Pelapor:* ${req.student_name || 'Residen KKTF'}`;
-    const phoneLine = req.phone_number
-      ? `📱 *No. Telefon Pengadu:* ${req.phone_number}\n🔗 *WhatsApp Terus:* https://wa.me/60${req.phone_number.replace(/^(\+60|60|0)/, '').replace(/\D/g, '')}`
+    const resolvedPhone = resolveComplainantPhone(req, studentsMap, wardensMap, currentUser);
+    const waPhone = formatWhatsAppDigits(resolvedPhone);
+    const displayPhone = formatDisplayPhone(resolvedPhone);
+    const phoneLine = resolvedPhone
+      ? `📱 *No. Telefon Pengadu:* ${displayPhone}\n🔗 *WhatsApp Pengadu:* https://wa.me/${waPhone}`
       : '📱 *No. Telefon:* (Tidak dinyatakan)';
 
     return `${urgencyHeader}
@@ -758,13 +805,24 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
       
       const durationHours = Math.max(0.1, Number(((now.getTime() - startTime) / (1000 * 60 * 60)).toFixed(1)));
 
+      // Upload or compress completion photo safely
+      let finalCompPhotoUrl = null;
+      if (completePhoto) {
+        try {
+          finalCompPhotoUrl = await uploadOrPrepareImage(base44, completePhoto, `maint_comp_${Date.now()}.jpg`);
+        } catch (pErr) {
+          console.warn('Completion photo processing fallback:', pErr);
+          finalCompPhotoUrl = completePhoto;
+        }
+      }
+
       await base44.entities.MaintenanceRequest.update(selectedReqForComplete.id, {
         status: 'Completed',
         completion_date: todayDate,
         completed_at: nowIso,
         resolution_duration_hours: durationHours,
         completion_remarks: completeRemarks.trim() || 'Pembaikan telah disahkan siap oleh residen / felo.',
-        completion_photo: completePhoto || null,
+        completion_photo: finalCompPhotoUrl || null,
         verified_by: isStaff ? `Felo/Staf: ${verifierName}` : `Residen: ${verifierName}`
       });
 
@@ -1228,18 +1286,22 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
                       <p className="text-[11px] text-muted-foreground truncate mt-0.5">
                         Pelapor: <span className="font-medium text-slate-700">{r.student_name}</span>
                       </p>
-                      {isStaff && r.phone_number && (
-                        <a
-                          href={`https://wa.me/60${r.phone_number.replace(/^(\+60|60|0)/, '').replace(/\D/g, '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[10.5px] text-emerald-700 hover:text-emerald-900 font-medium mt-0.5"
-                          title="Hubungi pengadu melalui WhatsApp"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          <span>📱</span> +60{r.phone_number.replace(/^(\+60|60|0)/, '').replace(/\D/g, '')}
-                        </a>
-                      )}
+                      {isStaff && (() => {
+                        const phone = resolveComplainantPhone(r, studentsMap, wardensMap, currentUser);
+                        if (!phone) return null;
+                        return (
+                          <a
+                            href={`https://wa.me/${formatWhatsAppDigits(phone)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[10.5px] text-emerald-700 hover:text-emerald-900 font-semibold mt-0.5"
+                            title="Hubungi pengadu melalui WhatsApp"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <span>📱</span> {formatDisplayPhone(phone)}
+                          </a>
+                        );
+                      })()}
                     </div>
 
                     <div className="flex flex-col items-end gap-1 shrink-0">
@@ -2145,6 +2207,9 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
         onOpenChange={setDamageReportModalOpen}
         request={selectedReqForReport}
         categoryUnitMap={CATEGORY_UNIT_MAP}
+        studentsMap={studentsMap}
+        wardensMap={wardensMap}
+        currentUser={currentUser}
       />
 
       {/* MODAL 7: CONSOLIDATED BLOCK INSPECTION DOSSIER MODAL (A4 PRINTABLE / PDF) */}
@@ -2156,6 +2221,8 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
         categoryUnitMap={CATEGORY_UNIT_MAP}
         assignedBlocks={assignedBlocks}
         currentUser={currentUser}
+        studentsMap={studentsMap}
+        wardensMap={wardensMap}
       />
     </div>
   );

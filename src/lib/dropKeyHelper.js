@@ -19,55 +19,69 @@ export function getDropKeyRequests() {
 }
 
 /**
- * Mengambil dan menyegerakkan permohonan Drop-Key daripada pangkalan data Base44
+ * Mengambil dan menyegerakkan permohonan Drop-Key daripada pangkalan data Base44 (SUMBER UTAMA)
+ * Admin menggunakan fungsi ini untuk melihat SEMUA permohonan dari semua pelajar
  */
 export async function fetchAndSyncDropKeyRequests() {
-  const local = getDropKeyRequests();
   try {
+    // ── Fetch dari DB (Sumber Utama) ─────────────────────────────────────────
     const allCheckouts = await base44.entities.CheckOut.list('-created_date').catch(() => []);
-    const dropKeyCheckouts = (allCheckouts || []).filter(c => 
-      c.status === 'pending_verification' || 
-      (c.room_condition && c.room_condition.includes('Drop-Key')) ||
-      (c.damage_assessment && c.damage_assessment.includes('Drop-Key'))
+    const dropKeyCheckouts = (allCheckouts || []).filter(c =>
+      c.status === 'pending_verification' ||
+      String(c.room_condition || '').includes('Drop-Key') ||
+      String(c.damage_assessment || '').includes('DROP-KEY') ||
+      String(c.damage_assessment || '').includes('Express Drop-Key') ||
+      String(c.damage_assessment || '').includes('[EXPRESS DROP-KEY]')
     );
 
-    let changed = false;
-    for (const dbReq of dropKeyCheckouts) {
-      const exists = local.some(l => 
-        (l.checkout_record_id && l.checkout_record_id === dbReq.id) ||
-        (l.id === `dk_db_${dbReq.id}`) ||
-        (l.student_id && String(l.student_id) === String(dbReq.student_id) && l.checkout_date === dbReq.check_out_date)
-      );
+    // ── Tukar rekod CheckOut ke format drop-key request ──────────────────────
+    const dbRequests = dropKeyCheckouts.map(c => {
+      // Cuba parse metadata dari field 'notes'
+      let meta = {};
+      try { meta = JSON.parse(c.notes || '{}'); } catch (e) {}
+      
+      return {
+        id: meta.local_id || `dk_db_${c.id}`,
+        checkout_record_id: c.id,
+        student_id: c.student_matric || '',
+        student_db_id: c.student_id || '',     // UUID pelajar (bukan matric)
+        student_name: c.student_name || 'Pelajar',
+        student_matric: c.student_matric || '',
+        student_email: meta.student_email || '',
+        student_phone: meta.student_phone || '',
+        user_id: meta.user_id || '',
+        block_name: c.block_name || '',
+        room_number: c.room_number || '',
+        room_id: c.room_id || '',
+        checkout_date: c.check_out_date || '',
+        checkout_time: c.check_out_time || '',
+        semester: c.semester || '',
+        envelope_tag: meta.envelope_tag || '',
+        reason: meta.reason || '',
+        declaration_agreed: Boolean(meta.declaration_agreed),
+        status: c.status || 'pending_verification',
+        created_at: meta.created_at || c.created_date || new Date().toISOString(),
+        scanned_at_dropbox: null,
+        source: 'db'
+      };
+    });
 
-      if (!exists) {
-        local.unshift({
-          id: `dk_db_${dbReq.id}`,
-          checkout_record_id: dbReq.id,
-          student_id: dbReq.student_id,
-          student_name: dbReq.student_name || 'Pelajar',
-          student_matric: dbReq.student_matric || '',
-          block_name: dbReq.block_name || '',
-          room_number: dbReq.room_number || '',
-          room_id: dbReq.room_id || '',
-          checkout_date: dbReq.check_out_date,
-          checkout_time: dbReq.check_out_time || '10:00',
-          envelope_tag: dbReq.damage_assessment || 'Standard',
-          status: dbReq.status || 'pending_verification',
-          created_at: dbReq.created_date || new Date().toISOString(),
-          scanned_at_dropbox: new Date().toISOString()
-        });
-        changed = true;
-      }
-    }
+    // ── Baca cache localStorage (tambah jika tidak ada dalam DB) ────────────
+    const localRequests = getDropKeyRequests();
+    const dbIds = new Set(dropKeyCheckouts.map(c => c.id));
+    const localOnly = localRequests.filter(l => 
+      l.checkout_record_id && !dbIds.has(l.checkout_record_id)
+    );
 
-    if (changed) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(local));
-    }
-    return local;
+    // DB dahulu, kemudian rekod local yang tiada padanan DB
+    const merged = [...dbRequests, ...localOnly];
+    return merged;
   } catch (e) {
-    return local;
+    console.warn('Gagal fetch drop-key dari DB, guna localStorage:', e);
+    return getDropKeyRequests();
   }
 }
+
 
 /**
  * Mendapatkan permohonan aktif bagi seseorang pelajar
@@ -84,13 +98,83 @@ export function getStudentActiveDropKeyRequest(studentId, matricNo) {
  * Menghantar permohonan baharu Express Drop-Key Check-Out oleh pelajar (disimpan ke Pangkalan Data Base44 & LocalStorage)
  */
 export async function submitDropKeyRequest(data) {
-  const current = getDropKeyRequests();
+  const localId = `dk_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+
+  // ─── 1. SIMPAN KE DB (SUMBER UTAMA / SINGLE SOURCE OF TRUTH) ────────────────
+  // student_db_id = UUID entiti Student dalam DB (bukan matric number)
+  const studentDbId = data.student_db_id || data.student_entity_id || '';
   
+  let dbCheckout = null;
+  try {
+    dbCheckout = await base44.entities.CheckOut.create({
+      // Rujukan UUID pelajar yang betul (bukan matric number)
+      student_id: studentDbId,
+      room_id: data.room_id || '',
+      check_out_date: data.checkout_date || new Date().toISOString().split('T')[0],
+      check_out_time: data.checkout_time || `${new Date().getHours().toString().padStart(2, '0')}:${new Date().getMinutes().toString().padStart(2, '0')}`,
+      semester: data.semester || 'Sem1_2526',
+      // Simpan maklumat lengkap dalam room_condition dan damage_assessment
+      room_condition: 'Pending Verification (Drop-Key)',
+      damage_assessment: [
+        '[EXPRESS DROP-KEY]',
+        data.envelope_tag ? `Tag: ${data.envelope_tag}` : '',
+        data.reason ? `Sebab: ${data.reason}` : '',
+      ].filter(Boolean).join(' | '),
+      // Medan display untuk paparan admin
+      student_name: data.student_name || '',
+      student_matric: data.student_matric || data.student_id || '',
+      room_number: data.room_number || '',
+      block_name: data.block_name || '',
+      // Status dan penanda khas
+      status: 'pending_verification',
+      // Metadata tambahan (simpan sebagai JSON string dalam notes)
+      notes: JSON.stringify({
+        local_id: localId,
+        user_id: data.user_id || '',
+        student_email: data.student_email || '',
+        student_phone: data.student_phone || '',
+        envelope_tag: data.envelope_tag || '',
+        reason: data.reason || '',
+        declaration_agreed: Boolean(data.declaration_agreed),
+        created_at: new Date().toISOString()
+      })
+    });
+  } catch (dbErr) {
+    console.error('KRITIKAL: Gagal simpan Drop-Key ke database:', dbErr);
+    // Jangan teruskan jika DB gagal - admin tidak akan nampak permohonan
+    throw new Error('Gagal menghantar permohonan ke pelayan. Sila semak sambungan internet dan cuba semula.');
+  }
+
+  // ─── 2. KEMASKINI STATUS PELAJAR DALAM DB ────────────────────────────────────
+  if (studentDbId) {
+    try {
+      await base44.entities.Student.update(studentDbId, {
+        room_status: 'Pending Verification'
+      });
+    } catch (stErr) {
+      console.warn('Amaran: Gagal kemaskini status pelajar:', stErr);
+    }
+  } else if (data.student_matric || data.student_id) {
+    // Fallback: cari berdasarkan matric number
+    try {
+      const matricToSearch = data.student_matric || data.student_id;
+      const matched = await base44.entities.Student.filter({ student_id: matricToSearch }).catch(() => []);
+      if (matched && matched.length > 0) {
+        await base44.entities.Student.update(matched[0].id, { room_status: 'Pending Verification' });
+      }
+    } catch (stErr) {
+      console.warn('Fallback: Gagal kemaskini status pelajar:', stErr);
+    }
+  }
+
+  // ─── 3. Bina objek request untuk penggunaan UI tempatan ─────────────────────
   const newReq = {
-    id: `dk_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-    student_id: data.student_id,
+    id: localId,
+    checkout_record_id: dbCheckout?.id || '',          // Kunci kepada rekod DB
+    student_id: data.student_matric || data.student_id, // matric number
+    student_db_id: studentDbId,                         // UUID DB
     student_name: data.student_name,
-    student_matric: data.student_matric,
+    student_matric: data.student_matric || data.student_id || '',
     student_phone: data.student_phone || '',
     student_email: data.student_email || '',
     user_id: data.user_id || '',
@@ -109,69 +193,22 @@ export async function submitDropKeyRequest(data) {
       key_envelope: data.photos?.key_envelope || 'verified_placeholder'
     },
     declaration_agreed: Boolean(data.declaration_agreed),
-    status: 'pending_verification', // 'pending_verification' | 'approved' | 'rejected'
+    status: 'pending_verification',
     created_at: new Date().toISOString(),
     scanned_at_dropbox: null
   };
 
-  // 1. Simpan ke Pangkalan Data Base44: Cipta rekod CheckOut dengan status pending_verification
+  // ─── 4. Simpan ke localStorage sebagai cache tempatan (best-effort) ──────────
   try {
-    const dbCheckout = await base44.entities.CheckOut.create({
-      student_id: data.student_id || '',
-      room_id: data.room_id || '',
-      check_out_date: newReq.checkout_date,
-      check_out_time: newReq.checkout_time,
-      room_condition: 'Pending Verification (Drop-Key)',
-      semester: data.semester || 'Sem1_2526',
-      damage_assessment: data.envelope_tag ? `[Tag: ${data.envelope_tag}] Express Drop-Key` : '[Express Drop-Key Check-Out]',
-      student_name: data.student_name || '',
-      student_matric: data.student_matric || '',
-      room_number: data.room_number || '',
-      block_name: data.block_name || '',
-      status: 'pending_verification'
-    });
-    if (dbCheckout?.id) {
-      newReq.checkout_record_id = dbCheckout.id;
-    }
-  } catch (dbErr) {
-    console.warn('Amaran simpan CheckOut ke database:', dbErr);
-  }
-
-  // 2. Kemaskini status pelajar di pangkalan data kepada 'Pending Verification'
-  if (data.student_id) {
-    try {
-      await base44.entities.Student.update(data.student_id, {
-        room_status: 'Pending Verification'
-      });
-    } catch (stErr) {
-      console.warn('Amaran kemaskini status pelajar ke database:', stErr);
-    }
-  }
-
-  // 3. Simpan ke LocalStorage untuk capaian serta-merta
-  const updated = [newReq, ...current.filter(r => r.id !== newReq.id)];
-  try {
+    const current = getDropKeyRequests();
+    const updated = [newReq, ...current.filter(r => r.id !== newReq.id)];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   } catch (storageErr) {
-    console.warn('Had kuota localStorage dicapai, menyimpan tanpa imej berat:', storageErr);
-    const compactReq = {
-      ...newReq,
-      photos: {
-        room_clean: data.photos?.room_clean ? 'uploaded_verified' : null,
-        wardrobe_empty: data.photos?.wardrobe_empty ? 'uploaded_verified' : null,
-        switches_locked: data.photos?.switches_locked ? 'uploaded_verified' : null,
-        key_envelope: data.photos?.key_envelope ? 'uploaded_verified' : null
-      }
-    };
-    const compactUpdated = [compactReq, ...current.filter(r => r.id !== newReq.id)];
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(compactUpdated));
-    } catch (e2) {
-      console.error('Gagal simpan drop-key ke localStorage:', e2);
-    }
+    // localStorage gagal — tidak apa, DB sudah simpan (sumber utama)
+    console.warn('localStorage cache gagal (diabaikan, DB sudah berjaya):', storageErr);
   }
 
-  // 4. Hantar notifikasi audit
+  // ─── 5. Hantar notifikasi audit ──────────────────────────────────────────────
   try {
     await logAudit(
       { full_name: data.student_name, email: data.student_email, role: 'student' },
@@ -182,12 +219,13 @@ export async function submitDropKeyRequest(data) {
         matric: data.student_matric,
         block: data.block_name,
         room: data.room_number,
-        date: newReq.checkout_date
+        date: newReq.checkout_date,
+        checkout_record_id: dbCheckout?.id
       }
     );
   } catch (e) {}
 
-  // 5. Siar acara global secara Real-Time ke seluruh modul MyKKTF
+  // ─── 6. Siar acara global ─────────────────────────────────────────────────────
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('DROP_KEY_UPDATED', { detail: newReq }));
     window.dispatchEvent(new CustomEvent('KRMS_MODULES_REFRESH'));
@@ -195,6 +233,7 @@ export async function submitDropKeyRequest(data) {
 
   return newReq;
 }
+
 
 /**
  * Mengesahkan imbasan QR kod peti drop box oleh pelajar
