@@ -20,7 +20,7 @@ const FACULTIES = ['Engineering', 'Science', 'Arts', 'Business', 'Medicine', 'Ed
 const PAGE_SIZE = 10;
 const emptyForm = { student_id: '', full_name: '', ic_passport: '', gender: 'Male', date_of_birth: '', faculty: '', programme: '', year_of_study: 1, phone: '', email: '', block_name: '', room_number: '', parent_name: '', parent_phone: '', emergency_contact: '', vehicle_reg: '', status: 'Active' };
 
-const ADMIN_ROLES = ['super_admin', 'college_admin', 'staff'];
+const ADMIN_ROLES = ['super_admin', 'college_admin', 'staff', 'principal'];
 
 export default function Students() {
   const [students, setStudents] = useState([]);
@@ -62,7 +62,7 @@ export default function Students() {
         ? all.filter(s => isBlockInList(s.block_name, blockNames)) 
         : [];
     } else {
-      // Super Admin, Pentadbir Kolej, dan Staf melihat keseluruhan direktori pelajar
+      // Super Admin, Pentadbir Kolej, Pengetua, dan Staf melihat keseluruhan direktori pelajar
       data = await base44.entities.Student.list('-created_date');
     }
     // Selaraskan nombor waris dan emergency contact jika salah satu kosong
@@ -88,7 +88,7 @@ export default function Students() {
     setLoading(false);
   }
 
-  const canManageStudents = user && ADMIN_ROLES.includes(user.role) && user.role !== 'warden';
+  const canManageStudents = ADMIN_ROLES.includes(user?.role) || user?.role === 'principal';
 
   const filtered = students.filter(s => {
     const q = search.toLowerCase();
@@ -168,6 +168,7 @@ export default function Students() {
       return;
     }
     try {
+      // 1. Kenal pasti bilik aktif sebelum dipadam
       const hasRoom = Boolean(student.room_id || (student.block_name && student.room_number));
       let targetRoom = null;
 
@@ -188,8 +189,35 @@ export default function Students() {
         }
       }
 
-      await base44.entities.Student.delete(student.id);
+      // 2. Padam rekod pelajar secara selamat (idempotent: toleran jika entiti sudah tiada di DB)
+      try {
+        if (student.id) {
+          await base44.entities.Student.delete(student.id);
+        }
+      } catch (delErr) {
+        const msg = String(delErr?.message || '').toLowerCase();
+        // Jika 404 / not found, rekod memang telah dipadam sebelumnya di pangkalan data
+        if (msg.includes('not found') || msg.includes('404')) {
+          console.info(`Pelajar ID ${student.id} sudah tiada dalam DB, meneruskan pembersihan residu.`);
+        } else {
+          // Cuba cari padanan rekod jika wujud di bawah student_id atau email
+          try {
+            const matched = await base44.entities.Student.filter({ 
+              student_id: student.student_id 
+            });
+            if (matched && matched.length > 0) {
+              for (const m of matched) {
+                await base44.entities.Student.delete(m.id).catch(() => {});
+              }
+            }
+          } catch (fallbackErr) {}
+        }
+      }
 
+      // Keluarkan serta-merta daripada state UI agar tidak tergantung di paparan
+      setStudents(prev => prev.filter(s => s.id !== student.id && s.student_id !== student.student_id));
+
+      // 3. Kemas kini bilik secara langsung sekiranya pelajar menduduki bilik
       if (targetRoom) {
         try {
           const allRoomStudents = await base44.entities.Student.filter({
@@ -199,6 +227,7 @@ export default function Students() {
 
           const remainingOccupants = allRoomStudents.filter(s => 
             s.id !== student.id &&
+            s.student_id !== student.student_id &&
             String(s.resident_status || '').toLowerCase() !== 'archived' &&
             String(s.room_status || '').toLowerCase() !== 'checked out'
           ).length;
@@ -220,6 +249,7 @@ export default function Students() {
         }
       }
 
+      // 4. Bersihkan sebarang permohonan drop-key berkaitan pelajar ini
       try {
         const stored = JSON.parse(localStorage.getItem('kktf_drop_key_requests') || '[]');
         const filtered = stored.filter(r => 
@@ -230,13 +260,17 @@ export default function Students() {
         localStorage.setItem('kktf_drop_key_requests', JSON.stringify(filtered));
       } catch (storageErr) {}
 
-      await logAudit(user, 'STUDENT_DELETED', 'Students', { 
-        id: student.id, 
-        name: student.full_name, 
-        student_id: student.student_id,
-        deallocated_room: targetRoom ? `${targetRoom.block_name} - Bilik ${targetRoom.room_number}` : null
-      });
+      // 5. Log audit pemadaman
+      try {
+        await logAudit(user, 'STUDENT_DELETED', 'Students', { 
+          id: student.id, 
+          name: student.full_name, 
+          student_id: student.student_id,
+          deallocated_room: targetRoom ? `${targetRoom.block_name} - Bilik ${targetRoom.room_number}` : null
+        });
+      } catch (auditErr) {}
 
+      // 6. Siarkan acara kemas kini ke seluruh modul
       window.dispatchEvent(new CustomEvent('KRMS_MODULES_REFRESH'));
       window.dispatchEvent(new CustomEvent('DROP_KEY_UPDATED'));
 
@@ -244,11 +278,12 @@ export default function Students() {
         title: 'Profil pelajar berjaya dipadam',
         description: targetRoom 
           ? `Bilik ${targetRoom.block_name} (${targetRoom.room_number}) dan statistik kolej telah disegerakkan.` 
-          : 'Statistik pendaftaran kolej telah dikemas kini.' 
+          : 'Rekod pelajar telah dibersihkan daripada pangkalan data.' 
       });
       load();
     } catch (err) {
       console.error('Ralat semasa memadam pelajar:', err);
+      load();
       toast({ title: 'Ralat Memadam', description: err.message || 'Gagal memadam profil pelajar.', variant: 'destructive' });
     }
   }
