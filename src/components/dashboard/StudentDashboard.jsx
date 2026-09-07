@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { Wrench, CalendarOff, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare, Medal, ClipboardCheck, CheckSquare, KeyRound, Lock, ShieldAlert } from 'lucide-react';
+import { Wrench, CalendarOff, Bell, Home, ClipboardList, Calendar, ChevronRight, AlertTriangle, Info, CheckCircle, X, Maximize2, GraduationCap, MessageSquare, Medal, ClipboardCheck, CheckSquare, KeyRound, Lock, ShieldAlert, Vote, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import JakmasPanel from '@/components/dashboard/JakmasPanel';
@@ -564,6 +564,44 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
         </div>
       )}
 
+      {/* 🗳️ E-VOTING & SHORTLIST TOP 12 CAMPAIGN BANNER */}
+      <div className="p-4 md:p-5 bg-gradient-to-r from-primary via-slate-900 to-primary text-white border border-primary/40 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm relative overflow-hidden">
+        <div className="flex items-center gap-3.5 z-10">
+          <div className="w-12 h-12 rounded-xl bg-accent text-accent-foreground flex items-center justify-center font-bold shrink-0 shadow-2xs">
+            <Vote className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider bg-accent/30 text-accent px-2 py-0.5 rounded border border-accent/40">
+                Pilihan Raya Sesi 2026/2027
+              </span>
+              <span className="text-[10px] font-semibold text-emerald-300 flex items-center gap-1">
+                <Crown className="w-3 h-3 text-amber-400" />
+                Shortlist Top 12 Temuduga
+              </span>
+            </div>
+            <h3 className="font-heading font-bold text-sm md:text-base text-white mt-0.5">
+              E-Voting Calon JAKMAS Sesi Baharu Telah Dibuka
+            </h3>
+            <p className="text-xs text-slate-300">
+              Undi calon pilihan anda sekarang. 12 calon terbaik akan disenarai pendek untuk temuduga khas bersama Pengetua KKTF.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 z-10 w-full md:w-auto justify-end">
+          <Link to="/voting" className="w-full md:w-auto">
+            <Button
+              size="sm"
+              className="bg-accent hover:bg-accent/90 text-accent-foreground text-xs font-bold h-9 px-4 rounded-xl gap-1.5 shadow-sm w-full md:w-auto"
+            >
+              <Vote className="w-4 h-4" />
+              Masuk E-Voting Sekarang
+            </Button>
+          </Link>
+        </div>
+      </div>
+
       {/* Quick Access Matrix */}
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-3 pl-1">
@@ -575,6 +613,7 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
           )}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          <QuickAction to="/voting" icon={Vote} label="E-Voting JAKMAS" description="Undi & Shortlist Top 12" color="bg-primary ring-2 ring-accent" isPriority={true} />
           <QuickAction to="/leave" icon={CalendarOff} label="Mohon Cuti" description="Pelepasan balik hujung minggu" color="bg-purple-600" />
           <QuickAction to="/maintenance" icon={Wrench} label="Aduan Fasiliti" description="Laporan kerosakan bilik/blok" color="bg-amber-500" />
           <QuickAction to="/merit?claim=sports" icon={Medal} label="Tuntut Merit" description="Tuntutan atlet & sukan kolej" color="bg-amber-600" />

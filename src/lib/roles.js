@@ -34,6 +34,7 @@ export function getNavItems(role, hasJakmas = false) {
     // 1. UTAMA (Daily / Kekerapan Tertinggi untuk Semua Peranan)
     // =========================================================================
     { label: 'Dashboard', path: '/', icon: 'LayoutDashboard', section: 'Utama', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
+    { label: 'E-Voting Calon JAKMAS', path: '/voting', icon: 'Vote', section: 'Utama', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
     { label: 'Pengumuman & Hebahan', path: '/announcements', icon: 'Megaphone', section: 'Utama', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.JAKMAS, ROLES.STUDENT] },
     { label: 'Acara & Program Kolej', path: '/events', icon: 'CalendarDays', section: 'Utama', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },
     { label: 'Mata Merit & Dimerit', path: '/merit-demerit', icon: 'Award', section: 'Utama', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN, ROLES.WARDEN, ROLES.STAFF, ROLES.JAKMAS, ROLES.STUDENT] },

@@ -7,7 +7,7 @@ import {
   Megaphone, FileBarChart, ScrollText, X, ChevronLeft,
   MessageSquare, MessagesSquare, CalendarCheck, Star, UserCog,
   CalendarDays, Users, ClipboardList, Sparkles, ScanLine, Award, ClipboardCheck, BookOpen,
-  CheckSquare, PhoneCall, KeyRound, HeartHandshake
+  CheckSquare, PhoneCall, KeyRound, HeartHandshake, Vote
 } from 'lucide-react';
 
 const iconMap = {
@@ -16,7 +16,7 @@ const iconMap = {
   Megaphone, FileBarChart, ScrollText,
   MessageSquare, MessagesSquare, CalendarCheck, Star, UserCog,
   CalendarDays, Users, ClipboardList, Sparkles, ScanLine, Award, ClipboardCheck, BookOpen,
-  CheckSquare, PhoneCall, KeyRound, HeartHandshake
+  CheckSquare, PhoneCall, KeyRound, HeartHandshake, Vote
 };
 
 export default function Sidebar({ 

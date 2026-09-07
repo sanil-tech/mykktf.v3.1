@@ -46,6 +46,7 @@ import MeritDemerit from '@/pages/MeritDemerit';
 import Contact from '@/pages/Contact';
 import RoomInspections from '@/pages/RoomInspections';
 import ExpressDropKey from '@/pages/ExpressDropKey';
+import EVoting from '@/pages/EVoting';
 import { useState, useEffect } from 'react';
 
 const AuthenticatedApp = () => {
@@ -138,6 +139,8 @@ const AuthenticatedApp = () => {
           <Route path="/drop-key" element={<ExpressDropKey />} />
           <Route path="/express-checkout" element={<ExpressDropKey />} />
           <Route path="/express-drop-key" element={<ExpressDropKey />} />
+          <Route path="/voting" element={<EVoting />} />
+          <Route path="/e-voting" element={<EVoting />} />
         </Route>
       </Route>
 
