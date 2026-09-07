@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import confetti from 'canvas-confetti';
-import { submitDropKeyRequest, getStudentActiveDropKeyRequest, recordDropBoxQrScan, clearStudentDropKey } from '@/lib/dropKeyHelper';
+import { submitDropKeyRequest, getStudentActiveDropKeyRequest, recordDropBoxQrScan } from '@/lib/dropKeyHelper';
 import { base44 } from '@/api/base44Client';
 import { uploadOrPrepareImage } from '@/lib/imageWatermark';
 import SurveyModal from '@/components/SurveyModal';
@@ -101,16 +101,6 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
 
   useEffect(() => {
     if (student?.id || student?.student_id) {
-      // Sekiranya status bilik pelajar adalah 'Checked In' (masih mendiami bilik secara aktif),
-      // bermakna sebarang rekod drop-key lama dalam localStorage adalah rekod basi (stale cache) daripada simulasi terdahulu.
-      const isCurrentlyLiving = String(student.room_status || '').toLowerCase().trim() === 'checked in';
-      if (isCurrentlyLiving) {
-        clearStudentDropKey(student.id, student.student_id);
-        setActiveRequest(null);
-        setStep(1);
-        return;
-      }
-
       const existing = getStudentActiveDropKeyRequest(student.id, student.student_id);
       if (existing) {
         setActiveRequest(existing);
@@ -118,42 +108,9 @@ export default function StudentCheckOutModal({ student, user, open, onOpenChange
         if (!existing.checkout_record_id) {
           submitDropKeyRequest(existing).catch(() => {});
         }
-      } else {
-        setActiveRequest(null);
-        setStep(1);
       }
     }
   }, [student, open]);
-
-  const handleCancelAndClearDropKey = async () => {
-    if (!student && !activeRequest) return;
-    try {
-      const sId = student?.id || activeRequest?.student_db_id || activeRequest?.student_id;
-      const matric = student?.student_id || activeRequest?.student_matric;
-      clearStudentDropKey(sId, matric);
-
-      // Padam juga rekod CheckOut dari DB jika ada
-      if (activeRequest?.checkout_record_id) {
-        await base44.entities.CheckOut.delete(activeRequest.checkout_record_id).catch(() => {});
-      }
-
-      // Pulihkan status pelajar ke Checked In jika belum
-      if (sId) {
-        await base44.entities.Student.update(sId, {
-          room_status: 'Checked In',
-          notes: ''
-        }).catch(() => {});
-      }
-
-      setActiveRequest(null);
-      setStep(1);
-      showToast('Permohonan Drop-Key Dibatalkan', 'Rekod serahan kunci lama telah dibersihkan. Status anda adalah Checked In.');
-      if (onCompleted) onCompleted();
-      onOpenChange(false);
-    } catch (err) {
-      showToast('Ralat membatalkan', err.message, 'destructive');
-    }
-  };
 
   // Handle Photo Capture/Upload dengan pemampatan pintar & sokongan cloud upload
   const handlePhotoUpload = async (field, e) => {

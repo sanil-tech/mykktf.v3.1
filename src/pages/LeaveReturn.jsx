@@ -20,14 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
-import { 
-  isSameBlock, 
-  getCanonicalBlockName, 
-  getBlockSecurityPin, 
-  getBlockBySecurityPin, 
-  isTrivialBlockName, 
-  verifyBlockSecurityPin 
-} from '@/lib/kktfBlocks';
+import { isSameBlock, getCanonicalBlockName } from '@/lib/kktfBlocks';
 
 // KKTF Universiti Malaysia Sabah Coordinates
 const KKTF_COORDS = {
@@ -54,10 +47,7 @@ export default function LeaveReturn() {
   const navigate = useNavigate();
   
   const initialBlock = searchParams.get('block') || '';
-  const initialPin = searchParams.get('pin') || '';
-  const initialToken = searchParams.get('token') || '';
   const [scannedBlock, setScannedBlock] = useState(initialBlock);
-  const [scannedPin, setScannedPin] = useState(initialPin);
 
   const [currentUser, setCurrentUser] = useState(null);
   const [student, setStudent] = useState(null);
@@ -227,14 +217,12 @@ export default function LeaveReturn() {
   function handleQrDecoded(decodedText) {
     stopScanner();
     
-    let detectedLocation = '';
-    let detectedPin = '';
-
+    let detectedLocation = student?.block_name ? (student.block_name.startsWith('Blok') || student.block_name.startsWith('Block') ? student.block_name : `Blok ${student.block_name}`) : 'Blok Kediaman';
+    
     if (decodedText.includes('block=')) {
       try {
         const url = new URL(decodedText.startsWith('http') ? decodedText : `https://dummy.com/${decodedText}`);
-        detectedLocation = decodeURIComponent(url.searchParams.get('block') || '');
-        detectedPin = decodeURIComponent(url.searchParams.get('pin') || '');
+        detectedLocation = decodeURIComponent(url.searchParams.get('block') || detectedLocation);
       } catch {
         detectedLocation = decodedText;
       }
@@ -244,65 +232,21 @@ export default function LeaveReturn() {
       detectedLocation = decodedText.trim();
     }
 
-    if (!detectedLocation) {
-      detectedLocation = student?.block_name ? getCanonicalBlockName(student.block_name) : 'Blok Kediaman';
-    }
-
-    // Auto-detect if raw scanned text is an official Security PIN
-    if (!detectedPin && getBlockBySecurityPin(detectedLocation)) {
-      detectedPin = detectedLocation;
-      detectedLocation = getBlockBySecurityPin(detectedLocation);
-    }
-
-    const canonicalLocation = getCanonicalBlockName(detectedLocation);
-    const expectedPin = getBlockSecurityPin(canonicalLocation);
-
-    // Verify PIN authenticity if included in QR
-    if (detectedPin && detectedPin !== expectedPin) {
-      toast.error(`❌ Kod QR Tidak Sah! Kod PIN keselamatan tidak sepadan dengan poster rasmi.`);
-      return;
-    }
-
-    setScannedBlock(canonicalLocation);
-    setScannedPin(detectedPin || expectedPin);
-    executeReturnConfirmation(canonicalLocation, 'QR_CAMERA_SCAN', detectedPin || expectedPin);
+    setScannedBlock(detectedLocation);
+    executeReturnConfirmation(detectedLocation, 'QR_CAMERA_SCAN');
   }
 
   function handleManualSubmit() {
     if (!manualCode.trim()) {
-      toast.error('Sila masukkan Kod PIN Keselamatan yang tertera pada poster fizikal.');
+      toast.error('Sila masukkan Kod Lokasi / PIN dari poster');
       return;
     }
-
-    const inputTrimmed = manualCode.trim();
-    const assignedBlock = student?.block_name || activeLeave?.block_name;
-
-    // Check if student entered a plain simple block name like "A", "Block A", "Blok A"
-    if (isTrivialBlockName(inputTrimmed)) {
-      const hintPin = assignedBlock ? getBlockSecurityPin(assignedBlock) : 'KKTF-XXXXX';
-      toast.error(
-        `❌ Nama Blok Sahaja Ditolak! Demi keselamatan, anda tidak boleh sekadar menaip "${inputTrimmed}". Sila masukkan Kod PIN Keselamatan 8-aksara yang dicetak pada poster fizikal blok anda (cth: ${hintPin}).`,
-        { duration: 7000 }
-      );
-      return;
-    }
-
-    // Verify against official security PIN
-    const verification = verifyBlockSecurityPin(inputTrimmed, assignedBlock);
-    if (!verification.valid) {
-      toast.error(verification.error || '❌ Kod PIN Keselamatan tidak sah! Sila rujuk poster rasmi di pintu blok.', {
-        duration: 7000
-      });
-      return;
-    }
-
-    const resolvedBlock = verification.canonicalBlock || getCanonicalBlockName(assignedBlock);
-    setScannedBlock(resolvedBlock);
-    setScannedPin(verification.pin);
-    executeReturnConfirmation(resolvedBlock, 'MANUAL_SECURITY_PIN', verification.pin);
+    const cleanLocation = manualCode.trim();
+    setScannedBlock(cleanLocation);
+    executeReturnConfirmation(cleanLocation, 'MANUAL_CODE_PIN');
   }
 
-  async function executeReturnConfirmation(locationName, method = 'QR_CAMERA_SCAN', verifiedPin = null) {
+  async function executeReturnConfirmation(locationName, method = 'QR_CAMERA_SCAN') {
     if (!student && !currentUser) {
       toast.error('Sila log masuk terlebih dahulu');
       return;
@@ -322,7 +266,7 @@ export default function LeaveReturn() {
         const expectedBlockName = getCanonicalBlockName(assignedBlock);
         const scannedBlockName = getCanonicalBlockName(locationName) || locationName;
 
-        toast.error(`❌ Blok Tidak Sepadan! Anda berdaftar di ${expectedBlockName}. Anda hanya dibenarkan mengesahkan kepulangan di ${expectedBlockName} sahaja, bukan di ${scannedBlockName}.`, {
+        toast.error(`❌ Blok Tidak Sepadan! Anda berdaftar di ${expectedBlockName}. Anda hanya dibenarkan mengimbas Kod QR di pintu masuk ${expectedBlockName} sahaja, bukan di ${scannedBlockName}.`, {
           duration: 7000
         });
 
@@ -332,7 +276,6 @@ export default function LeaveReturn() {
           matric: student?.student_id || 'N/A',
           expected_block: expectedBlockName,
           scanned_block: scannedBlockName,
-          attempted_pin: verifiedPin,
           method,
           timestamp: new Date().toISOString()
         });
@@ -340,8 +283,6 @@ export default function LeaveReturn() {
         return;
       }
     }
-
-    const officialPin = verifiedPin || getBlockSecurityPin(locationName);
 
     setConfirming(true);
     try {
@@ -367,7 +308,6 @@ export default function LeaveReturn() {
           return_method: method,
           return_status: returnStatus,
           return_scanned_block: locationName,
-          return_security_pin: officialPin,
           geofence_verified: isGeofenceOk,
           return_distance_meters: gpsDistance || 0,
           return_lat: currentCoords?.lat || KKTF_COORDS.lat,
@@ -379,7 +319,6 @@ export default function LeaveReturn() {
           student: student?.full_name || currentUser?.full_name,
           matric: student?.student_id || 'N/A',
           scanned_location: locationName,
-          security_pin: officialPin,
           method,
           geofence_verified: isGeofenceOk,
           gps_distance_meters: gpsDistance,
@@ -391,7 +330,6 @@ export default function LeaveReturn() {
       setConfirmedData({
         timestamp: `${todayStr} (${timeStr})`,
         location: locationName,
-        pin: officialPin,
         method,
         returnStatus,
         geofenceVerified: isGeofenceOk,
@@ -399,7 +337,7 @@ export default function LeaveReturn() {
         leave: activeLeave
       });
 
-      toast.success(`🎉 Kehadiran fizikal di ${locationName} disahkan bersama PIN (${officialPin}) & GPS (${gpsDistance || 0}m)!`);
+      toast.success(`🎉 Kehadiran fizikal di ${locationName} disahkan bersama Geofence GPS (${gpsDistance || 0}m)!`);
     } catch (err) {
       console.error('Failed to confirm return:', err);
       toast.error('Gagal mengesahkan kehadiran kembali');
@@ -464,12 +402,6 @@ export default function LeaveReturn() {
               <span className="text-slate-500">Geofence GPS KKTF:</span>
               <span className="font-bold text-emerald-700 flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5" /> Disahkan ({confirmedData.gpsDistance}m dari pusat kolej)
-              </span>
-            </div>
-            <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
-              <span className="text-slate-500">Kod PIN Poster:</span>
-              <span className="font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                {confirmedData.pin || 'KKTF-VERIFIED'}
               </span>
             </div>
             <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
@@ -646,63 +578,38 @@ export default function LeaveReturn() {
               {/* DETECTED QR BLOCK FROM URL IF ANY */}
               {scannedBlock && (
                 <div className={`p-4 rounded-2xl border text-left space-y-2.5 ${
-                  isSameBlock(scannedBlock, student?.block_name) && scannedPin && scannedPin === getBlockSecurityPin(scannedBlock)
+                  isSameBlock(scannedBlock, student?.block_name)
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
                     : 'bg-rose-50 border-rose-200 text-rose-950'
                 }`}>
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      Kod QR Poster Dikesan:
+                      Kod QR Blok Dikesan:
                     </span>
-                    <Badge variant="outline" className={
-                      isSameBlock(scannedBlock, student?.block_name) && scannedPin && scannedPin === getBlockSecurityPin(scannedBlock)
-                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold'
-                        : 'bg-rose-100 text-rose-800 border-rose-300 font-bold'
-                    }>
-                      {isSameBlock(scannedBlock, student?.block_name) 
-                        ? (scannedPin === getBlockSecurityPin(scannedBlock) ? 'PIN DISAHKAN' : 'PIN TIDAK SAH')
-                        : 'BLOK TIDAK SEPADAN'}
+                    <Badge variant="outline" className={isSameBlock(scannedBlock, student?.block_name) ? 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold' : 'bg-rose-100 text-rose-800 border-rose-300 font-bold'}>
+                      {isSameBlock(scannedBlock, student?.block_name) ? 'SEPADAN' : 'TIDAK SEPADAN'}
                     </Badge>
                   </div>
-
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-bold text-slate-900">
-                      {getCanonicalBlockName(scannedBlock)}
-                    </p>
-                    {scannedPin && (
-                      <span className="font-mono text-xs font-bold text-emerald-800 bg-white/80 border border-emerald-200 px-2 py-0.5 rounded">
-                        PIN: {scannedPin}
-                      </span>
-                    )}
-                  </div>
+                  <p className="text-sm font-bold">
+                    {getCanonicalBlockName(scannedBlock)}
+                  </p>
 
                   {isSameBlock(scannedBlock, student?.block_name) ? (
-                    scannedPin && scannedPin === getBlockSecurityPin(scannedBlock) ? (
-                      <Button
-                        onClick={() => executeReturnConfirmation(getCanonicalBlockName(scannedBlock), 'QR_URL_PARAM', scannedPin)}
-                        disabled={confirming || gpsStatus === 'outside'}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-9 rounded-xl shadow-xs"
-                      >
-                        {confirming ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <CheckCircle2 className="w-4 h-4 mr-1.5" />}
-                        Sahkan Kepulangan di {getCanonicalBlockName(scannedBlock)}
-                      </Button>
-                    ) : (
-                      <div className="p-2.5 bg-amber-50/90 rounded-xl border border-amber-200 text-[11px] text-amber-800 space-y-1">
-                        <p className="font-bold flex items-center gap-1">
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> Kod PIN Keselamatan Diperlukan
-                        </p>
-                        <p>
-                          Pautan ini tidak mengandungi Kod PIN yang sah daripada poster rasmi. Sila gunakan kamera untuk mengimbas poster di pintu blok atau masukkan Kod PIN manual di bawah.
-                        </p>
-                      </div>
-                    )
+                    <Button
+                      onClick={() => executeReturnConfirmation(scannedBlock, 'QR_URL_PARAM')}
+                      disabled={confirming || gpsStatus === 'outside'}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-9 rounded-xl shadow-xs"
+                    >
+                      {confirming ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <CheckCircle2 className="w-4 h-4 mr-1.5" />}
+                      Sahkan Kepulangan di {getCanonicalBlockName(scannedBlock)}
+                    </Button>
                   ) : (
                     <div className="p-2.5 bg-white/80 rounded-xl border border-rose-200 text-[11px] text-rose-700 space-y-1">
                       <p className="font-bold flex items-center gap-1">
                         <AlertTriangle className="w-3.5 h-3.5 text-rose-600" /> Imbasan Ditolak (Blok Berbeza)
                       </p>
                       <p>
-                        Anda berdaftar di <strong>{getCanonicalBlockName(student?.block_name)}</strong>. Kod QR yang diimbas adalah untuk <strong>{getCanonicalBlockName(scannedBlock)}</strong>. Sila imbas poster rasmi di pintu masuk blok kediaman anda sendiri.
+                        Anda berdaftar di <strong>{getCanonicalBlockName(student?.block_name)}</strong>. Kod QR yang diimbas adalah untuk <strong>{getCanonicalBlockName(scannedBlock)}</strong>. Sila imbas kod QR rasmi di pintu masuk blok kediaman anda sendiri.
                       </p>
                     </div>
                   )}
@@ -715,39 +622,31 @@ export default function LeaveReturn() {
                 className="w-full h-14 bg-gradient-to-r from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2.5 text-sm disabled:opacity-50"
               >
                 <Camera className="w-5 h-5 text-indigo-200" />
-                <span>Buka Kamera & Imbas Kod QR Poster</span>
+                <span>Buka Kamera & Imbas Kod QR Blok</span>
               </Button>
 
-              {/* MANUAL PIN/BLOCK CODE FALLBACK WITH HIGH SECURITY */}
+              {/* MANUAL PIN/BLOCK CODE FALLBACK */}
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <KeyRound className="w-3.5 h-3.5 text-indigo-600" /> Masukkan Kod PIN Keselamatan Poster (Manual)
-                  </p>
-                  <Badge variant="outline" className="text-[9px] font-bold bg-indigo-50 text-indigo-700 border-indigo-200">
-                    ANTI-SPOOF
-                  </Badge>
-                </div>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  Jika kamera tidak berfungsi, masukkan <strong>Kod PIN Keselamatan 8-aksara</strong> yang dicetak di bawah kod QR pada poster fizikal blok anda (cth: <strong>{student?.block_name ? getBlockSecurityPin(student.block_name) : 'KKTF-A8429'}</strong>).
+                <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-indigo-600" /> Atau Masukkan Kod Lokasi / Blok Manual
                 </p>
-                <div className="p-2 bg-amber-50/80 rounded-xl border border-amber-200 text-[10.5px] text-amber-900">
-                  ⚠️ <strong>Peringatan:</strong> Memasukkan sekadar nama blok (cth: "Blok A" atau "A") tidak lagi diterima demi integriti kolej.
-                </div>
-                <div className="flex gap-2 pt-1">
+                <p className="text-[11px] text-slate-500">
+                  Jika kamera tidak berfungsi, masukkan nama blok yang tertera di poster (cth: <strong>{getCanonicalBlockName(student?.block_name) || 'Blok M'}</strong>).
+                </p>
+                <div className="flex gap-2">
                   <Input 
-                    placeholder={student?.block_name ? `cth: ${getBlockSecurityPin(student.block_name)}` : 'cth: KKTF-A8429'} 
+                    placeholder={getCanonicalBlockName(student?.block_name) || 'cth: Blok M'} 
                     value={manualCode} 
-                    onChange={e => setManualCode(e.target.value.toUpperCase())} 
-                    className="h-9 text-xs font-mono font-bold uppercase tracking-wider bg-white border-slate-300"
+                    onChange={e => setManualCode(e.target.value)} 
+                    className="h-9 text-xs bg-white"
                   />
                   <Button 
                     size="sm" 
                     onClick={handleManualSubmit}
                     disabled={confirming || gpsStatus === 'outside'}
-                    className="bg-slate-900 hover:bg-slate-800 text-white text-xs px-4 h-9 font-bold shrink-0 disabled:opacity-50"
+                    className="bg-slate-900 hover:bg-slate-800 text-white text-xs px-4 h-9 font-semibold shrink-0 disabled:opacity-50"
                   >
-                    Sahkan PIN
+                    Sahkan
                   </Button>
                 </div>
               </div>

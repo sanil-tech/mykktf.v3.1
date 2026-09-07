@@ -341,37 +341,6 @@ export function getStudentActiveDropKeyRequest(studentId, matricNo) {
 }
 
 /**
- * Memadamkan rekod permohonan drop-key lama / basi bagi pelajar dari localStorage
- */
-export function clearStudentDropKey(studentId, matricNo) {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return;
-
-    const sIdStr = studentId ? String(studentId).toLowerCase().trim() : '';
-    const sMatricStr = matricNo ? String(matricNo).toLowerCase().trim() : '';
-
-    const remaining = parsed.filter(r => {
-      const rId = String(r.student_id || r.student_db_id || '').toLowerCase().trim();
-      const rMatric = String(r.student_matric || r.student_id || '').toLowerCase().trim();
-      const matchId = sIdStr && (rId === sIdStr);
-      const matchMatric = sMatricStr && (rMatric === sMatricStr);
-      return !(matchId || matchMatric);
-    });
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('DROP_KEY_UPDATED'));
-      window.dispatchEvent(new CustomEvent('KRMS_MODULES_REFRESH'));
-    }
-  } catch (e) {
-    console.warn('Ralat membersihkan drop-key pelajar:', e);
-  }
-}
-
-/**
  * Menghantar permohonan baharu Express Drop-Key Check-Out oleh pelajar
  */
 export async function submitDropKeyRequest(data) {
