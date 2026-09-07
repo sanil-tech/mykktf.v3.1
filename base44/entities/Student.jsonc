@@ -138,9 +138,6 @@
           "data.user_id": "{{user.id}}"
         },
         {
-          "data.email": "{{user.email}}"
-        },
-        {
           "user_condition": {
             "role": "super_admin"
           }
@@ -153,16 +150,6 @@
         {
           "user_condition": {
             "role": "principal"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "student"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "user"
           }
         }
       ]
@@ -176,9 +163,6 @@
           "data.user_id": "{{user.id}}"
         },
         {
-          "data.email": "{{user.email}}"
-        },
-        {
           "user_condition": {
             "role": "principal"
           }
@@ -201,16 +185,6 @@
         {
           "user_condition": {
             "role": "warden"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "student"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "user"
           }
         }
       ]
@@ -224,9 +198,6 @@
           "data.user_id": "{{user.id}}"
         },
         {
-          "data.email": "{{user.email}}"
-        },
-        {
           "user_condition": {
             "role": "principal"
           }
@@ -250,16 +221,6 @@
           "user_condition": {
             "role": "warden"
           }
-        },
-        {
-          "user_condition": {
-            "role": "student"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "user"
-          }
         }
       ]
     },
@@ -270,9 +231,6 @@
         },
         {
           "data.user_id": "{{user.id}}"
-        },
-        {
-          "data.email": "{{user.email}}"
         },
         {
           "user_condition": {

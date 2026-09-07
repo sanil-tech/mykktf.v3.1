@@ -150,21 +150,7 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
             students = await base44.entities.Student.filter({ user_id: user.id }).catch(() => []);
           }
           if (!students.length && user?.email) {
-            const cleanEmail = user.email.trim();
-            students = await base44.entities.Student.filter({ email: cleanEmail }).catch(() => []);
-            if (!students.length && cleanEmail.toLowerCase() !== cleanEmail) {
-              students = await base44.entities.Student.filter({ email: cleanEmail.toLowerCase() }).catch(() => []);
-            }
-          }
-          if (!students.length) {
-            const allList = await base44.entities.Student.list().catch(() => []);
-            const userEmailClean = (user?.email || '').trim().toLowerCase();
-            const userNameClean = (user?.full_name || '').trim().toLowerCase();
-            students = (allList || []).filter(s =>
-              (user?.id && s.user_id === user.id) ||
-              (userEmailClean && (s.email || '').trim().toLowerCase() === userEmailClean) ||
-              (userNameClean && (s.full_name || '').trim().toLowerCase() === userNameClean)
-            );
+            students = await base44.entities.Student.filter({ email: user.email.trim() }).catch(() => []);
           }
           myStudent = students[0] || null;
         }

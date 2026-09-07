@@ -20,8 +20,7 @@ import {
   Sparkles, 
   ArrowRight,
   ShieldCheck,
-  CheckCircle2,
-  Search
+  CheckCircle2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ListSkeleton } from '@/components/shared/ListSkeletons';
@@ -88,7 +87,6 @@ export default function Complaints() {
   const [viewing, setViewing] = useState(null);
   const [response, setResponse] = useState('');
   const [filterType, setFilterType] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
 
   const [form, setForm] = useState({ 
     type: 'Suggestion', 
@@ -222,29 +220,11 @@ export default function Complaints() {
   }
 
   const isStaff = user && STAFF_ROLES.includes(user.role);
-
-  // KPI STATS FOR COMPLAINTS / FEEDBACK
-  const totalFeedback = items.length;
-  const totalSuggestions = items.filter(i => i.type === 'Suggestion').length;
-  const totalWelfare = items.filter(i => i.type === 'Welfare Concern').length;
-  const totalResolved = items.filter(i => i.status === 'Resolved' || i.status === 'Closed').length;
-
-  const filtered = items.filter(item => {
-    if (filterType !== 'all' && item.type !== filterType) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const titleMatch = (item.title || '').toLowerCase().includes(q);
-      const descMatch = (item.description || '').toLowerCase().includes(q);
-      const catMatch = (item.category || '').toLowerCase().includes(q);
-      const nameMatch = (item.student_name || '').toLowerCase().includes(q);
-      return titleMatch || descMatch || catMatch || nameMatch;
-    }
-    return true;
-  });
+  const filtered = filterType === 'all' ? items : items.filter(i => i.type === filterType);
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div>
         <PageHeader title="Student Feedback & Welfare" description="Memuatkan maklum balas & cadangan..." />
         <ListSkeleton count={5} />
       </div>
@@ -258,7 +238,7 @@ export default function Complaints() {
         description="Saluran rasmi cadangan penambahbaikan, isu kebajikan, dan suara mahasiswa KKTF"
         actions={
           !isStaff && (
-            <Button size="sm" onClick={() => setShowForm(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-sm font-semibold h-9 text-xs">
+            <Button size="sm" onClick={() => setShowForm(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-sm font-semibold">
               <Plus className="w-4 h-4" /> Hantar Cadangan / Maklum Balas
             </Button>
           )
@@ -266,103 +246,43 @@ export default function Complaints() {
       />
 
       {/* NOTICE: REDIRECT DAMAGE/FACILITIES TO DAMAGE REPORTS */}
-      <div className="bg-gradient-to-r from-indigo-50/80 via-sky-50/50 to-indigo-50/80 dark:from-indigo-950/40 dark:via-sky-950/20 dark:to-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/50 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-700 dark:text-slate-300 shadow-xs">
+      <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-700">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <Wrench className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+            <Wrench className="w-4 h-4" />
           </div>
           <div>
-            <p className="font-heading font-bold text-sm text-foreground">Ingin melapor kerosakan fizikal bilik (lampu, paip, tombol pintu)?</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Sila gunakan modul <strong>Laporan Kerosakan</strong> untuk pendaftaran automatik bersama UMS MyServ & tindakan JPP.</p>
+            <p className="font-bold text-slate-900">Ingin melapor kerosakan fizikal bilik (lampu, paip, tombol pintu)?</p>
+            <p className="text-slate-500">Sila gunakan modul <strong>Damage & Maintenance Reports</strong> untuk pendaftaran automatik bersama UMS MyServ.</p>
           </div>
         </div>
-        <Link to="/maintenance" className="shrink-0 w-full sm:w-auto">
-          <Button size="sm" variant="outline" className="w-full sm:w-auto text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-100/70 font-semibold gap-1.5 h-9">
-            Buka Laporan Kerosakan <ArrowRight className="w-3.5 h-3.5" />
+        <Link to="/maintenance">
+          <Button size="sm" variant="outline" className="text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50 shrink-0 gap-1.5">
+            Buka Damage Reports <ArrowRight className="w-3.5 h-3.5" />
           </Button>
         </Link>
       </div>
 
-      {/* KPI METRIC TILES */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3.5">
-        <div className="bg-card border border-border rounded-2xl p-4 shadow-xs hover:border-indigo-200 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-medium">Jumlah Suara</span>
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <MessageSquare className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-heading font-bold text-foreground mt-2">{totalFeedback}</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">Semua maklum balas</p>
-        </div>
-
-        <div className="bg-card border border-border rounded-2xl p-4 shadow-xs hover:border-blue-200 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-medium">Cadangan & Idea</span>
-            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <Lightbulb className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-heading font-bold text-blue-600 mt-2">{totalSuggestions}</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">Inovasi penambahbaikan</p>
-        </div>
-
-        <div className="bg-card border border-border rounded-2xl p-4 shadow-xs hover:border-rose-200 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-medium">Isu Kebajikan</span>
-            <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-              <HeartHandshake className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-heading font-bold text-rose-600 mt-2">{totalWelfare}</p>
-          <p className="text-[11px] text-rose-700 mt-0.5 font-medium">Keselamatan & kemudahan</p>
-        </div>
-
-        <div className="bg-card border border-border rounded-2xl p-4 shadow-xs hover:border-emerald-200 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-medium">Telah Selesai</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-heading font-bold text-emerald-600 mt-2">{totalResolved}</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">Tindakan diambil / ditutup</p>
-        </div>
+      {/* FILTER TABS */}
+      <div className="flex gap-2 flex-wrap">
+        {[
+          { id: 'all', label: 'Semua' },
+          { id: 'Suggestion', label: '💡 Cadangan & Idea' },
+          { id: 'Welfare Concern', label: '🛡️ Isu Kebajikan' },
+          { id: 'General Feedback', label: '🗣️ Maklum Balas Umum' }
+        ].map(t => (
+          <Button 
+            key={t.id} 
+            size="sm" 
+            variant={filterType === t.id ? 'default' : 'outline'} 
+            onClick={() => setFilterType(t.id)}
+            className={`text-xs rounded-xl ${filterType === t.id ? 'bg-indigo-600 text-white font-semibold' : 'bg-card text-slate-600'}`}
+          >
+            {t.label}
+          </Button>
+        ))}
       </div>
 
-      {/* UNIFIED SEARCH & FILTER CONTROL BAR */}
-      <div className="bg-card border border-border rounded-2xl p-3 sm:p-3.5 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        <div className="relative flex-1 min-w-0 md:max-w-md">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input 
-            placeholder="Cari tajuk, kategori, pelapor..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="pl-9 h-9 text-xs bg-muted/30 border-border"
-          />
-        </div>
-
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          {[
-            { id: 'all', label: 'Semua' },
-            { id: 'Suggestion', label: '💡 Cadangan' },
-            { id: 'Welfare Concern', label: '🛡️ Kebajikan' },
-            { id: 'General Feedback', label: '🗣️ Umum' }
-          ].map(t => (
-            <Button 
-              key={t.id} 
-              size="sm" 
-              variant={filterType === t.id ? 'default' : 'outline'} 
-              onClick={() => setFilterType(t.id)}
-              className={`text-xs h-9 rounded-xl shrink-0 ${filterType === t.id ? 'bg-indigo-600 text-white font-semibold' : 'bg-background text-muted-foreground border-border'}`}
-            >
-              {t.label}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* FEEDBACK CARDS GRID */}
       {filtered.length === 0 ? (
         <div className="bg-card border border-border rounded-2xl p-12 text-center text-muted-foreground space-y-2">
           <HeartHandshake className="w-10 h-10 text-slate-300 mx-auto" />
@@ -370,40 +290,35 @@ export default function Complaints() {
           <p className="text-xs text-slate-400">Jadilah yang pertama berkongsi cadangan membina untuk Kolej Kediaman Tun Fuad.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="space-y-3">
           {filtered.map(item => {
             const typeConf = TYPE_CONFIG[item.type] || TYPE_CONFIG['Suggestion'];
             const TypeIcon = typeConf.icon;
             const isAnon = item.is_anonymous;
 
             return (
-              <div 
-                key={item.id} 
-                className="bg-card border border-border rounded-2xl p-4 shadow-xs hover:border-indigo-200 transition-all flex flex-col justify-between space-y-3"
-              >
-                <div className="space-y-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${typeConf.iconBg}`}>
-                        <TypeIcon className="w-4 h-4" />
-                      </div>
-                      <Badge variant="outline" className={`text-[10.5px] font-semibold ${typeConf.badge}`}>
+              <div key={item.id} className="bg-card border border-border rounded-2xl p-4 shadow-sm hover:border-indigo-200 transition-all flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${typeConf.iconBg}`}>
+                    <TypeIcon className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-heading font-bold text-sm text-foreground">{item.title}</p>
+                      <Badge variant="outline" className={`text-[10px] font-semibold ${typeConf.badge}`}>
                         {typeConf.label}
                       </Badge>
+                      <Badge variant="outline" className={`text-[10px] font-semibold ${STATUS_COLORS[item.status] || 'bg-slate-100'}`}>
+                        {item.status}
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className={`text-[10px] font-semibold shrink-0 ${STATUS_COLORS[item.status] || 'bg-slate-100'}`}>
-                      {item.status}
-                    </Badge>
-                  </div>
 
-                  <div>
-                    <p className="font-heading font-bold text-sm text-foreground line-clamp-1">{item.title}</p>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span className="font-medium text-slate-700">{item.category}</span>
                       <span>&bull;</span>
                       <span className="flex items-center gap-1">
                         {isAnon ? (
-                          <span className="inline-flex items-center gap-1 text-slate-500 font-mono text-[10.5px]">
+                          <span className="inline-flex items-center gap-1 text-slate-500 font-mono text-[11px]">
                             <Lock className="w-3 h-3 text-slate-400" /> Anonim
                           </span>
                         ) : (
@@ -412,35 +327,28 @@ export default function Complaints() {
                       </span>
                       {item.block_name && <span>({item.block_name})</span>}
                     </div>
-                  </div>
 
-                  <p className="text-xs text-muted-foreground line-clamp-3 bg-muted/30 p-2.5 rounded-xl border border-border/50">
-                    {item.description}
-                  </p>
+                    <p className="text-xs text-slate-600 line-clamp-2 pt-0.5">{item.description}</p>
 
-                  {(item.admin_response || item.warden_response) && (
-                    <div className="text-xs bg-indigo-50/80 dark:bg-indigo-950/40 p-2.5 rounded-xl border border-indigo-100 dark:border-indigo-900/50 flex items-start gap-2 text-indigo-900 dark:text-indigo-200">
-                      <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <span className="font-semibold text-[11px] block text-indigo-950 dark:text-indigo-100">Jawapan Pentadbiran:</span>
-                        <p className="line-clamp-2 italic text-[11px] text-indigo-900/90 dark:text-indigo-200/90 mt-0.5">
-                          "{item.admin_response || item.warden_response}"
-                        </p>
+                    {(item.admin_response || item.warden_response) && (
+                      <div className="mt-2 text-xs bg-indigo-50/70 p-2.5 rounded-xl border border-indigo-100 flex items-center gap-2 text-indigo-900">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                        <span className="line-clamp-1 font-medium">
+                          Jawapan Rasmi: {item.admin_response || item.warden_response}
+                        </span>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
-                <div className="pt-2 border-t border-border flex items-center justify-end">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="w-full h-8 gap-1.5 text-xs text-indigo-700 hover:bg-indigo-50 font-semibold rounded-xl" 
-                    onClick={() => { setViewing(item); setResponse(''); }}
-                  >
-                    <Eye className="w-3.5 h-3.5" /> Lihat Perincian
-                  </Button>
-                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="shrink-0 h-8 gap-1 text-xs text-indigo-700 hover:bg-indigo-50" 
+                  onClick={() => { setViewing(item); setResponse(''); }}
+                >
+                  <Eye className="w-3.5 h-3.5" /> Perincian
+                </Button>
               </div>
             );
           })}

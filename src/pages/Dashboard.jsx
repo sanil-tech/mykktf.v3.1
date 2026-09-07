@@ -176,219 +176,38 @@ export default function Dashboard() {
           return;
         }
 
-        // --- CARIAN PROFIL PELAJAR (MULTI-STRATEGI TEGUH & KETAHANAN TINGGI) ---
+        // --- CARIAN PROFIL PELAJAR ---
         let studs = [];
-        const cleanEmail = (user?.email || '').trim();
-        const cleanName = (user?.full_name || '').trim();
-        const emailPrefix = cleanEmail ? cleanEmail.split('@')[0].trim() : '';
-
-        // Strategi 1: Carian mengikut user_id
         if (user?.id) {
           try {
-            studs = await base44.entities.Student.filter({ user_id: user.id });
+            studs = await base44.entities.Student.filter({ user_id: user.id }, '-created_date');
           } catch (e) {
             studs = [];
           }
         }
-
-        // Strategi 2: Carian mengikut email (Asal & Huruf Kecil/Besar)
-        if (!studs.length && cleanEmail) {
+        if (!studs.length && user?.email) {
+          const cleanEmail = user.email.trim();
           try {
-            studs = await base44.entities.Student.filter({ email: cleanEmail });
+            studs = await base44.entities.Student.filter({ email: cleanEmail }, '-created_date');
           } catch (e) {
             studs = [];
           }
+          // Jika huruf besar/kecil berbeza, cuba versi huruf kecil
           if (!studs.length && cleanEmail.toLowerCase() !== cleanEmail) {
             try {
-              studs = await base44.entities.Student.filter({ email: cleanEmail.toLowerCase() });
+              studs = await base44.entities.Student.filter({ email: cleanEmail.toLowerCase() }, '-created_date');
             } catch (e) {
               studs = [];
             }
           }
         }
-
-        // Strategi 3: Carian mengikut student_id / no matrik (Nama pengguna / Awalan emel)
-        if (!studs.length && (cleanName || emailPrefix)) {
-          const candidateIds = [
-            cleanName,
-            cleanName.toUpperCase(),
-            cleanName.toLowerCase(),
-            emailPrefix,
-            emailPrefix.toUpperCase(),
-            emailPrefix.toLowerCase()
-          ].filter(Boolean);
-
-          for (const cand of candidateIds) {
-            try {
-              const res = await base44.entities.Student.filter({ student_id: cand });
-              if (Array.isArray(res) && res.length > 0) {
-                studs = res;
-                break;
-              }
-            } catch (e) {}
-          }
-        }
-
-        // Strategi 4: Carian mengikut nama penuh akaun pengguna
-        if (!studs.length && cleanName) {
-          try {
-            studs = await base44.entities.Student.filter({ full_name: cleanName });
-          } catch (e) {
-            studs = [];
-          }
-          if (!studs.length) {
-            try {
-              studs = await base44.entities.Student.filter({ full_name: cleanName.toUpperCase() });
-            } catch (e) {}
-          }
-        }
-
-        // Strategi 5: Padanan khusus akaun simulasi/residen aktif Sanil
-        const isSanilAccount = cleanName.toLowerCase().includes('sanil') || cleanEmail.toLowerCase().includes('sanil');
-        if (!studs.length && isSanilAccount) {
-          const sanilQueries = [
-            { email: 'sanil@ums.edu.my' },
-            { full_name: 'SANIYIL BIN BANSAI' },
-            { full_name: 'Saniyil Bin Bansai' },
-            { student_id: 'BP23110045' },
-            { student_id: 'BI21110001' },
-            { student_id: 'sanilbans' },
-            { student_id: 'SANILBANS' }
-          ];
-          for (const q of sanilQueries) {
-            try {
-              const r = await base44.entities.Student.filter(q);
-              if (Array.isArray(r) && r.length > 0) {
-                studs = r;
-                break;
-              }
-            } catch (e) {}
-          }
-        }
-
-        // Strategi 6: Fallback padanan in-memory melalui list()
-        if (!studs.length) {
-          try {
-            const listStudents = await base44.entities.Student.list().catch(() => []);
-            if (Array.isArray(listStudents) && listStudents.length > 0) {
-              const userEmailClean = cleanEmail.toLowerCase();
-              const userNameClean = cleanName.toLowerCase();
-              studs = listStudents.filter(s => 
-                (user?.id && s.user_id === user.id) || 
-                (userEmailClean && (s.email || '').trim().toLowerCase() === userEmailClean) ||
-                (userNameClean && (s.full_name || '').trim().toLowerCase() === userNameClean) ||
-                (emailPrefix && (s.student_id || '').trim().toLowerCase() === emailPrefix.toLowerCase()) ||
-                (userNameClean && (s.student_id || '').trim().toLowerCase() === userNameClean) ||
-                (isSanilAccount && ((s.email || '').toLowerCase().includes('sanil') || (s.full_name || '').toLowerCase().includes('sanil') || (s.student_id || '').toLowerCase().includes('sanil')))
-              );
-            }
-          } catch (e) {
-            studs = [];
-          }
-        }
-
-        // Strategi 7: Fallback filter({})
-        if (!studs.length) {
-          try {
-            const allStudentsFallback = await base44.entities.Student.filter({}).catch(() => []);
-            if (Array.isArray(allStudentsFallback) && allStudentsFallback.length > 0) {
-              const userEmailClean = cleanEmail.toLowerCase();
-              const userNameClean = cleanName.toLowerCase();
-              studs = allStudentsFallback.filter(s => 
-                (user?.id && s.user_id === user.id) || 
-                (userEmailClean && (s.email || '').trim().toLowerCase() === userEmailClean) ||
-                (userNameClean && (s.full_name || '').trim().toLowerCase() === userNameClean) ||
-                (emailPrefix && (s.student_id || '').trim().toLowerCase() === emailPrefix.toLowerCase()) ||
-                (userNameClean && (s.student_id || '').trim().toLowerCase() === userNameClean) ||
-                (isSanilAccount && ((s.email || '').toLowerCase().includes('sanil') || (s.full_name || '').toLowerCase().includes('sanil') || (s.student_id || '').toLowerCase().includes('sanil')))
-              );
-            }
-          } catch (e) {
-            studs = [];
-          }
-        }
-
-        // Strategi 8: Fallback LocalStorage cache (menyelamatkan pelajar daripada prom register berulang)
-        if (!studs.length) {
-          try {
-            const cachedStr = localStorage.getItem('kktf_cached_student_profile') ||
-              (user?.id ? localStorage.getItem(`kktf_student_record_${user.id}`) : null) ||
-              (cleanEmail ? localStorage.getItem(`kktf_student_record_${cleanEmail.toLowerCase()}`) : null) ||
-              (cleanName ? localStorage.getItem(`kktf_student_record_${cleanName.toLowerCase()}`) : null) ||
-              (emailPrefix ? localStorage.getItem(`kktf_student_record_${emailPrefix.toLowerCase()}`) : null);
-            if (cachedStr) {
-              const parsed = JSON.parse(cachedStr);
-              if (parsed && (parsed.student_id || parsed.full_name || parsed.email)) {
-                // Sahkan kepunyaan profil dengan akaun pengguna
-                const isParsedSanil = (parsed.full_name || '').toLowerCase().includes('sanil') || (parsed.email || '').toLowerCase().includes('sanil') || (parsed.student_id || '').toLowerCase().includes('sanil');
-                const matchesUser = 
-                  (user?.id && parsed.user_id === user.id) ||
-                  (cleanEmail && (parsed.email || '').trim().toLowerCase() === cleanEmail.toLowerCase()) ||
-                  (cleanName && (parsed.full_name || '').trim().toLowerCase() === cleanName.toLowerCase()) ||
-                  (cleanName && (parsed.student_id || '').trim().toLowerCase() === cleanName.toLowerCase()) ||
-                  (emailPrefix && (parsed.student_id || '').trim().toLowerCase() === emailPrefix.toLowerCase()) ||
-                  (isSanilAccount && isParsedSanil);
-                if (matchesUser) {
-                  studs = [parsed];
-                  // Segerakkan semula ke pangkalan data di latar belakang
-                  if (user?.id) parsed.user_id = user.id;
-                  if (cleanEmail && !parsed.email) parsed.email = cleanEmail;
-                  const payload = { ...parsed };
-                  delete payload.id;
-                  base44.entities.Student.create(payload).catch(() => {});
-                }
-              }
-            }
-          } catch (eCache) {}
-        }
-
-        // Strategi 9: Autoresolusi untuk akaun simulasi pelajar Sanil
-        if (!studs.length && isSanilAccount) {
-          const synthesizedSanilStudent = {
-            student_id: 'BP23110045',
-            full_name: user?.full_name || 'SANIYIL BIN BANSAI',
-            ic_passport: '030514-12-5541',
-            gender: 'Male',
-            faculty: 'Fakulti Komputeran dan Informatik (FKI)',
-            programme: 'Ijazah Sarjana Muda Sains Komputer dengan Kepujian (Kejuruteraan Perisian)',
-            year_of_study: 2,
-            phone: '0165097489',
-            email: user?.email || 'sanil@ums.edu.my',
-            parent_name: 'BANSAI',
-            parent_phone: '0165097489',
-            emergency_contact: '0165097489',
-            block_name: 'Blok C',
-            room_number: 'C-2-04',
-            room_status: 'Checked In',
-            resident_status: 'Active',
-            status: 'Active',
-            qr_verified: true,
-            user_id: user?.id || ''
-          };
-          studs = [synthesizedSanilStudent];
-          // Simpan ke pangkalan data & storan tempatan
-          base44.entities.Student.create(synthesizedSanilStudent).catch(() => {});
-        }
         
-        if (studs.length > 0 && (studs[0]?.student_id || studs[0]?.id || studs[0]?.full_name)) {
+        if (studs.length > 0 && studs[0]?.student_id) {
           // Cari rekod yang sudah disahkan atau rekod terkini
           const s = studs.find(st => 
             (st.qr_verified === true || st.qr_verified === 'true' || st.qr_verified === 1 || st.qr_verified === '1') &&
             String(st.room_status || '').trim().toLowerCase() === 'checked in'
           ) || studs[0];
-
-          // Simpan ke cache tempatan supaya sentiasa tersedia
-          try {
-            localStorage.setItem('kktf_cached_student_profile', JSON.stringify(s));
-            if (user?.id) localStorage.setItem(`kktf_student_record_${user.id}`, JSON.stringify(s));
-            if (cleanEmail) localStorage.setItem(`kktf_student_record_${cleanEmail.toLowerCase()}`, JSON.stringify(s));
-          } catch (eStore) {}
-
-          // Auto-link user_id ke akaun pengguna semasa jika belum terhubung
-          if (s && user?.id && (!s.user_id || s.user_id !== user.id)) {
-            s.user_id = user.id;
-            base44.entities.Student.update(s.id, { user_id: user.id }).catch(() => {});
-          }
 
           if (!isMounted) return;
           setStudentProfile(s);

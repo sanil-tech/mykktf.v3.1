@@ -60,118 +60,26 @@ const AuthenticatedApp = () => {
 
     if (user && !isLoadingAuth) {
       const isStudent = !user.role || user.role === 'student' || user.role === 'user';
-      if (isStudent && (user.email || user.id)) {
+      if (isStudent && user.email) {
         setCheckingSetup(true);
         // Safety timeout (3s) to ensure the user is never stuck indefinitely on the loading screen
         safetyTimer = setTimeout(() => {
           if (isMounted) setCheckingSetup(false);
         }, 3000);
 
-        const checkStudent = async () => {
-          try {
-            let results = [];
-            const cleanEmail = (user?.email || '').trim();
-            const cleanName = (user?.full_name || '').trim();
-            const emailPrefix = cleanEmail ? cleanEmail.split('@')[0].trim() : '';
-            const isSanilAccount = cleanName.toLowerCase().includes('sanil') || cleanEmail.toLowerCase().includes('sanil');
-
-            if (user?.id) {
-              results = await base44.entities.Student.filter({ user_id: user.id }).catch(() => []);
-            }
-            if (!results.length && cleanEmail) {
-              results = await base44.entities.Student.filter({ email: cleanEmail }).catch(() => []);
-              if (!results.length && cleanEmail.toLowerCase() !== cleanEmail) {
-                results = await base44.entities.Student.filter({ email: cleanEmail.toLowerCase() }).catch(() => []);
-              }
-            }
-            if (!results.length && (cleanName || emailPrefix)) {
-              const candidateIds = [
-                cleanName,
-                cleanName.toUpperCase(),
-                emailPrefix,
-                emailPrefix.toUpperCase()
-              ].filter(Boolean);
-              for (const cand of candidateIds) {
-                try {
-                  const res = await base44.entities.Student.filter({ student_id: cand });
-                  if (Array.isArray(res) && res.length > 0) {
-                    results = res;
-                    break;
-                  }
-                } catch (e) {}
-              }
-            }
-            if (!results.length && isSanilAccount) {
-              const sanilQueries = [
-                { email: 'sanil@ums.edu.my' },
-                { full_name: 'SANIYIL BIN BANSAI' },
-                { student_id: 'BP23110045' },
-                { student_id: 'BI21110001' },
-                { student_id: 'sanilbans' }
-              ];
-              for (const q of sanilQueries) {
-                try {
-                  const r = await base44.entities.Student.filter(q);
-                  if (Array.isArray(r) && r.length > 0) {
-                    results = r;
-                    break;
-                  }
-                } catch (e) {}
-              }
-            }
-            if (!results.length) {
-              const listAll = await base44.entities.Student.list().catch(() => []);
-              const userEmailClean = cleanEmail.toLowerCase();
-              const userNameClean = cleanName.toLowerCase();
-              results = (listAll || []).filter(s =>
-                (user?.id && s.user_id === user.id) ||
-                (userEmailClean && (s.email || '').trim().toLowerCase() === userEmailClean) ||
-                (userNameClean && (s.full_name || '').trim().toLowerCase() === userNameClean) ||
-                (emailPrefix && (s.student_id || '').trim().toLowerCase() === emailPrefix.toLowerCase()) ||
-                (userNameClean && (s.student_id || '').trim().toLowerCase() === userNameClean) ||
-                (isSanilAccount && ((s.email || '').toLowerCase().includes('sanil') || (s.full_name || '').toLowerCase().includes('sanil') || (s.student_id || '').toLowerCase().includes('sanil')))
-              );
-            }
-            if (!results.length) {
-              try {
-                const cachedStr = localStorage.getItem('kktf_cached_student_profile') ||
-                  (user?.id ? localStorage.getItem(`kktf_student_record_${user.id}`) : null) ||
-                  (cleanEmail ? localStorage.getItem(`kktf_student_record_${cleanEmail.toLowerCase()}`) : null) ||
-                  (cleanName ? localStorage.getItem(`kktf_student_record_${cleanName.toLowerCase()}`) : null) ||
-                  (emailPrefix ? localStorage.getItem(`kktf_student_record_${emailPrefix.toLowerCase()}`) : null);
-                if (cachedStr) {
-                  const parsed = JSON.parse(cachedStr);
-                  if (parsed && (parsed.student_id || parsed.full_name || parsed.email)) {
-                    results = [parsed];
-                  }
-                }
-              } catch (eCache) {}
-            }
-            if (!results.length && isSanilAccount) {
-              results = [{
-                student_id: 'BP23110045',
-                full_name: user?.full_name || 'SANIYIL BIN BANSAI',
-                block_name: 'Blok C',
-                room_number: 'C-2-04',
-                room_status: 'Checked In',
-                resident_status: 'Active',
-                qr_verified: true,
-                user_id: user?.id || ''
-              }];
-            }
-            if (isMounted) {
-              setNeedsSetup(results.length === 0);
-            }
-          } catch (e) {
-            console.warn('Check setup error:', e);
-            if (isMounted) setNeedsSetup(false);
-          } finally {
+        const cleanEmail = user.email.trim();
+        base44.entities.Student.filter({ email: cleanEmail })
+          .then(results => {
+            if (!isMounted) return;
+            setNeedsSetup(results.length === 0);
+          })
+          .catch(err => {
+            console.warn('Student setup check error:', err);
+          })
+          .finally(() => {
             if (safetyTimer) clearTimeout(safetyTimer);
             if (isMounted) setCheckingSetup(false);
-          }
-        };
-
-        checkStudent();
+          });
       } else {
         setCheckingSetup(false);
       }
