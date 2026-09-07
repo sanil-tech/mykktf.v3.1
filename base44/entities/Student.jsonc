@@ -138,6 +138,9 @@
           "data.user_id": "{{user.id}}"
         },
         {
+          "data.email": "{{user.email}}"
+        },
+        {
           "user_condition": {
             "role": "super_admin"
           }
@@ -161,6 +164,9 @@
         },
         {
           "data.user_id": "{{user.id}}"
+        },
+        {
+          "data.email": "{{user.email}}"
         },
         {
           "user_condition": {
@@ -198,6 +204,9 @@
           "data.user_id": "{{user.id}}"
         },
         {
+          "data.email": "{{user.email}}"
+        },
+        {
           "user_condition": {
             "role": "principal"
           }
@@ -231,6 +240,9 @@
         },
         {
           "data.user_id": "{{user.id}}"
+        },
+        {
+          "data.email": "{{user.email}}"
         },
         {
           "user_condition": {

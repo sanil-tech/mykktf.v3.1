@@ -60,26 +60,49 @@ const AuthenticatedApp = () => {
 
     if (user && !isLoadingAuth) {
       const isStudent = !user.role || user.role === 'student' || user.role === 'user';
-      if (isStudent && user.email) {
+      if (isStudent && (user.email || user.id)) {
         setCheckingSetup(true);
         // Safety timeout (3s) to ensure the user is never stuck indefinitely on the loading screen
         safetyTimer = setTimeout(() => {
           if (isMounted) setCheckingSetup(false);
         }, 3000);
 
-        const cleanEmail = user.email.trim();
-        base44.entities.Student.filter({ email: cleanEmail })
-          .then(results => {
-            if (!isMounted) return;
-            setNeedsSetup(results.length === 0);
-          })
-          .catch(err => {
-            console.warn('Student setup check error:', err);
-          })
-          .finally(() => {
+        const checkStudent = async () => {
+          try {
+            let results = [];
+            if (user?.id) {
+              results = await base44.entities.Student.filter({ user_id: user.id }).catch(() => []);
+            }
+            if (!results.length && user?.email) {
+              const cleanEmail = user.email.trim();
+              results = await base44.entities.Student.filter({ email: cleanEmail }).catch(() => []);
+              if (!results.length && cleanEmail.toLowerCase() !== cleanEmail) {
+                results = await base44.entities.Student.filter({ email: cleanEmail.toLowerCase() }).catch(() => []);
+              }
+            }
+            if (!results.length) {
+              const listAll = await base44.entities.Student.list().catch(() => []);
+              const userEmailClean = (user?.email || '').trim().toLowerCase();
+              const userNameClean = (user?.full_name || '').trim().toLowerCase();
+              results = (listAll || []).filter(s =>
+                (user?.id && s.user_id === user.id) ||
+                (userEmailClean && (s.email || '').trim().toLowerCase() === userEmailClean) ||
+                (userNameClean && (s.full_name || '').trim().toLowerCase() === userNameClean)
+              );
+            }
+            if (isMounted) {
+              setNeedsSetup(results.length === 0);
+            }
+          } catch (e) {
+            console.warn('Check setup error:', e);
+            if (isMounted) setNeedsSetup(false);
+          } finally {
             if (safetyTimer) clearTimeout(safetyTimer);
             if (isMounted) setCheckingSetup(false);
-          });
+          }
+        };
+
+        checkStudent();
       } else {
         setCheckingSetup(false);
       }

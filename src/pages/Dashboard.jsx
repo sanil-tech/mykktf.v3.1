@@ -176,11 +176,11 @@ export default function Dashboard() {
           return;
         }
 
-        // --- CARIAN PROFIL PELAJAR ---
+        // --- CARIAN PROFIL PELAJAR (MULTI-STRATEGI TEGUH) ---
         let studs = [];
         if (user?.id) {
           try {
-            studs = await base44.entities.Student.filter({ user_id: user.id }, '-created_date');
+            studs = await base44.entities.Student.filter({ user_id: user.id });
           } catch (e) {
             studs = [];
           }
@@ -188,26 +188,68 @@ export default function Dashboard() {
         if (!studs.length && user?.email) {
           const cleanEmail = user.email.trim();
           try {
-            studs = await base44.entities.Student.filter({ email: cleanEmail }, '-created_date');
+            studs = await base44.entities.Student.filter({ email: cleanEmail });
           } catch (e) {
             studs = [];
           }
           // Jika huruf besar/kecil berbeza, cuba versi huruf kecil
           if (!studs.length && cleanEmail.toLowerCase() !== cleanEmail) {
             try {
-              studs = await base44.entities.Student.filter({ email: cleanEmail.toLowerCase() }, '-created_date');
+              studs = await base44.entities.Student.filter({ email: cleanEmail.toLowerCase() });
             } catch (e) {
               studs = [];
             }
           }
         }
+
+        // Fallback 1: Ambil senarai Student (akses pengguna) dan padankan dalam JS (case-insensitive & nama penuh)
+        if (!studs.length) {
+          try {
+            const listStudents = await base44.entities.Student.list().catch(() => []);
+            if (Array.isArray(listStudents) && listStudents.length > 0) {
+              const userEmailClean = (user?.email || '').trim().toLowerCase();
+              const userNameClean = (user?.full_name || '').trim().toLowerCase();
+              studs = listStudents.filter(s => 
+                (user?.id && s.user_id === user.id) || 
+                (userEmailClean && (s.email || '').trim().toLowerCase() === userEmailClean) ||
+                (userNameClean && (s.full_name || '').trim().toLowerCase() === userNameClean)
+              );
+            }
+          } catch (e) {
+            studs = [];
+          }
+        }
+
+        // Fallback 2: Cuba Student.filter({}) jika list() tidak memulangkan rekod
+        if (!studs.length) {
+          try {
+            const allStudentsFallback = await base44.entities.Student.filter({}).catch(() => []);
+            if (Array.isArray(allStudentsFallback) && allStudentsFallback.length > 0) {
+              const userEmailClean = (user?.email || '').trim().toLowerCase();
+              const userNameClean = (user?.full_name || '').trim().toLowerCase();
+              studs = allStudentsFallback.filter(s => 
+                (user?.id && s.user_id === user.id) || 
+                (userEmailClean && (s.email || '').trim().toLowerCase() === userEmailClean) ||
+                (userNameClean && (s.full_name || '').trim().toLowerCase() === userNameClean)
+              );
+            }
+          } catch (e) {
+            studs = [];
+          }
+        }
         
-        if (studs.length > 0 && studs[0]?.student_id) {
+        if (studs.length > 0 && (studs[0]?.student_id || studs[0]?.id)) {
           // Cari rekod yang sudah disahkan atau rekod terkini
           const s = studs.find(st => 
             (st.qr_verified === true || st.qr_verified === 'true' || st.qr_verified === 1 || st.qr_verified === '1') &&
             String(st.room_status || '').trim().toLowerCase() === 'checked in'
           ) || studs[0];
+
+          // Auto-link user_id ke akaun pengguna semasa jika belum terhubung
+          if (s && user?.id && (!s.user_id || s.user_id !== user.id)) {
+            s.user_id = user.id;
+            base44.entities.Student.update(s.id, { user_id: user.id }).catch(() => {});
+          }
 
           if (!isMounted) return;
           setStudentProfile(s);
