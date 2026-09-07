@@ -57,7 +57,7 @@ export default function StudentSetup({ user, onComplete }) {
     programme: '',
     year_of_study: '1',
     phone: '',
-    email: user?.email || '',
+    email: user?.email || (user?.full_name ? `${user.full_name.toLowerCase().replace(/\s+/g, '')}@student.ums.edu.my` : 'sanilbans@student.ums.edu.my'),
     parent_name: '',
     parent_phone: '',
     emergency_contact: '',
@@ -125,6 +125,7 @@ export default function StudentSetup({ user, onComplete }) {
       if (!form.gender) errs.gender = 'Sila pilih jantina';
       if (!form.date_of_birth) errs.date_of_birth = 'Sila pilih tarikh lahir';
       if (!form.phone?.trim()) errs.phone = 'Sila masukkan nombor telefon anda';
+      if (!form.email?.trim()) errs.email = 'Sila masukkan emel siswa / rasmi';
       if (!form.parent_phone?.trim()) errs.parent_phone = 'Sila masukkan nombor telefon waris';
     }
     if (s === 2) {
@@ -158,38 +159,60 @@ export default function StudentSetup({ user, onComplete }) {
 
       // 1. Create or Update Student Resident record (Pre-registration)
       const phoneSync = form.parent_phone || form.emergency_contact || '';
+      const fallbackEmail = form.student_id ? `${form.student_id.toLowerCase()}@student.ums.edu.my` : 'sanilbans@student.ums.edu.my';
+      const cleanEmail = (form.email || user?.email || fallbackEmail).trim().toLowerCase();
+      const cleanUserId = user?.id || form.user_id || '';
+
       const studentData = {
         ...form,
         parent_phone: phoneSync,
         emergency_contact: phoneSync,
-        user_id: user?.id || form.user_id || '',
-        email: (user?.email || form.email || '').trim(),
+        user_id: cleanUserId,
+        email: cleanEmail,
         block_name: knowsRoom ? form.block_name : '',
         room_number: knowsRoom ? form.room_number : '',
         room_id: knowsRoom ? roomId : '',
-        year_of_study: Number(form.year_of_study),
+        year_of_study: Number(form.year_of_study) || 1,
         room_status: knowsRoom ? 'Pending Verification' : 'Pending Key',
         resident_status: 'Registered',
         status: 'Active',
         qr_verified: false
       };
 
+      // Sanitize fields: Remove empty date or URI fields to prevent Base44 schema validation rejection!
+      if (!studentData.date_of_birth) delete studentData.date_of_birth;
+      if (!studentData.check_in_date) delete studentData.check_in_date;
+      if (!studentData.profile_photo) delete studentData.profile_photo;
+      if (!studentData.room_id) delete studentData.room_id;
+      delete studentData.id;
+
       // Pastikan sebarang cache pengesahan lama dipadamkan untuk mengelakkan bypass pintu utama
       if (studentData.student_id) localStorage.removeItem(`kktf_verified_${studentData.student_id}`);
-      if (studentData.email) localStorage.removeItem(`kktf_verified_${studentData.email}`);
+      if (cleanEmail) localStorage.removeItem(`kktf_verified_${cleanEmail}`);
       if (user?.email) localStorage.removeItem(`kktf_verified_${user.email}`);
 
       // Cegah rekod duplikasi jika pengguna memadam akaun auth dan mendaftar semula dengan emel yang sama
       let existingStudents = [];
-      if (studentData.email) {
+      if (cleanEmail) {
         try {
-          existingStudents = await base44.entities.Student.filter({ email: studentData.email });
+          existingStudents = await base44.entities.Student.filter({ email: cleanEmail });
+        } catch (eFilter) {}
+      }
+      if (!existingStudents.length && studentData.student_id) {
+        try {
+          existingStudents = await base44.entities.Student.filter({ student_id: studentData.student_id });
+        } catch (eFilter) {}
+      }
+      if (!existingStudents.length && cleanUserId) {
+        try {
+          existingStudents = await base44.entities.Student.filter({ user_id: cleanUserId });
         } catch (eFilter) {}
       }
 
+      let savedRecord = null;
       if (existingStudents && existingStudents.length > 0) {
-        // Kemaskini rekod sedia ada kepada status pra-pendaftaran yang bersih (Wajib Pengaktifan QR)
-        await base44.entities.Student.update(existingStudents[0].id, studentData);
+        // Kemaskini rekod sedia ada kepada status pra-pendaftaran yang bersih
+        savedRecord = await base44.entities.Student.update(existingStudents[0].id, studentData);
         // Padam sebarang salinan duplikasi lama jika ada
         if (existingStudents.length > 1) {
           for (let i = 1; i < existingStudents.length; i++) {
@@ -197,21 +220,35 @@ export default function StudentSetup({ user, onComplete }) {
           }
         }
       } else {
-        await base44.entities.Student.create(studentData);
+        savedRecord = await base44.entities.Student.create(studentData);
       }
 
+      // Cache rekod pelajar ke LocalStorage supaya sentiasa tersedia tanpa sekatan network atau RLS
+      const finalStudent = savedRecord || { ...studentData, id: existingStudents[0]?.id || ('local_' + Date.now()) };
+      try {
+        localStorage.setItem('kktf_cached_student_profile', JSON.stringify(finalStudent));
+        if (cleanUserId) localStorage.setItem(`kktf_student_record_${cleanUserId}`, JSON.stringify(finalStudent));
+        if (cleanEmail) localStorage.setItem(`kktf_student_record_${cleanEmail}`, JSON.stringify(finalStudent));
+        if (studentData.student_id) localStorage.setItem(`kktf_student_record_${studentData.student_id.toLowerCase()}`, JSON.stringify(finalStudent));
+        if (studentData.full_name) localStorage.setItem(`kktf_student_record_${studentData.full_name.toLowerCase()}`, JSON.stringify(finalStudent));
+      } catch (eStore) {}
+
       // 2. Update user role
-      await base44.auth.updateMe({ role: 'student' });
+      await base44.auth.updateMe({ role: 'student' }).catch(() => {});
 
       // Jika pelajar telah memilih bilik, sediakan isyarat untuk terus buka scanner QR di pintu utama
       if (knowsRoom && form.block_name && form.room_number) {
         sessionStorage.setItem('open_resident_qr_modal', 'true');
       }
-    } catch (e) {
-      console.error('Registration failed:', e);
-    } finally {
+
+      window.dispatchEvent(new CustomEvent('KRMS_MODULES_REFRESH'));
+      toast.success('Pendaftaran residen berjaya!');
       setSaving(false);
       onComplete();
+    } catch (e) {
+      console.error('Registration failed:', e);
+      toast.error('Pendaftaran gagal: ' + (e?.message || 'Sila semak maklumat yang dimasukkan'));
+      setSaving(false);
     }
   }
 
@@ -327,6 +364,18 @@ export default function StudentSetup({ user, onComplete }) {
                   className={`h-10 text-xs ${errors.phone ? 'border-red-500 bg-red-50/30' : ''}`} 
                 />
                 {errors.phone && <p className="text-[11px] text-red-500">{errors.phone}</p>}
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Emel Siswa / Rasmi *</Label>
+                <Input 
+                  type="email"
+                  value={form.email} 
+                  onChange={e => set('email', e.target.value)} 
+                  placeholder="Cth: student@student.ums.edu.my" 
+                  className={`h-10 text-xs ${errors.email ? 'border-red-500 bg-red-50/30' : ''}`} 
+                />
+                {errors.email && <p className="text-[11px] text-red-500">{errors.email}</p>}
               </div>
 
               <div className="space-y-1">

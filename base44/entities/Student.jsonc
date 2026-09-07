@@ -154,6 +154,16 @@
           "user_condition": {
             "role": "principal"
           }
+        },
+        {
+          "user_condition": {
+            "role": "student"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
         }
       ]
     },
@@ -192,6 +202,16 @@
           "user_condition": {
             "role": "warden"
           }
+        },
+        {
+          "user_condition": {
+            "role": "student"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
         }
       ]
     },
@@ -229,6 +249,16 @@
         {
           "user_condition": {
             "role": "warden"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "student"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
           }
         }
       ]

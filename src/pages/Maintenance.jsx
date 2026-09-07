@@ -1047,52 +1047,63 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
 
       {/* ALIRAN TINDAKAN PEMBAIKAN: KHAS UNTUK PELAJAR (JELAS, TEPAT & TIDAK MENGELIRUKAN) */}
       {!isStaff ? (
-        <div className="bg-gradient-to-r from-slate-900 via-[#132644] to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-sky-500/30 shadow-md">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-            <div className="space-y-2 max-w-2xl">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Badge className="bg-sky-500/20 text-sky-300 border-sky-400/30 text-[11px] px-2.5 py-0.5 font-medium flex items-center gap-1.5">
-                  <Wrench className="w-3.5 h-3.5 text-sky-400" /> Aliran Tindakan Pembaikan Kerosakan Mahasiswa
-                </Badge>
-                <span className="text-xs text-sky-200 font-mono">MyKKTF ➔ Pendaftaran TAMS ➔ Skop Kerja JPP & Kontraktor</span>
+        <div className="bg-gradient-to-r from-slate-900 via-[#132644] to-slate-900 text-white rounded-2xl p-4 sm:p-5 lg:p-6 border border-sky-500/30 shadow-md">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+            {/* Left Column (Desktop 7 cols, Tablet/Mobile 12 cols) */}
+            <div className="lg:col-span-7 flex flex-col justify-between space-y-3 min-w-0">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge className="bg-sky-500/20 text-sky-300 border-sky-400/30 text-[11px] px-2.5 py-0.5 font-medium flex items-center gap-1.5 whitespace-nowrap">
+                    <Wrench className="w-3.5 h-3.5 text-sky-400 shrink-0" /> Aliran Tindakan Pembaikan Mahasiswa
+                  </Badge>
+                  <span className="text-xs text-sky-200/80 font-mono hidden sm:inline">MyKKTF ➔ TAMS ➔ JPP & Kontraktor</span>
+                </div>
+                <h3 className="text-base sm:text-lg font-heading font-bold text-white tracking-tight">
+                  Aliran Pembaikan Kerosakan & Skop Kerja JPP UMS
+                </h3>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Sebaik sahaja aduan anda direkodkan di MyKKTF dan didaftarkan ke sistem TAMS / MyServ, skop kerja pembaikan fizikal oleh pihak <strong>Jabatan Pembangunan & Penyelenggaraan (JPP) UMS</strong> dan <strong>kontraktor yang dilantik</strong> akan bermula.
+                </p>
               </div>
-              <h3 className="text-sm sm:text-base font-heading font-bold text-white">
-                Aliran Pembaikan Kerosakan & Skop Kerja JPP UMS
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Sebaik sahaja aduan anda direkodkan di MyKKTF dan didaftarkan ke sistem TAMS / MyServ, skop kerja pembaikan fizikal oleh pihak <strong>Jabatan Pembangunan & Penyelenggaraan (JPP) UMS</strong> dan <strong>kontraktor yang dilantik</strong> akan bermula.
-              </p>
-              <div className="p-2.5 bg-sky-950/40 rounded-xl border border-sky-500/20 text-[11px] text-sky-200 flex items-start gap-2">
+
+              <div className="p-2.5 sm:p-3 bg-sky-950/60 rounded-xl border border-sky-500/25 text-[11px] text-sky-200 flex items-start gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-                <span>
-                  <strong>Peranan Felo & Pentadbiran Kolej:</strong> Pihak kolej bertindak sebagai pemantau perkembangan untuk anda dan sentiasa menjalankan inisiatif tindakan susulan dalaman (termasuk penyelarasan terus bersama JPP & kontraktor) bagi memastikan pembaikan disiapkan mengikut piagam perkhidmatan.
+                <span className="leading-normal">
+                  <strong>Peranan Felo & Pentadbiran Kolej:</strong> Pihak kolej bertindak sebagai pemantau perkembangan untuk anda dan sentiasa menjalankan inisiatif tindakan susulan dalaman bagi memastikan pembaikan disiapkan mengikut piagam perkhidmatan.
                 </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs w-full lg:w-auto shrink-0">
-              {/* Langkah 1 */}
-              <div className="bg-white/10 border border-white/15 rounded-xl p-3 flex items-center gap-2.5">
-                <span className="w-6 h-6 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">1</span>
-                <div>
-                  <p className="font-semibold text-white">Lapor di MyKKTF</p>
-                  <p className="text-[10px] text-slate-300">Dapatkan No. REQ TAMS/MyServ</p>
-                </div>
+            {/* Right Column: 3 Steps (Desktop 5 cols vertical stack, Tablet 3 cols horizontal, Phone 1 col) */}
+            <div className="lg:col-span-5 flex flex-col justify-between gap-2.5 min-w-0">
+              <div className="text-[11px] font-semibold text-sky-300 uppercase tracking-wider flex items-center gap-1.5 pb-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" /> 3 Langkah Aliran Proses
               </div>
-              {/* Langkah 2 */}
-              <div className="bg-white/10 border border-white/15 rounded-xl p-3 flex items-center gap-2.5">
-                <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">2</span>
-                <div>
-                  <p className="font-semibold text-white">Tindakan JPP & Kontraktor</p>
-                  <p className="text-[10px] text-slate-300">Skop pembaikan bermula di tapak</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-2.5 text-xs">
+                {/* Langkah 1 */}
+                <div className="bg-white/10 hover:bg-white/15 transition-colors border border-white/15 rounded-xl p-3 flex items-center gap-3">
+                  <span className="w-7 h-7 rounded-lg bg-indigo-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">1</span>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white text-xs truncate">Lapor di MyKKTF</p>
+                    <p className="text-[10px] text-slate-300 truncate">Dapatkan No. REQ TAMS/MyServ</p>
+                  </div>
                 </div>
-              </div>
-              {/* Langkah 3 */}
-              <div className="bg-white/10 border border-white/15 rounded-xl p-3 flex items-center gap-2.5">
-                <span className="w-6 h-6 rounded-full bg-emerald-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">3</span>
-                <div>
-                  <p className="font-semibold text-white">Pengesahan di Bilik</p>
-                  <p className="text-[10px] text-slate-300">Semak hasil siap & tutup tiket</p>
+                {/* Langkah 2 */}
+                <div className="bg-white/10 hover:bg-white/15 transition-colors border border-white/15 rounded-xl p-3 flex items-center gap-3">
+                  <span className="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">2</span>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white text-xs truncate">Tindakan JPP & Kontraktor</p>
+                    <p className="text-[10px] text-slate-300 truncate">Skop pembaikan bermula di tapak</p>
+                  </div>
+                </div>
+                {/* Langkah 3 */}
+                <div className="bg-white/10 hover:bg-white/15 transition-colors border border-white/15 rounded-xl p-3 flex items-center gap-3">
+                  <span className="w-7 h-7 rounded-lg bg-emerald-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">3</span>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white text-xs truncate">Pengesahan di Bilik</p>
+                    <p className="text-[10px] text-slate-300 truncate">Semak hasil siap & tutup tiket</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1100,43 +1111,58 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
         </div>
       ) : (
         /* WHATSAPP GROUP & JPP MONITORING BANNER (STAFF / FELO / ADMIN ONLY) */
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-indigo-500/20 shadow-md">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Badge className="bg-emerald-500/30 text-emerald-300 border-emerald-400/30 text-[11px] px-2.5 py-0.5 font-medium flex items-center gap-1">
-                  <MessageCircle className="w-3 h-3 text-emerald-400" /> Inisiatif Tindakan Susulan: WhatsApp Penyelenggaraan KKTF
-                </Badge>
-                <span className="text-xs text-indigo-200 font-mono">Cleaner • M&E • Civil • Admin • Felo</span>
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-4 sm:p-5 lg:p-6 border border-indigo-500/30 shadow-md">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+            <div className="lg:col-span-7 flex flex-col justify-between space-y-3 min-w-0">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge className="bg-emerald-500/30 text-emerald-300 border-emerald-400/30 text-[11px] px-2.5 py-0.5 font-medium flex items-center gap-1 whitespace-nowrap">
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> WhatsApp Penyelenggaraan KKTF
+                  </Badge>
+                  <span className="text-xs text-indigo-200/80 font-mono hidden sm:inline">Cleaner • M&E • Civil • Admin • Felo</span>
+                </div>
+                <h3 className="text-base sm:text-lg font-heading font-bold text-white tracking-tight">
+                  Penyelarasan Pemantauan & Tindakan Susulan JPP (UMS MyServ)
+                </h3>
+                <p className="text-xs text-indigo-200/90 leading-relaxed">
+                  Apabila aduan kerosakan direkodkan dalam TAMS, skop kerja pihak JPP dan kontraktor bermula. Hebahan ke kumpulan WhatsApp Penyelenggaraan KKTF merupakan fungsi inisiatif susulan tambahan oleh Felo dan Pentadbir untuk mempercepatkan penyelarasan di tapak.
+                </p>
               </div>
-              <h3 className="text-sm sm:text-base font-heading font-bold text-white">
-                Penyelarasan Pemantauan & Tindakan Susulan JPP (UMS MyServ)
-              </h3>
-              <p className="text-xs text-indigo-200/90 max-w-2xl leading-relaxed">
-                Apabila aduan kerosakan direkodkan dalam TAMS, skop kerja pihak JPP dan kontraktor bermula. Hebahan ke kumpulan WhatsApp Penyelenggaraan KKTF merupakan fungsi inisiatif susulan (follow-up) tambahan oleh Felo dan Pentadbir untuk mempercepatkan penyelarasan di tapak.
-              </p>
+
+              <div className="p-2.5 sm:p-3 bg-indigo-950/60 rounded-xl border border-indigo-500/25 text-[11px] text-indigo-200 flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                <span className="leading-normal">
+                  <strong>Peringatan Pasukan Penyelenggaraan:</strong> Pastikan nombor tiket TAMS/MyServ disertakan bagi setiap aduan yang dihantar ke group WhatsApp agar rujukan silang kerja di tapak berjalan lancar.
+                </span>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs w-full lg:w-auto shrink-0">
-              <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">1</span>
-                <div>
-                  <p className="font-semibold text-white">Rekod & No. TAMS</p>
-                  <p className="text-[10px] text-slate-300">Semak pendaftaran MyServ</p>
-                </div>
+            <div className="lg:col-span-5 flex flex-col justify-between gap-2.5 min-w-0">
+              <div className="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5 pb-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> 3 Langkah Aliran Pemantauan
               </div>
-              <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-emerald-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">2</span>
-                <div>
-                  <p className="font-semibold text-white">Inisiatif Susulan WA</p>
-                  <p className="text-[10px] text-slate-300">Tag unit jika perlu tindakan segera</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-2.5 text-xs">
+                <div className="bg-white/10 hover:bg-white/15 transition-colors border border-white/15 rounded-xl p-3 flex items-center gap-3">
+                  <span className="w-7 h-7 rounded-lg bg-indigo-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">1</span>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white text-xs truncate">Rekod & No. TAMS</p>
+                    <p className="text-[10px] text-slate-300 truncate">Semak pendaftaran MyServ</p>
+                  </div>
                 </div>
-              </div>
-              <div className="bg-white/5 border border-white/10 rounded-xl p-2.5 flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0">3</span>
-                <div>
-                  <p className="font-semibold text-white">Semakan di Lokasi</p>
-                  <p className="text-[10px] text-slate-300">Selesai & Catat SLA</p>
+                <div className="bg-white/10 hover:bg-white/15 transition-colors border border-white/15 rounded-xl p-3 flex items-center gap-3">
+                  <span className="w-7 h-7 rounded-lg bg-emerald-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">2</span>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white text-xs truncate">Inisiatif Susulan WA</p>
+                    <p className="text-[10px] text-slate-300 truncate">Hebahan terus unit berkaitan</p>
+                  </div>
+                </div>
+                <div className="bg-white/10 hover:bg-white/15 transition-colors border border-white/15 rounded-xl p-3 flex items-center gap-3">
+                  <span className="w-7 h-7 rounded-lg bg-blue-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">3</span>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white text-xs truncate">Semakan di Lokasi</p>
+                    <p className="text-[10px] text-slate-300 truncate">Selesai & Catat SLA Siap</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1146,82 +1172,96 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
 
       {/* MONITORING STATS TILES (STAFF & ADMIN) vs STUDENT PERSONAL STATS */}
       {isStaff ? (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3.5">
+          <div className="bg-card border border-border rounded-2xl p-4 shadow-xs hover:border-indigo-200 transition-colors">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground font-medium">Jumlah Aktif</span>
-              <Wrench className="w-4 h-4 text-indigo-600" />
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <Wrench className="w-4 h-4" />
+              </div>
             </div>
-            <p className="text-xl font-heading font-bold text-foreground mt-1">{totalActive}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Sedang dipantau di kolej</p>
+            <p className="text-2xl font-heading font-bold text-foreground mt-2">{totalActive}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Sedang dipantau di kolej</p>
           </div>
 
-          <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm">
+          <div className="bg-card border border-border rounded-2xl p-4 shadow-xs hover:border-blue-200 transition-colors">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground font-medium">Ada No. MyServ</span>
-              <CheckCircle2 className="w-4 h-4 text-blue-600" />
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
             </div>
-            <p className="text-xl font-heading font-bold text-blue-600 mt-1">{totalWithRef}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Telah dihantar ke portal JPP</p>
+            <p className="text-2xl font-heading font-bold text-blue-600 mt-2">{totalWithRef}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Telah dihantar ke portal JPP</p>
           </div>
 
-          <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm">
+          <div className="bg-card border border-border rounded-2xl p-4 shadow-xs hover:border-amber-200 transition-colors">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground font-medium">Perlu Susulan (&ge;3 Hari)</span>
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                <AlertTriangle className="w-4 h-4" />
+              </div>
             </div>
-            <p className="text-xl font-heading font-bold text-amber-600 mt-1">{totalOverdue}</p>
-            <p className="text-[10px] text-amber-700 mt-0.5 font-medium">Saranan heboh ke WhatsApp</p>
+            <p className="text-2xl font-heading font-bold text-amber-600 mt-2">{totalOverdue}</p>
+            <p className="text-[11px] text-amber-700 mt-0.5 font-medium">Saranan heboh ke WhatsApp</p>
           </div>
 
-          <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm">
+          <div className="bg-card border border-border rounded-2xl p-4 shadow-xs hover:border-emerald-200 transition-colors">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground font-medium">Disahkan Selesai</span>
-              <CheckCircle className="w-4 h-4 text-emerald-600" />
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <CheckCircle className="w-4 h-4" />
+              </div>
             </div>
-            <p className="text-xl font-heading font-bold text-emerald-600 mt-1">{totalCompleted}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Telah siap & diuji di lokasi</p>
+            <p className="text-2xl font-heading font-bold text-emerald-600 mt-2">{totalCompleted}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Telah siap & diuji di tapak</p>
           </div>
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-3.5">
+            <div className="bg-card border border-border rounded-2xl p-4 shadow-xs hover:border-indigo-200 transition-colors">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground font-medium">Aduan Aktif Saya</span>
-                <Wrench className="w-4 h-4 text-indigo-600" />
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Wrench className="w-4 h-4" />
+                </div>
               </div>
-              <p className="text-xl font-heading font-bold text-foreground mt-1">{totalActive}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Sedang diproses / dibaiki</p>
+              <p className="text-2xl font-heading font-bold text-foreground mt-2">{totalActive}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Sedang diproses / dibaiki</p>
             </div>
 
-            <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm">
+            <div className="bg-card border border-border rounded-2xl p-4 shadow-xs hover:border-blue-200 transition-colors">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground font-medium">Ada No. TAMS / MyServ</span>
-                <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
               </div>
-              <p className="text-xl font-heading font-bold text-blue-600 mt-1">{totalWithRef}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Telah didaftar ke JPP</p>
+              <p className="text-2xl font-heading font-bold text-blue-600 mt-2">{totalWithRef}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Telah didaftar ke JPP</p>
             </div>
 
-            <div className="bg-card border border-border rounded-xl p-3.5 shadow-sm col-span-2 sm:col-span-1">
+            <div className="bg-card border border-border rounded-2xl p-4 shadow-xs hover:border-emerald-200 transition-colors">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground font-medium">Selesai & Berjaya</span>
-                <CheckCircle className="w-4 h-4 text-emerald-600" />
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <CheckCircle className="w-4 h-4" />
+                </div>
               </div>
-              <p className="text-xl font-heading font-bold text-emerald-600 mt-1">{totalCompleted}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Kerosakan telah siap dibaiki</p>
+              <p className="text-2xl font-heading font-bold text-emerald-600 mt-2">{totalCompleted}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Kerosakan telah siap dibaiki</p>
             </div>
           </div>
 
-          <div className="p-3 bg-sky-50/80 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/40 rounded-2xl flex items-center justify-between text-xs text-sky-900 dark:text-sky-200">
-            <div className="flex items-center gap-2">
+          <div className="p-3 sm:p-3.5 bg-sky-50/80 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/40 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-sky-900 dark:text-sky-200">
+            <div className="flex items-center gap-2 min-w-0">
               <ShieldCheck className="w-4 h-4 text-sky-600 shrink-0" />
-              <span>
+              <span className="leading-tight">
                 <strong>Paparan Privasi Pelajar:</strong> Anda hanya melihat status bagi aduan kerosakan yang didaftarkan atas akaun anda sendiri.
               </span>
             </div>
-            <Badge className="bg-sky-200/70 dark:bg-sky-900/60 text-sky-900 dark:text-sky-200 border-none text-[10px] font-mono font-bold">
+            <Badge className="bg-sky-200/80 dark:bg-sky-900/80 text-sky-900 dark:text-sky-100 border-none text-[11px] font-mono font-bold shrink-0">
               {requests.length} Rekod Anda
             </Badge>
           </div>
@@ -1240,7 +1280,7 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
                 <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
                   {requests.filter(r => !r.myserv_ticket_no && r.status !== 'Completed').length} Aduan Belum Didaftarkan ke Portal TAMS (MyServ)
                 </p>
-                <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5 max-w-2xl">
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5 max-w-2xl leading-relaxed">
                   Aduan-aduan ini telah disimpan dalam MyKKTF tetapi belum mempunyai No. Rujukan MyServ JPP. Sila daftarkan ke portal TAMS untuk mendapatkan nombor rujukan rasmi dan membolehkan pihak JPP mengambil tindakan susulan.
                 </p>
               </div>
@@ -1288,21 +1328,21 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
         </div>
       )}
 
-      {/* SEARCH AND FILTER BAR */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 flex-wrap">
-        <div className="relative w-full sm:w-72">
+      {/* SEARCH AND FILTER BAR — MODERN CONTROL DECK */}
+      <div className="bg-card border border-border rounded-2xl p-3 sm:p-3.5 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="relative flex-1 min-w-0 md:max-w-md">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input 
             placeholder="Cari bilik, blok, pelapor, no. REQ..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="pl-9 h-9 text-xs bg-card"
+            className="pl-9 h-9 text-xs bg-muted/30 border-border"
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-full sm:w-64 h-9 text-xs bg-card border-border">
+            <SelectTrigger className="w-full sm:w-64 h-9 text-xs bg-background border-border">
               <SelectValue placeholder="Tapis Status & Keutamaan" />
             </SelectTrigger>
             <SelectContent>
@@ -1335,7 +1375,7 @@ ${req.latest_followup_note ? `💬 *Catatan Susulan Terkini:* ${req.latest_follo
               size="sm" 
               variant="outline" 
               onClick={() => window.open(UMS_MYSERV_URL, '_blank', 'noopener,noreferrer')}
-              className="h-9 text-xs gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50 shrink-0"
+              className="h-9 text-xs gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50 shrink-0 font-medium"
             >
               <ExternalLink className="w-3.5 h-3.5" /> Portal MyServ
             </Button>
