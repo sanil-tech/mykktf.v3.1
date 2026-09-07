@@ -55,40 +55,16 @@ const AuthenticatedApp = () => {
 
   useEffect(() => {
     // Only check setup for newly registered users (no role yet or role is default)
-    let isMounted = true;
-    let safetyTimer = null;
-
     if (user && !isLoadingAuth) {
       const isStudent = !user.role || user.role === 'student' || user.role === 'user';
-      if (isStudent && user.email) {
+      if (isStudent) {
         setCheckingSetup(true);
-        // Safety timeout (3s) to ensure the user is never stuck indefinitely on the loading screen
-        safetyTimer = setTimeout(() => {
-          if (isMounted) setCheckingSetup(false);
-        }, 3000);
-
-        const cleanEmail = user.email.trim();
-        base44.entities.Student.filter({ email: cleanEmail })
-          .then(results => {
-            if (!isMounted) return;
-            setNeedsSetup(results.length === 0);
-          })
-          .catch(err => {
-            console.warn('Student setup check error:', err);
-          })
-          .finally(() => {
-            if (safetyTimer) clearTimeout(safetyTimer);
-            if (isMounted) setCheckingSetup(false);
-          });
-      } else {
-        setCheckingSetup(false);
+        base44.entities.Student.filter({ email: user.email }).then(results => {
+          setNeedsSetup(results.length === 0);
+          setCheckingSetup(false);
+        });
       }
     }
-
-    return () => {
-      isMounted = false;
-      if (safetyTimer) clearTimeout(safetyTimer);
-    };
   }, [user, isLoadingAuth]);
 
   if (isLoadingPublicSettings || isLoadingAuth || checkingSetup) {

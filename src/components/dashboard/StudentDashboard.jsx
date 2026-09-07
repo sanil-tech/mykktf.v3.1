@@ -69,8 +69,7 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
   const [announcements, setAnnouncements] = useState([]);
   const [recentChats, setRecentChats] = useState([]); // State baharu untuk mesej komuniti live
   const [readMap, setReadMap] = useState({});
-  // Jika studentProfile telah sedia ada dari Dashboard, jangan sekat paparan dengan spinner penuh
-  const [loading, setLoading] = useState(!studentProfile);
+  const [loading, setLoading] = useState(true);
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
   const [checkOutModalOpen, setCheckOutModalOpen] = useState(false);
   const [activeDropKey, setActiveDropKey] = useState(null);
@@ -79,7 +78,6 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
   useEffect(() => {
     if (studentProfile) {
       setStudent(prev => ({ ...(prev || {}), ...studentProfile }));
-      setLoading(false);
     }
   }, [studentProfile]);
 
@@ -125,7 +123,7 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
         { channel_key: 'kktf', is_deleted: false }, 
         '-created_date', 
         2
-      ).catch(() => []);
+      );
       // Susun balik mesej supaya yang paling lama di atas mengikut gaya perbualan biasa
       if (Array.isArray(chats)) {
         setRecentChats([...chats].reverse());
@@ -136,58 +134,41 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
   }
 
   useEffect(() => {
-    let isMounted = true;
-    const safetyTimer = setTimeout(() => {
-      if (isMounted) setLoading(false);
-    }, 3500);
-
     async function load() {
       try {
-        let myStudent = studentProfile || null;
-        if (!myStudent) {
-          let students = [];
-          if (user?.id) {
-            students = await base44.entities.Student.filter({ user_id: user.id }).catch(() => []);
-          }
-          if (!students.length && user?.email) {
-            students = await base44.entities.Student.filter({ email: user.email.trim() }).catch(() => []);
-          }
-          myStudent = students[0] || null;
+        let students = [];
+        if (user?.id) {
+          students = await base44.entities.Student.filter({ user_id: user.id });
         }
-
-        if (isMounted && myStudent) {
-          setStudent(prev => ({ ...(prev || {}), ...myStudent }));
+        if (!students.length && user?.email) {
+          students = await base44.entities.Student.filter({ email: user.email });
         }
+        const myStudent = students[0] 
+          ? { ...(studentProfile || {}), ...students[0] }
+          : (studentProfile || null);
+        setStudent(myStudent);
 
         const dataPromises = [
-          base44.entities.Announcement.list('-publish_date').catch(() => []),
-          user?.id ? base44.entities.AnnouncementRead.filter({ student_user_id: user.id }).catch(() => []) : Promise.resolve([]),
-          base44.entities.RoomInspection.list('-created_date').catch(() => []),
-          (myStudent && myStudent.student_id)
-            ? base44.entities.LeaveApplication.filter({ student_id: myStudent.student_id }, '-created_date', 5).catch(() => [])
-            : Promise.resolve([]),
-          (myStudent && myStudent.student_id)
-            ? base44.entities.MaintenanceRequest.filter({ student_id: myStudent.student_id }, '-created_date', 5).catch(() => [])
-            : Promise.resolve([])
+          base44.entities.Announcement.list('-publish_date'),
+          user?.id ? base44.entities.AnnouncementRead.filter({ student_user_id: user.id }) : Promise.resolve([]),
+          base44.entities.RoomInspection.list('-created_date').catch(() => [])
         ];
 
-        const [annRes, readsRes, inspectionsRes, leaveRes, maintRes] = await Promise.all(dataPromises);
-        if (!isMounted) return;
+        if (myStudent) {
+          dataPromises.push(base44.entities.LeaveApplication.filter({ student_id: myStudent.student_id }, '-created_date', 5));
+          dataPromises.push(base44.entities.MaintenanceRequest.filter({ student_id: myStudent.student_id }, '-created_date', 5));
+        }
 
-        const ann = Array.isArray(annRes) ? annRes : [];
-        const reads = Array.isArray(readsRes) ? readsRes : [];
-        const inspections = Array.isArray(inspectionsRes) ? inspectionsRes : [];
-        const leave = Array.isArray(leaveRes) ? leaveRes : [];
-        const maint = Array.isArray(maintRes) ? maintRes : [];
+        const [ann, reads = [], inspections = [], leave = [], maint = []] = await Promise.all(dataPromises);
 
         setMyLeave(leave);
         setMyMaint(maint);
 
         // Cari pemeriksaan bilik pelajar ini
-        const foundInsp = inspections.find(i => 
+        const foundInsp = Array.isArray(inspections) ? inspections.find(i => 
           (myStudent?.student_id && i.student_id === myStudent.student_id) ||
           (user?.id && i.inspected_by_user_id === user.id)
-        ) || null;
+        ) : null;
         setMyInspection(foundInsp);
 
         // Semak status permohonan Drop-Key Check-Out
@@ -196,46 +177,43 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
           setActiveDropKey(activeDk);
         }
 
+        // Daily Reminder Dispatcher for active Damage Reports (>24h without completion)
+        const now = Date.now();
+        const todayDateStr = new Date().toISOString().split('T')[0];
+        maint.filter(m => m.status !== 'Completed').forEach(async (m) => {
+          const createTime = m.submitted_at ? new Date(m.submitted_at).getTime() : (m.created_date ? new Date(m.created_date).getTime() : now);
+          const hoursPassed = (now - createTime) / (1000 * 60 * 60);
+          const lastRemDate = m.last_reminder_sent_at ? m.last_reminder_sent_at.split('T')[0] : null;
+
+          if (hoursPassed >= 24 && lastRemDate !== todayDateStr && user?.id) {
+            try {
+              await base44.entities.Notification.create({
+                user_id: user.id,
+                title: `🔔 Peringatan: Semakan Pembaikan [${m.myserv_ticket_no || m.specific_location}]`,
+                message: `Adakah kerosakan di ${m.specific_location || 'bilik anda'} telah siap dibaiki oleh JPP? Sila sahkan di menu Damage Reports.`,
+                type: 'general',
+                link: '/maintenance'
+              });
+              await base44.entities.MaintenanceRequest.update(m.id, {
+                last_reminder_sent_at: new Date().toISOString()
+              });
+            } catch (e) {
+              console.error('Student reminder error:', e);
+            }
+          }
+        });
+
         const map = {};
-        reads.forEach(r => { if (r?.announcement_id) map[r.announcement_id] = r; });
+        reads.forEach(r => { map[r.announcement_id] = r; });
         setReadMap(map);
         setAnnouncements(ann);
         
-        // Muatkan mesej sembang secara tak segerak (non-blocking)
-        loadRecentChats().catch(() => {});
-
-        // Daily Reminder Dispatcher for active Damage Reports (>24h without completion)
-        if (maint.length > 0 && user?.id) {
-          const now = Date.now();
-          const todayDateStr = new Date().toISOString().split('T')[0];
-          maint.filter(m => m.status !== 'Completed').forEach(async (m) => {
-            try {
-              const createTime = m.submitted_at ? new Date(m.submitted_at).getTime() : (m.created_date ? new Date(m.created_date).getTime() : now);
-              const hoursPassed = (now - createTime) / (1000 * 60 * 60);
-              const lastRemDate = m.last_reminder_sent_at ? m.last_reminder_sent_at.split('T')[0] : null;
-
-              if (hoursPassed >= 24 && lastRemDate !== todayDateStr) {
-                await base44.entities.Notification.create({
-                  user_id: user.id,
-                  title: `🔔 Peringatan: Semakan Pembaikan [${m.myserv_ticket_no || m.specific_location}]`,
-                  message: `Adakah kerosakan di ${m.specific_location || 'bilik anda'} telah siap dibaiki oleh JPP? Sila sahkan di menu Damage Reports.`,
-                  type: 'general',
-                  link: '/maintenance'
-                }).catch(() => {});
-                await base44.entities.MaintenanceRequest.update(m.id, {
-                  last_reminder_sent_at: new Date().toISOString()
-                }).catch(() => {});
-              }
-            } catch (e) {
-              console.warn('Student reminder error:', e);
-            }
-          });
-        }
+        // Muatkan mesej sembang kali pertama
+        await loadRecentChats();
       } catch (error) {
-        console.warn("Failed to load UMS dashboard data:", error);
+        console.error("Failed to load UMS dashboard data:", error);
       } finally {
-        if (safetyTimer) clearTimeout(safetyTimer);
-        if (isMounted) setLoading(false);
+        setLoading(false);
       }
     }
     load();
@@ -252,13 +230,11 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
       }
     }
     return () => {
-      isMounted = false;
-      if (safetyTimer) clearTimeout(safetyTimer);
       try {
         if (typeof unsubChat === 'function') unsubChat();
       } catch (e) {}
     };
-  }, [user?.id, user?.email, studentProfile]);
+  }, [user]);
 
   async function markRead(ann) {
     if (readMap[ann.id]) return;
@@ -286,9 +262,9 @@ export default function StudentDashboard({ user, jakmasAppointment, studentProfi
     );
   }
 
-  const activeMaint = (Array.isArray(myMaint) ? myMaint : []).filter(m => m && m.status !== 'Completed').length;
-  const pendingLeave = (Array.isArray(myLeave) ? myLeave : []).filter(l => l && l.status === 'Pending').length;
-  const unreadAnn = (Array.isArray(announcements) ? announcements : []).filter(a => a && !readMap[a.id]);
+  const activeMaint = myMaint.filter(m => m.status !== 'Completed').length;
+  const pendingLeave = myLeave.filter(l => l.status === 'Pending').length;
+  const unreadAnn = announcements.filter(a => !readMap[a.id]);
   const hasInspectionDone = Boolean(myInspection);
 
   return (
