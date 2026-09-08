@@ -176,16 +176,6 @@
           "user_condition": {
             "role": "college_admin"
           }
-        },
-        {
-          "user_condition": {
-            "role": "staff"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "warden"
-          }
         }
       ]
     },
@@ -211,32 +201,11 @@
           "user_condition": {
             "role": "college_admin"
           }
-        },
-        {
-          "user_condition": {
-            "role": "staff"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "warden"
-          }
         }
       ]
     },
     "delete": {
       "$or": [
-        {
-          "created_by_id": "{{user.id}}"
-        },
-        {
-          "data.user_id": "{{user.id}}"
-        },
-        {
-          "user_condition": {
-            "role": "principal"
-          }
-        },
         {
           "user_condition": {
             "role": "super_admin"
@@ -244,7 +213,7 @@
         },
         {
           "user_condition": {
-            "role": "college_admin"
+            "role": "principal"
           }
         }
       ]

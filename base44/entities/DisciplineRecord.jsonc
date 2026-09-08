@@ -71,11 +71,6 @@
           "user_condition": {
             "role": "college_admin"
           }
-        },
-        {
-          "user_condition": {
-            "role": "warden"
-          }
         }
       ]
     },
@@ -97,11 +92,6 @@
         {
           "user_condition": {
             "role": "college_admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "warden"
           }
         }
       ]

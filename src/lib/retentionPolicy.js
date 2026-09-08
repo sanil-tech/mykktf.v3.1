@@ -65,21 +65,34 @@ export const DEFAULT_RETENTION_POLICIES = [
 ];
 
 /**
- * Anonymize sensitive student record fields safely without deleting row relations
+ * Anonymize sensitive student record fields safely without deleting row relations.
+ * 
+ * RETENTION POLICY STATUS:
+ * - RETENTION POLICY FRAMEWORK = IMPLEMENTED
+ * - AUTOMATED RETENTION EXECUTION (CRON/DAEMON) = NOT VERIFIED / REQUIRES UMS SCHEDULER SETUP
  */
 export function anonymizeStudentRecord(student) {
   if (!student) return null;
+  const anonId = student.id?.slice(-4) || 'XXXX';
+  const rawMatric = student.matric_number || student.student_id || 'XXX';
+  const anonMatric = `ANON-${rawMatric.slice(0, 3)}***`;
+
   return {
     ...student,
-    full_name: `Bekas Residen ${student.id?.slice(-4) || 'XXXX'}`,
-    matric_number: `ANON-${student.matric_number?.slice(0, 3) || 'XXX'}***`,
+    full_name: `Bekas Residen ${anonId}`,
+    student_id: anonMatric,
+    matric_number: anonMatric,
     ic_passport: '******-**-XXXX',
+    ic_no: '******-**-XXXX',
     email: 'anonymized@kktf.ums.edu.my',
+    phone: '000-0000000',
     phone_number: '000-0000000',
+    emergency_contact: '[ANONYMIZED]',
     emergency_contact_name: '[ANONYMIZED]',
     emergency_contact_phone: '[ANONYMIZED]',
     parent_name: '[ANONYMIZED]',
     parent_phone: '[ANONYMIZED]',
+    parent_income: '[ANONYMIZED]',
     address: '[ANONYMIZED]',
     medical_condition: null,
     allergies: null,

@@ -22,6 +22,7 @@ export default function Discipline() {
   const [form, setForm] = useState({ student_id: '', student_name: '', incident_date: '', offence_category: 'Noise Violation', description: '', action_taken: '', status: 'Investigation' });
   const [editId, setEditId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [accessDenied, setAccessDenied] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => { load(); }, []);
@@ -29,10 +30,51 @@ export default function Discipline() {
     setLoading(true);
     const u = await base44.auth.me();
     setCurrentUser(u);
-    const [r, s] = await Promise.all([base44.entities.DisciplineRecord.list('-created_date'), base44.entities.Student.list()]);
-    setRecords(r);
-    setStudents(s);
+
+    if (['staff', 'jakmas'].includes(u?.role)) {
+      setAccessDenied(true);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      let r = [];
+      let s = [];
+
+      // 1. Guna fungsi backend getScopedDiscipline & getScopedStudents
+      const [fnDisc, fnStud] = await Promise.all([
+        base44.functions.invoke('getScopedDiscipline', {}).catch(() => null),
+        base44.functions.invoke('getScopedStudents', {}).catch(() => null),
+      ]);
+
+      if (fnDisc?.records || fnDisc?.data?.records) {
+        r = fnDisc.records || fnDisc.data.records;
+      } else {
+        r = await base44.entities.DisciplineRecord.list('-created_date').catch(() => []);
+      }
+
+      if (fnStud?.students || fnStud?.data?.students) {
+        s = fnStud.students || fnStud.data.students;
+      } else {
+        s = await base44.entities.Student.list().catch(() => []);
+      }
+
+      setRecords(r);
+      setStudents(s);
+    } catch (err) {
+      setRecords([]);
+      setStudents([]);
+    }
     setLoading(false);
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="p-6">
+        <PageHeader title="Disciplinary Records" description="Akses dihadkan" />
+        <EmptyState icon={ShieldAlert} title="Akses Ditolak" description="Peranan anda tidak dibenarkan mengakses rekod tatatertib kolej." />
+      </div>
+    );
   }
 
   async function handleSubmit() {

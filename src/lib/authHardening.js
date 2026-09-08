@@ -20,15 +20,21 @@ export function validatePasswordStrength(password) {
   const hasDigit = /[0-9]/.test(password);
   const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
 
-  if (!hasUpper || !hasLower || !hasDigit) {
+  if (!hasUpper || !hasLower || !hasDigit || !hasSpecial) {
     return {
       valid: false,
-      message: 'Kata laluan mesti mengandungi kombinasi huruf besar, huruf kecil, dan sekurang-kurangnya satu nombor.',
+      message: 'Kata laluan mesti mengandungi kombinasi huruf besar, huruf kecil, nombor, dan sekurang-kurangnya satu aksara khas (!@#$%^&* dsb).',
     };
   }
 
   return { valid: true, message: 'Kata laluan kukuh.' };
 }
+
+/**
+ * CLIENT-SIDE / APPLICATION-LEVEL RATE LIMITING HELPER (SIMULATION)
+ * Note: This in-memory tracking provides client-side throttling during active sessions.
+ * Authoritative production account lockout is managed by the underlying Base44 auth provider.
+ */
 
 // In-memory failed login tracker for rate-limiting simulation
 const failedAttemptsMap = new Map();

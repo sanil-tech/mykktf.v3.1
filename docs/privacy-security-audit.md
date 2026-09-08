@@ -1,9 +1,12 @@
-# MYKKTF v3.1 — CURRENT-STATE PRIVACY & SECURITY AUDIT REPORT
+# MYKKTF v3.1 — HISTORICAL BASELINE PRIVACY & SECURITY AUDIT REPORT
+
+> [!NOTE]
+> **Historical baseline audit — pre-Phase-2 findings**: This document represents the initial pre-remediation discovery baseline audit. For the active verified audit and forensic reconciliation, refer to [privacy-phase2-audit.md](file:///c:/Users/sanil/OneDrive/Desktop/studyquest-ai-1/quantumAI/scratch/mykktf.v3.1/docs/privacy-phase2-audit.md) and [phase2.1-security-reconciliation.md](file:///c:/Users/sanil/OneDrive/Desktop/studyquest-ai-1/quantumAI/scratch/mykktf.v3.1/docs/phase2.1-security-reconciliation.md).
 
 **System**: MyKKTF (Digital Residential College Management System)  
 **Institution**: Kolej Kediaman Tun Fuad (KKTF), Universiti Malaysia Sabah (UMS)  
-**Framework Alignment**: Personal Data Protection Act 2010 (Act 709) & Personal Data Protection (Amendment) Act 2024  
-**Date of Audit**: September 2026  
+**Framework Alignment**: Technical Privacy Baselines & Malaysian PDPA Principles (Act 709)  
+**Date of Initial Audit**: September 2026  
 **Auditor**: Antigravity Privacy & Security Engineering Subagent  
 
 ---

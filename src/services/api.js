@@ -3,7 +3,15 @@ import { base44 } from '@/api/base44Client';
 // Central API wrapper used by CheckInOut page.
 // Maps the `api.*` calls to the actual base44 SDK entity methods.
 export const api = {
-  getStudents: () => base44.entities.Student.list(),
+  getStudents: async () => {
+    try {
+      const fnRes = await base44.functions.invoke('getScopedStudents', {}).catch(() => null);
+      if (fnRes && Array.isArray(fnRes.data?.students || fnRes.students)) {
+        return fnRes.data?.students || fnRes.students;
+      }
+    } catch (e) {}
+    return base44.entities.Student.list();
+  },
   getRooms: () => base44.entities.Room.list(),
   getRoomById: (id) => base44.entities.Room.get(id),
 

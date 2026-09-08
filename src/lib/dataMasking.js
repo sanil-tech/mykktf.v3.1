@@ -64,23 +64,39 @@ export function maskEmail(email) {
 export function sanitizeStudentData(student, userRole, currentUserId = null) {
   if (!student) return null;
   
-  const isSelf = currentUserId && (student.id === currentUserId || student.email === currentUserId || student.user_id === currentUserId);
+  const isSelf = currentUserId && (
+    student.id === currentUserId || 
+    student.email === currentUserId || 
+    student.user_id === currentUserId ||
+    student.student_id === currentUserId
+  );
   const hasSensitiveAccess = canViewSensitiveProfile(userRole) || isSelf;
   const hasMedicalAccess = canAccessMedicalData(userRole) || isSelf;
 
   const sanitized = { ...student };
 
-  // Mask or strip IC
+  // Mask or strip sensitive identification and contact data
   if (!hasSensitiveAccess) {
-    sanitized.ic_passport = maskIC(student.ic_passport);
-    sanitized.parent_phone = maskPhone(student.parent_phone);
-    sanitized.emergency_contact_phone = maskPhone(student.emergency_contact_phone);
+    if (student.ic_passport) sanitized.ic_passport = maskIC(student.ic_passport);
+    if (student.ic_no) sanitized.ic_no = maskIC(student.ic_no);
+    if (student.parent_phone) sanitized.parent_phone = maskPhone(student.parent_phone);
+    if (student.emergency_contact) sanitized.emergency_contact = maskPhone(student.emergency_contact);
+    if (student.emergency_contact_phone) sanitized.emergency_contact_phone = maskPhone(student.emergency_contact_phone);
     sanitized.parent_income = '[RESTRICTED]';
   }
 
-  // Mask Phone for JAKMAS or general peer views
+  // Mask primary phone (both phone and phone_number) for JAKMAS or general non-management peer views
+  if (userRole === ROLES.JAKMAS || (!hasSensitiveAccess && userRole !== ROLES.WARDEN)) {
+    if (student.phone) sanitized.phone = maskPhone(student.phone);
+    if (student.phone_number) sanitized.phone_number = maskPhone(student.phone_number);
+  }
+
+  // JAKMAS specific restrictions: parent and emergency contacts must be completely restricted
   if (userRole === ROLES.JAKMAS) {
-    sanitized.phone_number = maskPhone(student.phone_number);
+    sanitized.parent_phone = '[RESTRICTED]';
+    sanitized.emergency_contact = '[RESTRICTED]';
+    sanitized.emergency_contact_phone = '[RESTRICTED]';
+    sanitized.parent_name = '[RESTRICTED]';
   }
 
   // Strip or redact medical and disability data if unauthorized

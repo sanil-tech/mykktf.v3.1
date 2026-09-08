@@ -21,7 +21,7 @@ const FACULTIES = ['Engineering', 'Science', 'Arts', 'Business', 'Medicine', 'Ed
 const PAGE_SIZE = 10;
 const emptyForm = { student_id: '', full_name: '', ic_passport: '', gender: 'Male', date_of_birth: '', faculty: '', programme: '', year_of_study: 1, phone: '', email: '', block_name: '', room_number: '', parent_name: '', parent_phone: '', emergency_contact: '', vehicle_reg: '', status: 'Active', is_test: false };
 
-const ADMIN_ROLES = ['super_admin', 'college_admin', 'staff', 'principal'];
+const ADMIN_ROLES = ['super_admin', 'college_admin', 'principal'];
 
 export default function Students() {
   const [students, setStudents] = useState([]);
@@ -59,19 +59,36 @@ export default function Students() {
     const u = await base44.auth.me();
     setUser(u);
     let data = [];
-    if (isOperatingAsWarden(u)) {
-      // Dapatkan rekod penugasan blok daripada WardenBlock / persona
-      const blockNames = await getWardenBlocks(u);
-      setWardenAssignedBlocks(blockNames);
-      const all = await base44.entities.Student.list('-created_date');
-      // Felo HANYA melihat pelajar bagi blok jagaan mereka sahaja, tiada fallback kepada keseluruhan kolej
-      data = blockNames.length > 0 
-        ? all.filter(s => isBlockInList(s.block_name, blockNames)) 
-        : [];
-    } else {
-      // Super Admin, Pentadbir Kolej, Pengetua, dan Staf melihat keseluruhan direktori pelajar
-      data = await base44.entities.Student.list('-created_date');
+
+    try {
+      // 1. Guna fungsi backend getScopedStudents untuk enforcement server-side
+      const fnRes = await base44.functions.invoke('getScopedStudents', {}).catch(() => null);
+      const resList = fnRes?.data?.students || fnRes?.students;
+      if (Array.isArray(resList)) {
+        data = resList;
+        if (isOperatingAsWarden(u)) {
+          const blockNames = await getWardenBlocks(u);
+          setWardenAssignedBlocks(blockNames);
+        }
+      } else {
+        // Fallback terkawal untuk persekitaran pembangunan
+        if (isOperatingAsWarden(u)) {
+          const blockNames = await getWardenBlocks(u);
+          setWardenAssignedBlocks(blockNames);
+          const all = await base44.entities.Student.filter({}).catch(() => []);
+          data = blockNames.length > 0 
+            ? all.filter(s => isBlockInList(s.block_name, blockNames)) 
+            : [];
+        } else if (ADMIN_ROLES.includes(u?.role)) {
+          data = await base44.entities.Student.list('-created_date').catch(() => []);
+        } else {
+          data = [];
+        }
+      }
+    } catch (err) {
+      data = [];
     }
+
     // Selaraskan nombor waris dan emergency contact jika salah satu kosong
     const syncedData = data.map(s => {
       const resolved = s.emergency_contact || s.parent_phone || '';
@@ -82,20 +99,10 @@ export default function Students() {
       };
     });
     setStudents(syncedData);
-
-    // Auto-update ke pangkalan data jika salah satu belum ada
-    syncedData.forEach(async (s) => {
-      if ((!s.emergency_contact && s.parent_phone) || (!s.parent_phone && s.emergency_contact)) {
-        try {
-          const ph = s.parent_phone || s.emergency_contact;
-          await base44.entities.Student.update(s.id, { parent_phone: ph, emergency_contact: ph });
-        } catch (eSync) {}
-      }
-    });
     setLoading(false);
   }
 
-  const canManageStudents = ADMIN_ROLES.includes(user?.role) || user?.role === 'principal';
+  const canManageStudents = ADMIN_ROLES.includes(user?.role);
   const isSuperAdmin = user?.role === 'super_admin';
   const testStudents = students.filter(s => s.is_test === true);
 

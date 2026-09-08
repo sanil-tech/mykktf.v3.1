@@ -135,15 +135,20 @@ export function verifyComplaintAccess(currentUser, complaintRecord, wardenAssign
 /**
  * Disciplinary Record Object-Level Authorization
  */
-export function verifyDisciplineAccess(currentUser, disciplineRecord) {
+export function verifyDisciplineAccess(currentUser, disciplineRecord, wardenAssignedBlocks = []) {
   if (!currentUser || !disciplineRecord) return false;
   const role = currentUser.role || ROLES.STUDENT;
 
   // JAKMAS and Staff are strictly barred
   if (role === ROLES.JAKMAS || role === ROLES.STAFF) return false;
 
-  if (role === ROLES.SUPER_ADMIN || role === ROLES.PRINCIPAL || role === ROLES.ADMIN || role === ROLES.WARDEN) {
+  if (role === ROLES.SUPER_ADMIN || role === ROLES.PRINCIPAL || role === ROLES.ADMIN) {
     return true;
+  }
+
+  if (role === ROLES.WARDEN) {
+    const block = disciplineRecord.block_name || disciplineRecord.block;
+    return isBlockInList(block, wardenAssignedBlocks);
   }
 
   // Student can only view their own resolved record

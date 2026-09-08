@@ -26,7 +26,7 @@ A comprehensive Phase 2 Technical Privacy and Security Audit was performed on th
 The MyKKTF v3.1 application is engineered using a modern client-server architecture:
 - **Frontend Layer**: React 18 + Vite SPA, styled using Tailwind CSS and Radix UI / Lucide icons.
 - **Backend & Database Layer**: Base44 Serverless BaaS with JSON Schema Entity Definitions (`base44/entities/*.jsonc`), Row-Level Security (RLS) policies, and backend JavaScript micro-functions (`base44/functions/*`).
-- **Security & Authorization Guard**: Application-level security middleware (`src/lib/securityGuards.js` and `src/lib/privacyRules.js`) enforcing object-level authorization, block scope validation, and field-level masking before state rendering or export generation.
+- **Security & Authorization Guard**: Application-level security middleware (`src/lib/securityGuards.js` and `src/lib/permissions.js`) enforcing object-level authorization, block scope validation, and field-level masking before state rendering or export generation.
 - **Communication Gateway**: Resend transactional email API integration (`base44/functions/send-email.js`).
 - **Client Deployment**: Static web distribution bundle with hardened environment variable resolution (`src/lib/app-params.js`).
 
@@ -40,10 +40,10 @@ The MyKKTF v3.1 application is engineered using a modern client-server architect
                                     v
 +-----------------------------------------------------------------------+
 |                    APPLICATION SECURITY GUARDS LAYER                  |
-|   - RBAC & Role Permission Engine (privacyRules.js)                   |
+|   - RBAC & Role Permission Engine (permissions.js)                    |
 |   - Object-Level / IDOR Guard (securityGuards.js)                     |
 |   - Felo Block Scope Evaluator (verifyStudentAccess)                  |
-|   - Field Masking & Projection Filter (maskSensitiveField)            |
+|   - Field Masking & Projection Filter (dataMasking.js)                |
 |   - Input Sanitizer & Parameter Stripper (sanitizeInputString)        |
 +-----------------------------------+-----------------------------------+
                                     |
@@ -60,7 +60,7 @@ The MyKKTF v3.1 application is engineered using a modern client-server architect
 
 ## 3. Role & Permission Matrix
 
-The application implements a 7-tier Role-Based Access Control (RBAC) model. The permission matrix below reflects the actual enforced rules in `src/lib/privacyRules.js` and `src/lib/securityGuards.js`:
+The application implements a 7-tier Role-Based Access Control (RBAC) model. The permission matrix below reflects the actual enforced rules in `src/lib/permissions.js` and `src/lib/securityGuards.js`:
 
 | Role | Scope / Boundary | Student Basic Profile | Sensitive Profile (IC/Income) | Room / Check-in | Leave Approval | Complaints / Maint. | Welfare Records | Disciplinary Records | Audit Log Access | Bulk Export |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
