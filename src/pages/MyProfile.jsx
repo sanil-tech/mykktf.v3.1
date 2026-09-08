@@ -10,6 +10,7 @@ import { User, Save, Loader2, Building2, ShieldCheck, Briefcase, Camera, Trash2,
 import { Badge } from '@/components/ui/badge';
 import DigitalResidentPass from '@/components/shared/DigitalResidentPass';
 import CollegeTranscriptModal from '@/components/CollegeTranscriptModal';
+import DataCorrectionModal from '@/components/DataCorrectionModal';
 import { ROLE_LABELS } from '@/lib/roles';
 
 export function toWhatsAppNumber(phone) {
@@ -95,6 +96,7 @@ export default function MyProfile() {
   const [attendances, setAttendances] = useState([]);
   const [merits, setMerits] = useState([]);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [correctionOpen, setCorrectionOpen] = useState(false);
   const { toast } = useToast();
 
   async function handlePhotoUpload(e, isStaff = false) {
@@ -750,8 +752,23 @@ export default function MyProfile() {
           </div>
         </div>
 
-        <div className="flex justify-end pt-3 border-t border-border">
-          <Button onClick={handleSave} size="sm" disabled={saving} className="bg-primary text-primary-foreground font-bold rounded-xl text-xs">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-border">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300">
+              <ShieldCheck className="w-3 h-3 mr-1" /> Notis Privasi PDPA Aktif (v2026.1)
+            </Badge>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCorrectionOpen(true)}
+              className="text-xs h-8 rounded-xl border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300"
+            >
+              Mohon Pindaan Data Rasmi
+            </Button>
+          </div>
+
+          <Button onClick={handleSave} size="sm" disabled={saving} className="bg-primary text-primary-foreground font-bold rounded-xl text-xs w-full sm:w-auto">
             {saving ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Save className="w-4 h-4 mr-1.5" />}
             Simpan Maklumat Profil
           </Button>
@@ -765,6 +782,14 @@ export default function MyProfile() {
         student={student || form} 
         attendanceRecords={attendances} 
         meritTransactions={merits} 
+      />
+
+      {/* MODAL PEMBETULAN DATA SUBJEK RESIDEN */}
+      <DataCorrectionModal
+        open={correctionOpen}
+        onOpenChange={setCorrectionOpen}
+        user={currentUser}
+        student={student || form}
       />
     </div>
   );

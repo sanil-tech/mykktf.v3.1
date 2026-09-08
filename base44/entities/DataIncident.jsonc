@@ -1,0 +1,96 @@
+{
+  "name": "DataIncident",
+  "type": "object",
+  "properties": {
+    "incident_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "detected_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reported_by": {
+      "type": "string"
+    },
+    "incident_type": {
+      "type": "string",
+      "enum": ["UNAUTHORIZED_ACCESS", "DATA_EXFILTRATION", "ACCIDENTAL_DISCLOSURE", "SYSTEM_COMPROMISE", "CREDENTIAL_LEAK", "OTHER"]
+    },
+    "systems_affected": {
+      "type": "string"
+    },
+    "data_categories": {
+      "type": "string"
+    },
+    "estimated_records_affected": {
+      "type": "number",
+      "default": 0
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    },
+    "containment_status": {
+      "type": "string",
+      "enum": ["UNCONTAINED", "CONTAINED", "REMEDIATED"]
+    },
+    "workflow_status": {
+      "type": "string",
+      "enum": ["DETECTED", "CONTAINED", "UNDER_INVESTIGATION", "ESCALATED", "REMEDIATED", "CLOSED"],
+      "default": "DETECTED"
+    },
+    "investigation_notes": {
+      "type": "string"
+    },
+    "escalated_to_ums_dpo": {
+      "type": "boolean",
+      "default": false
+    },
+    "escalated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "remediation_summary": {
+      "type": "string"
+    },
+    "closed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "incident_id",
+    "title",
+    "detected_at",
+    "incident_type",
+    "risk_level",
+    "workflow_status"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": {
+          "$in": ["super_admin", "principal", "college_admin"]
+        }
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": {
+          "$in": ["super_admin", "principal", "college_admin"]
+        }
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": {
+          "$in": ["super_admin", "principal", "college_admin"]
+        }
+      }
+    },
+    "delete": false
+  }
+}

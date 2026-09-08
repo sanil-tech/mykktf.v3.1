@@ -1,0 +1,54 @@
+{
+  "name": "PrivacyAcknowledgement",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "user_email": {
+      "type": "string"
+    },
+    "matric_number": {
+      "type": "string"
+    },
+    "privacy_notice_version": {
+      "type": "string"
+    },
+    "acknowledged_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ip_address": {
+      "type": "string"
+    },
+    "user_agent": {
+      "type": "string"
+    },
+    "optional_consent_marketing": {
+      "type": "boolean",
+      "default": false
+    },
+    "optional_consent_alumni_network": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "user_id",
+    "privacy_notice_version",
+    "acknowledged_at"
+  ],
+  "rls": {
+    "create": true,
+    "read": {
+      "user_condition": {
+        "$or": [
+          { "id": "{{user.id}}" },
+          { "role": { "$in": ["super_admin", "principal", "college_admin"] } }
+        ]
+      }
+    },
+    "update": false,
+    "delete": false
+  }
+}

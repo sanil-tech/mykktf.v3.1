@@ -2,19 +2,46 @@
   "name": "AuditLog",
   "type": "object",
   "properties": {
+    "event_id": {
+      "type": "string"
+    },
     "user_id": {
       "type": "string"
     },
     "user_name": {
       "type": "string"
     },
+    "actor_role": {
+      "type": "string"
+    },
     "action": {
+      "type": "string"
+    },
+    "action_type": {
       "type": "string"
     },
     "module": {
       "type": "string"
     },
+    "resource_type": {
+      "type": "string"
+    },
+    "resource_id": {
+      "type": "string"
+    },
+    "affected_user_id": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string"
+    },
+    "session_context": {
+      "type": "string"
+    },
     "details": {
+      "type": "string"
+    },
+    "before_after_metadata": {
       "type": "string"
     },
     "timestamp": {
@@ -32,7 +59,9 @@
     "create": true,
     "read": {
       "user_condition": {
-        "role": "super_admin"
+        "role": {
+          "$in": ["super_admin", "principal"]
+        }
       }
     },
     "update": false,

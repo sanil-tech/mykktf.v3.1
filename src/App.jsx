@@ -46,13 +46,26 @@ import MeritDemerit from '@/pages/MeritDemerit';
 import Contact from '@/pages/Contact';
 import RoomInspections from '@/pages/RoomInspections';
 import ExpressDropKey from '@/pages/ExpressDropKey';
-import EVoting from '@/pages/EVoting';
+import PrivacyDashboard from '@/pages/PrivacyDashboard';
+import PrivacyNoticeModal from '@/components/PrivacyNoticeModal';
+import { checkPrivacyAcknowledgement } from '@/lib/privacyNotice';
 import { useState, useEffect } from 'react';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, user } = useAuth();
   const [needsSetup, setNeedsSetup] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(false);
+  const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (user && !isLoadingAuth) {
+      checkPrivacyAcknowledgement(user).then((res) => {
+        if (!res.acknowledged) {
+          setPrivacyModalOpen(true);
+        }
+      });
+    }
+  }, [user, isLoadingAuth]);
 
   useEffect(() => {
     // Only check setup for newly registered users (no role yet or role is default)
@@ -93,6 +106,7 @@ const AuthenticatedApp = () => {
   }
 
   return (
+    <>
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
@@ -114,6 +128,8 @@ const AuthenticatedApp = () => {
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/audit-log" element={<AuditLog />} />
+          <Route path="/privacy-dashboard" element={<PrivacyDashboard />} />
+          <Route path="/privacy" element={<PrivacyDashboard />} />
           <Route path="/my-profile" element={<MyProfile />} />
           <Route path="/block-assignment" element={<BlockAssignment />} />
           <Route path="/complaints" element={<Complaints />} />
@@ -147,6 +163,12 @@ const AuthenticatedApp = () => {
       <Route path="/student-setup" element={<StudentSetup user={user} onComplete={() => { window.location.href = '/'; }} />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
+    <PrivacyNoticeModal
+      open={privacyModalOpen}
+      user={user}
+      onAcknowledge={() => setPrivacyModalOpen(false)}
+    />
+    </>
   );
 };
 

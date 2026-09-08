@@ -9,6 +9,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { toast } from "@/components/ui/use-toast";
+import { validatePasswordStrength } from "@/lib/authHardening";
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -22,6 +23,12 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    const strengthCheck = validatePasswordStrength(password);
+    if (!strengthCheck.valid) {
+      setError(strengthCheck.message);
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");

@@ -1,0 +1,78 @@
+{
+  "name": "CorrectionRequest",
+  "type": "object",
+  "properties": {
+    "request_id": {
+      "type": "string"
+    },
+    "student_id": {
+      "type": "string"
+    },
+    "student_name": {
+      "type": "string"
+    },
+    "matric_number": {
+      "type": "string"
+    },
+    "field_to_correct": {
+      "type": "string"
+    },
+    "current_value": {
+      "type": "string"
+    },
+    "requested_value": {
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "supporting_doc_url": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PENDING", "APPROVED", "REJECTED"],
+      "default": "PENDING"
+    },
+    "reviewed_by": {
+      "type": "string"
+    },
+    "review_remarks": {
+      "type": "string"
+    },
+    "reviewed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "request_id",
+    "student_id",
+    "field_to_correct",
+    "requested_value",
+    "reason"
+  ],
+  "rls": {
+    "create": true,
+    "read": {
+      "user_condition": {
+        "$or": [
+          { "student_id": "{{user.id}}" },
+          { "role": { "$in": ["super_admin", "principal", "college_admin", "warden", "staff"] } }
+        ]
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": {
+          "$in": ["super_admin", "principal", "college_admin"]
+        }
+      }
+    },
+    "delete": false
+  }
+}

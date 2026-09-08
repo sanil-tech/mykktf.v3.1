@@ -68,6 +68,7 @@ export function getNavItems(role, hasJakmas = false) {
     { label: 'Agihan Blok Felo', path: '/block-assignment', icon: 'UserCog', section: 'Pengurusan & Analisis', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
     { label: 'Pengurusan JAKMAS', path: '/jakmas-management', icon: 'UserCog', section: 'Pengurusan & Analisis', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
     { label: 'Pangkalan Pengetahuan AI', path: '/ai-knowledge', icon: 'Sparkles', section: 'Pengurusan & Analisis', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
+    { label: 'Tadbir Urus Data & Privasi', path: '/privacy-dashboard', icon: 'ShieldCheck', section: 'Pengurusan & Analisis', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL, ROLES.ADMIN] },
     { label: 'Log Audit Keselamatan', path: '/audit-log', icon: 'ScrollText', section: 'Pengurusan & Analisis', roles: [ROLES.SUPER_ADMIN, ROLES.PRINCIPAL] },
 
     // =========================================================================

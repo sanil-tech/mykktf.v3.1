@@ -11,10 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, Search, GraduationCap, Edit, Trash2, Eye, Lock, User, Building, Phone, Mail, FlaskConical, RotateCcw, AlertTriangle } from 'lucide-react';
 import TablePagination from '@/components/shared/TablePagination';
-import { TableSkeleton } from '@/components/shared/ListSkeletons';
 import { logAudit } from '@/lib/audit';
 import { isBlockInList, isSameBlock, ALL_KKTF_BLOCKS } from '@/lib/kktfBlocks';
 import { isOperatingAsWarden, getWardenBlocks } from '@/lib/wardenHelper';
+import { maskIC, maskPhone } from '@/lib/dataMasking';
+import { canViewSensitiveProfile } from '@/lib/permissions';
 
 const FACULTIES = ['Engineering', 'Science', 'Arts', 'Business', 'Medicine', 'Education', 'Law', 'IT'];
 const PAGE_SIZE = 10;
@@ -404,6 +405,22 @@ export default function Students() {
     );
   }
 
+  function handleViewStudent(s) {
+    setViewStudent(s);
+    setViewOpen(true);
+    logAudit({
+      user,
+      action: 'STUDENT_PROFILE_VIEW',
+      action_type: 'READ',
+      module: 'Students',
+      resource_type: 'Student',
+      resource_id: s.id,
+      affected_user_id: s.student_id,
+      result: 'SUCCESS',
+      details: { student_id: s.student_id, full_name: s.full_name },
+    });
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader 
@@ -528,7 +545,7 @@ export default function Students() {
                           size="icon" 
                           className="h-7 w-7 text-indigo-700 hover:bg-indigo-50" 
                           title="Lihat Butiran Pelajar"
-                          onClick={() => { setViewStudent(s); setViewOpen(true); }}
+                          onClick={() => handleViewStudent(s)}
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </Button>
@@ -727,11 +744,15 @@ export default function Students() {
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase font-semibold">Waris / Ibu Bapa</p>
-                  <p className="font-medium text-slate-900 mt-0.5">{viewStudent.parent_name || '—'} ({viewStudent.parent_phone || '—'})</p>
+                  <p className="font-medium text-slate-900 mt-0.5">
+                    {viewStudent.parent_name || '—'} ({canViewSensitiveProfile(user?.role) ? (viewStudent.parent_phone || '—') : maskPhone(viewStudent.parent_phone)})
+                  </p>
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase font-semibold">Kecemasan / Kenderaan</p>
-                  <p className="font-medium text-slate-900 mt-0.5">{viewStudent.emergency_contact || '—'} / {viewStudent.vehicle_reg || 'Tiada'}</p>
+                  <p className="font-medium text-slate-900 mt-0.5">
+                    {canViewSensitiveProfile(user?.role) ? (viewStudent.emergency_contact || '—') : maskPhone(viewStudent.emergency_contact)} / {viewStudent.vehicle_reg || 'Tiada'}
+                  </p>
                 </div>
               </div>
 

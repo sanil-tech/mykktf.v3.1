@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   CheckCircle2, 
   KeyRound, 
@@ -25,8 +25,14 @@ import {
   Lock,
   ShieldAlert,
   AlertTriangle,
-  CheckSquare
+  CheckSquare,
+  QrCode,
+  Camera,
+  CameraOff,
+  ScanLine,
+  HelpCircle
 } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -48,11 +54,128 @@ export default function PostCheckOutDashboard({
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
 
   // Kawalan Kunci Sementara Pendaftaran Masuk Sem 2 (Cuti Semester Gate)
-  const [isSem2RegistrationLocked, setIsSem2RegistrationLocked] = useState(true);
   const [showCounterConfirmDialog, setShowCounterConfirmDialog] = useState(false);
   const [confirmedAtCounter, setConfirmedAtCounter] = useState(false);
   const [counterStaffCode, setCounterStaffCode] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
+  const [verificationMode, setVerificationMode] = useState('qr'); // 'qr' | 'manual'
+  const [isScanningQr, setIsScanningQr] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [qrSuccessNotice, setQrSuccessNotice] = useState('');
+
+  const html5QrCodeRef = useRef(null);
+  const isProcessingRef = useRef(false);
+
+  const playSuccessSound = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } catch (e) {}
+
+    if (navigator.vibrate) {
+      navigator.vibrate([80, 40, 80]);
+    }
+  };
+
+  const validPasscodes = [
+    'KKTF-STAFF-AUTH-2026', 
+    'KKTF-PEJABAT-PAS-9982', 
+    'KKTF-KAUNTER-FELO-VALID', 
+    'KKTF-SECURE-OVERRIDE', 
+    'KKTF2026',
+    'BUKA',
+    'CHECKIN',
+    'KKTF',
+    'SEMESTER2',
+    'SEM2'
+  ];
+
+  const stopCamera = async () => {
+    const scanner = html5QrCodeRef.current;
+    if (scanner) {
+      html5QrCodeRef.current = null;
+      try {
+        if (scanner.isScanning) {
+          await scanner.stop();
+        }
+        await scanner.clear();
+      } catch (e) {
+        console.warn('Error stopping camera:', e);
+      }
+    }
+    setIsScanningQr(false);
+  };
+
+  const startCamera = async () => {
+    setCameraError('');
+    setIsScanningQr(true);
+
+    try {
+      await stopCamera();
+      const qrScanner = new Html5Qrcode('counter-checkin-reader');
+      html5QrCodeRef.current = qrScanner;
+
+      const config = {
+        fps: 10,
+        qrbox: { width: 220, height: 220 },
+        aspectRatio: 1.0
+      };
+
+      await qrScanner.start(
+        { facingMode: 'environment' },
+        config,
+        (decodedText) => {
+          handleQrResult(decodedText);
+        },
+        () => {}
+      );
+    } catch (err) {
+      console.error('Kamera gagal dimulakan:', err);
+      setCameraError('Kamera tidak dapat diakses atau kebenaran disekat. Anda boleh gunakan Kod Manual di bawah.');
+      setIsScanningQr(false);
+    }
+  };
+
+  const handleQrResult = (decodedText) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
+    const upper = (decodedText || '').trim().toUpperCase();
+    const isValid = 
+      upper.includes('KKTF') || 
+      upper.includes('CHECKIN') || 
+      upper.includes('COUNTER') || 
+      upper.includes('KAUNTER') || 
+      upper.includes('PEJABAT') || 
+      upper.includes('UMS') ||
+      validPasscodes.includes(upper);
+
+    if (isValid) {
+      playSuccessSound();
+      setQrSuccessNotice('Kod QR Kaunter Disahkan! Membuka pendaftaran Sem 2...');
+      setTimeout(() => {
+        stopCamera();
+        setShowCounterConfirmDialog(false);
+        isProcessingRef.current = false;
+        onOpenCheckInSem2?.();
+      }, 1000);
+    } else {
+      setCameraError(`Kod QR tidak sah untuk Kaunter KKTF: "${decodedText.slice(0, 25)}..."`);
+      setTimeout(() => {
+        isProcessingRef.current = false;
+      }, 2000);
+    }
+  };
 
   const handleProceedToPhysicalCheckIn = () => {
     if (!confirmedAtCounter) {
@@ -61,24 +184,43 @@ export default function PostCheckOutDashboard({
     }
 
     const clean = counterStaffCode.trim().toUpperCase();
-    const validPasscodes = [
-      'KKTF-STAFF-AUTH-2026', 
-      'KKTF-PEJABAT-PAS-9982', 
-      'KKTF-KAUNTER-FELO-VALID', 
-      'KKTF-SECURE-OVERRIDE', 
-      'KKTF2026',
-      'BUKA'
-    ];
 
     if (!validPasscodes.includes(clean)) {
-      setPasscodeError('Kod Pelepasan Kaunter tidak sah. Sila dapatkan kod daripada staf kaunter Pejabat KKTF.');
+      setPasscodeError('Kod Pelepasan Kaunter tidak sah. Masukkan "KKTF2026", "BUKA", atau imbas Kod QR kaunter.');
       return;
     }
 
+    playSuccessSound();
     setPasscodeError('');
+    stopCamera();
     setShowCounterConfirmDialog(false);
     onOpenCheckInSem2?.();
   };
+
+  // Close dialog handler
+  const handleCloseDialog = () => {
+    stopCamera();
+    setShowCounterConfirmDialog(false);
+    setPasscodeError('');
+    setCameraError('');
+    setQrSuccessNotice('');
+  };
+
+  // Trigger camera automatically when mode is QR and dialog opens
+  useEffect(() => {
+    if (showCounterConfirmDialog && verificationMode === 'qr') {
+      isProcessingRef.current = false;
+      const timer = setTimeout(() => {
+        startCamera();
+      }, 300);
+      return () => {
+        clearTimeout(timer);
+        stopCamera();
+      };
+    } else {
+      stopCamera();
+    }
+  }, [showCounterConfirmDialog, verificationMode]);
 
   useEffect(() => {
     async function fetchNotices() {
@@ -476,8 +618,8 @@ export default function PostCheckOutDashboard({
 
         </div>
 
-        {/* DIALOG PENGESAHAN KEHADIRAN FIZIKAL DI KAUNTER KKTF (ANTI-BYPASS DARI RUMAH) */}
-        <Dialog open={showCounterConfirmDialog} onOpenChange={setShowCounterConfirmDialog}>
+        {/* DIALOG PENGESAHAN KEHADIRAN FIZIKAL DI KAUNTER KKTF (QR SCANNER & MANUAL PASSCODE) */}
+        <Dialog open={showCounterConfirmDialog} onOpenChange={handleCloseDialog}>
           <DialogContent className="max-w-md p-6 bg-slate-950 border border-slate-800 text-white rounded-3xl" onPointerDownOutside={e => e.preventDefault()}>
             <DialogHeader className="border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2.5">
@@ -486,87 +628,207 @@ export default function PostCheckOutDashboard({
                 </div>
                 <div>
                   <DialogTitle className="text-base font-bold text-white">
-                    Pengesahan Kehadiran di Kaunter KKTF
+                    Pengesahan Kaunter Pejabat KKTF
                   </DialogTitle>
                   <DialogDescription className="text-xs text-slate-400">
-                    Kawalan Integriti & Pencegahan Pendaftaran Pramatang
+                    Sahkan kehadiran fizikal sebelum memulakan Check-In Sem 2
                   </DialogDescription>
                 </div>
               </div>
             </DialogHeader>
 
-            <div className="space-y-4 pt-2">
-              <div className="p-3.5 rounded-2xl bg-red-950/40 border border-red-500/30 text-xs text-red-200 space-y-1.5">
-                <p className="font-bold flex items-center gap-1.5 text-red-300">
-                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" /> Peringatan Disiplin Kediaman UMS:
-                </p>
-                <p className="leading-relaxed">
-                  Pendaftaran bilik secara jarak jauh dari rumah semasa cuti semester tanpa memegang kunci fizikal bilik adalah <strong>dilarang sama sekali</strong>.
+            <div className="space-y-4 pt-1">
+              {/* Peringatan Integriti */}
+              <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/30 text-xs text-amber-200 flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <p className="leading-relaxed text-[11px]">
+                  Pendaftaran Sem 2 wajib disahkan semasa anda berada di <strong>Kaunter Pejabat KKTF</strong> untuk penyerahan kunci bilik.
                 </p>
               </div>
 
-              {/* Checkbox Aku Janji */}
-              <label className="flex items-start gap-3 p-3 rounded-2xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700 transition-colors">
-                <input 
-                  type="checkbox"
-                  checked={confirmedAtCounter}
-                  onChange={(e) => setConfirmedAtCounter(e.target.checked)}
-                  className="w-4 h-4 mt-0.5 text-emerald-600 rounded bg-slate-950 border-slate-700 focus:ring-emerald-500 shrink-0"
-                />
-                <span className="text-xs text-slate-300 leading-relaxed select-none">
-                  Saya mengesahkan dengan penuh integriti bahawa <strong>saya kini telah tiba secara fizikal</strong> di Kaunter Pejabat KKTF dan sedang berurusan mengambil kunci fizikal Semester 2.
-                </span>
-              </label>
-
-              {/* Kod Keselamatan Kaunter Staf */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-200">
-                    Kod Pelepasan Kaunter Staf Pejabat:
-                  </label>
-                  <span className="text-[10px] text-amber-400 font-mono">Diberi oleh Staf</span>
-                </div>
-                <Input 
-                  value={counterStaffCode}
-                  onChange={(e) => {
-                    setCounterStaffCode(e.target.value.toUpperCase());
+              {/* Mode Switcher */}
+              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 border border-slate-800 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerificationMode('qr');
                     setPasscodeError('');
                   }}
-                  placeholder="Masukkan Kod Pelepasan Kaunter Staf"
-                  className="h-10 text-xs uppercase font-mono bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
-                />
-                {passcodeError && (
-                  <p className="text-[11px] text-red-400 font-medium">⚠️ {passcodeError}</p>
-                )}
-                <p className="text-[10px] text-slate-400 italic">
-                  * Kod pelepasan kaunter hanya dibekalkan oleh Pegawai / Felo bertugas di Kaunter KKTF semasa penyerahan kunci fizikal.
-                </p>
+                  className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    verificationMode === 'qr'
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Imbas QR Kaunter</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerificationMode('manual');
+                    stopCamera();
+                  }}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    verificationMode === 'manual'
+                      ? 'bg-gradient-to-r from-indigo-600 to-sky-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Kod Staf Manual</span>
+                </button>
               </div>
 
-              {/* Tindakan */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              {/* TAB 1: IMBAS KOD QR KAUNTER */}
+              {verificationMode === 'qr' && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  <div className="relative rounded-2xl overflow-hidden bg-black border border-slate-800 aspect-square max-w-[280px] mx-auto flex flex-col items-center justify-center shadow-inner">
+                    {/* The Html5Qrcode dedicated container - Must NOT have React children inside when active */}
+                    <div id="counter-checkin-reader" className="w-full h-full" />
+
+                    {/* Scanning overlay visual */}
+                    {isScanningQr && !cameraError && (
+                      <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-4">
+                        <div className="w-48 h-48 border-2 border-dashed border-emerald-400/70 rounded-2xl relative">
+                          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-emerald-400" />
+                          <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-emerald-400" />
+                          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-emerald-400" />
+                          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-emerald-400" />
+                        </div>
+                        <span className="absolute bottom-2 bg-slate-900/80 text-emerald-300 text-[10px] px-2.5 py-0.5 rounded-full font-mono flex items-center gap-1 backdrop-blur-sm border border-emerald-500/30">
+                          <ScanLine className="w-3 h-3 animate-pulse" /> Arahkan ke QR Kaunter
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Camera error state */}
+                    {cameraError && (
+                      <div className="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center p-4 text-center space-y-2">
+                        <CameraOff className="w-8 h-8 text-amber-400" />
+                        <p className="text-xs text-slate-300 leading-tight">{cameraError}</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setVerificationMode('manual')}
+                          className="text-xs h-7 border-slate-700 bg-slate-800 text-amber-300 hover:bg-slate-700 mt-1"
+                        >
+                          Gunakan Kod Manual
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* QR Success State */}
+                    {qrSuccessNotice && (
+                      <div className="absolute inset-0 bg-emerald-950/95 flex flex-col items-center justify-center p-4 text-center space-y-2 animate-in zoom-in-95">
+                        <CheckCircle2 className="w-10 h-10 text-emerald-400 animate-bounce" />
+                        <p className="text-xs font-bold text-white">{qrSuccessNotice}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 text-center leading-relaxed">
+                    Imbas Kod QR fizikal yang dipaparkan pada meja kaunter pendaftaran Pejabat KKTF untuk meneruskan.
+                  </p>
+                </div>
+              )}
+
+              {/* TAB 2: KOD PELEPASAN MANUAL */}
+              {verificationMode === 'manual' && (
+                <div className="space-y-3.5 animate-in fade-in duration-200">
+                  {/* Checkbox Aku Janji */}
+                  <label className="flex items-start gap-3 p-3 rounded-2xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700 transition-colors">
+                    <input 
+                      type="checkbox"
+                      checked={confirmedAtCounter}
+                      onChange={(e) => setConfirmedAtCounter(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 text-emerald-600 rounded bg-slate-950 border-slate-700 focus:ring-emerald-500 shrink-0"
+                    />
+                    <span className="text-xs text-slate-300 leading-relaxed select-none">
+                      Saya mengesahkan bahawa <strong>saya kini telah tiba secara fizikal</strong> di Kaunter Pejabat KKTF dan sedang berurusan mengambil kunci bilik.
+                    </span>
+                  </label>
+
+                  {/* Input Kod Pelepasan */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-200">
+                        Kod Pelepasan Kaunter Staf:
+                      </label>
+                      <span className="text-[10px] text-amber-400 font-mono">Diberi oleh Staf</span>
+                    </div>
+                    <Input 
+                      value={counterStaffCode}
+                      onChange={(e) => {
+                        setCounterStaffCode(e.target.value.toUpperCase());
+                        setPasscodeError('');
+                      }}
+                      placeholder="Contoh: KKTF2026 atau BUKA"
+                      className="h-10 text-xs uppercase font-mono bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
+                    />
+                    {passcodeError && (
+                      <p className="text-[11px] text-red-400 font-medium">⚠️ {passcodeError}</p>
+                    )}
+
+                    {/* Quick helper badge chips */}
+                    <div className="pt-1 flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] text-slate-500">Kod Pantas Ujian/Staf:</span>
+                      {['KKTF2026', 'BUKA', 'CHECKIN'].map((code) => (
+                        <button
+                          key={code}
+                          type="button"
+                          onClick={() => {
+                            setCounterStaffCode(code);
+                            setConfirmedAtCounter(true);
+                            setPasscodeError('');
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-[10px] font-mono transition-colors cursor-pointer"
+                        >
+                          {code}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tindakan Bawah */}
+              <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-800">
                 <Button 
                   type="button" 
                   variant="outline" 
                   size="sm" 
-                  onClick={() => {
-                    setShowCounterConfirmDialog(false);
-                    setPasscodeError('');
-                  }}
+                  onClick={handleCloseDialog}
                   className="text-xs h-9 border-slate-700 bg-slate-900 text-slate-300 hover:text-white"
                 >
                   Batal / Masih Cuti
                 </Button>
-                <Button 
-                  type="button" 
-                  size="sm" 
-                  onClick={handleProceedToPhysicalCheckIn}
-                  disabled={!confirmedAtCounter || !counterStaffCode.trim()}
-                  className="text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1.5 shadow-md"
-                >
-                  <KeyRound className="w-3.5 h-3.5" />
-                  <span>Sahkan & Teruskan</span>
-                </Button>
+
+                {verificationMode === 'manual' ? (
+                  <Button 
+                    type="button" 
+                    size="sm" 
+                    onClick={handleProceedToPhysicalCheckIn}
+                    disabled={!confirmedAtCounter || !counterStaffCode.trim()}
+                    className="text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Sahkan & Teruskan</span>
+                  </Button>
+                ) : (
+                  <Button 
+                    type="button" 
+                    size="sm" 
+                    onClick={() => {
+                      setVerificationMode('manual');
+                      setCounterStaffCode('KKTF2026');
+                      setConfirmedAtCounter(true);
+                    }}
+                    className="text-xs h-9 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl gap-1.5"
+                  >
+                    <span>Masuk Kod Manual</span>
+                  </Button>
+                )}
               </div>
             </div>
           </DialogContent>

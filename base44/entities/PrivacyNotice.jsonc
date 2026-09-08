@@ -1,0 +1,56 @@
+{
+  "name": "PrivacyNotice",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "content_ms": {
+      "type": "string"
+    },
+    "content_en": {
+      "type": "string"
+    },
+    "effective_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "created_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "version",
+    "title",
+    "content_ms",
+    "effective_date"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": {
+          "$in": ["super_admin", "principal", "college_admin"]
+        }
+      }
+    },
+    "read": true,
+    "update": {
+      "user_condition": {
+        "role": {
+          "$in": ["super_admin", "principal"]
+        }
+      }
+    },
+    "delete": false
+  }
+}

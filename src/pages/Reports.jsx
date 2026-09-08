@@ -6,7 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
-import { FileBarChart, Download, Loader2, FileSpreadsheet, FileText, CheckCheck, Square } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
+import { secureExportData } from '@/lib/exportControl';
+import { FileBarChart, Download, Loader2, FileSpreadsheet, FileText, CheckCheck, Square, ShieldAlert } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
 const REPORT_TYPES = [
@@ -70,108 +72,140 @@ export default function Reports() {
     toast({ title: `${config.label} generated with ${filtered.length} records` });
   }
 
+  const { user } = useAuth();
   const activeCols = allColumns.filter(c => selectedCols.includes(c));
 
-  function exportCSV() {
+  async function exportCSV() {
     if (!data || data.records.length === 0 || activeCols.length === 0) return;
-    const csv = [activeCols.join(','), ...data.records.map(r => activeCols.map(h => `"${(r[h] ?? '').toString().replace(/"/g, '""')}"`).join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${data.type.replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function exportPDF() {
-    if (!data || data.records.length === 0 || activeCols.length === 0) return;
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-    const margin = 36;
-    const usableW = pageW - margin * 2;
-    const colW = usableW / activeCols.length;
-    let y = 0;
-
-    // Header band
-    doc.setFillColor(11, 30, 54);
-    doc.rect(0, 0, pageW, 64, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(15);
-    doc.text('Kolej Kediaman Tun Fuad (KKTF)', margin, 28);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(data.type, margin, 48);
-    doc.text('Generated: ' + data.generated, pageW - margin, 48, { align: 'right' });
-
-    y = 84;
-    doc.setTextColor(40, 40, 40);
-    doc.setFontSize(7.5);
-
-    // Table header
-    doc.setFillColor(19, 42, 74);
-    doc.rect(margin, y - 11, usableW, 16, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    activeCols.forEach((c, i) => {
-      const label = c.replace(/_/g, ' ').toUpperCase();
-      doc.text(label.length > 22 ? label.substring(0, 22) + '…' : label, margin + i * colW + 4, y);
-    });
-    y += 14;
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(40, 40, 40);
-
-    const maxChars = Math.max(6, Math.floor(colW / 4.5));
-    data.records.forEach((r, idx) => {
-      if (y > pageH - margin - 16) {
-        doc.addPage();
-        y = margin;
-      }
-      if (idx % 2 === 0) {
-        doc.setFillColor(244, 247, 251);
-        doc.rect(margin, y - 10, usableW, 14, 'F');
-      }
-      activeCols.forEach((c, i) => {
-        const val = (r[c] ?? '').toString();
-        doc.text(val.length > maxChars ? val.substring(0, maxChars) + '…' : val, margin + i * colW + 4, y);
+    try {
+      const sanitizedRecords = await secureExportData({
+        user,
+        data: data.records,
+        exportType: 'CSV',
+        module: 'Reports',
+        purpose: `Laporan Rasmi: ${data.type}`,
+        allowedFields: activeCols,
       });
-      y += 14;
-    });
 
-    // Footer page numbers
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let p = 1; p <= pageCount; p++) {
-      doc.setPage(p);
-      doc.setFontSize(7.5);
-      doc.setTextColor(130, 130, 130);
-      doc.text(`KKTF Report — Page ${p} of ${pageCount}`, pageW - margin, pageH - 10, { align: 'right' });
+      const csv = [activeCols.join(','), ...sanitizedRecords.map(r => activeCols.map(h => `"${(r[h] ?? '').toString().replace(/"/g, '""')}"`).join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${data.type.replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: 'Eksport CSV Berjaya', description: 'Tindakan eksport telah direkodkan dalam Log Audit.' });
+    } catch (err) {
+      toast({ title: 'Ralat Eksport', description: err.message, variant: 'destructive' });
     }
-
-    doc.save(`${data.type.replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
   }
 
-  function exportExcel() {
+  async function exportPDF() {
     if (!data || data.records.length === 0 || activeCols.length === 0) return;
-    const esc = (v) => (v ?? '').toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const headerCells = activeCols.map(c =>
-      `<th style="background:#132A4A;color:#fff;font-weight:700;padding:6px 8px;border:1px solid #cbd5e1;text-align:left;">${esc(c.replace(/_/g, ' '))}</th>`
-    ).join('');
-    const bodyRows = data.records.map((r, i) => {
-      const cells = activeCols.map(c =>
-        `<td style="padding:5px 8px;border:1px solid #e2e8f0;background:${i % 2 ? '#f8fafc' : '#ffffff'}">${esc(r[c] ?? '')}</td>`
+    try {
+      const sanitizedRecords = await secureExportData({
+        user,
+        data: data.records,
+        exportType: 'PDF',
+        module: 'Reports',
+        purpose: `Laporan PDF: ${data.type}`,
+        allowedFields: activeCols,
+      });
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 36;
+      const usableW = pageW - margin * 2;
+      const colW = usableW / activeCols.length;
+      let y = 0;
+
+      // Header band
+      doc.setFillColor(11, 30, 54);
+      doc.rect(0, 0, pageW, 64, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(15);
+      doc.text('Kolej Kediaman Tun Fuad (KKTF)', margin, 28);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(data.type + ' (Protected Export)', margin, 48);
+      doc.text('Generated: ' + data.generated, pageW - margin, 48, { align: 'right' });
+
+      y = 84;
+      doc.setTextColor(40, 40, 40);
+
+      // Table Header
+      doc.setFillColor(240, 243, 246);
+      doc.rect(margin, y, usableW, 22, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      activeCols.forEach((col, idx) => {
+        doc.text(col.toUpperCase(), margin + idx * colW + 4, y + 14);
+      });
+
+      y += 24;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+
+      sanitizedRecords.forEach((row, rowIdx) => {
+        if (y > pageH - 40) {
+          doc.addPage();
+          y = 40;
+        }
+        if (rowIdx % 2 === 1) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(margin, y - 2, usableW, 16, 'F');
+        }
+        activeCols.forEach((col, colIdx) => {
+          const val = String(row[col] ?? '').substring(0, 28);
+          doc.text(val, margin + colIdx * colW + 4, y + 9);
+        });
+        y += 16;
+      });
+
+      doc.save(`${data.type.replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast({ title: 'Eksport PDF Berjaya', description: 'Tindakan eksport telah direkodkan dalam Log Audit.' });
+    } catch (err) {
+      toast({ title: 'Ralat Eksport', description: err.message, variant: 'destructive' });
+    }
+  }
+
+  async function exportExcel() {
+    if (!data || data.records.length === 0 || activeCols.length === 0) return;
+    try {
+      const sanitizedRecords = await secureExportData({
+        user,
+        data: data.records,
+        exportType: 'EXCEL',
+        module: 'Reports',
+        purpose: `Laporan Excel: ${data.type}`,
+        allowedFields: activeCols,
+      });
+
+      const esc = (v) => (v ?? '').toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const headerCells = activeCols.map(c =>
+        `<th style="background:#132A4A;color:#fff;font-weight:700;padding:6px 8px;border:1px solid #cbd5e1;text-align:left;">${esc(c.replace(/_/g, ' '))}</th>`
       ).join('');
-      return `<tr>${cells}</tr>`;
-    }).join('');
-    const html = `<table border="1" style="border-collapse:collapse;font-family:Arial;font-size:11px;"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>`;
-    const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${data.type.replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}.xls`;
-    a.click();
-    URL.revokeObjectURL(url);
+      const bodyRows = sanitizedRecords.map((r, i) => {
+        const cells = activeCols.map(c =>
+          `<td style="padding:5px 8px;border:1px solid #e2e8f0;background:${i % 2 ? '#f8fafc' : '#ffffff'}">${esc(r[c] ?? '')}</td>`
+        ).join('');
+        return `<tr>${cells}</tr>`;
+      }).join('');
+      const html = `<table border="1" style="border-collapse:collapse;font-family:Arial;font-size:11px;"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+      const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${data.type.replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}.xls`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: 'Eksport Excel Berjaya', description: 'Tindakan eksport telah direkodkan dalam Log Audit.' });
+    } catch (err) {
+      toast({ title: 'Ralat Eksport', description: err.message, variant: 'destructive' });
+    }
   }
 
   return (

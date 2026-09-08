@@ -1,0 +1,58 @@
+{
+  "name": "RetentionPolicy",
+  "type": "object",
+  "properties": {
+    "category": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "retention_period_months": {
+      "type": "number"
+    },
+    "action_on_expiry": {
+      "type": "string",
+      "enum": ["ARCHIVE", "RESTRICT", "ANONYMIZE", "DELETE_SAFE"]
+    },
+    "legal_basis": {
+      "type": "string"
+    },
+    "last_reviewed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reviewed_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "category",
+    "retention_period_months",
+    "action_on_expiry"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": {
+          "$in": ["super_admin", "principal"]
+        }
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": {
+          "$in": ["super_admin", "principal", "college_admin"]
+        }
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": {
+          "$in": ["super_admin", "principal"]
+        }
+      }
+    },
+    "delete": false
+  }
+}
