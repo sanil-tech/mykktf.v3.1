@@ -11,17 +11,16 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, Search, GraduationCap, Edit, Trash2, Eye, Lock, User, Building, Phone, Mail, FlaskConical, RotateCcw, AlertTriangle } from 'lucide-react';
 import TablePagination from '@/components/shared/TablePagination';
+import { TableSkeleton } from '@/components/shared/ListSkeletons';
 import { logAudit } from '@/lib/audit';
 import { isBlockInList, isSameBlock, ALL_KKTF_BLOCKS } from '@/lib/kktfBlocks';
 import { isOperatingAsWarden, getWardenBlocks } from '@/lib/wardenHelper';
-import { maskIC, maskPhone } from '@/lib/dataMasking';
-import { canViewSensitiveProfile } from '@/lib/permissions';
 
 const FACULTIES = ['Engineering', 'Science', 'Arts', 'Business', 'Medicine', 'Education', 'Law', 'IT'];
 const PAGE_SIZE = 10;
 const emptyForm = { student_id: '', full_name: '', ic_passport: '', gender: 'Male', date_of_birth: '', faculty: '', programme: '', year_of_study: 1, phone: '', email: '', block_name: '', room_number: '', parent_name: '', parent_phone: '', emergency_contact: '', vehicle_reg: '', status: 'Active', is_test: false };
 
-const ADMIN_ROLES = ['super_admin', 'college_admin', 'principal'];
+const ADMIN_ROLES = ['super_admin', 'college_admin', 'staff', 'principal'];
 
 export default function Students() {
   const [students, setStudents] = useState([]);
@@ -59,36 +58,19 @@ export default function Students() {
     const u = await base44.auth.me();
     setUser(u);
     let data = [];
-
-    try {
-      // 1. Guna fungsi backend getScopedStudents untuk enforcement server-side
-      const fnRes = await base44.functions.invoke('getScopedStudents', {}).catch(() => null);
-      const resList = fnRes?.data?.students || fnRes?.students;
-      if (Array.isArray(resList)) {
-        data = resList;
-        if (isOperatingAsWarden(u)) {
-          const blockNames = await getWardenBlocks(u);
-          setWardenAssignedBlocks(blockNames);
-        }
-      } else {
-        // Fallback terkawal untuk persekitaran pembangunan
-        if (isOperatingAsWarden(u)) {
-          const blockNames = await getWardenBlocks(u);
-          setWardenAssignedBlocks(blockNames);
-          const all = await base44.entities.Student.filter({}).catch(() => []);
-          data = blockNames.length > 0 
-            ? all.filter(s => isBlockInList(s.block_name, blockNames)) 
-            : [];
-        } else if (ADMIN_ROLES.includes(u?.role)) {
-          data = await base44.entities.Student.list('-created_date').catch(() => []);
-        } else {
-          data = [];
-        }
-      }
-    } catch (err) {
-      data = [];
+    if (isOperatingAsWarden(u)) {
+      // Dapatkan rekod penugasan blok daripada WardenBlock / persona
+      const blockNames = await getWardenBlocks(u);
+      setWardenAssignedBlocks(blockNames);
+      const all = await base44.entities.Student.list('-created_date');
+      // Felo HANYA melihat pelajar bagi blok jagaan mereka sahaja, tiada fallback kepada keseluruhan kolej
+      data = blockNames.length > 0 
+        ? all.filter(s => isBlockInList(s.block_name, blockNames)) 
+        : [];
+    } else {
+      // Super Admin, Pentadbir Kolej, Pengetua, dan Staf melihat keseluruhan direktori pelajar
+      data = await base44.entities.Student.list('-created_date');
     }
-
     // Selaraskan nombor waris dan emergency contact jika salah satu kosong
     const syncedData = data.map(s => {
       const resolved = s.emergency_contact || s.parent_phone || '';
@@ -99,10 +81,20 @@ export default function Students() {
       };
     });
     setStudents(syncedData);
+
+    // Auto-update ke pangkalan data jika salah satu belum ada
+    syncedData.forEach(async (s) => {
+      if ((!s.emergency_contact && s.parent_phone) || (!s.parent_phone && s.emergency_contact)) {
+        try {
+          const ph = s.parent_phone || s.emergency_contact;
+          await base44.entities.Student.update(s.id, { parent_phone: ph, emergency_contact: ph });
+        } catch (eSync) {}
+      }
+    });
     setLoading(false);
   }
 
-  const canManageStudents = ADMIN_ROLES.includes(user?.role);
+  const canManageStudents = ADMIN_ROLES.includes(user?.role) || user?.role === 'principal';
   const isSuperAdmin = user?.role === 'super_admin';
   const testStudents = students.filter(s => s.is_test === true);
 
@@ -412,22 +404,6 @@ export default function Students() {
     );
   }
 
-  function handleViewStudent(s) {
-    setViewStudent(s);
-    setViewOpen(true);
-    logAudit({
-      user,
-      action: 'STUDENT_PROFILE_VIEW',
-      action_type: 'READ',
-      module: 'Students',
-      resource_type: 'Student',
-      resource_id: s.id,
-      affected_user_id: s.student_id,
-      result: 'SUCCESS',
-      details: { student_id: s.student_id, full_name: s.full_name },
-    });
-  }
-
   return (
     <div className="space-y-4">
       <PageHeader 
@@ -552,7 +528,7 @@ export default function Students() {
                           size="icon" 
                           className="h-7 w-7 text-indigo-700 hover:bg-indigo-50" 
                           title="Lihat Butiran Pelajar"
-                          onClick={() => handleViewStudent(s)}
+                          onClick={() => { setViewStudent(s); setViewOpen(true); }}
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </Button>
@@ -751,15 +727,11 @@ export default function Students() {
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase font-semibold">Waris / Ibu Bapa</p>
-                  <p className="font-medium text-slate-900 mt-0.5">
-                    {viewStudent.parent_name || '—'} ({canViewSensitiveProfile(user?.role) ? (viewStudent.parent_phone || '—') : maskPhone(viewStudent.parent_phone)})
-                  </p>
+                  <p className="font-medium text-slate-900 mt-0.5">{viewStudent.parent_name || '—'} ({viewStudent.parent_phone || '—'})</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase font-semibold">Kecemasan / Kenderaan</p>
-                  <p className="font-medium text-slate-900 mt-0.5">
-                    {canViewSensitiveProfile(user?.role) ? (viewStudent.emergency_contact || '—') : maskPhone(viewStudent.emergency_contact)} / {viewStudent.vehicle_reg || 'Tiada'}
-                  </p>
+                  <p className="font-medium text-slate-900 mt-0.5">{viewStudent.emergency_contact || '—'} / {viewStudent.vehicle_reg || 'Tiada'}</p>
                 </div>
               </div>
 
